@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Disconnect WebSockets on BFCache Entry — Chrome 149 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v149/">&larr; Chrome 149 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v149 · platform behavior · shipped</p>
+    <h1>Disconnect WebSockets on BFCache Entry</h1>
+    <p class="lede">Pages with active WebSocket connections can now enter the back/forward cache. Chrome 149 closes open connections when the page is cached, fires the <code>close</code> event, and expects apps to reconnect when <code>pageshow</code> fires with <code>persisted: true</code>.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Action required</strong>
+    If your app holds long-lived WebSocket connections (chat, live feeds, collaborative editing), test BFCache restoration after this change. Apps that reconnect on the <code>close</code> event work correctly; apps that assume a connection is always live will stall after a back/forward navigation.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 149 (desktop + Android)</td></tr>
+      <tr><th>Status</th><td>Browser behavior change (no new API)</td></tr>
+      <tr><th>Flag</th><td>None</td></tr>
+      <tr><th>Spec</th><td><a href="https://github.com/whatwg/html/pull/12349" target="_blank" rel="noopener">WHATWG HTML PR #12349</a></td></tr>
+      <tr><th>Web Platform Tests</th><td><a href="https://wpt.fyi/results/websockets/back-forward-cache-closes-open-websocket-connection.tentative.window.html" target="_blank" rel="noopener">websockets/back-forward-cache-closes-open-websocket-connection</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5068439115923456" target="_blank" rel="noopener">5068439115923456 — Disconnect WebSockets on BFCache entry</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>The back/forward cache (BFCache) stores a page's full live state in memory so that back-button and forward-button navigation is nearly instant. Until Chrome 149, any page with an active WebSocket connection was disqualified from BFCache — the browser couldn't safely freeze a live connection. Popular web apps like Notion, Figma, and Slack Web all keep persistent WebSocket connections, so BFCache was effectively unavailable for them, hurting navigation performance for millions of users.</p>
+    <p>Chrome 149 resolves the incompatibility by closing WebSocket connections when the page enters BFCache rather than blocking caching entirely. Well-written apps already handle the <code>close</code> event to reconnect on unexpected disconnections (network drops, server restarts). Those apps get BFCache for free.</p>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/52nlr8z3Png" target="_blank" rel="noopener">blink-dev Web-Facing Change PSA</a> and chromestatus motivation.</span>
+  </section>
+
+  <section>
+    <h2>what changes</h2>
+    <table class="doc-table">
+      <tr>
+        <th>Before Chrome 149</th>
+        <td>A page with any open <code>WebSocket</code> is ineligible for BFCache. Navigating away and pressing Back causes a full page reload.</td>
+      </tr>
+      <tr>
+        <th>Chrome 149+</th>
+        <td>On BFCache entry, Chrome closes open WebSocket connections. The <code>close</code> event fires on each socket. The page is stored in the cache.</td>
+      </tr>
+      <tr>
+        <th>On BFCache restore</th>
+        <td><code>pageshow</code> fires with <code>event.persisted === true</code>. The app's existing close-and-reconnect logic (if present) reopens the connection.</td>
+      </tr>
+    </table>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/12349" target="_blank" rel="noopener">WHATWG HTML PR #12349</a>.</span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+
+    <h3>Reconnect on BFCache restore</h3>
+<pre><code>let ws;
+
+function connect() {
+  ws = new WebSocket("wss://example.com/live");
+  ws.addEventListener("message", handleMessage);
+  ws.addEventListener("close", () => {
+    // Handles network drops, server restarts, AND BFCache entry.
+    // Schedule a reconnect (with back-off in production).
+    setTimeout(connect, 1000);
+  });
+}
+
+// Initial connection.
+connect();
+
+// When the page is restored from BFCache, re-establish if close
+// handler hasn't already scheduled a reconnect.
+window.addEventListener("pageshow", (event) => {
+  if (event.persisted && ws.readyState !== WebSocket.OPEN) {
+    connect();
+  }
+});</code></pre>
+
+    <h3>Check BFCache eligibility in DevTools</h3>
+<pre><code>// Chrome DevTools: Application → Back/Forward Cache → Test.
+// A page with an open WebSocket now shows as BFCache-eligible.
+// Previously it listed "WebSocket" in the blocking-reasons list.</code></pre>
+  </section>
+
+  <section>
+    <h2>compatibility notes</h2>
+    <table class="doc-table">
+      <tr>
+        <th>Apps that reconnect on close</th>
+        <td>No action needed. BFCache now works. Users get faster back/forward navigation.</td>
+      </tr>
+      <tr>
+        <th>Apps that assume connection is always live</th>
+        <td>Will stall after BFCache restore. Add a <code>pageshow</code> + <code>readyState</code> check.</td>
+      </tr>
+      <tr>
+        <th>Apps that use <code>WebSocketStream</code></th>
+        <td>Same behavior — streams are closed on BFCache entry.</td>
+      </tr>
+      <tr>
+        <th>Server-side sessions tied to socket lifetime</th>
+        <td>A close from BFCache entry looks identical to a normal close. Server-side timeout/reconnect logic should handle it cleanly.</td>
+      </tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome</th><td>149 — WebSocket connections no longer block BFCache</td></tr>
+      <tr><th>Edge</th><td>149 (Chromium)</td></tr>
+      <tr><th>Firefox</th><td>BFCache supported; WebSocket behaviour may differ — check MDN BFCache docs</td></tr>
+      <tr><th>Safari</th><td>BFCache supported; WebSocket behaviour may differ — check WebKit release notes</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5068439115923456" target="_blank" rel="noopener">chromestatus browser views</a>, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Page_lifecycle_API#back/forward_cache" target="_blank" rel="noopener">MDN: Page Lifecycle API — BFCache</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API" target="_blank" rel="noopener">MDN: WebSockets API</a></li>
+      <li><a href="https://web.dev/articles/bfcache" target="_blank" rel="noopener">web.dev: Back/forward cache (bfcache)</a></li>
+      <li><a href="https://github.com/whatwg/html/pull/12349" target="_blank" rel="noopener">WHATWG HTML PR #12349</a> — the normative spec change</li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v149/disconnect-websockets-on-bfcache-entry/" target="_blank" rel="noopener">chrome-platform-showcase: BFCache WebSocket demos</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
