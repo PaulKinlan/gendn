@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Clip text-overflow on User Interaction — Chrome 149 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .demo-overflow {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      max-width: 260px;
+      border: 2px solid var(--border-black);
+      padding: 0.5rem 0.75rem;
+      font-family: var(--font-mono);
+      background: var(--bg-paper);
+      cursor: text;
+      outline: none;
+    }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v149/">&larr; Chrome 149 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v149 · css · platform behavior</p>
+    <h1>Clip <code>text-overflow</code> on User Interaction</h1>
+    <p class="lede">When a user clicks into or navigates by caret through an element that shows a truncation ellipsis (<code>text-overflow: ellipsis</code>), Chrome 149 temporarily clips the text instead — letting the user see and interact with the full hidden content.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 149 (desktop, Android, WebView, iOS)</td></tr>
+      <tr><th>Status</th><td>Platform behaviour change (no new CSS property)</td></tr>
+      <tr><th>Flag</th><td>None</td></tr>
+      <tr><th>Spec</th><td><a href="https://www.w3.org/TR/css-overflow-3/#ellipsis-interaction" target="_blank" rel="noopener">CSS Overflow Level 3 §ellipsis-interaction</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5146265241387008" target="_blank" rel="noopener">5146265241387008 — Clip Text overflow on user interaction</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p><code>text-overflow: ellipsis</code> clips long text and replaces the tail with <code>…</code>, which is useful for labels and single-line display elements. The problem arises when the element is editable or keyboard-focusable: pressing End to jump to the end of a long filename, or clicking the middle of a truncated label in a WYSIWYG editor, could move the caret into invisible content. The user sees the cursor blink but can't tell where they are.</p>
+    <p>The CSS Overflow spec has always said that text should revert to clipping during user interaction, but the behaviour was only implemented for <code>&lt;input&gt;</code> and <code>&lt;textarea&gt;</code> form controls. Chrome 149 extends this to all elements — including <code>contenteditable</code> divs and any focusable element — matching what the spec requires.</p>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/css-overflow-3/#ellipsis-interaction" target="_blank" rel="noopener">CSS Overflow Level 3 §ellipsis-interaction</a> and blink-dev Intent to Ship.</span>
+  </section>
+
+  <section>
+    <h2>what changes</h2>
+    <table class="doc-table">
+      <tr>
+        <th>Before Chrome 149</th>
+        <td>Elements with <code>text-overflow: ellipsis</code> (other than <code>&lt;input&gt;</code> / <code>&lt;textarea&gt;</code>) kept showing <code>…</code> even when focused or edited, hiding the caret and part of the content.</td>
+      </tr>
+      <tr>
+        <th>Chrome 149+</th>
+        <td>When the user focuses, clicks, or moves the caret inside such an element, the overflow mode temporarily switches to <code>clip</code>. The full text is visible during interaction. When focus leaves the element, the ellipsis is restored.</td>
+      </tr>
+      <tr>
+        <th>Affected elements</th>
+        <td>All elements with <code>overflow: hidden; white-space: nowrap; text-overflow: ellipsis</code> that receive focus or editing. This includes <code>contenteditable</code>, elements with <code>tabindex</code>, and form controls (already worked).</td>
+      </tr>
+    </table>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/css-overflow-3/#ellipsis-interaction" target="_blank" rel="noopener">CSS Overflow Level 3 §ellipsis-interaction</a>.</span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+
+    <h3>Try it: click the label below and navigate with keyboard</h3>
+    <p>In Chrome 149+, clicking into the box below or pressing End will reveal the full text:</p>
+    <div class="demo-overflow" contenteditable="true" tabindex="0">
+      This is a very long line of text that gets truncated with an ellipsis in the display
+    </div>
+
+<pre><code>.label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  max-width: 260px;
+  /* Chrome 149: clicking/tabbing into this element
+     temporarily switches text-overflow to 'clip' */
+}
+</code></pre>
+
+    <h3>Contenteditable rich text field</h3>
+<pre><code>&lt;div
+  contenteditable="true"
+  style="
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    max-width: 300px;
+  "
+&gt;
+  A very long filename or title that might be truncated at rest
+&lt;/div&gt;
+
+&lt;!-- Chrome 149: when the user clicks in to edit, the ellipsis
+     disappears and the full text is visible. When focus leaves,
+     the ellipsis returns. --&gt;</code></pre>
+  </section>
+
+  <section>
+    <h2>compatibility notes</h2>
+    <table class="doc-table">
+      <tr>
+        <th>Form controls (input, textarea)</th>
+        <td>Already behaved this way before Chrome 149. No change.</td>
+      </tr>
+      <tr>
+        <th>Display-only elements (no focus, no editing)</th>
+        <td>Unaffected. Ellipsis is always shown when the element is not being interacted with.</td>
+      </tr>
+      <tr>
+        <th>Firefox</th>
+        <td>Implements this behaviour per spec for form controls; non-form behaviour may vary.</td>
+      </tr>
+      <tr>
+        <th>Safari</th>
+        <td>Implements this behaviour for form controls.</td>
+      </tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome</th><td>149 — all elements (form controls since earlier)</td></tr>
+      <tr><th>Edge</th><td>149 (Chromium)</td></tr>
+      <tr><th>Firefox</th><td>Partial (form controls only per MDN)</td></tr>
+      <tr><th>Safari</th><td>Partial (form controls only)</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5146265241387008" target="_blank" rel="noopener">chromestatus browser views</a>, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/CSS/text-overflow" target="_blank" rel="noopener">MDN: text-overflow</a></li>
+      <li><a href="https://www.w3.org/TR/css-overflow-3/#ellipsis-interaction" target="_blank" rel="noopener">CSS Overflow Level 3 §ellipsis-interaction</a> — the normative spec section</li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v149/clip-text-overflow-on-user-interaction/" target="_blank" rel="noopener">chrome-platform-showcase: text-overflow clip demos</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
