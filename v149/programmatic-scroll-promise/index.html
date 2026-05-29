@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Programmatic Scroll Promise — Chrome 149 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v149/">&larr; Chrome 149 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v149 · web api · shipped</p>
+    <h1>Programmatic Scroll Promise</h1>
+    <p class="lede">Scroll methods on <code>Element</code> and <code>Window</code> now return a <code>Promise&lt;undefined&gt;</code> that resolves when the scroll animation finishes — or when it is interrupted. After a decade of workarounds, you can finally <code>await element.scrollTo(0, top)</code>.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 149 (desktop, Android, WebView)</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Flag</th><td>None</td></tr>
+      <tr><th>Standards position</th><td>Tracked in CSSWG issue · <a href="https://github.com/w3c/csswg-drafts/issues/1562" target="_blank" rel="noopener">csswg-drafts #1562</a></td></tr>
+      <tr><th>Spec</th><td><a href="https://drafts.csswg.org/cssom-view/" target="_blank" rel="noopener">CSSOM View Module</a> — W3C editor's draft</td></tr>
+      <tr><th>Explainer</th><td><a href="https://github.com/explainers-by-googlers/promisify-scroll" target="_blank" rel="noopener">explainers-by-googlers / promisify-scroll</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5082138340491264" target="_blank" rel="noopener">5082138340491264 — Programmatic scroll promise</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Smooth scrolling is async — the browser animates over several frames — but <code>scrollTo()</code> has always returned <code>undefined</code>, leaving developers with no way to know when the animation has finished. Common workarounds included listening to <code>scrollend</code>, starting a <code>requestAnimationFrame</code> loop, or using a <code>setTimeout</code> guess. The <code>scrollend</code> event helps, but it doesn't distinguish between a completed scroll and one that was cut short by a competing scroll. Scroll Promises close that gap: a single <code>await</code> tells you exactly when the scroll is done — or when it was interrupted — without additional event listeners.</p>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/promisify-scroll" target="_blank" rel="noopener">promisify-scroll explainer</a> §1 "Motivation".</span>
+  </section>
+
+  <section>
+    <h2>shape of the API</h2>
+    <p>Every programmatic scroll method on <code>Element</code> and <code>Window</code> now returns <code>Promise&lt;undefined&gt;</code> instead of <code>undefined</code>. Existing callers that ignore the return value are unaffected.</p>
+
+    <h3>Element</h3>
+    <table class="doc-table">
+      <tr>
+        <th>scroll(options) / scroll(x, y)</th>
+        <td>Returns <code>Promise&lt;undefined&gt;</code> that resolves when the scroll settles.</td>
+      </tr>
+      <tr>
+        <th>scrollTo(options) / scrollTo(x, y)</th>
+        <td>Alias of <code>scroll()</code>; same Promise semantics.</td>
+      </tr>
+      <tr>
+        <th>scrollBy(options) / scrollBy(x, y)</th>
+        <td>Scrolls relative to the current position; returns a Promise.</td>
+      </tr>
+      <tr>
+        <th>scrollIntoView(options)</th>
+        <td>Scrolls the element into the viewport; returns a Promise.</td>
+      </tr>
+    </table>
+
+    <h3>Window</h3>
+    <table class="doc-table">
+      <tr>
+        <th>scroll(options) / scroll(x, y)</th>
+        <td>Returns <code>Promise&lt;undefined&gt;</code>.</td>
+      </tr>
+      <tr>
+        <th>scrollTo(options) / scrollTo(x, y)</th>
+        <td>Same as <code>scroll()</code>.</td>
+      </tr>
+      <tr>
+        <th>scrollBy(options) / scrollBy(x, y)</th>
+        <td>Returns a Promise.</td>
+      </tr>
+    </table>
+    <span class="citation">Source: <a href="https://drafts.csswg.org/cssom-view/" target="_blank" rel="noopener">CSSOM View Module</a>; method signatures from the promisify-scroll explainer.</span>
+
+    <h3>Promise resolution semantics</h3>
+    <table class="doc-table">
+      <tr>
+        <th>Immediate (no-op)</th>
+        <td>The target position is already the current position. Promise resolves synchronously in the next microtask.</td>
+      </tr>
+      <tr>
+        <th>Animation complete</th>
+        <td>Smooth-scroll animation finishes without interruption. Promise resolves after the final paint.</td>
+      </tr>
+      <tr>
+        <th>Interrupted</th>
+        <td>Another programmatic scroll call or a user gesture starts a new scroll before the current one finishes. Promise resolves (never rejects) with the scroll cut short.</td>
+      </tr>
+    </table>
+    <p>Promises <strong>never reject</strong>. This preserves backwards compatibility — unhandled rejections would surface silently in existing code that ignores the return value.</p>
+    <span class="citation">Source: promisify-scroll explainer §3 "Interruption behaviour".</span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+
+    <h3>Sequence two animations</h3>
+<pre><code>// Scroll to top, then fade the hero in once the scroll settles.
+async function revealHero() {
+  await window.scrollTo({ top: 0, behavior: "smooth" });
+  document.querySelector(".hero").classList.add("visible");
+}</code></pre>
+
+    <h3>Dim a button during scroll</h3>
+<pre><code>button.addEventListener("click", async () => {
+  button.classList.add("loading");
+  await container.scrollTo({ left: nextPage * pageWidth, behavior: "smooth" });
+  button.classList.remove("loading");
+  loadNextPageContent();
+});</code></pre>
+
+    <h3>Handle interruption gracefully</h3>
+<pre><code>// Promise always resolves — even if the user overrides the scroll.
+await element.scrollIntoView({ behavior: "smooth" });
+// By here the element is either fully in view or the scroll was
+// interrupted. Either way it's safe to act.
+element.focus();</code></pre>
+
+    <h3>Instant scroll (behavior: "instant" / behavior: "auto")</h3>
+<pre><code>// Instant scrolls also return a Promise — it resolves immediately.
+await window.scrollTo({ top: 0, behavior: "instant" });
+console.log("at top");</code></pre>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome</th><td>149 (desktop, Android, WebView)</td></tr>
+      <tr><th>Edge</th><td>149 (Chromium)</td></tr>
+      <tr><th>Firefox</th><td>No signal (as of Chrome 149 ship date)</td></tr>
+      <tr><th>Safari</th><td>No signal (as of Chrome 149 ship date)</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5082138340491264" target="_blank" rel="noopener">chromestatus browser views</a>, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://github.com/w3c/csswg-drafts/issues/1562" target="_blank" rel="noopener">CSSWG issue #1562</a> — original proposal thread (2017)</li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Element/scrollTo" target="_blank" rel="noopener">MDN: Element.scrollTo()</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Element/scrollend_event" target="_blank" rel="noopener">MDN: scrollend event</a> — the complementary event for listening-based approaches</li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v149/programmatic-scroll-promise/" target="_blank" rel="noopener">chrome-platform-showcase: Programmatic Scroll Promise demos</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
