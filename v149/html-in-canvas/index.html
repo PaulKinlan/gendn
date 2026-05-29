@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HTML-in-Canvas — Chrome 149 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v149/">&larr; Chrome 149 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v149 · web api · origin trial</p>
+    <h1>HTML-in-Canvas</h1>
+    <p class="lede">Draw live DOM elements — with full CSS layout and styling — directly into a 2D canvas, a WebGL texture, or a WebGPU texture. The rendered element stays interactive and accessible in the DOM; the canvas gets a pixel-perfect, GPU-composited snapshot.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Origin trial</strong>
+    HTML-in-Canvas is in origin trial in Chrome 148–150. The API shape is still evolving. Check the <a href="https://github.com/WICG/html-in-canvas" target="_blank" rel="noopener">WICG repo</a> for the current spec before shipping. Flag: <code>chrome://flags/#canvas-draw-element</code>.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Origin trial</th><td>Chrome 148–150</td></tr>
+      <tr><th>Flag</th><td><code>chrome://flags/#canvas-draw-element</code></td></tr>
+      <tr><th>WICG repo</th><td><a href="https://github.com/WICG/html-in-canvas" target="_blank" rel="noopener">WICG / html-in-canvas</a></td></tr>
+      <tr><th>Demo site</th><td><a href="https://html-in-canvas.dev/" target="_blank" rel="noopener">html-in-canvas.dev</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5172548013916160" target="_blank" rel="noopener">5172548013916160 — HTML-in-canvas</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Canvas-based UIs — rich text editors, game UIs, CAD tools, creative apps — have long needed to render HTML inside a canvas. The existing workaround is <code>foreignObject</code> inside an inline SVG serialised to a data URL and fed into <code>drawImage()</code>. That approach loses interactivity, breaks with cross-origin content, skips visited-link styling and accessibility, and can't be hardware-accelerated. HTML-in-Canvas gives apps a first-class path: children of a <code>&lt;canvas layoutsubtree&gt;</code> element lay out in the normal CSS cascade, remain part of the accessibility tree, and can be drawn into any canvas context at any time.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/html-in-canvas" target="_blank" rel="noopener">WICG/html-in-canvas</a> README "Motivation".</span>
+  </section>
+
+  <section>
+    <h2>shape of the API</h2>
+
+    <h3>Step 1: opt the canvas into layout</h3>
+    <table class="doc-table">
+      <tr>
+        <th><code>layoutsubtree</code></th>
+        <td>Boolean attribute on <code>&lt;canvas&gt;</code>. Direct children participate in CSS layout, hit testing, and the accessibility tree. Each child is a stacking context with paint containment.</td>
+      </tr>
+      <tr>
+        <th><code>canvas.requestPaint()</code></th>
+        <td>Schedules a repaint. The <code>paint</code> event fires after intersection-observer steps complete.</td>
+      </tr>
+      <tr>
+        <th><code>onpaint</code> / <code>paint</code> event</th>
+        <td>Fires when any child element's rendering changes. <code>event.changedElements</code> lists which elements triggered the repaint.</td>
+      </tr>
+    </table>
+
+    <h3>Step 2: draw into the canvas context</h3>
+
+    <h4>2D context — drawElementImage</h4>
+    <table class="doc-table">
+      <tr>
+        <th><code>ctx.drawElementImage(element, dx, dy)</code></th>
+        <td>Draw <code>element</code> at <code>(dx, dy)</code> at its natural size.</td>
+      </tr>
+      <tr>
+        <th><code>ctx.drawElementImage(element, dx, dy, dw, dh)</code></th>
+        <td>Draw and scale to <code>dw × dh</code>.</td>
+      </tr>
+      <tr>
+        <th><code>ctx.drawElementImage(element, sx, sy, sw, sh, dx, dy, dw, dh)</code></th>
+        <td>Source-crop then scale. Same parameters as <code>drawImage()</code> with an image source.</td>
+      </tr>
+      <tr>
+        <th>Returns</th>
+        <td><code>DOMMatrix</code> — the transform you can apply to <code>element.style.transform</code> to keep DOM position synchronised with the drawn position.</td>
+      </tr>
+    </table>
+
+    <h4>WebGL — texElementImage2D</h4>
+    <table class="doc-table">
+      <tr>
+        <th><code>gl.texElementImage2D(target, level, internalformat, format, type, element)</code></th>
+        <td>Upload <code>element</code>'s rendered pixels as a texture. Mirrors the <code>texImage2D(target, level, iformat, format, type, image)</code> signature.</td>
+      </tr>
+      <tr>
+        <th>With crop</th>
+        <td>Accepts optional <code>sx, sy, swidth, sheight</code> before <code>format, type, element</code> to crop the source.</td>
+      </tr>
+    </table>
+
+    <h4>WebGPU — copyElementImageToTexture</h4>
+    <table class="doc-table">
+      <tr>
+        <th><code>device.queue.copyElementImageToTexture(source, destination)</code></th>
+        <td>Copies <code>source</code> element pixels to <code>destination</code> (<code>GPUImageCopyTextureTagged</code>). Mirrors <code>copyExternalImageToTexture()</code>.</td>
+      </tr>
+      <tr>
+        <th>With size</th>
+        <td>Optional <code>width, height</code> and <code>sx, sy, swidth, sheight</code> overloads for cropping and resizing.</td>
+      </tr>
+    </table>
+
+    <h3>ElementImage — transferable snapshots</h3>
+    <table class="doc-table">
+      <tr>
+        <th><code>canvas.captureElementImage(element)</code></th>
+        <td>Returns an <code>ElementImage</code>: a transferable snapshot of <code>element</code>'s current render that can be postMessaged to a Worker for use with <code>OffscreenCanvas</code>.</td>
+      </tr>
+      <tr>
+        <th><code>canvas.getElementTransform(element, drawTransform)</code></th>
+        <td>Returns the <code>DOMMatrix</code> mapping canvas draw coordinates to the element's DOM position.</td>
+      </tr>
+    </table>
+    <span class="citation">Source: <a href="https://github.com/WICG/html-in-canvas" target="_blank" rel="noopener">WICG/html-in-canvas</a> WebIDL. Names may change before GA.</span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+
+    <h3>Render a form element into a 2D canvas on every paint</h3>
+<pre><code>&lt;canvas id="c" layoutsubtree width="600" height="400"&gt;
+  &lt;form id="form"&gt;
+    &lt;label&gt;Name &lt;input type="text"&gt;&lt;/label&gt;
+    &lt;button&gt;Submit&lt;/button&gt;
+  &lt;/form&gt;
+&lt;/canvas&gt;
+
+&lt;script&gt;
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+const form = document.getElementById("form");
+
+canvas.onpaint = () => {
+  ctx.reset();
+  // Draw form at (20, 20); returns a matrix to keep DOM in sync.
+  const transform = ctx.drawElementImage(form, 20, 20);
+  form.style.transform = transform.toString();
+};
+&lt;/script&gt;</code></pre>
+
+    <h3>Upload a DOM element as a WebGL texture</h3>
+<pre><code>const gl = canvas.getContext("webgl2");
+const texture = gl.createTexture();
+gl.bindTexture(gl.TEXTURE_2D, texture);
+
+canvas.onpaint = () => {
+  // Upload the element as a texture on every repaint.
+  gl.texElementImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cardElement);
+  renderScene();
+};</code></pre>
+
+    <h3>Transfer a snapshot to an OffscreenCanvas worker</h3>
+<pre><code>// Main thread
+const snapshot = canvas.captureElementImage(richTextEditor);
+worker.postMessage({ snapshot }, [snapshot]); // transferable
+
+// Worker thread
+self.onmessage = ({ data: { snapshot } }) => {
+  const offscreen = new OffscreenCanvas(snapshot.width, snapshot.height);
+  const ctx = offscreen.getContext("2d");
+  ctx.drawElementImage(snapshot, 0, 0);
+  // Process the pixels off the main thread.
+};</code></pre>
+  </section>
+
+  <section>
+    <h2>security model</h2>
+    <p>The API deliberately excludes several categories of sensitive information from drawn pixels to prevent side-channel leaks:</p>
+    <table class="doc-table">
+      <tr><th>Excluded</th><td>Cross-origin <code>&lt;iframe&gt;</code> / <code>&lt;img&gt;</code> content, visited-link styles, spelling markers, system colour values, subpixel anti-aliasing, pending autofill data.</td></tr>
+      <tr><th>Included</th><td>Search highlight / text-fragment markers, scrollbar appearance, caret blink phase, forced-colours media query state.</td></tr>
+    </table>
+    <span class="citation">Source: WICG/html-in-canvas §5 "Security considerations".</span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome</th><td>Origin trial 148–150; flag <code>#canvas-draw-element</code></td></tr>
+      <tr><th>Edge</th><td>Tracking Chromium</td></tr>
+      <tr><th>Firefox</th><td>No signal (as of Chrome 149)</td></tr>
+      <tr><th>Safari</th><td>No signal (as of Chrome 149)</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5172548013916160" target="_blank" rel="noopener">chromestatus browser views</a>, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://html-in-canvas.dev/" target="_blank" rel="noopener">html-in-canvas.dev</a> — interactive demos</li>
+      <li><a href="https://github.com/WICG/html-in-canvas" target="_blank" rel="noopener">WICG/html-in-canvas</a> — spec repo and issue tracker</li>
+      <li><a href="https://tympanus.net/codrops/2026/05/13/exploring-the-html-in-canvas-proposal/" target="_blank" rel="noopener">Codrops: Exploring the HTML-in-Canvas Proposal</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/drawImage" target="_blank" rel="noopener">MDN: CanvasRenderingContext2D.drawImage()</a> — the existing method drawElementImage mirrors</li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v149/html-in-canvas/" target="_blank" rel="noopener">chrome-platform-showcase: HTML-in-Canvas demos</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
