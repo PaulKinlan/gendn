@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebAssembly Custom Descriptors — Chrome 149 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v149/">&larr; Chrome 149 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v149 · webassembly · experimental</p>
+    <h1>WebAssembly Custom Descriptors</h1>
+    <p class="lede">A WasmGC extension that attaches JavaScript prototypes to WebAssembly struct types. JS code can call methods on Wasm objects using normal dot-notation; Wasm objects can participate in <code>instanceof</code> checks. Builds on the WasmGC proposal (structs, arrays, and precise GC).</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Experimental — origin trial</strong>
+    WebAssembly Custom Descriptors is in a Chrome origin trial as of Chrome 149. The WAT syntax and JS API are still being finalised by the WebAssembly CG. Check the <a href="https://github.com/WebAssembly/custom-descriptors" target="_blank" rel="noopener">spec repo</a> before shipping anything that depends on this feature.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Chrome</th><td>Origin trial in Chrome 149</td></tr>
+      <tr><th>Status</th><td>WebAssembly CG proposal — phase 2</td></tr>
+      <tr><th>Spec repo</th><td><a href="https://github.com/WebAssembly/custom-descriptors" target="_blank" rel="noopener">WebAssembly / custom-descriptors</a></td></tr>
+      <tr><th>Overview</th><td><a href="https://github.com/WebAssembly/custom-descriptors/blob/main/proposals/custom-descriptors/Overview.md" target="_blank" rel="noopener">proposals/custom-descriptors/Overview.md</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/6024844719947776" target="_blank" rel="noopener">6024844719947776 — WebAssembly Custom Descriptors</a></td></tr>
+      <tr><th>Prerequisite</th><td>WasmGC (shipped in Chrome 119)</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>WasmGC introduced first-class structs and arrays with precise garbage collection. However, to share type-level data — vtables, interface tables, static fields — across all instances of a struct type, WasmGC programs had to store a reference to that data inside each struct instance. This wastes memory (one pointer per object) and requires explicit field lookups in every vtable call.</p>
+    <p>Custom descriptors solve this with an engine-managed <em>runtime type table</em>: each struct type can have a <em>descriptor</em> type whose single instance is shared by all objects of that struct type. This eliminates the per-object vtable pointer. As a second-order effect, the first field of the descriptor can be a JavaScript prototype object, enabling seamless JS-Wasm interop: <code>wasmObject.myMethod()</code> dispatches through the prototype chain without any wrapping.</p>
+    <span class="citation">Source: <a href="https://github.com/WebAssembly/custom-descriptors/blob/main/proposals/custom-descriptors/Overview.md" target="_blank" rel="noopener">custom-descriptors/Overview.md</a> §1 "Motivation".</span>
+  </section>
+
+  <section>
+    <h2>shape of the API</h2>
+
+    <h3>WAT: descriptor and describes clauses</h3>
+    <p>Structs and their descriptors are paired in a <code>rec</code> group. The struct uses <code>descriptor</code> to name its descriptor type; the descriptor uses <code>describes</code> to name the struct it covers.</p>
+<pre><code>(rec
+  (type $counter (descriptor $counter.vtable)
+    (struct (field $val (mut i32))))
+
+  (type $counter.vtable (describes $counter)
+    (struct
+      (field $proto (ref extern))  ;; first field → JS prototype
+      (field $get   (ref $get_fn))
+      (field $inc   (ref $inc_fn))
+    )
+  )
+)</code></pre>
+
+    <h3>WAT: allocating with a descriptor</h3>
+    <table class="doc-table">
+      <tr>
+        <th><code>struct.new_desc $T desc_ref field...</code></th>
+        <td>Like <code>struct.new</code> but takes a reference to the descriptor instance as the final operand. The descriptor is shared — typically imported as a global.</td>
+      </tr>
+      <tr>
+        <th><code>struct.new_default_desc $T desc_ref</code></th>
+        <td>Same but initialises all fields to zero / null defaults.</td>
+      </tr>
+    </table>
+
+    <h3>WAT: accessing the descriptor</h3>
+    <table class="doc-table">
+      <tr>
+        <th><code>ref.get_desc $T obj_ref</code></th>
+        <td>Returns the descriptor for the given struct instance. If <code>obj_ref</code> has an exact type, the descriptor's exact type is known.</td>
+      </tr>
+    </table>
+
+    <h3>JavaScript prototype integration</h3>
+    <p>If a struct type has a descriptor whose <strong>first field is an immutable <code>externref</code></strong>, the WebAssembly JS API uses that field's value as the prototype for all instances of the struct. No wrapping needed — the Wasm struct acts as a JS object.</p>
+<pre><code>// JavaScript
+const counterProto = {};
+counterProto.get = function() {
+  return wasmExports["counter.get"](this);
+};
+counterProto.inc = function() {
+  wasmExports["counter.inc"](this);
+};
+
+const { instance } = await WebAssembly.instantiateStreaming(
+  fetch("counter.wasm"),
+  { env: { "counter.proto": counterProto } }
+);
+
+const c = instance.exports.counter.value;
+console.log(c.get());   // normal method call on a Wasm object
+c.inc();
+console.log(c instanceof Object);  // true — prototype chain works</code></pre>
+
+    <h3>Declarative configureAll (builtin)</h3>
+    <p>For large modules, import <code>configureAll</code> from <code>"wasm:js-prototypes"</code> to set up all prototypes and constructors in one call from the start function. Requires <code>{ builtins: ["js-prototypes"] }</code> in the compile options.</p>
+<pre><code>// WAT: import the builtin
+(import "wasm:js-prototypes" "configureAll"
+  (func $configureAll (type $configureAll_t)))
+
+// JS: compile with the builtin enabled
+const { instance } = await WebAssembly.instantiate(bytes, imports, {
+  builtins: ["js-prototypes"]
+});
+
+const Counter = constructors.Counter;   // installed by configureAll
+const c = new Counter(0);
+console.log(c.get());
+console.log(c instanceof Counter);      // true</code></pre>
+    <span class="citation">Source: <a href="https://github.com/WebAssembly/custom-descriptors/blob/main/proposals/custom-descriptors/Overview.md" target="_blank" rel="noopener">custom-descriptors/Overview.md</a> §3–§5.</span>
+  </section>
+
+  <section>
+    <h2>key instructions summary</h2>
+    <table class="doc-table">
+      <tr><th><code>struct.new_desc</code></th><td>Allocate a struct with an explicit descriptor reference.</td></tr>
+      <tr><th><code>struct.new_default_desc</code></th><td>Allocate with zero-initialised fields + descriptor.</td></tr>
+      <tr><th><code>ref.get_desc</code></th><td>Retrieve the descriptor instance for a struct object.</td></tr>
+      <tr><th><code>ref.cast_desc_eq</code></th><td>Cast + check that two objects share the same descriptor instance.</td></tr>
+      <tr><th><code>br_on_cast_desc_eq</code></th><td>Branch if descriptor of two objects is the same.</td></tr>
+      <tr><th><code>br_on_cast_desc_eq_fail</code></th><td>Branch if descriptors differ.</td></tr>
+    </table>
+    <span class="citation">Source: custom-descriptors/Overview.md binary format table.</span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome</th><td>Origin trial in Chrome 149 (requires WasmGC, Chrome 119+)</td></tr>
+      <tr><th>Edge</th><td>Tracking Chromium</td></tr>
+      <tr><th>Firefox</th><td>No signal (as of Chrome 149)</td></tr>
+      <tr><th>Safari</th><td>No signal (as of Chrome 149)</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6024844719947776" target="_blank" rel="noopener">chromestatus browser views</a>, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://github.com/WebAssembly/custom-descriptors" target="_blank" rel="noopener">WebAssembly/custom-descriptors</a> — spec repo and proposals</li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/WebAssembly/JavaScript_interface/instantiateStreaming_static" target="_blank" rel="noopener">MDN: WebAssembly.instantiateStreaming()</a></li>
+      <li><a href="https://chromestatus.com/feature/6219457937588224" target="_blank" rel="noopener">ChromeStatus: WasmGC</a> — the prerequisite proposal (shipped Chrome 119)</li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v149/webassembly-custom-descriptors/" target="_blank" rel="noopener">chrome-platform-showcase: Custom Descriptors demos</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
