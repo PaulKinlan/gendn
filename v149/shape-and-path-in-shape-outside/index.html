@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>shape() and path() in shape-outside — Chrome 149 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .float-demo { overflow: hidden; margin: 1rem 0; background: var(--bg-stone); border: 2px solid var(--border-black); padding: 1rem; }
+    .float-shape {
+      float: left;
+      width: 160px;
+      height: 160px;
+      margin: 0 1rem 0.5rem 0;
+      shape-outside: shape(from 0% 100%, curve to 100% 100% via 50% -30%, line to 0% 100%);
+    }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v149/">&larr; Chrome 149 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v149 · css · shipped</p>
+    <h1><code>shape()</code> and <code>path()</code> in <code>shape-outside</code></h1>
+    <p class="lede">Chrome 149 lets text flow around arbitrary curves, arcs, and bezier paths using the <code>shape()</code> and <code>path()</code> functions as values for <code>shape-outside</code>. The same functions already worked in <code>clip-path</code> since Chrome 137 — now the layout engine wraps text around them too.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 149 (desktop, Android, WebView, iOS)</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Flag</th><td>None</td></tr>
+      <tr><th>Spec</th><td><a href="https://drafts.csswg.org/css-shapes-2/" target="_blank" rel="noopener">CSS Shapes Module Level 2</a> (W3C editor's draft)</td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5163890719588352" target="_blank" rel="noopener">5163890719588352 — path() and shape() in shape-outside</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>CSS Shapes Level 1 (shipped in Chrome 37) lets text flow around floated elements with <code>circle()</code>, <code>ellipse()</code>, <code>polygon()</code>, and <code>inset()</code> shapes. That covers rectangles with rounded corners and simple symmetric shapes, but not organic curves — the kind used in editorial layouts where text wraps around a complex illustration. The <code>shape()</code> function (CSS Shapes Level 2) and <code>path()</code> (an SVG-borrowed function) were already available in <code>clip-path</code> and <code>offset-path</code>. Chrome 149 extends both to <code>shape-outside</code>, completing the picture: whatever you can clip to, you can now wrap text around.</p>
+    <span class="citation">Source: <a href="https://drafts.csswg.org/css-shapes-2/" target="_blank" rel="noopener">CSS Shapes Module Level 2</a> introduction and blink-dev Intent to Ship.</span>
+  </section>
+
+  <section>
+    <h2>shape() function syntax</h2>
+    <p><code>shape()</code> is a declarative alternative to <code>path()</code>. It uses CSS coordinates with units, percentages, and <code>calc()</code>; <code>path()</code> uses raw SVG coordinates. <code>shape()</code> is generally preferred for new code.</p>
+
+    <table class="doc-table">
+      <tr>
+        <th><code>from &lt;point&gt;</code></th>
+        <td>Required first command. Sets the starting point of the shape.</td>
+      </tr>
+      <tr>
+        <th><code>line to &lt;point&gt;</code></th>
+        <td>Straight line to the given point.</td>
+      </tr>
+      <tr>
+        <th><code>curve to &lt;point&gt; via &lt;cp1&gt;</code></th>
+        <td>Quadratic Bézier to <code>&lt;point&gt;</code> with control point <code>&lt;cp1&gt;</code>.</td>
+      </tr>
+      <tr>
+        <th><code>curve to &lt;point&gt; via &lt;cp1&gt; &lt;cp2&gt;</code></th>
+        <td>Cubic Bézier with two control points.</td>
+      </tr>
+      <tr>
+        <th><code>smooth to &lt;point&gt;</code></th>
+        <td>Smooth cubic Bézier that mirrors the previous control point (like SVG <code>S</code>).</td>
+      </tr>
+      <tr>
+        <th><code>arc to &lt;point&gt; of &lt;rx&gt; [&lt;ry&gt;]</code></th>
+        <td>Elliptical arc. Optional flags: <code>cw</code> / <code>ccw</code> (sweep), <code>large</code> / <code>small</code> (arc size).</td>
+      </tr>
+      <tr>
+        <th><code>close</code></th>
+        <td>Closes the path back to the starting point.</td>
+      </tr>
+    </table>
+    <span class="citation">Source: <a href="https://drafts.csswg.org/css-shapes-2/#shape-function" target="_blank" rel="noopener">CSS Shapes Level 2 §shape-function</a>.</span>
+
+    <h3>path() syntax</h3>
+    <p><code>path()</code> accepts an SVG path data string. Coordinates are in user units (pixels at 1× zoom), not percentages. Works best when the shape is defined in SVG tooling.</p>
+    <table class="doc-table">
+      <tr>
+        <th><code>path("M 0 80 Q 80 0 160 80 L 160 160 L 0 160 Z")</code></th>
+        <td>Quadratic arc from SVG path data. Same syntax as the SVG <code>d</code> attribute.</td>
+      </tr>
+    </table>
+
+    <h3>Also added in Chrome 149: rect() and xywh()</h3>
+    <table class="doc-table">
+      <tr><th><code>rect(top right bottom left)</code></th><td>Inset rectangle with <code>round</code> corner support — a named alternative to <code>inset()</code>.</td></tr>
+      <tr><th><code>xywh(x y w h)</code></th><td>Rectangle by x/y offset and dimensions instead of insets.</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://drafts.csswg.org/css-shapes-2/" target="_blank" rel="noopener">CSS Shapes Level 2</a>.</span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+
+    <h3>Text flowing around a curved float</h3>
+    <div class="float-demo">
+      <div class="float-shape"></div>
+      <p>Text wraps around the curved underside of this shape. The float box is 160 × 160 px; the shape-outside defines an arch that opens upward, so text runs under the arch and fills the corners. No image, no mask — just a shape() value on a plain div.</p>
+    </div>
+<pre><code>.float-shape {
+  float: left;
+  width: 160px;
+  height: 160px;
+  margin: 0 1rem 0.5rem 0;
+
+  /* Arch opening upward: text fills below and in the corners */
+  shape-outside: shape(
+    from 0% 100%,
+    curve to 100% 100% via 50% -30%,
+    line to 0% 100%
+  );
+}</code></pre>
+
+    <h3>Organic text wrap with path()</h3>
+<pre><code>/* A wave shape defined with SVG path data */
+.wave-float {
+  float: left;
+  width: 200px;
+  height: 150px;
+  shape-outside: path("M 0 150 C 50 80, 150 80, 200 150 Z");
+  shape-margin: 8px;
+}</code></pre>
+
+    <h3>Magazine-style layout</h3>
+<pre><code>.hero-image {
+  float: left;
+  width: 300px;
+  height: 400px;
+  shape-outside: shape(
+    from 0% 0%,
+    line to 60% 0%,
+    arc to 60% 100% of 80px large cw,
+    line to 0% 100%,
+    close
+  );
+  shape-margin: 12px;
+}</code></pre>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome</th><td>149 — shape(), path(), rect(), xywh() in shape-outside</td></tr>
+      <tr><th>Edge</th><td>149 (Chromium)</td></tr>
+      <tr><th>Firefox</th><td>shape-outside Level 1 supported; shape() / path() — no signal</td></tr>
+      <tr><th>Safari</th><td>shape-outside Level 1 supported; shape() / path() — no signal</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5163890719588352" target="_blank" rel="noopener">chromestatus browser views</a>, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/CSS/shape-outside" target="_blank" rel="noopener">MDN: shape-outside</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/CSS/basic-shape/shape" target="_blank" rel="noopener">MDN: shape() function</a></li>
+      <li><a href="https://drafts.csswg.org/css-shapes-2/" target="_blank" rel="noopener">CSS Shapes Module Level 2</a> — editor's draft</li>
+      <li><a href="https://chromestatus.com/feature/5172258539307008" target="_blank" rel="noopener">ChromeStatus: CSS shape() function</a> — for clip-path usage</li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v149/shape-and-path-in-shape-outside/" target="_blank" rel="noopener">chrome-platform-showcase: shape() in shape-outside demos</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
