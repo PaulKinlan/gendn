@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>&lt;usermedia&gt; Element — Chrome 149 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v149/">&larr; Chrome 149 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v149 · html · shipped</p>
+    <h1><code>&lt;usermedia&gt;</code> Element</h1>
+    <p class="lede">A new HTML element that wraps the full lifecycle of a camera or microphone stream: one click requests permission and starts the stream; subsequent clicks mute and unmute. No more manual <code>getUserMedia()</code> + permission prompt + track management — just an element.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>MVP — API surface may grow</strong>
+    Chrome 149 ships the minimum viable <code>&lt;usermedia&gt;</code> element. The WICG proposal tracks further features (icon-only rendering, badge states, richer error feedback). Check the <a href="https://github.com/WICG/PEPC/blob/main/usermedia_element.md" target="_blank" rel="noopener">WICG spec</a> before relying on anything beyond what is documented here.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 149 (desktop, Android)</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Flag</th><td>None</td></tr>
+      <tr><th>WICG spec</th><td><a href="https://github.com/WICG/PEPC/blob/main/usermedia_element.md" target="_blank" rel="noopener">WICG/PEPC — usermedia_element.md</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/4926233538330624" target="_blank" rel="noopener">4926233538330624 — Capability Elements &lt;usermedia&gt; MVP</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Requesting camera or microphone access today requires at least five separate steps: call <code>getUserMedia()</code>, handle the permission prompt, handle rejection, wire the resulting <code>MediaStream</code> into a <code>&lt;video&gt;</code> element, and implement separate mute/unmute logic. Each step has its own error paths and permission-state checks. The <code>&lt;usermedia&gt;</code> element collapses all of that into a single HTML element: the browser manages permission prompts, stream state, track lifecycle, and mute/unmute toggle. Sites that need straightforward "start cam / mute cam" UI can ship it with zero JavaScript for the core flow.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/PEPC/blob/main/usermedia_element.md" target="_blank" rel="noopener">WICG/PEPC usermedia_element.md</a> §"Motivation".</span>
+  </section>
+
+  <section>
+    <h2>shape of the API</h2>
+
+    <h3>HTML syntax</h3>
+<pre><code>&lt;usermedia&gt;
+  &lt;script type="permissionconstraints"&gt;
+    {
+      "video": { "width": { "min": 640, "ideal": 1920 } },
+      "audio": true
+    }
+  &lt;/script&gt;
+&lt;/usermedia&gt;</code></pre>
+    <p>The nested <code>&lt;script type="permissionconstraints"&gt;</code> carries the <code>MediaStreamConstraints</code> object. The element's type (video-only / audio-only / both) is inferred from the constraints.</p>
+
+    <h3>Attributes</h3>
+    <table class="doc-table">
+      <tr>
+        <th><code>autostart</code></th>
+        <td>Boolean. When present, the browser attempts to start the stream automatically when the element is added to the DOM (subject to permission state).</td>
+      </tr>
+    </table>
+
+    <h3>Properties</h3>
+    <table class="doc-table">
+      <tr>
+        <th><code>stream</code></th>
+        <td><code>MediaStream | null</code> — the active stream. Read-write: you can assign an externally-obtained <code>MediaStream</code> (e.g. after switching devices) without restarting the element.</td>
+      </tr>
+      <tr>
+        <th><code>enabled</code></th>
+        <td><code>boolean</code> — reflects the aggregate enabled/muted state of all tracks. Settable to mute or unmute programmatically.</td>
+      </tr>
+    </table>
+
+    <h3>Events</h3>
+    <table class="doc-table">
+      <tr>
+        <th><code>streamready</code></th>
+        <td>Fired after the user grants permission and a <code>MediaStream</code> is successfully obtained. Access <code>element.stream</code> in the handler.</td>
+      </tr>
+      <tr>
+        <th><code>userchangedenabled</code></th>
+        <td>Fired when the user clicks the element to toggle mute/unmute. Reflects the change in <code>element.enabled</code>.</td>
+      </tr>
+    </table>
+
+    <h3>Click behaviour</h3>
+    <table class="doc-table">
+      <tr>
+        <th>First click (no stream)</th>
+        <td>Triggers <code>getUserMedia()</code> with the element's constraints. May show permission prompt. Sets <code>element.stream</code> and fires <code>streamready</code> on success.</td>
+      </tr>
+      <tr>
+        <th>Subsequent clicks (stream active)</th>
+        <td>Toggles <code>enabled</code> on all associated <code>MediaStreamTrack</code>s (mute / unmute). Fires <code>userchangedenabled</code>.</td>
+      </tr>
+    </table>
+    <span class="citation">Source: <a href="https://github.com/WICG/PEPC/blob/main/usermedia_element.md" target="_blank" rel="noopener">WICG usermedia_element.md</a>.</span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+
+    <h3>Video call: camera + mic with one element</h3>
+<pre><code>&lt;video id="preview" autoplay muted playsinline&gt;&lt;/video&gt;
+
+&lt;usermedia id="my-camera" onstreamready="onStream()"&gt;
+  &lt;script type="permissionconstraints"&gt;
+    { "video": true, "audio": true }
+  &lt;/script&gt;
+&lt;/usermedia&gt;
+
+&lt;script&gt;
+function onStream() {
+  const el = document.getElementById("my-camera");
+  if (el.error) {
+    console.error("Permission denied:", el.error);
+    return;
+  }
+  document.getElementById("preview").srcObject = el.stream;
+}
+&lt;/script&gt;</code></pre>
+
+    <h3>Programmatic mute from separate button</h3>
+<pre><code>const media = document.querySelector("usermedia");
+
+document.querySelector("#mute-btn").addEventListener("click", () => {
+  media.enabled = !media.enabled;
+  this.textContent = media.enabled ? "Mute" : "Unmute";
+});
+
+media.addEventListener("userchangedenabled", (e) => {
+  // Sync your UI if the user clicked the element itself.
+  muteBtn.textContent = media.enabled ? "Mute" : "Unmute";
+});</code></pre>
+
+    <h3>Device switching — reuse the element</h3>
+<pre><code>const newStream = await navigator.mediaDevices.getUserMedia({
+  video: { deviceId: { exact: selectedDeviceId } }
+});
+
+// Assign the new stream without recreating the element.
+document.querySelector("usermedia").stream = newStream;</code></pre>
+
+    <h3>Auto-start on page load</h3>
+<pre><code>&lt;usermedia autostart&gt;
+  &lt;script type="permissionconstraints"&gt;
+    { "audio": true }
+  &lt;/script&gt;
+&lt;/usermedia&gt;</code></pre>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome</th><td>149 (desktop, Android)</td></tr>
+      <tr><th>Edge</th><td>149 (Chromium)</td></tr>
+      <tr><th>Firefox</th><td>No signal (as of Chrome 149)</td></tr>
+      <tr><th>Safari</th><td>No signal (as of Chrome 149)</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/4926233538330624" target="_blank" rel="noopener">chromestatus browser views</a>, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://github.com/WICG/PEPC/blob/main/usermedia_element.md" target="_blank" rel="noopener">WICG/PEPC — usermedia_element.md</a> — full spec</li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia" target="_blank" rel="noopener">MDN: MediaDevices.getUserMedia()</a> — the imperative equivalent</li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/MediaStream" target="_blank" rel="noopener">MDN: MediaStream</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v149/capability-elements-usermedia-mvp/" target="_blank" rel="noopener">chrome-platform-showcase: usermedia element demos</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
