@@ -250,6 +250,9 @@ async function renderFeaturesCatalogue(channels: Channels): Promise<string> {
         for (const f of g.features) {
           const slug = slugify(f.name);
           const hasDoc = await featureHasDoc(`v${m}`, slug);
+          // The catalogue is the index of what's actually been written.
+          // Pending APIs still show up on the per-release pages.
+          if (!hasDoc) continue;
           rows.push({
             mstone: m,
             id: f.id,
@@ -341,7 +344,7 @@ async function renderFeaturesCatalogue(channels: Channels): Promise<string> {
   <header class="lede-block">
     <p class="eyebrow">catalogue</p>
     <h1>all apis</h1>
-    <p class="lede">Every web platform API tracked by gendn, across every milestone from previous-stable to dev. Filter by name, by milestone, by status, by whether a reference has been written.</p>
+    <p class="lede">Every API with a written reference, across every milestone. Filter by name, milestone, or status. Pending APIs still show up on the per-release pages.</p>
   </header>
 
   <div class="filters">
@@ -357,14 +360,9 @@ async function renderFeaturesCatalogue(channels: Channels): Promise<string> {
       <option value="Dev Trial">Dev Trial</option>
       <option value="Stepped rollout">Stepped rollout</option>
     </select>
-    <select id="doc">
-      <option value="">any doc state</option>
-      <option value="true">reference written</option>
-      <option value="false">pending</option>
-    </select>
   </div>
 
-  <p class="stats"><span id="visible">${rows.length}</span> / ${rows.length} apis</p>
+  <p class="stats"><span id="visible">${rows.length}</span> / ${rows.length} references</p>
 
   <table class="features-table">
     <thead>
@@ -377,7 +375,6 @@ async function renderFeaturesCatalogue(channels: Channels): Promise<string> {
     const q = document.getElementById('q');
     const mstone = document.getElementById('mstone');
     const status = document.getElementById('status');
-    const doc = document.getElementById('doc');
     const rows = document.querySelectorAll('#rows tr');
     const visible = document.getElementById('visible');
 
@@ -385,15 +382,13 @@ async function renderFeaturesCatalogue(channels: Channels): Promise<string> {
       const qv = q.value.toLowerCase().trim();
       const mv = mstone.value;
       const sv = status.value;
-      const dv = doc.value;
       let count = 0;
       for (const row of rows) {
         const search = row.dataset.search;
         const okq = !qv || search.includes(qv);
         const okm = !mv || row.dataset.mstone === mv;
         const oks = !sv || row.dataset.status === sv;
-        const okd = !dv || row.dataset.doc === dv;
-        const show = okq && okm && oks && okd;
+        const show = okq && okm && oks;
         row.classList.toggle('hidden', !show);
         if (show) count++;
       }
@@ -403,7 +398,6 @@ async function renderFeaturesCatalogue(channels: Channels): Promise<string> {
     q.addEventListener('input', applyFilter);
     mstone.addEventListener('change', applyFilter);
     status.addEventListener('change', applyFilter);
-    doc.addEventListener('change', applyFilter);
   </script>
 
   <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
