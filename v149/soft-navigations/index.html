@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Soft Navigations API — Chrome 149 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v149/">&larr; Chrome 149 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v149 · web api · origin trial (final)</p>
+    <h1>Soft Navigations API</h1>
+    <p class="lede">Brings Core Web Vitals measurement to Single Page Applications for the first time. A new <code>SoftNavigationEntry</code> PerformanceObserver type fires when an SPA transitions to a new "page", and a new <code>interaction-contentful-paint</code> entry measures its LCP-equivalent — without a full browser navigation.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Final origin trial</strong>
+    The Soft Navigations API is in its final origin trial from Chrome 147 to 149, with stable ship expected after the trial concludes. Enable with <code>chrome://flags/#enable-experimental-web-platform-features</code>. Check the <a href="https://github.com/WICG/soft-navigations" target="_blank" rel="noopener">WICG repo</a> for current status.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Final origin trial</th><td>Chrome 147–149</td></tr>
+      <tr><th>Flag</th><td><code>chrome://flags/#enable-experimental-web-platform-features</code></td></tr>
+      <tr><th>WICG repo</th><td><a href="https://github.com/WICG/soft-navigations" target="_blank" rel="noopener">WICG / soft-navigations</a></td></tr>
+      <tr><th>web.dev guide</th><td><a href="https://developer.chrome.com/docs/web-platform/soft-navigations" target="_blank" rel="noopener">Measuring soft navigations</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Core Web Vitals — LCP, CLS, INP — are measured per browser navigation. For traditional multi-page apps, every link click is a navigation. But single-page apps (React, Vue, Angular, etc.) update the DOM and URL in JavaScript without triggering a browser navigation. From Chrome's perspective, the user is still on the original page. LCP is measured once (at load), and nothing captures the performance of subsequent "navigations" the user experiences.</p>
+    <p>The Soft Navigations API defines a heuristic: when a user interaction triggers a DOM change and a history.pushState/replaceState (or Navigation API update), Chrome emits a <code>SoftNavigationEntry</code>. This marks the start of a new "virtual page" for metric purposes. A subsequent <code>interaction-contentful-paint</code> entry measures the LCP of that virtual page. Developers and RUM tools can now measure SPA performance on the same level as MPA performance.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/soft-navigations" target="_blank" rel="noopener">WICG/soft-navigations</a> explainer §"Motivation".</span>
+  </section>
+
+  <section>
+    <h2>shape of the API</h2>
+
+    <h3>New PerformanceEntry types</h3>
+    <table class="doc-table">
+      <tr>
+        <th><code>soft-navigation</code></th>
+        <td>Emitted when Chrome detects a soft navigation (user interaction + URL change + DOM change). Marks the start of a new virtual page session.</td>
+      </tr>
+      <tr>
+        <th><code>interaction-contentful-paint</code></th>
+        <td>The LCP-equivalent for the virtual page — the largest paint after the interaction that triggered the soft navigation. One entry per soft navigation.</td>
+      </tr>
+    </table>
+
+    <h3>SoftNavigationEntry properties</h3>
+    <table class="doc-table">
+      <tr>
+        <th><code>name</code></th>
+        <td>The new URL after the soft navigation (same as the new <code>location.href</code>).</td>
+      </tr>
+      <tr>
+        <th><code>startTime</code></th>
+        <td>High-resolution timestamp of the user interaction that initiated the navigation.</td>
+      </tr>
+      <tr>
+        <th><code>duration</code></th>
+        <td>Duration until the soft navigation was fully detected.</td>
+      </tr>
+      <tr>
+        <th><code>navigationId</code></th>
+        <td>Unique identifier for this soft navigation. Cross-references to other entries (LCP, layout-shift) that belong to this navigation session.</td>
+      </tr>
+      <tr>
+        <th><code>interactionId</code></th>
+        <td>The interaction ID (from Event Timing) of the user event that started the navigation.</td>
+      </tr>
+    </table>
+    <span class="citation">Source: <a href="https://github.com/WICG/soft-navigations" target="_blank" rel="noopener">WICG/soft-navigations</a> spec and Chrome implementation notes.</span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+
+    <h3>Observe soft navigations with PerformanceObserver</h3>
+<pre><code>// Feature detection
+if (PerformanceObserver.supportedEntryTypes.includes("soft-navigation")) {
+  const observer = new PerformanceObserver((list) => {
+    for (const entry of list.getEntries()) {
+      console.log("Soft navigation:", {
+        url: entry.name,
+        startTime: entry.startTime,
+        navigationId: entry.navigationId,
+      });
+    }
+  });
+  observer.observe({ type: "soft-navigation", buffered: true });
+}</code></pre>
+
+    <h3>Measure LCP for each SPA route change</h3>
+<pre><code>const observer = new PerformanceObserver((list) => {
+  for (const entry of list.getEntries()) {
+    if (entry.entryType === "soft-navigation") {
+      console.log(`Navigation to ${entry.name} at ${entry.startTime}ms`);
+    }
+    if (entry.entryType === "interaction-contentful-paint") {
+      console.log(`ICP for ${entry.url}: ${entry.startTime}ms`);
+      sendToAnalytics("soft_nav_lcp", {
+        url: entry.url,
+        value: entry.startTime,
+        navigationId: entry.navigationId,
+      });
+    }
+  }
+});
+
+observer.observe({ type: "soft-navigation", buffered: true });
+observer.observe({ type: "interaction-contentful-paint", buffered: true });</code></pre>
+
+    <h3>Slice CLS per soft navigation</h3>
+<pre><code>// Track which soft navigation each layout shift belongs to.
+const navsByTime = new Map();
+
+new PerformanceObserver((list) => {
+  for (const nav of list.getEntries()) {
+    navsByTime.set(nav.startTime, nav.navigationId);
+  }
+}).observe({ type: "soft-navigation", buffered: true });
+
+new PerformanceObserver((list) => {
+  for (const shift of list.getEntries()) {
+    // Find the navigation that "owns" this shift.
+    const navId = [...navsByTime.entries()]
+      .reverse()
+      .find(([navTime]) => shift.startTime >= navTime)?.[1];
+    if (navId) {
+      accumulateCLS(navId, shift.value);
+    }
+  }
+}).observe({ type: "layout-shift", buffered: true });</code></pre>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome</th><td>Origin trial 147–149; stable ship expected after trial</td></tr>
+      <tr><th>Edge</th><td>Tracking Chromium</td></tr>
+      <tr><th>Firefox</th><td>No signal (as of Chrome 149)</td></tr>
+      <tr><th>Safari</th><td>No signal (as of Chrome 149)</td></tr>
+    </table>
+    <span class="citation">Source: WICG/soft-navigations and Chrome origin trial docs, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://github.com/WICG/soft-navigations" target="_blank" rel="noopener">WICG/soft-navigations</a> — spec repo</li>
+      <li><a href="https://developer.chrome.com/docs/web-platform/soft-navigations" target="_blank" rel="noopener">Chrome Developers: Measuring soft navigations</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Performance_API/Navigation_timing" target="_blank" rel="noopener">MDN: Navigation Timing</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/PerformanceObserver" target="_blank" rel="noopener">MDN: PerformanceObserver</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v149/soft-navigations/" target="_blank" rel="noopener">chrome-platform-showcase: Soft Navigations demos</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
