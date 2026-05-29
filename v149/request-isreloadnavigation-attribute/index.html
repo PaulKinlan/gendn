@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Request.isReloadNavigation — Chrome 149 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v149/">&larr; Chrome 149 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v149 · web api · shipped</p>
+    <h1>Request.isReloadNavigation</h1>
+    <p class="lede">A new read-only boolean on the Fetch API's <code>Request</code> interface that tells a service worker whether the intercepted navigation was triggered by a page reload — enabling reload-specific caching strategies like network-first or cache-bypass without heuristics.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 149 / Firefox (shipped) / Safari (shipped)</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Flag</th><td>None</td></tr>
+      <tr><th>Spec</th><td><a href="https://fetch.spec.whatwg.org/#dom-request-isreloadnavigation" target="_blank" rel="noopener">WHATWG Fetch — dom-request-isreloadnavigation</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5154214529597440" target="_blank" rel="noopener">5154214529597440 — Request.isReloadNavigation attribute</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Service worker fetch event handlers intercept all navigation requests — but they can't natively tell a reload apart from a fresh forward navigation. The common workaround was reading <code>event.request.cache</code> and checking for <code>"reload"</code>, or inspecting request headers for <code>Cache-Control: no-cache</code>, both of which are unreliable across browsers and request modes.</p>
+    <p>The deprecated <code>FetchEvent.isReload</code> property filled this gap in early service worker implementations, but it was removed from the spec because it lived in the wrong place (the event, not the request object). <code>Request.isReloadNavigation</code> is the standardised, interoperable replacement — available on any <code>Request</code> object, not just in a fetch event handler.</p>
+    <span class="citation">Source: <a href="https://github.com/whatwg/fetch/pull/685" target="_blank" rel="noopener">whatwg/fetch PR #685</a> and blink-dev Intent to Ship thread.</span>
+  </section>
+
+  <section>
+    <h2>shape of the API</h2>
+
+    <h3>Request.isReloadNavigation</h3>
+    <table class="doc-table">
+      <tr>
+        <th>Type</th>
+        <td><code>boolean</code> — read-only</td>
+      </tr>
+      <tr>
+        <th><code>true</code> when</th>
+        <td>The request was triggered by a page reload: user pressed the browser reload button, called <code>location.reload()</code>, or called <code>history.go(0)</code>.</td>
+      </tr>
+      <tr>
+        <th><code>false</code> when</th>
+        <td>Any other navigation type: link click, <code>window.open()</code>, address bar entry, back/forward traversal, or a non-navigation fetch.</td>
+      </tr>
+      <tr>
+        <th>Reset on copy</th>
+        <td>Constructing a new <code>Request</code> from an existing reload request resets <code>isReloadNavigation</code> to <code>false</code>. The flag belongs to the original navigation, not to derived requests.</td>
+      </tr>
+    </table>
+
+    <h3>Related: Request.isHistoryNavigation</h3>
+    <p>A companion boolean, <code>isHistoryNavigation</code>, is <code>true</code> when the request was triggered by a back/forward traversal (<code>history.back()</code>, <code>history.forward()</code>, <code>history.go(n)</code>, browser history buttons). It shipped separately and has its own <a href="https://developer.mozilla.org/en-US/docs/Web/API/Request/isHistoryNavigation" target="_blank" rel="noopener">MDN reference page</a>.</p>
+    <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#dom-request-isreloadnavigation" target="_blank" rel="noopener">WHATWG Fetch spec</a>.</span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+
+    <h3>Network-first on reload, cache-first otherwise</h3>
+<pre><code>// service-worker.js
+self.addEventListener("fetch", (event) => {
+  if (event.request.mode !== "navigate") return;
+
+  if (event.request.isReloadNavigation) {
+    // User explicitly reloaded — serve fresh from network.
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match(event.request))
+    );
+  } else {
+    // Regular navigation — serve from cache if available.
+    event.respondWith(
+      caches.match(event.request).then(
+        (cached) => cached ?? fetch(event.request)
+      )
+    );
+  }
+});</code></pre>
+
+    <h3>Log reload rate to analytics</h3>
+<pre><code>self.addEventListener("fetch", (event) => {
+  if (event.request.mode === "navigate") {
+    analytics.log("navigation", {
+      url: event.request.url,
+      isReload: event.request.isReloadNavigation,
+      isHistory: event.request.isHistoryNavigation,
+    });
+  }
+});</code></pre>
+
+    <h3>Bypass service worker cache for reload only</h3>
+<pre><code>self.addEventListener("fetch", (event) => {
+  const req = event.request;
+
+  // For reload navigations, skip the SW cache entirely.
+  if (req.isReloadNavigation) {
+    // Construct a new Request with cache: "no-cache" to force revalidation.
+    event.respondWith(fetch(new Request(req, { cache: "no-cache" })));
+    return;
+  }
+
+  event.respondWith(
+    caches.open("v1").then((cache) =>
+      cache.match(req).then((cached) => cached ?? fetch(req))
+    )
+  );
+});</code></pre>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome</th><td>149</td></tr>
+      <tr><th>Edge</th><td>149 (Chromium)</td></tr>
+      <tr><th>Firefox</th><td>Shipped</td></tr>
+      <tr><th>Safari</th><td>Shipped</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5154214529597440" target="_blank" rel="noopener">chromestatus</a> and blink-dev Intent to Ship, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://fetch.spec.whatwg.org/#dom-request-isreloadnavigation" target="_blank" rel="noopener">WHATWG Fetch spec — dom-request-isreloadnavigation</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Request/isHistoryNavigation" target="_blank" rel="noopener">MDN: Request.isHistoryNavigation</a> — the companion property for back/forward traversals</li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/FetchEvent" target="_blank" rel="noopener">MDN: FetchEvent</a> — service worker fetch event</li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API" target="_blank" rel="noopener">MDN: Service Worker API</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
