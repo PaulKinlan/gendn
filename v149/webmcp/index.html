@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebMCP — Chrome 149 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v149/">&larr; Chrome 149 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v149 · origin trial · experimental</p>
+    <h1>WebMCP</h1>
+    <p class="lede">An API that lets a web page expose typed "tools" to a user's AI agent, and lets the agent run those tools through a shared UI on the page. Same pattern as Anthropic's Model Context Protocol for desktop agents, ported to the browser.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Heads up</strong>
+    WebMCP is experimental and the API surface is still moving. This page is generated from the explainer + the WebMachineLearning spec draft. Treat names and shapes as authoritative as of the explainer revision linked under "Sources" below; check the spec before shipping anything.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipping target</th><td>Chrome 157 (origin trial earlier)</td></tr>
+      <tr><th>Status in 149</th><td>Origin trial</td></tr>
+      <tr><th>Flag</th><td><code>chrome://flags/#enable-experimental-web-platform-features</code></td></tr>
+      <tr><th>Spec</th><td><a href="https://webmachinelearning.github.io/webmcp" target="_blank" rel="noopener">webmachinelearning.github.io/webmcp</a> (W3C Web Machine Learning CG)</td></tr>
+      <tr><th>Explainer</th><td><a href="https://github.com/webmachinelearning/webmcp" target="_blank" rel="noopener">webmachinelearning/webmcp</a></td></tr>
+      <tr><th>Initial proposal</th><td><a href="https://github.com/explainers-by-googlers/script-tools" target="_blank" rel="noopener">explainers-by-googlers / script-tools</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5117755740913664" target="_blank" rel="noopener">5117755740913664 — WebMCP</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Web apps today have two surfaces: a UI for humans, and APIs for other software. Agents fall between the two. They can read the human UI but doing so is brittle; they can call your APIs but lose the page's context and any user-mediated UI step (consent, confirmation, picking from a list). WebMCP gives an app a third surface: a typed set of tools the page hosts, that the user's agent can discover, call, and reflect back into the page's own UI. The agent runs in the user's agent context; the tool runs in the page's context; both share the page DOM as common ground.</p>
+    <span class="citation">Source: chromestatus motivation + the WebMCP explainer §1 ("Background").</span>
+  </section>
+
+  <section>
+    <h2>shape of the API</h2>
+    <p>The page is the <em>provider</em>: it registers tools that describe its capabilities (name, JSON-Schema input, side-effect annotations). The user's agent is the <em>consumer</em>: it discovers the page's tools, decides when to call them, and surfaces the result in conversation. Two top-level interfaces, both on <code>window</code>:</p>
+
+    <h3>navigator.modelContext</h3>
+    <table class="doc-table">
+      <tr><th>provideTools(toolset)</th><td>Register one or more typed tools on the current page. Returns a handle the page can use to update, replace, or revoke the toolset later.</td></tr>
+      <tr><th>provideContext(context)</th><td>Push freeform context (page summary, current selection, etc.) into the shared agent context. Updates live.</td></tr>
+      <tr><th>addEventListener("toolinvoke", handler)</th><td>Fires when the agent calls a tool. Handler receives a <code>ToolInvokeEvent</code> with the validated arguments and a <code>respondWith()</code> method.</td></tr>
+    </table>
+
+    <h3>ToolInvokeEvent</h3>
+    <table class="doc-table">
+      <tr><th>toolName</th><td>The registered name the agent is calling.</td></tr>
+      <tr><th>arguments</th><td>Object matching the tool's JSON-Schema input.</td></tr>
+      <tr><th>respondWith(promise)</th><td>The page returns its result. The promise resolves to a structured value (JSON-serialisable) that the agent receives.</td></tr>
+      <tr><th>signal</th><td>An <code>AbortSignal</code> that fires if the agent cancels the call.</td></tr>
+    </table>
+    <span class="citation">Source: WebMCP explainer §3 ("Page-side API") and §4 ("Tool descriptors"). Exact identifiers may rename before ship — check the spec.</span>
+  </section>
+
+  <section>
+    <h2>example: a page that lets the agent search its own catalogue</h2>
+<pre><code>navigator.modelContext.provideTools([{
+  name: "searchCatalogue",
+  description: "Search the products on this page by free text.",
+  input: {
+    type: "object",
+    properties: {
+      query: { type: "string", description: "Free-text search query" },
+      limit: { type: "integer", default: 10, maximum: 50 }
+    },
+    required: ["query"]
+  }
+}]);
+
+navigator.modelContext.addEventListener("toolinvoke", (event) => {
+  if (event.toolName !== "searchCatalogue") return;
+  const { query, limit = 10 } = event.arguments;
+  event.respondWith((async () => {
+    const results = await search(query, limit);
+    // Reflect the result into the page UI so the user can see what the agent saw.
+    renderSearchResults(results);
+    return { hits: results.map((r) => ({ id: r.id, title: r.title, url: r.url })) };
+  })());
+});</code></pre>
+  </section>
+
+  <section>
+    <h2>example: pushing live context the agent can read</h2>
+<pre><code>// Whenever the user selects text, tell the agent.
+document.addEventListener("selectionchange", () => {
+  const selection = document.getSelection()?.toString() ?? "";
+  navigator.modelContext.provideContext({
+    selection: selection.slice(0, 800),
+    url: location.href,
+    title: document.title,
+  });
+});</code></pre>
+  </section>
+
+  <section>
+    <h2>capabilities the spec defines</h2>
+    <table class="doc-table">
+      <tr><th>Tool discovery</th><td>The agent enumerates tools the current page has provided. Tools are tied to the page's lifetime; navigating clears them.</td></tr>
+      <tr><th>Typed inputs</th><td>JSON-Schema. The browser validates arguments before the page sees them.</td></tr>
+      <tr><th>Side-effect annotations</th><td>Tools declare whether they're read-only, mutating, or destructive. The agent and the browser use this to decide whether to confirm.</td></tr>
+      <tr><th>Cancellation</th><td>Cooperative via <code>AbortSignal</code> on the invoke event.</td></tr>
+      <tr><th>Shared context</th><td>The page can push live context to the agent; the agent reads it as part of its conversation.</td></tr>
+      <tr><th>Origin boundaries</th><td>Tools are scoped to the providing origin. Cross-origin frames register their own.</td></tr>
+    </table>
+    <span class="citation">Source: WebMCP explainer §4–§6. Field names paraphrased.</span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome</th><td>Origin trial in 149; shipping target 157</td></tr>
+      <tr><th>Edge</th><td>Tracking Chromium</td></tr>
+      <tr><th>Firefox</th><td>No signal</td></tr>
+      <tr><th>Safari</th><td>No signal</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus browser views, May 2026. Reference here may be stale on next snapshot.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://developer.chrome.com/blog/webmcp-epp" target="_blank" rel="noopener">Chrome blog: WebMCP early participation</a></li>
+      <li><a href="https://modelcontextprotocol.io/" target="_blank" rel="noopener">modelcontextprotocol.io</a> — Anthropic's MCP, the desktop equivalent</li>
+      <li><a href="https://aifoc.us/webmcp-is-the-new-web-intents/" target="_blank" rel="noopener">WebMCP is the new Web Intents</a> (aifoc.us)</li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v149/webmcp/" target="_blank" rel="noopener">chrome-platform-showcase: WebMCP demos</a> (when built)</li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
