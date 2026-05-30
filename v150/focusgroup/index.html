@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Focusgroup — Chrome 150 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .demo-focusgroup {
+      display: flex;
+      gap: 0.5rem;
+      padding: 1rem;
+      border: 2px solid var(--border-black);
+      background: var(--bg-stone);
+      margin: 1rem 0;
+    }
+    .demo-focusgroup button {
+      padding: 0.4rem 0.9rem;
+      border: 2px solid var(--border-black);
+      background: var(--bg-paper);
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    .demo-focusgroup button:focus { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v150/">&larr; Chrome 150 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v150 · html · shipped</p>
+    <h1>Focusgroup</h1>
+    <p class="lede">A new HTML attribute that gives any container arrow-key navigation, a single tab stop, and last-focused memory — the "roving tabindex" pattern — without any JavaScript.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 150 (desktop + Android)</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Flag</th><td>None (was <code>chrome://flags/#experimental-web-platform-features</code>)</td></tr>
+      <tr><th>Standards position</th><td>Supported by Microsoft Edge team (co-authored spec)</td></tr>
+      <tr><th>Spec</th><td><a href="https://open-ui.org/components/focusgroup.explainer/" target="_blank" rel="noopener">Open UI — focusgroup explainer</a></td></tr>
+      <tr><th>Explainer</th><td><a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/Focusgroup/explainer.md" target="_blank" rel="noopener">MicrosoftEdge / MSEdgeExplainers / Focusgroup</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5637601087193088" target="_blank" rel="noopener">5637601087193088 — Focusgroup</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Accessible keyboard navigation for composite widgets — toolbars, tablists, menus, listboxes — requires implementing the "roving tabindex" pattern: one item in the group has <code>tabindex="0"</code> and all others have <code>tabindex="-1"</code>; arrow keys move focus and update which item holds the zero index. This is correct per ARIA but requires dozens of lines of JavaScript to implement reliably, handle edge cases (wrap, grid navigation, focus memory after Tab away), and stay correct across DOM mutations. The <code>focusgroup</code> attribute delegates all of this to the browser.</p>
+    <span class="citation">Source: <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/Focusgroup/explainer.md" target="_blank" rel="noopener">MSEdgeExplainers / Focusgroup</a> §1 "Background".</span>
+  </section>
+
+  <section>
+    <h2>shape of the API</h2>
+    <p>Add the <code>focusgroup</code> attribute to any container element. All sequentially focusable descendants automatically become focusgroup items. The group collapses to a single Tab stop; arrow keys move within it.</p>
+
+    <h3>syntax</h3>
+<pre><code>&lt;element focusgroup="[tokens]"&gt;</code></pre>
+
+    <p>The attribute value is a space-separated list of optional tokens. An empty string or <code>focusgroup</code> with no value uses all defaults.</p>
+
+    <h3>tokens</h3>
+    <table class="doc-table">
+      <tr><th>Token</th><th>Effect</th></tr>
+      <tr><td><code>horizontal</code></td><td>Only left/right arrow keys navigate within the group. Tab still exits. Default when neither axis token is specified is both axes.</td></tr>
+      <tr><td><code>vertical</code></td><td>Only up/down arrow keys navigate within the group.</td></tr>
+      <tr><td><code>wrap</code></td><td>Arrow navigation wraps around: pressing right at the last item focuses the first, and vice versa.</td></tr>
+      <tr><td><code>extend</code></td><td>This focusgroup joins the nearest ancestor focusgroup, merging into a single roving scope. Useful for building nested toolbars.</td></tr>
+      <tr><td><code>grid</code></td><td>Enables two-dimensional navigation for tabular structures. Arrow keys move by row and column.</td></tr>
+      <tr><td><code>row-wrap</code> / <code>col-wrap</code></td><td>Wrap-around along a specific axis in grid mode.</td></tr>
+      <tr><td><code>row-flow</code> / <code>col-flow</code></td><td>When reaching the end of a row/column in grid mode, flow to the next row/column rather than wrapping in-place.</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://open-ui.org/components/focusgroup.explainer/" target="_blank" rel="noopener">Open UI focusgroup explainer</a> §3 "Tokens".</span>
+  </section>
+
+  <section>
+    <h2>examples</h2>
+
+    <h3>toolbar: horizontal-only, wrapping</h3>
+<pre><code>&lt;div role="toolbar" focusgroup="horizontal wrap"&gt;
+  &lt;button&gt;Bold&lt;/button&gt;
+  &lt;button&gt;Italic&lt;/button&gt;
+  &lt;button&gt;Underline&lt;/button&gt;
+&lt;/div&gt;</code></pre>
+    <p>Tab enters the toolbar and focuses the last-remembered item. Left/right arrows cycle through; right at the end wraps back to Bold.</p>
+
+    <h3>live demo (Chrome 150+)</h3>
+    <p>Tab to this toolbar, then use left/right arrow keys:</p>
+    <div role="toolbar" focusgroup="horizontal wrap" class="demo-focusgroup">
+      <button>Bold</button>
+      <button>Italic</button>
+      <button>Underline</button>
+      <button>Strikethrough</button>
+    </div>
+
+    <h3>tablist: vertical focus group</h3>
+<pre><code>&lt;div role="tablist" focusgroup="vertical"&gt;
+  &lt;button role="tab" aria-selected="true"&gt;Tab 1&lt;/button&gt;
+  &lt;button role="tab" aria-selected="false"&gt;Tab 2&lt;/button&gt;
+  &lt;button role="tab" aria-selected="false"&gt;Tab 3&lt;/button&gt;
+&lt;/div&gt;</code></pre>
+
+    <h3>grid navigation</h3>
+<pre><code>&lt;table focusgroup="grid"&gt;
+  &lt;tr&gt;&lt;td&gt;&lt;button&gt;A1&lt;/button&gt;&lt;/td&gt;&lt;td&gt;&lt;button&gt;A2&lt;/button&gt;&lt;/td&gt;&lt;/tr&gt;
+  &lt;tr&gt;&lt;td&gt;&lt;button&gt;B1&lt;/button&gt;&lt;/td&gt;&lt;td&gt;&lt;button&gt;B2&lt;/button&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+&lt;!-- Up/down moves between rows; left/right moves between columns --&gt;</code></pre>
+
+    <h3>nested groups with extend</h3>
+<pre><code>&lt;div focusgroup="horizontal"&gt;
+  &lt;button&gt;Cut&lt;/button&gt;
+  &lt;button&gt;Copy&lt;/button&gt;
+  &lt;!-- This sub-toolbar joins the parent's focusgroup scope: --&gt;
+  &lt;div focusgroup="horizontal extend"&gt;
+    &lt;button&gt;Paste&lt;/button&gt;
+    &lt;button&gt;Paste Special&lt;/button&gt;
+  &lt;/div&gt;
+&lt;/div&gt;</code></pre>
+  </section>
+
+  <section>
+    <h2>last-focused memory</h2>
+    <p>When the user Tabs away from a focusgroup and later Tabs back in, focus restores to the last item that held focus within the group — not always the first item. This matches the ARIA authoring practices "roving tabindex" recommendation and avoids forcing keyboard users to navigate from the beginning every time.</p>
+    <p>Pass <code>nomemory</code> (if supported) to opt out and always restore to the first item.</p>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome / Edge</th><td>150 (enabled by default); experimental flag from 146</td></tr>
+      <tr><th>Firefox</th><td>No signal</td></tr>
+      <tr><th>Safari</th><td>No signal</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.com browser positions, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://open-ui.org/components/focusgroup.explainer/" target="_blank" rel="noopener">Open UI — focusgroup explainer</a></li>
+      <li><a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/Focusgroup/explainer.md" target="_blank" rel="noopener">MSEdgeExplainers — Focusgroup (full specification detail)</a></li>
+      <li><a href="https://developer.chrome.com/blog/focusgroup-rfc" target="_blank" rel="noopener">Chrome blog: Request for developer feedback: focusgroup</a></li>
+      <li><a href="https://www.w3.org/WAI/ARIA/apg/patterns/toolbar/" target="_blank" rel="noopener">ARIA APG: Toolbar pattern</a></li>
+      <li><a href="https://chromestatus.com/feature/5637601087193088" target="_blank" rel="noopener">chromestatus.com — Focusgroup (5637601087193088)</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v150/focusgroup/" target="_blank" rel="noopener">chrome-platform-showcase: focusgroup demos</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
