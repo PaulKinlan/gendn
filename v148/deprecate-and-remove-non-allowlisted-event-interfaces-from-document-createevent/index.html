@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Deprecate and remove: non-allowlisted Event interfaces from document.createEvent() — Chrome 148 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v148/">&larr; Chrome 148 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v148 · dom · removal</p>
+    <h1>Deprecate and remove: non-allowlisted Event interfaces from document.createEvent()</h1>
+    <p class="lede">Chrome 148 brings <code>document.createEvent()</code> into alignment with the DOM Standard by throwing <code>NOT_SUPPORTED_ERR</code> for any event interface that is not on the spec's allowlist. Code that passes unsupported interface strings will start seeing errors where it previously got a <code>CustomEvent</code> or a silent fallback.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Breaking change</strong>
+    <code>document.createEvent("SomeNonStandardInterface")</code> now throws. Migrate to <code>new CustomEvent()</code>, <code>new Event()</code>, or the appropriate constructor for the specific event type.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 148</td></tr>
+      <tr><th>Status</th><td>In developer trial / enabled by default</td></tr>
+      <tr><th>Standards position</th><td>Spec-required change; other browsers already compliant</td></tr>
+      <tr><th>Spec</th><td><a href="https://dom.spec.whatwg.org/#dom-document-createevent" target="_blank" rel="noopener">DOM Standard §document.createEvent()</a></td></tr>
+      <tr><th>Blink component</th><td>Blink&gt;DOM</td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5095987863486464" target="_blank" rel="noopener">5095987863486464 — Deprecate and remove: non-allowlisted Event interfaces</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>The DOM Standard explicitly lists which event interface names <code>document.createEvent()</code> must accept and requires <code>NOT_SUPPORTED_ERR</code> for everything else. Chrome historically accepted many non-standard strings for legacy compat, silently constructing a <code>CustomEvent</code>. This removal closes that compat gap, matches the behavior of Firefox and Safari, and removes a footgun where code that passes wrong interface names silently "worked" in Chrome but would fail cross-browser.</p>
+    <p>Interfaces with usage above 0.01% or those deemed difficult to remove immediately remain as deprecation-only (console warning) in this cycle.</p>
+    <span class="citation">Source: chromestatus summary + <a href="https://dom.spec.whatwg.org/#dom-document-createevent" target="_blank" rel="noopener">DOM Standard §3.6</a>.</span>
+  </section>
+
+  <section>
+    <h2>the allowlist</h2>
+    <p>The DOM Standard allows these event interface strings (case-insensitive):</p>
+    <table class="doc-table">
+      <tr><th>Allowed string</th><th>Creates</th></tr>
+      <tr><td><code>"Event"</code>, <code>"Events"</code>, <code>"HTMLEvents"</code></td><td><code>Event</code></td></tr>
+      <tr><td><code>"CustomEvent"</code></td><td><code>CustomEvent</code></td></tr>
+      <tr><td><code>"UIEvent"</code>, <code>"UIEvents"</code></td><td><code>UIEvent</code></td></tr>
+      <tr><td><code>"MouseEvent"</code>, <code>"MouseEvents"</code></td><td><code>MouseEvent</code></td></tr>
+      <tr><td><code>"KeyboardEvent"</code>, <code>"KeyboardEvents"</code></td><td><code>KeyboardEvent</code></td></tr>
+      <tr><td><code>"TouchEvent"</code></td><td><code>TouchEvent</code> (where supported)</td></tr>
+      <tr><td><code>"FocusEvent"</code></td><td><code>FocusEvent</code></td></tr>
+      <tr><td><code>"WheelEvent"</code></td><td><code>WheelEvent</code></td></tr>
+      <tr><td><code>"InputEvent"</code></td><td><code>InputEvent</code></td></tr>
+      <tr><td><code>"CompositionEvent"</code></td><td><code>CompositionEvent</code></td></tr>
+      <tr><td><code>"MutationEvent"</code>, <code>"MutationEvents"</code></td><td><code>MutationEvent</code> (deprecated)</td></tr>
+    </table>
+    <p>All other strings now throw <code>DOMException: NOT_SUPPORTED_ERR</code>.</p>
+    <span class="citation">Source: <a href="https://dom.spec.whatwg.org/#dom-document-createevent" target="_blank" rel="noopener">DOM Standard §document.createEvent()</a>.</span>
+  </section>
+
+  <section>
+    <h2>migration</h2>
+    <p>The modern pattern uses constructors directly and doesn't need <code>createEvent</code> at all:</p>
+<pre><code>// Old — may throw in Chrome 148+
+const evt = document.createEvent("SomeInterface");
+evt.initEvent("click", true, true);
+el.dispatchEvent(evt);
+
+// New — use constructors
+el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+el.dispatchEvent(new CustomEvent("my-event", { detail: { foo: "bar" } }));
+el.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));</code></pre>
+
+    <h3>Checking whether your code is affected</h3>
+<pre><code>// Search your codebase for createEvent calls with non-standard strings:
+// grep -r 'createEvent' src/ | grep -v -i
+//   'Event\|CustomEvent\|UIEvent\|MouseEvent\|KeyboardEvent\|FocusEvent\|WheelEvent\|InputEvent\|CompositionEvent'</code></pre>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome</th><td>148 — throws for non-allowlisted strings</td></tr>
+      <tr><th>Firefox</th><td>Already spec-compliant</td></tr>
+      <tr><th>Safari</th><td>Already spec-compliant</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus browser views + DOM Standard conformance notes.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://dom.spec.whatwg.org/#dom-document-createevent" target="_blank" rel="noopener">DOM Standard — document.createEvent()</a></li>
+      <li><a href="https://issues.chromium.org/issues/41228793" target="_blank" rel="noopener">Chromium bug tracker: issue 41228793</a></li>
+      <li><a href="https://chromestatus.com/feature/5095987863486464" target="_blank" rel="noopener">chromestatus: Deprecate and remove non-allowlisted Event interfaces</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
