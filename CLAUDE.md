@@ -33,11 +33,23 @@ v<N>/                 One folder per Chrome milestone. Each contains <api-slug>/
 
 ## The routine
 
-Cron `30 * * * *` (hourly at :30 to offset from the showcase routine at :00). Anthropic cloud, fresh
-checkout of `main` per run. Soft 45-minute budget. Picks up where the last left off.
+Cron `30 */2 * * *` (every 2 hours at :30 UTC, offset from the showcase routine at :00). Anthropic
+cloud, fresh checkout of `main` per run. Soft 45-minute budget. Picks up where the last left off.
+
+Cadence was halved from hourly to every-2-hours on 2026-05-30 after the account hit a
+routines-per-day cap. If you bump it back to hourly, watch the cap.
 
 Routine prompt lives in `.claude/routine-prompt.md`. When you change it, also push to the live
 routine via the `RemoteTrigger` MCP tool (action `update`).
+
+### Triggering a run manually
+
+Just ask Claude in chat: "run gendn" (or "fire off the gendn routine"). Claude calls `RemoteTrigger`
+with `action: "run"` and `trigger_id: trig_01MrJLxCb66ZYcfnvEPsooC5`. The run kicks off immediately
+on top of the next scheduled tick; the next cron tick still fires as normal.
+
+Web UI alternative: https://claude.ai/code/routines/trig_01MrJLxCb66ZYcfnvEPsooC5 has a "Run now"
+button.
 
 ## Critical invariants (read these — every one has bitten us)
 
