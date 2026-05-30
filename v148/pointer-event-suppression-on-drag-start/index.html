@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pointer event suppression on drag start — Chrome 148 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v148/">&larr; Chrome 148 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v148 · pointer events · drag api · shipped · interop</p>
+    <h1>Pointer event suppression on drag start</h1>
+    <p class="lede">Chrome 148 now fires <code>pointercancel</code>, <code>pointerout</code>, and <code>pointerleave</code> events to the drag source element when a drag begins, matching the HTML specification and aligning with Firefox and Safari. Ships in Chrome 148 on all platforms.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 148 (desktop, Android, WebView)</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Finch flag</th><td>SuppressPointerStreamAfterDrag</td></tr>
+      <tr><th>Spec</th><td><a href="https://html.spec.whatwg.org/multipage/dnd.html#drag-and-drop-processing-model" target="_blank" rel="noopener">HTML — Drag and drop processing model</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/6732314958757888" target="_blank" rel="noopener">6732314958757888 — Pointer event suppression on drag start</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>what changed</h2>
+    <p>When the user initiates a drag on an element, the browser begins managing pointer input at the OS level to handle the drag gesture. The HTML specification says the browser must indicate to the drag source that the pointer event stream has ended — i.e., fire the events that tell the element "you are no longer receiving pointer events."</p>
+    <p>Before Chrome 148, this was only partially done: touch drags on Android fired these events, but mouse-based drags on desktop did not. Chrome 148 completes the implementation: whenever a drag starts, the drag source now receives:</p>
+    <ul>
+      <li><code>pointercancel</code> — the pointer has been cancelled and no more events will follow</li>
+      <li><code>pointerout</code> — the pointer has left the element's hit-testing area</li>
+      <li><code>pointerleave</code> — the pointer has left the element (bubbles up the ancestor chain)</li>
+    </ul>
+    <span class="citation">Source: blink-dev Intent to Ship, msg15939, Chrome 148.</span>
+  </section>
+
+  <section>
+    <h2>why it matters</h2>
+    <p>Code that listens for <code>pointercancel</code> to clean up state (e.g., remove a CSS class applied on <code>pointerdown</code>, cancel an in-progress gesture, or release a pointer capture) now works correctly on desktop during drag operations. Previously, desktop drag sources would not receive <code>pointercancel</code>, so cleanup code that relied on it was never triggered for mouse drags.</p>
+<pre><code>element.addEventListener('pointerdown', (e) => {
+  element.classList.add('dragging');
+  element.setPointerCapture(e.pointerId);
+});
+
+// Before Chrome 148: this never fired on desktop mouse drag start
+// Chrome 148+: fires correctly when a drag begins
+element.addEventListener('pointercancel', () => {
+  element.classList.remove('dragging');
+});</code></pre>
+  </section>
+
+  <section>
+    <h2>event order on drag start</h2>
+    <p>When the browser decides a drag has begun, the event sequence at the drag source is:</p>
+    <table class="doc-table">
+      <tr><th>Order</th><th>Event</th><th>Notes</th></tr>
+      <tr><td>1</td><td><code>dragstart</code></td><td>Fired on the drag source; drag is now active</td></tr>
+      <tr><td>2</td><td><code>pointercancel</code></td><td>New in Chrome 148 for desktop; was already fired for touch on Android</td></tr>
+      <tr><td>3</td><td><code>pointerout</code></td><td>New in Chrome 148 for desktop</td></tr>
+      <tr><td>4</td><td><code>pointerleave</code></td><td>New in Chrome 148 for desktop; bubbles up ancestors</td></tr>
+    </table>
+    <p>After these events fire, no further pointer events are dispatched to the drag source for that pointer until a new <code>pointerdown</code> occurs.</p>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome / Edge</th><td>148 (desktop, Android, WebView)</td></tr>
+      <tr><th>Firefox</th><td>Shipped</td></tr>
+      <tr><th>Safari</th><td>Shipped</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.com browser positions, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Pointer_events" target="_blank" rel="noopener">MDN: Pointer events</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Element/pointercancel_event" target="_blank" rel="noopener">MDN: pointercancel event</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/HTML_Drag_and_Drop_API" target="_blank" rel="noopener">MDN: HTML Drag and Drop API</a></li>
+      <li><a href="https://html.spec.whatwg.org/multipage/dnd.html#drag-and-drop-processing-model" target="_blank" rel="noopener">HTML spec — Drag and drop processing model</a></li>
+      <li><a href="https://chromestatus.com/feature/6732314958757888" target="_blank" rel="noopener">chromestatus.com — Pointer event suppression on drag start (6732314958757888)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

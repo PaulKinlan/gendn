@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IDNA ContextJ rules — Chrome 148 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v148/">&larr; Chrome 148 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v148 · url · security · interop · shipped</p>
+    <h1>IDNA ContextJ rules</h1>
+    <p class="lede">Chrome 148 enforces IDNA2008's ContextJ rules when parsing URLs, disallowing the Zero Width Non-Joiner (U+200C) and Zero Width Joiner (U+200D) characters in most positions in internationalized domain names. This closes a homograph-attack vector and aligns Chrome with Firefox and Safari. Ships in Chrome 148 on all platforms.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 148 (desktop, Android, WebView)</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Type</th><td>Security / interoperability fix — no new API</td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/6295810820145152" target="_blank" rel="noopener">6295810820145152 — IDNA ContextJ rules</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>background: IDNA and ContextJ</h2>
+    <p>Internationalized Domain Names in Applications (IDNA) defines how non-ASCII characters in domain names are encoded and validated. The URL Standard invokes IDNA processing with the <code>CheckJoiners</code> flag, which enables the ContextJ rules from IDNA2008/Unicode Technical Standard 46.</p>
+    <p>ContextJ rules restrict where the invisible formatting characters <strong>ZWNJ</strong> (U+200C, Zero Width Non-Joiner) and <strong>ZWJ</strong> (U+200D, Zero Width Joiner) may appear in domain labels. These characters are legitimate in scripts like Arabic and Indic where they affect shaping, but only in specific phonetically valid positions. Allowing them anywhere creates a security risk: a malicious domain can contain ZWJ/ZWNJ to produce a label that looks identical to a legitimate domain in a browser address bar.</p>
+    <span class="citation">Source: <a href="https://unicode.org/reports/tr46/" target="_blank" rel="noopener">Unicode Technical Standard 46 — Unicode IDNA Compatibility Processing</a>.</span>
+  </section>
+
+  <section>
+    <h2>what changed in Chrome 148</h2>
+    <p>Before Chrome 148, Chrome did not enforce ContextJ rules when parsing URLs. A URL containing ZWJ or ZWNJ in a domain label would be parsed and resolved without error — even in positions the IDNA specification disallows.</p>
+    <p>Chrome 148 passes the <code>UIDNA_CHECK_CONTEXTJ</code> option to ICU when processing domain labels. URLs that violate ContextJ rules are now treated as invalid:</p>
+    <ul>
+      <li>Navigation to such a URL produces a network error.</li>
+      <li><code>new URL('http://example‌.com/')</code> throws a <code>TypeError</code>.</li>
+      <li>The change fixes over 200 previously-failing WPT subtests for IDNA URL parsing.</li>
+    </ul>
+    <span class="citation">Source: blink-dev Intent to Ship msg14721 and Chrome 148 release notes.</span>
+  </section>
+
+  <section>
+    <h2>impact on web content</h2>
+    <p>Legitimate content is not affected. ZWJ and ZWNJ in domain names are only valid in narrow phonological contexts within specific scripts; no correct internationalized domain name uses these characters in the positions that are now rejected.</p>
+    <p>Sites that constructed URLs programmatically with embedded invisible characters (intentionally or through encoding bugs) will receive a failure instead of a silently accepted URL. This is the intended behaviour.</p>
+<pre><code>// Before Chrome 148: silently accepted
+// Chrome 148+: throws TypeError — ZWNJ disallowed in this position
+try {
+  const url = new URL('http://xn--‌nexample.com/');
+} catch (e) {
+  console.error('Invalid URL:', e.message);
+}</code></pre>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome / Edge</th><td>148 (all platforms)</td></tr>
+      <tr><th>Firefox</th><td>Shipped (enforces ContextJ rules)</td></tr>
+      <tr><th>Safari</th><td>Shipped (enforces ContextJ rules)</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.com browser positions, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://unicode.org/reports/tr46/" target="_blank" rel="noopener">Unicode Technical Standard 46 — Unicode IDNA Compatibility Processing</a></li>
+      <li><a href="https://url.spec.whatwg.org/#concept-domain-to-unicode" target="_blank" rel="noopener">URL Standard — domain to Unicode</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/URL/URL" target="_blank" rel="noopener">MDN: URL constructor</a></li>
+      <li><a href="https://chromestatus.com/feature/6295810820145152" target="_blank" rel="noopener">chromestatus.com — IDNA ContextJ rules (6295810820145152)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

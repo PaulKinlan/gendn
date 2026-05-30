@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reuse no-store images on same-src reassignment — Chrome 148 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v148/">&larr; Chrome 148 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v148 · images · performance · interop · shipped</p>
+    <h1>Reuse no-store images on same-src reassignment</h1>
+    <p class="lede">Chrome 148 avoids re-fetching an already-decoded image when the same <code>src</code> value is reassigned to an <code>&lt;img&gt;</code> element, even when the image was served with <code>Cache-Control: no-store</code>. This aligns with Firefox and Safari and eliminates unnecessary network round-trips. Ships in Chrome 148 on all platforms.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 148 (desktop, Android, WebView, iOS)</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Finch flag</th><td>ReuseNoStoreImageOnSameSrcReassignment</td></tr>
+      <tr><th>Type</th><td>Performance / interoperability fix — no new API</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>what changed</h2>
+    <p>When JavaScript assigns <code>img.src = someUrl</code> and the element already has that exact URL as its current source, Chrome previously re-fetched the image from the network if it had been served with <code>Cache-Control: no-store</code>. This is because <code>no-store</code> means "do not store in any cache" — but the image was already decoded and held in the document's in-memory available-image set, not in the HTTP cache.</p>
+    <p>Chrome 148 changes this: if the image is already available in the same document's in-memory image set with the identical URL, Chrome reuses the decoded image rather than issuing a new network request. <code>Cache-Control: no-store</code> continues to prevent the image from being stored in the HTTP disk cache and from being reused across documents; only the within-document same-src reassignment case is affected.</p>
+    <span class="citation">Source: blink-dev Web-Facing Change PSA msg16010, Chrome 148.</span>
+  </section>
+
+  <section>
+    <h2>example: image carousel</h2>
+    <p>A common pattern is an image carousel that cycles through a set of images. When cycling back to an image the user has already seen, reassigning the same <code>src</code> previously caused an unnecessary re-fetch for <code>no-store</code> images. Chrome 148 eliminates that re-fetch:</p>
+<pre><code>const img = document.querySelector('img');
+const srcs = ['/photo-a.jpg', '/photo-b.jpg', '/photo-c.jpg'];
+let index = 0;
+
+setInterval(() => {
+  index = (index + 1) % srcs.length;
+  img.src = srcs[index]; // Chrome 148: reuses if src already decoded in this doc
+}, 2000);</code></pre>
+    <p>Even if the server responds with <code>Cache-Control: no-store</code>, rotating back to <code>/photo-a.jpg</code> will not issue a second network request if the image is still in the document's available-image set.</p>
+  </section>
+
+  <section>
+    <h2>scope of the change</h2>
+    <table class="doc-table">
+      <tr><th>Scenario</th><th>Before Chrome 148</th><th>Chrome 148+</th></tr>
+      <tr><td>Same <code>src</code>, same document, <code>no-store</code></td><td>Re-fetches from network</td><td>Reuses decoded image</td></tr>
+      <tr><td>Same <code>src</code>, different document, <code>no-store</code></td><td>Re-fetches</td><td>Still re-fetches</td></tr>
+      <tr><td>Different <code>src</code>, <code>no-store</code></td><td>Re-fetches</td><td>Re-fetches</td></tr>
+      <tr><td>Any <code>src</code>, cacheable (no <code>no-store</code>)</td><td>Uses HTTP cache</td><td>Uses HTTP cache</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome / Edge</th><td>148 (all platforms)</td></tr>
+      <tr><th>Firefox</th><td>Shipped (already reused in-document images)</td></tr>
+      <tr><th>Safari</th><td>Shipped (already reused in-document images)</td></tr>
+    </table>
+    <span class="citation">Source: blink-dev PSA and chromestatus.com, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/img" target="_blank" rel="noopener">MDN: &lt;img&gt; element</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cache-Control" target="_blank" rel="noopener">MDN: Cache-Control header</a></li>
+      <li><a href="https://html.spec.whatwg.org/multipage/images.html#available-images" target="_blank" rel="noopener">HTML spec — available images</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
