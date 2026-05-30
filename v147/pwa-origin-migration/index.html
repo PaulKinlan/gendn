@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PWA origin migration — Chrome 147 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v147/">&larr; Chrome 147 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v147 · pwa · web-app-manifest · developer trial</p>
+    <h1>PWA origin migration</h1>
+    <p class="lede">A mechanism that lets an installed Progressive Web App seamlessly migrate to a new same-site origin — preserving user trust and permissions — without requiring the user to manually uninstall and reinstall. In developer trial in Chrome 147; ships by default in Chrome 150.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Developer trial — behind a flag</strong>
+    PWA origin migration is in developer trial in Chrome 147. Enable the flag at <code>chrome://flags</code> to test the migration flow locally. The manifest field shape and browser UI may still evolve before Chrome 150, where it ships by default.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Status in Chrome 147</th><td>Developer trial (behind a flag)</td></tr>
+      <tr><th>Shipped by default</th><td>Chrome 150</td></tr>
+      <tr><th>Spec</th><td><a href="https://github.com/WICG/manifest-incubations/pull/136" target="_blank" rel="noopener">WICG manifest-incubations PR #136</a></td></tr>
+      <tr><th>Standards maturity</th><td>Incubation (Community Group)</td></tr>
+      <tr><th>Standards position (Firefox)</th><td>No signal</td></tr>
+      <tr><th>Standards position (Safari)</th><td>No signal</td></tr>
+      <tr><th>Blink component</th><td>UI&gt;Browser&gt;WebAppInstalls</td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5123349239955456" target="_blank" rel="noopener">5123349239955456 — PWA origin migration</a></td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5123349239955456" target="_blank" rel="noopener">chromestatus.com/feature/5123349239955456</a></span>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>An installed PWA's identity is tightly bound to its web origin — for example, <code>app.example.com</code>. When developers need to change origin (rebranding, domain restructuring, technical re-architecture), users are forced to uninstall the old app and reinstall from the new URL. This breaks local data continuity, home screen placement, and results in significant permanent user loss.</p>
+    <p>The PWA origin migration mechanism allows the developer to declare a migration target in the old app's Web App Manifest. Chrome detects the signal, verifies the new origin is same-site (same eTLD+1), and prompts the user to migrate with their permissions intact.</p>
+    <p><strong>Enterprise constraint</strong>: Apps force-installed via the <code>WebAppInstallForceList</code> enterprise policy cannot be migrated. Chrome displays a banner explaining this to the user instead of offering the migration prompt.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5123349239955456" target="_blank" rel="noopener">chromestatus feature summary</a></span>
+  </section>
+
+  <section>
+    <h2>constraints</h2>
+    <table class="doc-table">
+      <tr><th>Requirement</th><th>Detail</th></tr>
+      <tr><td>Same-site migration only</td><td>The new origin must share the same registrable domain (eTLD+1) as the old origin — e.g. <code>app.example.com</code> → <code>www.example.com/app</code></td></tr>
+      <tr><td>Manifest declaration required</td><td>The old origin's manifest must declare the new origin as the migration target</td></tr>
+      <tr><td>Enterprise policy</td><td><code>WebAppInstallForceList</code> force-installed apps block migration; the user sees an explanatory banner</td></tr>
+      <tr><td>User consent</td><td>Chrome always prompts the user; migration is never silent</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5123349239955456" target="_blank" rel="noopener">chromestatus feature summary</a></span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+    <p>The migration is declared in the old origin's Web App Manifest. The exact field name is still being finalised during the incubation period; refer to the WICG spec PR for the current shape.</p>
+<pre><code>// Old origin: app.example.com/manifest.json (conceptual shape)
+{
+  "name": "My App",
+  "start_url": "/",
+  "display": "standalone",
+
+  // Declare that the app is moving to a new same-site origin.
+  // Field name subject to change during incubation.
+  "migration_target": "https://www.example.com/app/"
+}</code></pre>
+    <p>When Chrome detects this field (with the flag enabled in 147, or by default in 150), it shows the user a prompt to update the installed shortcut and origin. If the user accepts, the installed PWA continues from the new URL.</p>
+    <span class="citation">Conceptual example — refer to <a href="https://github.com/WICG/manifest-incubations/pull/136" target="_blank" rel="noopener">WICG manifest-incubations PR #136</a> and <a href="https://googlechrome.github.io/samples/pwa-migration" target="_blank" rel="noopener">the sample app</a> for authoritative field names.</span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Browser</th><th>Support</th><th>Notes</th></tr>
+      <tr><td>Chrome 147</td><td>Developer trial (behind flag)</td><td>Enable at <code>chrome://flags</code></td></tr>
+      <tr><td>Chrome 150+</td><td>Enabled by default</td><td>Desktop and Android</td></tr>
+      <tr><td>Firefox</td><td>No signal</td><td>—</td></tr>
+      <tr><td>Safari</td><td>No signal</td><td>—</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5123349239955456" target="_blank" rel="noopener">chromestatus.com/feature/5123349239955456</a></span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/5123349239955456" target="_blank" rel="noopener">Chrome Platform Status — PWA origin migration</a></li>
+      <li><a href="https://github.com/WICG/manifest-incubations/pull/136" target="_blank" rel="noopener">WICG manifest-incubations PR #136 — spec incubation</a></li>
+      <li><a href="https://googlechrome.github.io/samples/pwa-migration" target="_blank" rel="noopener">Sample app — PWA origin migration</a></li>
+      <li><a href="/v150/pwa-origin-migration/">Chrome 150 — PWA origin migration (shipped by default)</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/pwa-origin-migration/" target="_blank" rel="noopener">chrome-platform-showcase: PWA origin migration</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
