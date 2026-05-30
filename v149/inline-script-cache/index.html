@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Inline script cache — Chrome 149 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v149/">&larr; Chrome 149 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v149 · performance · developer trial</p>
+    <h1>Inline script cache</h1>
+    <p class="lede">Chrome 149 caches compiled bytecode for inline <code>&lt;script&gt;</code> blocks — scripts embedded directly in HTML rather than loaded from a separate URL. Pages that revisit the same HTML can skip V8's compilation step, reducing parse and startup time for JavaScript-heavy pages.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Developer trial / behind a flag</strong>
+    In developer trial in Chrome 149. Enable via <code>chrome://flags/#enable-experimental-web-platform-features</code>. No API surface — this is a transparent runtime optimisation.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Status in 149</th><td>In developer trial (behind a flag)</td></tr>
+      <tr><th>Flag</th><td><code>chrome://flags/#enable-experimental-web-platform-features</code></td></tr>
+      <tr><th>API change</th><td>None — transparent performance optimisation</td></tr>
+      <tr><th>Spec</th><td><a href="https://html.spec.whatwg.org" target="_blank" rel="noopener">HTML Standard</a> (no new IDL)</td></tr>
+      <tr><th>Blink component</th><td>Blink&gt;JavaScript&gt;Compiler</td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5132993816559616" target="_blank" rel="noopener">5132993816559616 — Inline script cache</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>External scripts loaded via <code>&lt;script src="..."&gt;</code> have benefited from bytecode caching since Chrome 66: after the first parse, V8 stores the compiled representation in the HTTP cache alongside the resource. The same optimisation was not applied to inline scripts because they have no URL — they're part of the HTML document. The inline script cache extends bytecode caching to inline scripts by keying the cache on a hash of the script source, storing it alongside the HTML document's cache entry. Pages that re-visit the same version of a page (same HTML content) now skip inline script compilation on subsequent loads.</p>
+    <span class="citation">Source: chromestatus summary.</span>
+  </section>
+
+  <section>
+    <h2>who benefits</h2>
+    <table class="doc-table">
+      <tr><th>Server-side rendered pages</th><td>SSR frameworks that embed large initialisation scripts inline (Next.js, Nuxt, Astro data islands) benefit most.</td></tr>
+      <tr><th>Stable HTML</th><td>The cache is keyed on script source content. Pages where the HTML changes on every load (personalised content) see less benefit.</td></tr>
+      <tr><th>Returning visitors</th><td>First load still compiles; subsequent loads with the same HTML hit the cache.</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus summary.</span>
+  </section>
+
+  <section>
+    <h2>no code changes needed</h2>
+    <p>This optimisation is entirely transparent. Your HTML and JavaScript do not change:</p>
+<pre><code>&lt;!-- This inline script is now cached after the first parse --&gt;
+&lt;script&gt;
+  const data = {"user":"alice","theme":"dark","locale":"en"};
+  window.__INITIAL_DATA__ = data;
+  initApp(data);
+&lt;/script&gt;</code></pre>
+    <p>The cache is keyed on script content. If the script text changes (e.g. personalised data embedded), the cache is invalidated and the script is recompiled.</p>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome</th><td>149 — developer trial (flag required)</td></tr>
+      <tr><th>Edge</th><td>Tracking Chromium</td></tr>
+      <tr><th>Firefox</th><td>N/A (implementation detail)</td></tr>
+      <tr><th>Safari</th><td>N/A (implementation detail)</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/5132993816559616" target="_blank" rel="noopener">chromestatus: Inline script cache</a></li>
+      <li><a href="https://v8.dev/blog/code-caching" target="_blank" rel="noopener">V8 blog: Code caching for JavaScript developers</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v149/inline-script-cache/" target="_blank" rel="noopener">chrome-platform-showcase: demos</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
