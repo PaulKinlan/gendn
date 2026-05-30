@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Parse processing instructions in HTML — Chrome 150 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v150/">&larr; Chrome 150 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v150 · html · dom · parser</p>
+    <h1>Parse processing instructions in HTML</h1>
+    <p class="lede">Chrome 150 extends the HTML parser to recognise and preserve XML-style processing instructions (<code>&lt;?target data?&gt;</code>) as <code>ProcessingInstruction</code> DOM nodes. Previously these were silently discarded by the HTML parser; now they appear in the DOM tree alongside elements and text nodes.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 150 (Enabled by default)</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>API change</th><td><code>ProcessingInstruction</code> nodes now appear in the HTML DOM</td></tr>
+      <tr><th>Standards position (Firefox)</th><td>No signal</td></tr>
+      <tr><th>Standards position (Safari)</th><td>Support</td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/6534495085920256" target="_blank" rel="noopener">6534495085920256 — Parse processing instructions in HTML</a></td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6534495085920256" target="_blank" rel="noopener">chromestatus.com/feature/6534495085920256</a></span>
+  </section>
+
+  <section>
+    <h2>what processing instructions are</h2>
+    <p>Processing instructions (PIs) are a construct from XML with the syntax <code>&lt;?target data?&gt;</code>. They exist in the DOM as <code>ProcessingInstruction</code> nodes (a subclass of <code>CharacterData</code>) with <code>target</code> and <code>data</code> properties. They are already first-class citizens in XML/XHTML DOM but have historically been stripped by the HTML5 parser.</p>
+    <p>Typical use cases include:</p>
+    <ul>
+      <li>Streaming markers — a PI can mark a range boundary in out-of-order HTML streaming without introducing visible elements or affecting CSS layout.</li>
+      <li>Parser directives — a PI can instruct a server-side or client-side rendering engine about how to buffer, inject, or process the surrounding content.</li>
+      <li>Lightweight annotations — PIs provide a way to embed metadata in the DOM tree without wrapping content in extra elements.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6534495085920256" target="_blank" rel="noopener">chromestatus feature summary</a></span>
+  </section>
+
+  <section>
+    <h2>shape of the API</h2>
+    <table class="doc-table">
+      <tr><th>Interface</th><th>Property</th><th>Description</th></tr>
+      <tr><td><code>ProcessingInstruction</code></td><td><code>target</code></td><td>The PI target string (before the first space)</td></tr>
+      <tr><td><code>ProcessingInstruction</code></td><td><code>data</code></td><td>The PI data string (after the first space, up to <code>?&gt;</code>)</td></tr>
+      <tr><td><code>Node</code></td><td><code>nodeType</code></td><td><code>7</code> (<code>Node.PROCESSING_INSTRUCTION_NODE</code>)</td></tr>
+    </table>
+    <p>Processing instructions are accessible through normal DOM traversal: <code>TreeWalker</code>, <code>NodeIterator</code>, <code>childNodes</code>, <code>querySelector</code> (does not match PIs, but iteration does).</p>
+    <span class="citation">Source: <a href="https://dom.spec.whatwg.org/#interface-processinginstruction" target="_blank" rel="noopener">DOM Living Standard §ProcessingInstruction</a></span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+<pre><code>&lt;!-- HTML source with processing instructions --&gt;
+&lt;div id="content"&gt;
+  &lt;?stream-start id="chunk-1"?&gt;
+  &lt;p&gt;First paragraph&lt;/p&gt;
+  &lt;?stream-end id="chunk-1"?&gt;
+&lt;/div&gt;
+
+&lt;script&gt;
+// Chrome 150+: PIs are now in the DOM
+const walker = document.createTreeWalker(
+  document.getElementById('content'),
+  NodeFilter.SHOW_PROCESSING_INSTRUCTION
+);
+let node;
+while ((node = walker.nextNode())) {
+  console.log(node.target, node.data);
+  // "stream-start" "id=\"chunk-1\""
+  // "stream-end"   "id=\"chunk-1\""
+}
+
+// Access via childNodes
+const div = document.getElementById('content');
+for (const child of div.childNodes) {
+  if (child.nodeType === Node.PROCESSING_INSTRUCTION_NODE) {
+    console.log('PI:', child.target, child.data);
+  }
+}
+&lt;/script&gt;</code></pre>
+    <span class="citation">Source: <a href="https://dom.spec.whatwg.org/#interface-processinginstruction" target="_blank" rel="noopener">DOM Living Standard §ProcessingInstruction</a></span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Browser</th><th>Support</th><th>Notes</th></tr>
+      <tr><td>Chrome 150+</td><td>Enabled by default</td><td>All platforms</td></tr>
+      <tr><td>Firefox</td><td>No signal</td><td>—</td></tr>
+      <tr><td>Safari</td><td>Support</td><td>—</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6534495085920256" target="_blank" rel="noopener">chromestatus.com/feature/6534495085920256</a></span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/6534495085920256" target="_blank" rel="noopener">Chrome Platform Status — Parse processing instructions in HTML</a></li>
+      <li><a href="https://dom.spec.whatwg.org/#interface-processinginstruction" target="_blank" rel="noopener">DOM Living Standard — ProcessingInstruction</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

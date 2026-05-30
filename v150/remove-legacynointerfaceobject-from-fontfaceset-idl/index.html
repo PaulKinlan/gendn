@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Remove [LegacyNoInterfaceObject] from FontFaceSet IDL — Chrome 150 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v150/">&larr; Chrome 150 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v150 · css · fonts · web-idl · interop</p>
+    <h1>Remove [LegacyNoInterfaceObject] from FontFaceSet IDL</h1>
+    <p class="lede">Chrome 150 removes an incorrect <code>[LegacyNoInterfaceObject]</code> annotation from the <code>FontFaceSet</code> Web IDL, making <code>FontFaceSet</code> available as a global property in JavaScript. This aligns Chrome with Firefox, Safari, and the CSS Font Loading specification.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 150 (Enabled by default)</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Spec</th><td><a href="https://drafts.csswg.org/css-font-loading/#FontFaceSet-interface" target="_blank" rel="noopener">CSS Font Loading — FontFaceSet</a></td></tr>
+      <tr><th>Standards position (Firefox)</th><td>Shipped/Shipping</td></tr>
+      <tr><th>Standards position (Safari)</th><td>Shipped/Shipping</td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5123999844663296" target="_blank" rel="noopener">5123999844663296 — Remove [LegacyNoInterfaceObject] from FontFaceSet IDL</a></td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5123999844663296" target="_blank" rel="noopener">chromestatus.com/feature/5123999844663296</a></span>
+  </section>
+
+  <section>
+    <h2>what changed and why</h2>
+    <p>The Web IDL extended attribute <code>[LegacyNoInterfaceObject]</code> tells the browser not to expose an interface as a named property on the global object. Applied to <code>FontFaceSet</code>, it meant that <code>self.FontFaceSet</code> (and <code>window.FontFaceSet</code>) was <code>undefined</code> in Chrome, and the <code>constructor</code> property was absent from <code>FontFaceSet.prototype</code>.</p>
+    <p>This deviated from the CSS Font Loading specification, which does not include <code>[LegacyNoInterfaceObject]</code>, and from Firefox and Safari where <code>window.FontFaceSet</code> is accessible. Chrome 150 removes the annotation, making the behaviour consistent.</p>
+    <p><strong>Note on instantiation</strong>: because the IDL defines no <code>constructor()</code>, calling <code>new FontFaceSet()</code> continues to throw <code>TypeError: Illegal constructor</code> — this is correct spec-mandated behaviour. <code>FontFaceSet</code> instances are obtained via <code>document.fonts</code>, not by direct construction.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5123999844663296" target="_blank" rel="noopener">chromestatus feature summary</a>; <a href="https://drafts.csswg.org/css-font-loading/#FontFaceSet-interface" target="_blank" rel="noopener">CSS Font Loading spec</a></span>
+  </section>
+
+  <section>
+    <h2>what changes</h2>
+    <table class="doc-table">
+      <tr><th>Expression</th><th>Chrome 149 and earlier</th><th>Chrome 150+</th></tr>
+      <tr><td><code>typeof FontFaceSet</code></td><td><code>"undefined"</code></td><td><code>"function"</code></td></tr>
+      <tr><td><code>window.FontFaceSet</code></td><td><code>undefined</code></td><td>The <code>FontFaceSet</code> interface constructor</td></tr>
+      <tr><td><code>document.fonts instanceof FontFaceSet</code></td><td><code>false</code> (throws or returns false)</td><td><code>true</code></td></tr>
+      <tr><td><code>new FontFaceSet()</code></td><td>TypeError</td><td>TypeError (no constructor defined — correct per spec)</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5123999844663296" target="_blank" rel="noopener">chromestatus feature summary</a></span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+<pre><code>// Chrome 150+: FontFaceSet is accessible as a global
+console.log(typeof FontFaceSet); // "function"
+
+// Check if document.fonts is a FontFaceSet (now works cross-browser)
+console.log(document.fonts instanceof FontFaceSet); // true
+
+// Useful for type-checking / polyfill detection
+if (typeof FontFaceSet !== 'undefined') {
+  // FontFaceSet interface available
+  document.fonts.ready.then(() => {
+    console.log('All fonts loaded');
+  });
+}
+
+// Still works (unchanged) — always use document.fonts, not new FontFaceSet()
+const fonts = document.fonts;
+fonts.add(new FontFace('MyFont', 'url(myfont.woff2)'));</code></pre>
+    <span class="citation">Source: <a href="https://drafts.csswg.org/css-font-loading/#FontFaceSet-interface" target="_blank" rel="noopener">CSS Font Loading — FontFaceSet</a></span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Browser</th><th>Support</th><th>Notes</th></tr>
+      <tr><td>Chrome 150+</td><td>Enabled by default</td><td><code>FontFaceSet</code> now a global property</td></tr>
+      <tr><td>Firefox</td><td>Shipped</td><td>Already exposed <code>FontFaceSet</code> as a global</td></tr>
+      <tr><td>Safari</td><td>Shipped</td><td>Already exposed <code>FontFaceSet</code> as a global</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5123999844663296" target="_blank" rel="noopener">chromestatus.com/feature/5123999844663296</a></span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/5123999844663296" target="_blank" rel="noopener">Chrome Platform Status — Remove [LegacyNoInterfaceObject] from FontFaceSet IDL</a></li>
+      <li><a href="https://drafts.csswg.org/css-font-loading/#FontFaceSet-interface" target="_blank" rel="noopener">CSS Font Loading — FontFaceSet interface</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
