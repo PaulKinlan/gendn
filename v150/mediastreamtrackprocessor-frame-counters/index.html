@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MediaStreamTrackProcessor frame counters — Chrome 150 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v150/">&larr; Chrome 150 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v150 · media · webcodecs · streams</p>
+    <h1>MediaStreamTrackProcessor frame counters</h1>
+    <p class="lede">Chrome 150 adds <code>discardedFrames</code> and <code>totalFrames</code> read-only attributes to <code>MediaStreamTrackProcessor</code>, letting developers monitor how many frames have arrived and how many were dropped when the processor's <code>ReadableStream</code> was not being consumed fast enough.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 150 (Enabled by default)</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Spec</th><td><a href="https://w3c.github.io/mediacapture-transform/" target="_blank" rel="noopener">Media Capture Transform — MediaStreamTrackProcessor</a></td></tr>
+      <tr><th>Standards position (Firefox)</th><td>Positive</td></tr>
+      <tr><th>Standards position (Safari)</th><td>Positive</td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/6267249280286720" target="_blank" rel="noopener">6267249280286720 — MediaStreamTrackProcessor frame counters</a></td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6267249280286720" target="_blank" rel="noopener">chromestatus.com/feature/6267249280286720</a></span>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p><code>MediaStreamTrackProcessor</code> exposes a <code>MediaStreamTrack</code> (camera, screen capture, audio) as a <code>ReadableStream</code> of <code>VideoFrame</code> or <code>AudioData</code> objects. If the consuming code (e.g. a WebCodecs encoder or a canvas-drawing loop) cannot keep up with the incoming frame rate, the processor silently drops frames rather than buffering indefinitely.</p>
+    <p>Before Chrome 150 there was no way to tell how many frames had been dropped. Developers building WebRTC pipelines, video effects, or recording applications had no visibility into whether their processing was keeping up. The new <code>discardedFrames</code> and <code>totalFrames</code> counters surface this information directly on the processor, making it possible to detect back-pressure problems and measure pipeline health.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6267249280286720" target="_blank" rel="noopener">chromestatus feature summary</a></span>
+  </section>
+
+  <section>
+    <h2>shape of the API</h2>
+    <table class="doc-table">
+      <tr><th>Property</th><th>Type</th><th>Description</th></tr>
+      <tr><td><code>MediaStreamTrackProcessor.totalFrames</code></td><td><code>number</code></td><td>Total number of frames received from the track since the processor was created</td></tr>
+      <tr><td><code>MediaStreamTrackProcessor.discardedFrames</code></td><td><code>number</code></td><td>Number of frames dropped because the readable stream was not being read fast enough</td></tr>
+    </table>
+    <p>Both properties are read-only and increase monotonically. The drop rate can be computed as <code>discardedFrames / totalFrames</code>.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/mediacapture-transform/" target="_blank" rel="noopener">Media Capture Transform spec</a></span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+<pre><code>const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+const [track] = stream.getVideoTracks();
+const processor = new MediaStreamTrackProcessor({ track });
+const reader = processor.readable.getReader();
+
+let frameCount = 0;
+
+async function processFrames() {
+  while (true) {
+    const { value: frame, done } = await reader.read();
+    if (done) break;
+
+    // Do something with the frame (e.g. encode, draw to canvas)
+    frame.close();
+    frameCount++;
+
+    // Chrome 150+: monitor pipeline health
+    if (frameCount % 60 === 0) {
+      const total = processor.totalFrames;
+      const dropped = processor.discardedFrames;
+      const dropRate = total > 0 ? (dropped / total * 100).toFixed(1) : 0;
+      console.log(`Frames: ${total} total, ${dropped} dropped (${dropRate}%)`);
+      if (dropped / total > 0.1) {
+        console.warn('High frame drop rate — processing pipeline too slow');
+      }
+    }
+  }
+}
+
+processFrames();</code></pre>
+    <span class="citation">Source: <a href="https://w3c.github.io/mediacapture-transform/" target="_blank" rel="noopener">Media Capture Transform spec</a></span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Browser</th><th>Support</th><th>Notes</th></tr>
+      <tr><td>Chrome 150+</td><td>Enabled by default</td><td>All platforms</td></tr>
+      <tr><td>Firefox</td><td>Positive</td><td>Not yet shipped</td></tr>
+      <tr><td>Safari</td><td>Positive</td><td>Not yet shipped</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6267249280286720" target="_blank" rel="noopener">chromestatus.com/feature/6267249280286720</a></span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/6267249280286720" target="_blank" rel="noopener">Chrome Platform Status — MediaStreamTrackProcessor frame counters</a></li>
+      <li><a href="https://w3c.github.io/mediacapture-transform/" target="_blank" rel="noopener">Media Capture Transform — W3C spec</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

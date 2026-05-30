@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Opaque origin for data: URLs — Chrome 150 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v150/">&larr; Chrome 150 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v150 · security · workers · origins</p>
+    <h1>Opaque origin for data: URLs</h1>
+    <p class="lede">Chrome 150 assigns a unique opaque origin to Dedicated Workers and Shared Workers created from <code>data:</code> URLs, rather than inheriting the creator's origin. This aligns Chrome with the HTML specification, with Firefox, and with Safari, closing a same-origin access path from these workers to their creator's storage and channels.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 150 (Enabled by default)</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Spec</th><td><a href="https://html.spec.whatwg.org/multipage/workers.html#script-settings-for-workers" target="_blank" rel="noopener">HTML Living Standard — Worker settings object</a></td></tr>
+      <tr><th>Standards position (Firefox)</th><td>Shipped/Shipping</td></tr>
+      <tr><th>Standards position (Safari)</th><td>Shipped/Shipping</td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/6290352295247872" target="_blank" rel="noopener">6290352295247872 — Opaque origin for data: URLs</a></td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6290352295247872" target="_blank" rel="noopener">chromestatus.com/feature/6290352295247872</a></span>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Before Chrome 150, a <code>data:</code> URL worker automatically inherited the same origin as the page that created it — for example, <code>new Worker('data:text/javascript,...')</code> from <code>https://example.com</code> ran with origin <code>https://example.com</code>. This meant the worker could:</p>
+    <ul>
+      <li>Open a <code>BroadcastChannel</code> and receive messages from other same-origin pages.</li>
+      <li>Access same-origin <code>localStorage</code>, <code>indexedDB</code>, and other storage.</li>
+      <li>Be used to exfiltrate data if the worker script came from untrusted input.</li>
+    </ul>
+    <p>The HTML Living Standard (step 3 of the Worker settings object algorithm) specifies that workers created from opaque URLs such as <code>data:</code> should receive a unique opaque origin. Chrome 150 implements this. The worker still shares the same storage <em>partition</em> as its creator (so quota accounting is unchanged), but it no longer shares the creator's same-origin privileges.</p>
+    <span class="citation">Source: <a href="https://html.spec.whatwg.org/multipage/workers.html#script-settings-for-workers" target="_blank" rel="noopener">HTML Living Standard §Worker settings object</a>; <a href="https://chromestatus.com/feature/6290352295247872" target="_blank" rel="noopener">chromestatus feature summary</a></span>
+  </section>
+
+  <section>
+    <h2>what changes</h2>
+    <table class="doc-table">
+      <tr><th>Context</th><th>Chrome 149 and earlier</th><th>Chrome 150+</th></tr>
+      <tr><td><code>new Worker('data:...')</code> from <code>https://example.com</code></td><td>Worker origin = <code>https://example.com</code></td><td>Worker origin = unique opaque origin</td></tr>
+      <tr><td><code>BroadcastChannel</code> from that worker</td><td>Receives messages from same-origin pages</td><td>Isolated — no same-origin channel access</td></tr>
+      <tr><td>Same-origin storage access</td><td>Allowed (<code>localStorage</code>, <code>indexedDB</code>, etc.)</td><td>Blocked for cross-origin storage; partition preserved</td></tr>
+      <tr><td>Shared Workers via <code>data:</code> URL</td><td>Inherited origin</td><td>Opaque origin</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6290352295247872" target="_blank" rel="noopener">chromestatus feature summary</a></span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+<pre><code>// Before Chrome 150: worker inherited https://example.com origin.
+// After Chrome 150: worker has a unique opaque origin.
+
+const workerCode = `
+  // This BroadcastChannel will no longer receive messages from the
+  // parent page's origin in Chrome 150+ — the worker is now isolated.
+  const bc = new BroadcastChannel('updates');
+  bc.onmessage = (e) => console.log('received', e.data);
+`;
+const blob = new Blob([workerCode], { type: 'text/javascript' });
+const url = URL.createObjectURL(blob); // blob: URLs retain creator origin
+// ^ Use blob: URLs (still inherits origin) for workers that need same-origin access.
+// data: URLs now produce opaque origins.
+
+// Prefer blob: URLs when same-origin communication is intended:
+const w = new Worker(url);
+
+// data: URL workers are safe for sandboxed computation:
+const sandboxed = new Worker('data:text/javascript,' + encodeURIComponent(workerCode));
+// sandboxed.origin is opaque — can't reach parent's storage or channels.</code></pre>
+    <span class="citation">Source: <a href="https://html.spec.whatwg.org/multipage/workers.html#script-settings-for-workers" target="_blank" rel="noopener">HTML Living Standard §Worker settings object</a></span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Browser</th><th>Support</th><th>Notes</th></tr>
+      <tr><td>Chrome 150+</td><td>Enabled by default</td><td>Desktop and mobile</td></tr>
+      <tr><td>Firefox</td><td>Shipped</td><td>Already uses opaque origins for data: URL workers</td></tr>
+      <tr><td>Safari</td><td>Shipped</td><td>Already uses opaque origins for data: URL workers</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6290352295247872" target="_blank" rel="noopener">chromestatus.com/feature/6290352295247872</a></span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/6290352295247872" target="_blank" rel="noopener">Chrome Platform Status — Opaque origin for data: URLs</a></li>
+      <li><a href="https://html.spec.whatwg.org/multipage/workers.html#script-settings-for-workers" target="_blank" rel="noopener">HTML Living Standard — Worker settings object</a></li>
+      <li><a href="/v150/opaque-origin-for-data-url-dedicated-and-shared-workers/">gendn — v150: Opaque origin for data: URL dedicated and shared workers</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

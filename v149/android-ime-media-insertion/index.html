@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Android IME media insertion — Chrome 149 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v149/">&larr; Chrome 149 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v149 · android · ime · editing</p>
+    <h1>Android IME media insertion</h1>
+    <p class="lede">Chrome 149 on Android enables Input Method Editors (keyboards) to insert rich media content — images, GIFs, and stickers — directly into editable web content, matching the capability that native Android apps have had through the Android IME <code>commitContent</code> API.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 149 (Stepped rollout)</td></tr>
+      <tr><th>Status</th><td>Stepped rollout (gradually enabled)</td></tr>
+      <tr><th>Platform</th><td>Android only</td></tr>
+      <tr><th>API change</th><td>Behavioural — media arrives via existing clipboard/paste event pipeline</td></tr>
+      <tr><th>Standards position (Firefox)</th><td>No signal</td></tr>
+      <tr><th>Standards position (Safari)</th><td>No signal</td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5484282563919872" target="_blank" rel="noopener">5484282563919872 — Android IME media insertion</a></td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5484282563919872" target="_blank" rel="noopener">chromestatus.com/feature/5484282563919872</a></span>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>On Android, virtual keyboards (IMEs) such as Gboard can insert rich content — emoji packs, GIF stickers, inline images — into native app text fields using the Android <code>InputConnection.commitContent()</code> API. Prior to Chrome 149, this capability did not propagate to web content: a user could tap a GIF key on their keyboard while editing a <code>&lt;textarea&gt;</code> or <code>contenteditable</code> element on a website, but nothing would happen.</p>
+    <p>Chrome 149 wires up the Android IME rich-content insertion path into Chromium's editing pipeline. When an IME commits media content, Chrome converts it and delivers it to the page using the existing <code>paste</code> event / <code>InputEvent</code> path, the same mechanism that handles clipboard pastes. No new Web API is needed; sites that already handle pasted images (e.g. by listening to <code>paste</code> events or using <code>DataTransfer</code>) receive the IME-inserted media automatically.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5484282563919872" target="_blank" rel="noopener">chromestatus feature summary</a></span>
+  </section>
+
+  <section>
+    <h2>what this means for developers</h2>
+    <table class="doc-table">
+      <tr><th>Scenario</th><th>Before Chrome 149</th><th>Chrome 149+ (Android)</th></tr>
+      <tr><td>User taps GIF/sticker key in Android keyboard</td><td>No effect in web content</td><td>Media delivered via <code>paste</code> event to the focused editable element</td></tr>
+      <tr><td>Site listening for <code>paste</code> + reading <code>DataTransfer</code></td><td>Clipboard pastes only</td><td>Clipboard pastes + IME media insertions</td></tr>
+      <tr><td>Sites not listening for <code>paste</code></td><td>No change</td><td>No change — media is not inserted automatically into plain text fields</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5484282563919872" target="_blank" rel="noopener">chromestatus feature summary</a></span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+    <p>No code changes are needed for sites that already handle pasted images. A minimal handler:</p>
+<pre><code>document.addEventListener('paste', (event) => {
+  const items = Array.from(event.clipboardData?.items ?? []);
+  for (const item of items) {
+    if (item.type.startsWith('image/')) {
+      event.preventDefault();
+      const blob = item.getAsFile();
+      if (!blob) continue;
+      const url = URL.createObjectURL(blob);
+      const img = document.createElement('img');
+      img.src = url;
+      document.querySelector('#editor').append(img);
+    }
+  }
+});
+// Chrome 149+ on Android: this handler also fires when the user
+// taps a GIF or sticker key on their Android keyboard.</code></pre>
+    <span class="citation">Source: <a href="https://w3c.github.io/clipboard-apis/#clipboard-event-paste" target="_blank" rel="noopener">Clipboard API Living Standard — paste event</a></span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Browser</th><th>Support</th><th>Notes</th></tr>
+      <tr><td>Chrome 149+ (Android)</td><td>Stepped rollout</td><td>Android only; uses existing clipboard event path</td></tr>
+      <tr><td>Firefox (Android)</td><td>No signal</td><td>—</td></tr>
+      <tr><td>Safari (iOS)</td><td>No signal</td><td>—</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5484282563919872" target="_blank" rel="noopener">chromestatus.com/feature/5484282563919872</a></span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/5484282563919872" target="_blank" rel="noopener">Chrome Platform Status — Android IME media insertion</a></li>
+      <li><a href="https://w3c.github.io/clipboard-apis/#clipboard-event-paste" target="_blank" rel="noopener">Clipboard API — paste event</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
