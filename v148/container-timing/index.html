@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Container Timing — Chrome 148 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v148/">&larr; Chrome 148 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v148 · origin trial · performance api</p>
+    <h1>Container Timing</h1>
+    <p class="lede">A performance API that lets you measure when a named section of the DOM — a card, a widget, a news feed — first renders and when its last sub-element paints. Extends Element Timing from single elements to whole component trees.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Origin trial</strong>
+    Container Timing is in origin trial from Chrome 148. You need an origin trial token to use it in production outside of local testing. API shape is still subject to change; verify against the WICG spec before shipping. To test locally enable the <code>#container-timing</code> flag or register at <a href="https://developer.chrome.com/origintrials/" target="_blank" rel="noopener">developer.chrome.com/origintrials</a>.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Origin trial</th><td>Chrome 148+</td></tr>
+      <tr><th>Status</th><td>Origin trial (Experiment)</td></tr>
+      <tr><th>Spec / Explainer</th><td><a href="https://github.com/WICG/container-timing" target="_blank" rel="noopener">WICG/container-timing — GitHub explainer</a></td></tr>
+      <tr><th>Blog</th><td><a href="https://developer.chrome.com/blog/container-timing-origin-trial" target="_blank" rel="noopener">Container Timing origin trial — Chrome for Developers</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5110962817073152" target="_blank" rel="noopener">5110962817073152 — Container Timing</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>The <a href="https://developer.mozilla.org/en-US/docs/Web/API/Element_timing_API" target="_blank" rel="noopener">Element Timing API</a> lets you observe when a single <code>&lt;img&gt;</code> or text block renders. But modern pages are built from components — a news card, a product widget, a comment thread — and what developers actually care about is when the whole component is ready, not just its headline image. Container Timing extends the same <code>elementtiming</code> / <code>PerformanceObserver</code> pattern to entire subtrees: mark a container with the <code>containertiming</code> attribute, and the browser reports the render timing of the container as a whole, tracking its constituent elements until all have painted.</p>
+    <span class="citation">Source: WICG Container Timing explainer, Chrome for Developers blog, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>shape of the API</h2>
+
+    <h3>HTML: marking containers</h3>
+    <p>Add the <code>containertiming</code> attribute to any element you want to measure. The attribute value becomes the <code>identifier</code> in the performance entry:</p>
+    <pre><code>&lt;section containertiming="product-card"&gt;
+  &lt;img src="product.jpg" alt="..."&gt;
+  &lt;h2&gt;Product Name&lt;/h2&gt;
+  &lt;p&gt;Description...&lt;/p&gt;
+  &lt;button&gt;Add to cart&lt;/button&gt;
+&lt;/section&gt;</code></pre>
+
+    <h3>PerformanceEntry properties</h3>
+    <table class="doc-table">
+      <thead><tr><th>Property</th><th>Description</th></tr></thead>
+      <tr><td><code>entryType</code></td><td><code>"container"</code></td></tr>
+      <tr><td><code>identifier</code></td><td>The value of the <code>containertiming</code> attribute.</td></tr>
+      <tr><td><code>startTime</code></td><td>The timestamp of the latest element paint within the container (updates as new sub-elements paint).</td></tr>
+      <tr><td><code>firstRenderTime</code></td><td>Timestamp of the container's first paint.</td></tr>
+      <tr><td><code>size</code></td><td>The rendered area (in pixels) of the largest painted element in the container.</td></tr>
+      <tr><td><code>lastPaintedElement</code></td><td>Reference to the last DOM element that painted within the container.</td></tr>
+    </table>
+    <span class="citation">Source: WICG Container Timing explainer and Igalia blog, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+
+    <h3>Observing a component's render time</h3>
+    <pre><code>const observer = new PerformanceObserver((entryList) =&gt; {
+  for (const entry of entryList.getEntries()) {
+    console.log(`Container "${entry.identifier}" rendered`);
+    console.log('  First paint:', entry.firstRenderTime, 'ms');
+    console.log('  Last paint:', entry.startTime, 'ms');
+    console.log('  Painted area:', entry.size, 'px²');
+    console.log('  Last painted element:', entry.lastPaintedElement);
+  }
+});
+
+observer.observe({ type: 'container', buffered: true });</code></pre>
+
+    <h3>Measuring multiple components</h3>
+    <pre><code>&lt;!-- Mark each component you want to time --&gt;
+&lt;div containertiming="hero-banner"&gt; ... &lt;/div&gt;
+&lt;ul containertiming="product-grid"&gt; ... &lt;/ul&gt;
+&lt;aside containertiming="sidebar-recs"&gt; ... &lt;/aside&gt;</code></pre>
+    <pre><code>// The observer receives separate entries for each identifier
+const observer = new PerformanceObserver((list) =&gt; {
+  for (const entry of list.getEntries()) {
+    sendMetric(`render_${entry.identifier}`, entry.startTime);
+  }
+});
+observer.observe({ type: 'container', buffered: true });</code></pre>
+
+    <h3>Origin trial setup</h3>
+    <pre><code>&lt;meta http-equiv="origin-trial" content="YOUR_TOKEN_HERE"&gt;</code></pre>
+    <span class="citation">Source: Chrome for Developers blog — Container Timing origin trial; Igalia blog post, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Support</th></tr></thead>
+      <tr><td>Chrome 148+</td><td>Origin trial</td></tr>
+      <tr><td>Firefox</td><td>No position</td></tr>
+      <tr><td>Safari</td><td>No position</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.com feature page, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://developer.chrome.com/blog/container-timing-origin-trial" target="_blank" rel="noopener">Container Timing origin trial — Chrome for Developers</a></li>
+      <li><a href="https://github.com/WICG/container-timing" target="_blank" rel="noopener">WICG/container-timing — spec explainer on GitHub</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Element_timing_API" target="_blank" rel="noopener">MDN: Element Timing API — the sibling API</a></li>
+      <li><a href="https://chromestatus.com/feature/5110962817073152" target="_blank" rel="noopener">chromestatus — Container Timing (5110962817073152)</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/container-timing/" target="_blank" rel="noopener">chrome-platform-showcase — live demo</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
