@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebGPU Compatibility Mode — Chrome 148 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v148/">&larr; Chrome 148 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v148 · origin trial · webgpu · graphics</p>
+    <h1>WebGPU Compatibility Mode</h1>
+    <p class="lede">An opt-in, lightly restricted subset of WebGPU that runs on older graphics APIs — OpenGL ES 3.1 and Direct3D 11 — expanding WebGPU reach to devices that cannot support the Vulkan, Metal, or D3D12 backends required by core WebGPU.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Origin trial</strong>
+    WebGPU Compatibility Mode is in origin trial in Chrome 148. The feature level API and exact restrictions may still evolve. Check the chromestatus entry and the gpuweb compatibility-mode spec proposal before shipping production code.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Status in Chrome 148</th><td>Origin trial</td></tr>
+      <tr><th>Opt-in</th><td><code>navigator.gpu.requestAdapter({ featureLevel: "compatibility" })</code></td></tr>
+      <tr><th>Older APIs supported</th><td>OpenGL ES 3.1 (Android), Direct3D 11 (Windows)</td></tr>
+      <tr><th>Spec</th><td><a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/compatibility-mode.md" target="_blank" rel="noopener">gpuweb compatibility-mode proposal</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/6436406437871616" target="_blank" rel="noopener">6436406437871616 — WebGPU Compatibility Mode</a></td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.com/feature/6436406437871616; gpuweb compatibility-mode spec proposal.</span>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Core WebGPU requires a modern GPU API: Vulkan on Linux and Android, Metal on macOS/iOS, or Direct3D 12 on Windows. These APIs cover most modern devices, but a significant installed base — older Android devices with only OpenGL ES 3.1 support, and older Windows PCs running D3D11 — cannot use WebGPU at all.</p>
+    <p>Compatibility mode defines a subset of WebGPU with slightly reduced limits and removed features that cannot be cleanly mapped to OpenGL ES 3.1 or D3D11. A site can request a compatibility adapter and write WebGPU code that runs on both modern and legacy hardware with minimal branching.</p>
+    <span class="citation">Source: gpuweb compatibility-mode spec proposal; blink-dev Intent to Experiment — WebGPU Compatibility Mode.</span>
+  </section>
+
+  <section>
+    <h2>shape of the API</h2>
+
+    <h3>Requesting a compatibility adapter</h3>
+<pre><code>// Request a compatibility-mode adapter
+const adapter = await navigator.gpu.requestAdapter({
+  featureLevel: "compatibility"
+});
+
+if (!adapter) {
+  // Compatibility mode not available on this device
+  return;
+}
+
+const device = await adapter.requestDevice();
+// device operates under compatibility-mode restrictions</code></pre>
+
+    <h3>featureLevel values</h3>
+    <table class="doc-table">
+      <thead><tr><th>Value</th><th>Behaviour</th></tr></thead>
+      <tr><td><code>"core"</code> (default)</td><td>Full WebGPU; returns null on devices that don't support Vulkan/Metal/D3D12.</td></tr>
+      <tr><td><code>"compatibility"</code></td><td>Restricted WebGPU; works on OpenGL ES 3.1 and D3D11. A core adapter will also satisfy a compatibility request.</td></tr>
+    </table>
+
+    <h3>Key restrictions in compatibility mode</h3>
+    <p>Compatibility mode imposes reduced device limits and removes features that map poorly to OpenGL ES 3.1 / D3D11:</p>
+    <table class="doc-table">
+      <thead><tr><th>Restriction</th><th>Detail</th></tr></thead>
+      <tr><td>Reduced texture dimensions</td><td><code>maxTextureDimension1D/2D</code>: 4096 (vs 8192)</td></tr>
+      <tr><td>Reduced compute workgroup size</td><td><code>maxComputeInvocationsPerWorkgroup</code>: 128 (vs 256)</td></tr>
+      <tr><td>No cube array textures</td><td><code>GPUTextureViewDimension.cube-array</code> unsupported</td></tr>
+      <tr><td>No compressed texture copy</td><td><code>copyTextureToTexture</code> / <code>copyTextureToBuffer</code> not supported for compressed formats</td></tr>
+      <tr><td>No texture format reinterpretation</td><td><code>viewFormats</code> must match base texture format exactly</td></tr>
+      <tr><td>No storage buffers in vertex stage</td><td><code>maxStorageBuffersInVertexStage</code>: 0</td></tr>
+      <tr><td>Uniform colour attachment blend state</td><td>All colour attachments in a draw must share the same blend state and write mask</td></tr>
+    </table>
+
+    <h3>WGSL restrictions</h3>
+    <table class="doc-table">
+      <thead><tr><th>Restricted WGSL feature</th></tr></thead>
+      <tr><td>No <code>sample_mask</code> or <code>sample_index</code> builtins</td></tr>
+      <tr><td>No <code>linear</code> interpolation or <code>sample</code> sampling mode</td></tr>
+      <tr><td>No <code>dpdxFine()</code>, <code>dpdyFine()</code>, <code>fwidthFine()</code></td></tr>
+      <tr><td>No <code>textureLoad()</code> on depth textures</td></tr>
+      <tr><td>No non-comparison samplers on depth textures</td></tr>
+    </table>
+    <span class="citation">Source: gpuweb compatibility-mode spec proposal (github.com/gpuweb/gpuweb); blink-dev Intent to Experiment.</span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+<pre><code>async function initWebGPU() {
+  // Try core WebGPU first, fall back to compatibility mode
+  let adapter = await navigator.gpu.requestAdapter({ featureLevel: "core" });
+
+  if (!adapter) {
+    adapter = await navigator.gpu.requestAdapter({ featureLevel: "compatibility" });
+    if (!adapter) {
+      console.error('WebGPU not available');
+      return null;
+    }
+    console.log('Using WebGPU compatibility mode');
+  }
+
+  const device = await adapter.requestDevice();
+
+  // Check if core features are available despite compatibility request
+  const isCore = adapter.featureLevelInfo?.featureLevel === "core";
+
+  return { adapter, device, isCore };
+}</code></pre>
+    <span class="citation">Source: gpuweb compatibility-mode explainer; chromestatus feature page.</span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Support</th><th>Notes</th></tr></thead>
+      <tr><td>Chrome 148</td><td>Origin trial</td><td>Requires OT token; featureLevel API subject to change</td></tr>
+      <tr><td>Firefox</td><td>WebGPU not shipped</td><td>—</td></tr>
+      <tr><td>Safari</td><td>No signal</td><td>—</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.com/feature/6436406437871616; Edge 148 release notes.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/compatibility-mode.md" target="_blank" rel="noopener">WebGPU compatibility-mode spec proposal</a></li>
+      <li><a href="https://github.com/explainers-by-googlers/webgpu-compatibility-mode/blob/main/README.md" target="_blank" rel="noopener">WebGPU Compatibility Mode explainer</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/WebGPU_API" target="_blank" rel="noopener">MDN: WebGPU API</a></li>
+      <li><a href="https://chromestatus.com/feature/6436406437871616" target="_blank" rel="noopener">chromestatus — WebGPU Compatibility Mode (6436406437871616)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
