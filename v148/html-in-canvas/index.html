@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HTML-in-canvas — Chrome 148 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v148/">&larr; Chrome 148 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v148 · origin trial · experimental</p>
+    <h1>HTML-in-canvas</h1>
+    <p class="lede">An experimental API that lets you draw live DOM elements — complete with interaction, accessibility, and browser-native styling — directly into a 2D canvas, WebGL texture, or WebGPU texture. Bridges the long-standing gap between the DOM's rich UI semantics and the canvas/WebGL performance model.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Origin Trial — Chrome 148–151</strong>
+    This API is in origin trial. Enable it for your users by <a href="https://developer.chrome.com/origintrials/#/view_trial/html-in-canvas" target="_blank" rel="noopener">registering for the origin trial token</a>, or test locally via <code>chrome://flags/#canvas-draw-element</code> in Chrome 148+. The API shape may change before it ships.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Origin trial</th><td>Chrome 148 – 151</td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5172548013916160" target="_blank" rel="noopener">5172548013916160 — HTML-in-canvas</a></td></tr>
+      <tr><th>Spec / Explainer</th><td><a href="https://github.com/WICG/html-in-canvas" target="_blank" rel="noopener">WICG/html-in-canvas GitHub repository</a></td></tr>
+    </table>
+    <span class="citation">Source: chromestatus and WICG/html-in-canvas, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>WebGL and canvas-based applications (games, design tools, video editors) have always faced a painful choice: use canvas for performance but lose DOM features (accessibility, forms, native controls, CSS styling), or overlay DOM elements on top of the canvas and manage two separate coordinate systems. HTML-in-canvas collapses that into one: nest HTML inside a <code>&lt;canvas&gt;</code>, then draw it directly into the rendering pipeline — with keyboard navigation and screen reader support preserved.</p>
+    <span class="citation">Source: Chrome for Developers — HTML-in-Canvas origin trial blog post, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>three new primitives</h2>
+    <table class="doc-table">
+      <thead><tr><th>Primitive</th><th>What it does</th></tr></thead>
+      <tr>
+        <td><code>layoutsubtree</code> attribute on <code>&lt;canvas&gt;</code></td>
+        <td>Opts the canvas into HTML-in-canvas mode. Child DOM elements are laid out and made accessible but not visually rendered by the browser — the canvas draws them instead.</td>
+      </tr>
+      <tr>
+        <td><code>ctx.drawElementImage(element, x, y)</code></td>
+        <td>2D canvas: draws the element at the given position; returns a <code>DOMMatrix</code> to sync the element's <code>style.transform</code> with its drawn location so DOM events remain aligned.</td>
+      </tr>
+      <tr>
+        <td><code>gl.texElementImage2D(…, element)</code> / <code>device.copyElementImageToTexture(element, …)</code></td>
+        <td>WebGL / WebGPU: uploads the element as a texture, enabling it to be used in shaders.</td>
+      </tr>
+      <tr>
+        <td><code>canvas.onpaint</code> event</td>
+        <td>Fires whenever the nested HTML needs to be redrawn (DOM mutation, CSS change, user interaction). The handler redraws the element into the canvas.</td>
+      </tr>
+    </table>
+    <span class="citation">Source: WICG/html-in-canvas explainer, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>example — 2D canvas with form elements</h2>
+    <pre><code>&lt;canvas id="c" style="width:400px;height:300px" layoutsubtree&gt;
+  &lt;div id="hud"&gt;
+    &lt;label for="name"&gt;Player name:&lt;/label&gt;
+    &lt;input id="name" type="text"&gt;
+  &lt;/div&gt;
+&lt;/canvas&gt;
+
+&lt;script&gt;
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const hud = document.getElementById('hud');
+
+canvas.onpaint = () => {
+  ctx.reset();
+  // Draw the HUD into the canvas; get back the transform for hit-testing
+  const t = ctx.drawElementImage(hud, 10, 10);
+  // Sync the DOM position so clicks reach the correct element
+  hud.style.transform = t.toString();
+};
+&lt;/script&gt;</code></pre>
+    <span class="citation">Source: WICG/html-in-canvas explainer and Chrome for Developers blog, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>example — WebGL texture</h2>
+    <pre><code>// Assumes canvas has layoutsubtree and contains an element with id="ui"
+canvas.onpaint = () => {
+  const uiElement = document.getElementById('ui');
+  gl.bindTexture(gl.TEXTURE_2D, uiTexture);
+  gl.texElementImage2D(
+    gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE,
+    uiElement
+  );
+  renderScene(); // draw the texture on a quad in 3D space
+};</code></pre>
+    <span class="citation">Source: WICG/html-in-canvas explainer, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://github.com/WICG/html-in-canvas" target="_blank" rel="noopener">WICG/html-in-canvas — explainer and spec</a></li>
+      <li><a href="https://chromestatus.com/feature/5172548013916160" target="_blank" rel="noopener">chromestatus — HTML-in-canvas (5172548013916160)</a></li>
+      <li><a href="https://developer.chrome.com/blog/html-in-canvas-origin-trial" target="_blank" rel="noopener">Chrome for Developers — HTML-in-Canvas origin trial blog post</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
