@@ -1,0 +1,79 @@
+name: Fetch ChromeStatus Data
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fetch-data.yml'
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create data directory
+        run: mkdir -p _data
+
+      - name: Fetch channels
+        run: |
+          echo "Fetching channels..."
+          HTTP=$(curl -sfw '%{http_code}' -o /tmp/channels_raw.txt 'https://chromestatus.com/api/v0/channels' -H 'accept: application/json')
+          echo "HTTP status: $HTTP"
+          if [ "$HTTP" = "200" ]; then
+            tail -c +6 /tmp/channels_raw.txt > _data/channels.json
+            echo "OK: $(wc -c < _data/channels.json) bytes"
+          else
+            cat /tmp/channels_raw.txt
+            echo '{}' > _data/channels.json
+          fi
+
+      - name: Fetch features milestone 147
+        run: |
+          HTTP=$(curl -sfw '%{http_code}' -o /tmp/f147_raw.txt 'https://chromestatus.com/api/v0/features?milestone=147' -H 'accept: application/json')
+          if [ "$HTTP" = "200" ]; then tail -c +6 /tmp/f147_raw.txt > _data/features-147.json; else echo '{}' > _data/features-147.json; fi
+          echo "147: HTTP $HTTP"
+
+      - name: Fetch features milestone 148
+        run: |
+          HTTP=$(curl -sfw '%{http_code}' -o /tmp/f148_raw.txt 'https://chromestatus.com/api/v0/features?milestone=148' -H 'accept: application/json')
+          if [ "$HTTP" = "200" ]; then tail -c +6 /tmp/f148_raw.txt > _data/features-148.json; else echo '{}' > _data/features-148.json; fi
+          echo "148: HTTP $HTTP"
+
+      - name: Fetch features milestone 149
+        run: |
+          HTTP=$(curl -sfw '%{http_code}' -o /tmp/f149_raw.txt 'https://chromestatus.com/api/v0/features?milestone=149' -H 'accept: application/json')
+          if [ "$HTTP" = "200" ]; then tail -c +6 /tmp/f149_raw.txt > _data/features-149.json; else echo '{}' > _data/features-149.json; fi
+          echo "149: HTTP $HTTP"
+
+      - name: Fetch features milestone 150
+        run: |
+          HTTP=$(curl -sfw '%{http_code}' -o /tmp/f150_raw.txt 'https://chromestatus.com/api/v0/features?milestone=150' -H 'accept: application/json')
+          if [ "$HTTP" = "200" ]; then tail -c +6 /tmp/f150_raw.txt > _data/features-150.json; else echo '{}' > _data/features-150.json; fi
+          echo "150: HTTP $HTTP"
+
+      - name: Fetch features milestone 151
+        run: |
+          HTTP=$(curl -sfw '%{http_code}' -o /tmp/f151_raw.txt 'https://chromestatus.com/api/v0/features?milestone=151' -H 'accept: application/json')
+          if [ "$HTTP" = "200" ]; then tail -c +6 /tmp/f151_raw.txt > _data/features-151.json; else echo '{}' > _data/features-151.json; fi
+          echo "151: HTTP $HTTP"
+
+      - name: Show summary
+        run: |
+          for f in _data/*.json; do
+            COUNT=$(python3 -c "import json,sys; d=json.load(open('$f')); print(sum(len(v) for v in d.get('features_by_type',{}).values()))" 2>/dev/null || echo '?')
+            echo "$f: $COUNT features"
+          done
+
+      - name: Commit data
+        run: |
+          git config user.email 'paul.kinlan@gmail.com'
+          git config user.name 'Paul Kinlan'
+          git add _data/
+          git diff --cached --quiet && echo 'No changes to commit' && exit 0
+          git commit -m 'chore: cache chromestatus API data'
+          git pull --rebase origin main
+          git push origin main
