@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpaqueRange — Chrome 148 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v148/">&larr; Chrome 148 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v148 · origin trial · dom · text input</p>
+    <h1>OpaqueRange</h1>
+    <p class="lede">A new live range type for <code>&lt;textarea&gt;</code> and text <code>&lt;input&gt;</code> elements. Unlike DOM <code>Range</code>, an <code>OpaqueRange</code> operates over a form control's <em>value</em> text rather than DOM nodes — enabling <code>getBoundingClientRect()</code>, the CSS Highlights API, and anchored popovers for inline suggestions, AI autocomplete, and spell-check UIs.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Origin trial</strong>
+    OpaqueRange is in origin trial starting in Chrome 148. The ship milestone is TBD pending spec review; the API shape may still change. Register at <a href="https://developer.chrome.com/origintrials/" target="_blank" rel="noopener">developer.chrome.com/origintrials</a> (search "OpaqueRange") for a token. Test locally with the <code>#opaque-range</code> flag.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Origin trial from</th><td>Chrome 148 (desktop, Android)</td></tr>
+      <tr><th>Status</th><td>Origin trial (Experiment)</td></tr>
+      <tr><th>Extends</th><td><code>AbstractRange</code> (not <code>Range</code>)</td></tr>
+      <tr><th>Spec</th><td><a href="https://github.com/WebAssembly/custom-descriptors" target="_blank" rel="noopener">Under active spec discussion</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/6297362687066112" target="_blank" rel="noopener">6297362687066112 — OpaqueRange</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Building inline-suggestion UI (AI autocomplete, spell-check, editor annotations) inside a <code>&lt;textarea&gt;</code> or <code>&lt;input&gt;</code> requires knowing the pixel position of a text offset in the control's value — but there is no standard API for that. Today developers work around this by mirroring the control's content into a hidden <code>&lt;div&gt;</code> overlay, measuring the clone, then positioning their UI relative to the clone. This is fragile and breaks whenever the control's font, padding, or scroll position differs from the mirror. OpaqueRange makes the browser do the geometry: create a range over value text offsets, call <code>getBoundingClientRect()</code>, and get the correct on-screen bounds. The range is <em>live</em> — its offsets stay valid as the value is edited.</p>
+    <span class="citation">Source: blink-dev Intent to Experiment — OpaqueRange, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>shape of the API</h2>
+
+    <h3>Creating an OpaqueRange</h3>
+    <p><code>OpaqueRange</code> objects are created via a new <code>createValueRange()</code> method on <code>HTMLTextAreaElement</code> and <code>HTMLInputElement</code> (text type):</p>
+    <pre><code>const textarea = document.querySelector('textarea');
+
+// Create a range covering characters 4–12 in the textarea's value
+const range = textarea.createValueRange(4, 12);</code></pre>
+
+    <h3>Getting geometry</h3>
+    <pre><code>// Returns the bounding rect of the text span in the control
+const rect = range.getBoundingClientRect();
+
+// Returns individual line-level rects (for multi-line spans)
+const rects = range.getClientRects();
+
+console.log('Text starts at:', rect.left, rect.top);</code></pre>
+
+    <h3>Using with the CSS Highlights API</h3>
+    <pre><code>// Highlight a range of value text (e.g., a misspelled word)
+const range = textarea.createValueRange(7, 14);
+const highlight = new Highlight(range);
+CSS.highlights.set('spelling-error', highlight);</code></pre>
+
+    <h3>Live range behaviour</h3>
+    <pre><code>const range = textarea.createValueRange(3, 8);
+
+// User types at position 0 → range offsets update automatically
+textarea.value = 'AB' + textarea.value;  // inserts at start
+// range now covers the same original text at new positions</code></pre>
+    <span class="citation">Source: blink-dev Intent to Experiment — OpaqueRange, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Support</th></tr></thead>
+      <tr><td>Chrome 148+ (desktop, Android)</td><td>Origin trial</td></tr>
+      <tr><td>Firefox</td><td>No position</td></tr>
+      <tr><td>Safari</td><td>No position</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.com feature page, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/6297362687066112" target="_blank" rel="noopener">chromestatus — OpaqueRange (6297362687066112)</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/CSS_Custom_Highlight_API" target="_blank" rel="noopener">MDN: CSS Custom Highlight API</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/AbstractRange" target="_blank" rel="noopener">MDN: AbstractRange</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/opaquerange/" target="_blank" rel="noopener">chrome-platform-showcase — live demo</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
