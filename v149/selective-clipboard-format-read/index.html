@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Selective Clipboard Format Read — Chrome 149 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .mdn-card {
+      display: block;
+      border: 2px solid var(--border-black);
+      background: var(--bg-paper);
+      box-shadow: var(--thin-shadow);
+      padding: 1rem 1.2rem;
+      margin: 1rem 0;
+      font-family: var(--font-mono);
+      font-size: 0.9rem;
+      text-decoration: none;
+      color: var(--text-black);
+    }
+    .mdn-card:hover { background: var(--bg-stone); }
+    .mdn-card::before {
+      content: "→ MDN";
+      display: block;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 0.3rem;
+    }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v149/">&larr; Chrome 149 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v149 · clipboard api · covered on mdn</p>
+    <h1>Selective Clipboard Format Read</h1>
+    <p class="lede">Chrome 149 changes <code>navigator.clipboard.read()</code> to defer fetching clipboard data from the OS until <code>ClipboardItem.getType()</code> is called, rather than eagerly loading all available formats up front. No API changes — existing clipboard code benefits automatically. Ships in Chrome 149 on all platforms.</p>
+  </header>
+
+  <section>
+    <h2>this API is documented on MDN</h2>
+    <a class="mdn-card" href="https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/read" target="_blank" rel="noopener">
+      Clipboard: read() method — Web APIs | MDN Web Docs
+    </a>
+    <a class="mdn-card" href="https://developer.mozilla.org/en-US/docs/Web/API/ClipboardItem/getType" target="_blank" rel="noopener">
+      ClipboardItem: getType() method — Web APIs | MDN Web Docs
+    </a>
+    <p>The Clipboard API shape is unchanged. MDN's <code>Clipboard.read()</code> and <code>ClipboardItem.getType()</code> pages document the full API. Chrome 149 browser-compat data will be reflected once MDN is updated.</p>
+  </section>
+
+  <section>
+    <h2>what changed in Chrome 149</h2>
+    <p>Before Chrome 149, calling <code>navigator.clipboard.read()</code> eagerly fetched all available clipboard formats from the OS at once — even if the page only needed one MIME type. For large clipboard payloads (for example, a 7 MB HTML blob alongside a plain-text representation), this meant the browser paid the full read cost on every <code>read()</code> call.</p>
+    <p>Chrome 149 changes this to a lazy model:</p>
+    <ol>
+      <li><code>clipboard.read()</code> returns <code>ClipboardItem</code> objects immediately, with <code>types</code> populated but no format data loaded.</li>
+      <li>Format data is fetched from the OS only when <code>getType(mimeType)</code> is called for a specific MIME type.</li>
+      <li>Subsequent calls to <code>getType()</code> for the same type return cached results — the OS is not queried again unless the clipboard contents have changed.</li>
+      <li>If the clipboard changes between <code>read()</code> and <code>getType()</code>, the <code>getType()</code> promise rejects rather than returning stale data.</li>
+    </ol>
+    <p>In testing with a 7.7 MB clipboard payload (0.7 MB text + 7 MB HTML), selectively reading only the text reduced read time by 93% — from 179.5 ms to 10.8 ms.</p>
+    <span class="citation">Source: <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/ClipboardAPI/SelectiveClipboardFormatRead/explainer.md" target="_blank" rel="noopener">MSEdgeExplainers — SelectiveClipboardFormatRead/explainer.md</a>.</span>
+  </section>
+
+  <section>
+    <h2>existing code is unaffected</h2>
+<pre><code>// This pattern works exactly as before — no code changes needed.
+// Chrome 149 automatically defers loading 'text/html' until this line.
+const items = await navigator.clipboard.read();
+const item = items[0];
+
+if (item.types.includes('text/html')) {
+  const htmlBlob = await item.getType('text/html'); // data fetched here
+  const html = await htmlBlob.text();
+  console.log(html);
+}
+
+// If you only ever call getType('text/plain'), the HTML blob is never loaded.</code></pre>
+  </section>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 149 (desktop, Android, WebView, iOS)</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Type</th><td>Performance / behaviour change — no API additions</td></tr>
+      <tr><th>Spec</th><td><a href="https://github.com/w3c/clipboard-apis/pull/248" target="_blank" rel="noopener">w3c/clipboard-apis PR #248</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5203433409871872" target="_blank" rel="noopener">5203433409871872 — Selective Clipboard Format Read</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>references</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/read" target="_blank" rel="noopener">MDN: Clipboard.read()</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/ClipboardItem/getType" target="_blank" rel="noopener">MDN: ClipboardItem.getType()</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/ClipboardItem/types" target="_blank" rel="noopener">MDN: ClipboardItem.types</a></li>
+      <li><a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/ClipboardAPI/SelectiveClipboardFormatRead/explainer.md" target="_blank" rel="noopener">MSEdgeExplainers — Selective Clipboard Format Read explainer</a></li>
+      <li><a href="https://github.com/w3c/clipboard-apis/pull/248" target="_blank" rel="noopener">w3c/clipboard-apis PR #248 (spec change)</a></li>
+      <li><a href="https://chromestatus.com/feature/5203433409871872" target="_blank" rel="noopener">chromestatus.com — Selective Clipboard Format Read (5203433409871872)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
