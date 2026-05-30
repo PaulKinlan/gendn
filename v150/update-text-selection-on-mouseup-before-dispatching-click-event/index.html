@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Update text selection on mouseup before dispatching click event — Chrome 150 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v150/">&larr; Chrome 150 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v150 · dom events · developer trial</p>
+    <h1>Update text selection on mouseup before dispatching click event</h1>
+    <p class="lede">Chrome 150 fixes the order of operations for text-selection updates and click events: the selection is now committed to the DOM <em>before</em> the <code>click</code> event fires, so that click handlers see the correct, final selection state — matching the behaviour of Firefox and Safari.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Developer trial / behind a flag</strong>
+    In developer trial in Chrome 150. Enable via <code>chrome://flags/#enable-experimental-web-platform-features</code>. Expected to ship without a flag in a later milestone.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Status in 150</th><td>In developer trial (behind a flag)</td></tr>
+      <tr><th>Flag</th><td><code>chrome://flags/#enable-experimental-web-platform-features</code></td></tr>
+      <tr><th>Standards position</th><td>Firefox: N/A (already correct) &nbsp;·&nbsp; Safari: N/A (already correct)</td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5298387739082752" target="_blank" rel="noopener">5298387739082752 — Update text selection on mouseup before dispatching click event</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>what was wrong</h2>
+    <p>In Chrome before this fix, when a user clicked inside a text input or a contenteditable element to end a drag-selection, Chrome applied the "commit selection" action (collapsing or anchoring the drag selection) <em>after</em> the <code>click</code> event had already fired. This meant that a <code>click</code> handler that called <code>document.getSelection()</code> or read <code>input.selectionStart</code> / <code>input.selectionEnd</code> would see the <em>old</em> selection state — the one from before the mouse was released — rather than the final committed selection.</p>
+    <p>Firefox and Safari always update selection before dispatching <code>click</code>. This fix brings Chrome into alignment.</p>
+    <span class="citation">Source: chromestatus summary.</span>
+  </section>
+
+  <section>
+    <h2>event order (fixed)</h2>
+    <table class="doc-table">
+      <tr><th>Step</th><th>Before Chrome 150</th><th>Chrome 150+</th></tr>
+      <tr><td>1</td><td>mousedown — selection starts</td><td>mousedown — selection starts</td></tr>
+      <tr><td>2</td><td>mousemove — selection extends</td><td>mousemove — selection extends</td></tr>
+      <tr><td>3</td><td>mouseup fires</td><td>mouseup fires</td></tr>
+      <tr><td>4</td><td><strong>click fires</strong> ← selection not yet updated</td><td><strong>selection committed</strong> to DOM</td></tr>
+      <tr><td>5</td><td>selection committed to DOM</td><td><strong>click fires</strong> — sees correct selection</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus summary.</span>
+  </section>
+
+  <section>
+    <h2>impact on code</h2>
+    <p>If you read the selection in a click handler, you'll now see the correct final state:</p>
+<pre><code>input.addEventListener("click", () => {
+  // Before Chrome 150: might show old selection from mid-drag
+  // Chrome 150+: always shows final committed selection
+  console.log(input.selectionStart, input.selectionEnd);
+  console.log(document.getSelection().toString());
+});</code></pre>
+
+    <p>This is a <em>correctness fix</em> — code that was already reading selection state on click will work more reliably. However, if you had workarounds (e.g. reading selection inside a <code>setTimeout(..., 0)</code> to defer past the old commit), those workarounds are no longer necessary and can be removed.</p>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome</th><td>150 — developer trial; correct order behind flag</td></tr>
+      <tr><th>Firefox</th><td>Already correct</td></tr>
+      <tr><th>Safari</th><td>Already correct</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus browser views.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/5298387739082752" target="_blank" rel="noopener">chromestatus: Update text selection on mouseup before dispatching click event</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
