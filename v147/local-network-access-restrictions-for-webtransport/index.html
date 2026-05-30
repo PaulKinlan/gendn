@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Local network access restrictions for WebTransport — Chrome 147 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v147/">&larr; Chrome 147 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v147 · shipped · security · webtransport</p>
+    <h1>Local network access restrictions for WebTransport</h1>
+    <p class="lede">Chrome 147 extends Local Network Access (LNA) protections to WebTransport connections. Public websites now need explicit user permission before opening a WebTransport session to local or private IP addresses. This mirrors the same protections already in place for HTTP subresource fetches and WebSocket connections.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Breaking change</strong>
+    WebTransport connections from public websites to local addresses (<code>localhost</code>, <code>192.168.x.x</code>, <code>10.x.x.x</code>, etc.) now trigger a permission prompt in Chrome 147. Existing apps that relied on silent WebTransport connections to local services will stop working until users grant permission.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 147 (desktop, Android)</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Flag</th><td><code>chrome://flags/#local-network-access-check-webtransport</code></td></tr>
+      <tr><th>Finch feature</th><td><code>LocalNetworkAccessChecksWebTransport</code></td></tr>
+      <tr><th>Spec</th><td><a href="https://wicg.github.io/local-network-access/" target="_blank" rel="noopener">WICG Local Network Access spec</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5126430912544768" target="_blank" rel="noopener">5126430912544768 — Local network access restrictions for WebTransport</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>WebTransport provides low-latency, bidirectional communication between a page and a server using QUIC. Like WebSocket, it can target local network addresses — making it a potential vector for cross-origin attacks on private devices. A malicious public website could silently open a WebTransport session to <code>https://192.168.1.1</code> and interact with a home router or IoT device. Chrome's LNA framework had already restricted plain HTTP fetches and WebSocket connections to private addresses; Chrome 147 applies the same permission-based gate to WebTransport. Note that WebTransport is already restricted to secure contexts, removing mixed-content concerns.</p>
+    <span class="citation">Source: blink-dev Intent to Ship — Local network access restrictions for WebTransport, April 2026.</span>
+  </section>
+
+  <section>
+    <h2>what changes</h2>
+    <p>Opening a WebTransport session from a public origin to a local/private address now requires:</p>
+    <ul>
+      <li>The page must be served over HTTPS (already required by WebTransport itself).</li>
+      <li>The user must grant the Local Network Access permission when prompted.</li>
+    </ul>
+    <p>WebTransport is not supported in WebView for the same reasons that other LNA-governed speculation rules prerendering is unsupported in WebView, so this restriction does not affect WebView.</p>
+
+    <h3>Affected address ranges</h3>
+    <table class="doc-table">
+      <thead><tr><th>Address range</th><th>Examples</th></tr></thead>
+      <tr><td>Loopback</td><td><code>127.0.0.1</code>, <code>localhost</code>, <code>::1</code></td></tr>
+      <tr><td>Private (RFC 1918)</td><td><code>10.x.x.x</code>, <code>172.16–31.x.x</code>, <code>192.168.x.x</code></td></tr>
+      <tr><td>Link-local</td><td><code>169.254.x.x</code>, <code>fe80::/10</code></td></tr>
+    </table>
+    <span class="citation">Source: blink-dev Intent to Ship — Local network access restrictions for WebTransport, April 2026.</span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Support</th></tr></thead>
+      <tr><td>Chrome 147+ (desktop, Android)</td><td>Enabled by default</td></tr>
+      <tr><td>Firefox</td><td>No position</td></tr>
+      <tr><td>Safari</td><td>No position</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.com feature page, April 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://wicg.github.io/local-network-access/" target="_blank" rel="noopener">WICG Local Network Access specification</a></li>
+      <li><a href="https://chromestatus.com/feature/5126430912544768" target="_blank" rel="noopener">chromestatus — Local network access restrictions for WebTransport (5126430912544768)</a></li>
+      <li><a href="/v147/local-network-access-restrictions-for-websockets/">Local network access restrictions for WebSockets — Chrome 147</a></li>
+      <li><a href="/v147/local-network-access-restrictions-on-service-worker-windowclient-navigate/">Local Network Access restrictions on Service Worker WindowClient.navigate() — Chrome 147</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
