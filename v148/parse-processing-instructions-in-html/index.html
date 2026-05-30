@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Parse processing instructions in HTML — Chrome 148 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v148/">&larr; Chrome 148 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v148 · html · enabled by default</p>
+    <h1>Parse processing instructions in HTML</h1>
+    <p class="lede">Chrome 148 teaches the HTML parser to recognise processing instructions — the <code>&lt;?target data?&gt;</code> syntax already used in XML and SVG — and expose them as <code>ProcessingInstruction</code> nodes in the DOM. Parsers and streaming frameworks can use them as lightweight range markers or directives without touching element structure.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 148</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Flag</th><td>None</td></tr>
+      <tr><th>Standards position</th><td>Safari: Support &nbsp;·&nbsp; Firefox: No signal</td></tr>
+      <tr><th>Spec</th><td><a href="https://github.com/whatwg/html/pull/12118" target="_blank" rel="noopener">whatwg/html PR #12118</a> (Working draft)</td></tr>
+      <tr><th>Blink component</th><td>Blink&gt;HTML&gt;Parser</td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/6534495085920256" target="_blank" rel="noopener">6534495085920256 — Parse processing instructions in HTML</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Processing instructions (<abbr>PI</abbr>s) are an established DOM primitive in XML: they appear as <code>ProcessingInstruction</code> nodes and carry an arbitrary <em>target</em> and <em>data</em> string that tooling can act on while leaving element structure untouched. Until this feature, the HTML parser silently discarded PIs. The motivation is to enable two new use-cases without adding new element types that would affect CSS layout:</p>
+    <ul>
+      <li><strong>Range markers</strong> — <code>&lt;?start id?&gt;</code> / <code>&lt;?end id?&gt;</code> pairs delimit DOM regions (used by out-of-order streaming and syntax-highlighting tools).</li>
+      <li><strong>Parser directives</strong> — targets can signal to a streaming parser how to buffer or flush content.</li>
+    </ul>
+    <span class="citation">Source: chromestatus summary + <a href="https://github.com/whatwg/html/pull/12118" target="_blank" rel="noopener">whatwg/html PR #12118</a>.</span>
+  </section>
+
+  <section>
+    <h2>syntax</h2>
+    <p>A processing instruction in HTML markup follows the XML grammar:</p>
+    <pre><code>&lt;?target data?&gt;</code></pre>
+    <p>where <code>target</code> is a name token and <code>data</code> is an arbitrary string that does not contain <code>?&gt;</code>. The parser creates a <code>ProcessingInstruction</code> node with <code>.target</code> and <code>.data</code> properties.</p>
+
+    <h3>DOM interface (existing)</h3>
+    <table class="doc-table">
+      <tr><th>ProcessingInstruction.target</th><td>The PI target string (e.g. <code>"start"</code>)</td></tr>
+      <tr><th>ProcessingInstruction.data</th><td>The data portion after the target (e.g. <code>"section-1"</code>)</td></tr>
+      <tr><th>Node.nodeType</th><td><code>7</code> (<code>Node.PROCESSING_INSTRUCTION_NODE</code>)</td></tr>
+      <tr><th>Node.parentNode</th><td>The containing element or document node</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://dom.spec.whatwg.org/#processinginstruction" target="_blank" rel="noopener">DOM Standard §ProcessingInstruction</a>.</span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+    <h3>Inserting a PI in HTML and reading it from JS</h3>
+<pre><code>&lt;!-- HTML source --&gt;
+&lt;div&gt;
+  &lt;?highlight start="1" end="3"?&gt;
+  &lt;p&gt;Line one&lt;/p&gt;
+  &lt;p&gt;Line two&lt;/p&gt;
+  &lt;p&gt;Line three&lt;/p&gt;
+  &lt;?highlight end?&gt;
+&lt;/div&gt;
+
+&lt;script&gt;
+// Walk childNodes and collect PIs
+const pis = [];
+document.body.querySelectorAll('*').forEach(el =&gt; {
+  for (const child of el.childNodes) {
+    if (child.nodeType === Node.PROCESSING_INSTRUCTION_NODE) {
+      pis.push({ target: child.target, data: child.data });
+    }
+  }
+});
+console.log(pis);
+// [{ target: "highlight", data: "start=\"1\" end=\"3\"" },
+//  { target: "highlight", data: "end" }]
+&lt;/script&gt;</code></pre>
+
+    <h3>Using createProcessingInstruction from JS</h3>
+<pre><code>const pi = document.createProcessingInstruction('stream', 'flush-before');
+document.body.prepend(pi);
+// &lt;?stream flush-before?&gt;</code></pre>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome</th><td>148 (desktop)</td></tr>
+      <tr><th>Edge</th><td>148 (Chromium)</td></tr>
+      <tr><th>Firefox</th><td>No signal</td></tr>
+      <tr><th>Safari</th><td>Support (date TBD)</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus browser views at time of generation.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://github.com/whatwg/html/pull/12118" target="_blank" rel="noopener">whatwg/html PR #12118</a> — spec pull request</li>
+      <li><a href="https://dom.spec.whatwg.org/#processinginstruction" target="_blank" rel="noopener">DOM Standard: ProcessingInstruction</a></li>
+      <li><a href="/v148/out-of-order-streaming/">Out of order streaming</a> — related feature using PI range markers</li>
+      <li><a href="https://chromestatus.com/feature/6534495085920256" target="_blank" rel="noopener">chromestatus: Parse processing instructions in HTML</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/parse-processing-instructions-in-html/" target="_blank" rel="noopener">chrome-platform-showcase: demos</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
