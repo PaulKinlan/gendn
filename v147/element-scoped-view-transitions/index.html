@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Element-scoped view transitions — Chrome 147 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v147/">&larr; Chrome 147 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v147 · web api · shipped</p>
+    <h1>Element-scoped view transitions</h1>
+    <p class="lede">Call <code>element.startViewTransition()</code> on any HTML element to run a view transition scoped to that subtree, rather than the entire document. Multiple element-scoped transitions can run concurrently, nested transitions work naturally, and position-fixed content outside the scope stays interactive throughout.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 147 (desktop + Android)</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Flag</th><td>None</td></tr>
+      <tr><th>Standards position</th><td>Part of View Transitions Level 2 (W3C CSSWG)</td></tr>
+      <tr><th>Spec</th><td><a href="https://drafts.csswg.org/css-view-transitions-2/" target="_blank" rel="noopener">CSS View Transitions Level 2</a></td></tr>
+      <tr><th>Explainer</th><td><a href="https://github.com/WICG/view-transitions/blob/main/scoped-transitions.md" target="_blank" rel="noopener">WICG/view-transitions — scoped-transitions.md</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5109852273377280" target="_blank" rel="noopener">5109852273377280 — Element-scoped view transitions</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>The original <code>document.startViewTransition()</code> freezes the entire page into a before/after snapshot, which means only one transition can run at a time and elements with <code>position: fixed</code> get captured in the snapshot, losing interactivity. Scoping the transition to a specific element removes all three problems: multiple independent parts of the page can animate simultaneously, the rest of the document stays live, and fixed-position chrome outside the scope is unaffected.</p>
+    <span class="citation">Source: Chrome 147 developer blog on element-scoped view transitions, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>shape of the API</h2>
+    <p><code>Element.startViewTransition()</code> has the same call signature as <code>Document.startViewTransition()</code> — a callback or options object — but the scope of the captured snapshot is the element itself rather than the full document.</p>
+
+    <table class="doc-table">
+      <thead><tr><th>Member</th><th>Type / Description</th></tr></thead>
+      <tr>
+        <td><code>element.startViewTransition(callbackOrOptions)</code></td>
+        <td>Starts a view transition scoped to <code>element</code>. Returns a <code>ViewTransition</code> object (same as the document-level version). The element automatically gets <code>view-transition-name: root</code> within the scope.</td>
+      </tr>
+      <tr>
+        <td><code>callbackOrOptions</code></td>
+        <td>Either a callback function that performs the DOM update, or an options object <code>{ update, types }</code>. The callback may return a Promise; the transition waits for it before snapshotting the new state.</td>
+      </tr>
+    </table>
+
+    <h3>Automatic behaviours on the scope root</h3>
+    <table class="doc-table">
+      <tr><td><code>view-transition-name: root</code></td><td>Applied automatically so the root element participates in the transition</td></tr>
+      <tr><td><code>view-transition-group: contain</code></td><td>Applied automatically to enable nested view-transition groups</td></tr>
+      <tr><td><code>::view-transition-group-children(root)</code> clips overflow</td><td>Content outside the element's bounds is clipped, matching the element's own overflow behaviour</td></tr>
+    </table>
+    <span class="citation">Source: Chrome for Developers — element-scoped view transitions guide, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+
+    <h3>Animate a single list widget without freezing the page</h3>
+    <pre><code>const list = document.querySelector('ul.feed');
+
+async function addItem(text) {
+  // Only the list animates; the header and sidebar stay interactive
+  await list.startViewTransition({
+    update() {
+      const li = document.createElement('li');
+      li.textContent = text;
+      list.prepend(li);
+    }
+  }).finished;
+}
+
+document.getElementById('add-btn').addEventListener('click', () =>
+  addItem('New entry ' + Date.now())
+);</code></pre>
+
+    <h3>Run two concurrent transitions</h3>
+    <pre><code>// Both transitions run in parallel — not possible with document.startViewTransition()
+const sidebar = document.querySelector('.sidebar');
+const main    = document.querySelector('main');
+
+sidebar.startViewTransition(() => updateSidebar());
+main.startViewTransition(() => updateMain());</code></pre>
+
+    <h3>Typed transitions (View Transitions Level 2)</h3>
+    <pre><code>list.startViewTransition({
+  types: ['slide-in'],
+  update() { list.prepend(newItem); }
+});
+// CSS: @keyframes and view-transition-type selector apply as normal</code></pre>
+    <span class="citation">Source: Chrome for Developers — element-scoped view transitions guide and WICG explainer, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Support</th></tr></thead>
+      <tr><td>Chrome 147+</td><td>Enabled by default</td></tr>
+      <tr><td>Edge 147+</td><td>Enabled by default (Chromium)</td></tr>
+      <tr><td>Firefox</td><td>No support yet</td></tr>
+      <tr><td>Safari</td><td>No support yet</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Document/startViewTransition" target="_blank" rel="noopener">MDN: Document.startViewTransition() — the document-level predecessor</a></li>
+      <li><a href="https://drafts.csswg.org/css-view-transitions-2/" target="_blank" rel="noopener">CSS View Transitions Level 2 spec</a></li>
+      <li><a href="https://chromestatus.com/feature/5109852273377280" target="_blank" rel="noopener">chromestatus — Element-scoped view transitions (5109852273377280)</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/element-scoped-view-transitions/" target="_blank" rel="noopener">chrome-platform-showcase — live demo</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
