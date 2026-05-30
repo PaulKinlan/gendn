@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebRTC Datachannel: Always negotiate data channels — Chrome 148 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v148/">&larr; Chrome 148 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v148 · webrtc · web api · shipped</p>
+    <h1>WebRTC Datachannel: Always negotiate data channels</h1>
+    <p class="lede">A new <code>alwaysNegotiateDataChannels</code> option for <code>RTCPeerConnection</code> that pre-negotiates the application m-section in SDP offers, allowing either endpoint to call <code>createDataChannel()</code> later without a full SDP renegotiation. Ships in Chrome 148 on all platforms.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 148 (desktop, Android, WebView)</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Spec</th><td><a href="https://w3c.github.io/webrtc-extensions/#always-negotiating-datachannels" target="_blank" rel="noopener">WebRTC Extensions — Always negotiating datachannels</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5113419982307328" target="_blank" rel="noopener">5113419982307328 — WebRTC Datachannel: Always negotiate data channels</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>background: the SDP data channel problem</h2>
+    <p>In WebRTC, data channels use SCTP over DTLS, negotiated via an application m-section in SDP. The problem: an application m-section only appears in the SDP offer if <code>createDataChannel()</code> has already been called on that connection. This creates a chicken-and-egg situation:</p>
+    <ul>
+      <li>If only one side calls <code>createDataChannel()</code> before the initial offer/answer, the other side can receive data channels via <code>ondatachannel</code>.</li>
+      <li>If neither side calls <code>createDataChannel()</code> before the offer, no application m-section is negotiated. Adding a data channel later requires a full SDP renegotiation.</li>
+    </ul>
+    <p>For many applications — particularly those that conditionally open data channels based on user action — this means an extra round-trip of renegotiation just to establish a data channel.</p>
+  </section>
+
+  <section>
+    <h2>the new option: alwaysNegotiateDataChannels</h2>
+    <p>Setting <code>alwaysNegotiateDataChannels: true</code> in the <code>RTCPeerConnection</code> constructor makes Chrome include the application m-section in SDP offers from the start — even before any <code>createDataChannel()</code> call. This means:</p>
+    <ul>
+      <li>Either endpoint can call <code>createDataChannel()</code> any time after the connection is established, without renegotiation.</li>
+      <li>The remote endpoint receives data channels via <code>ondatachannel</code> as usual.</li>
+    </ul>
+<pre><code>const pc = new RTCPeerConnection({
+  alwaysNegotiateDataChannels: true,
+});
+
+// Later, create a data channel without triggering renegotiation:
+pc.addEventListener('connectionstatechange', () => {
+  if (pc.connectionState === 'connected') {
+    const channel = pc.createDataChannel('chat');
+    channel.addEventListener('open', () => {
+      channel.send('Hello!');
+    });
+  }
+});
+
+// The remote endpoint receives the channel via ondatachannel:
+remotePc.addEventListener('datachannel', ({ channel }) => {
+  channel.addEventListener('message', (e) => console.log(e.data));
+});</code></pre>
+    <span class="citation">Source: <a href="https://w3c.github.io/webrtc-extensions/#always-negotiating-datachannels" target="_blank" rel="noopener">WebRTC Extensions specification</a>.</span>
+  </section>
+
+  <section>
+    <h2>without alwaysNegotiateDataChannels</h2>
+    <p>Without the option, the typical workaround is to call <code>createDataChannel()</code> before creating the initial offer — usually creating a throw-away "placeholder" channel just to force the m-section into the SDP — and close or ignore it once the connection is established. The new option eliminates this workaround.</p>
+<pre><code>// Before Chrome 148: workaround — create a dummy channel to force m-section
+const pc = new RTCPeerConnection();
+const placeholder = pc.createDataChannel('_placeholder'); // forced m-section
+const offer = await pc.createOffer();
+
+// After answering, immediately close the placeholder
+pc.addEventListener('connectionstatechange', () => {
+  if (pc.connectionState === 'connected') {
+    placeholder.close();
+  }
+});</code></pre>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome / Edge</th><td>148 (all platforms)</td></tr>
+      <tr><th>Firefox</th><td>No signal</td></tr>
+      <tr><th>Safari</th><td>No signal</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.com browser positions, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://w3c.github.io/webrtc-extensions/#always-negotiating-datachannels" target="_blank" rel="noopener">WebRTC Extensions spec — Always negotiating datachannels</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection" target="_blank" rel="noopener">MDN: RTCPeerConnection</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/RTCDataChannel" target="_blank" rel="noopener">MDN: RTCDataChannel</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API/Using_data_channels" target="_blank" rel="noopener">MDN: Using WebRTC data channels</a></li>
+      <li><a href="https://chromestatus.com/feature/5113419982307328" target="_blank" rel="noopener">chromestatus.com — WebRTC Datachannel: Always negotiate data channels (5113419982307328)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
