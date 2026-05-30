@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gamepad Event-Driven Input API — Chrome 147 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v147/">&larr; Chrome 147 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v147 · gamepad · developer trial</p>
+    <h1>Gamepad Event-Driven Input API</h1>
+    <p class="lede">An extension to the Gamepad API that replaces polling (<code>navigator.getGamepads()</code>) with a <code>rawgamepadinputchange</code> event that fires synchronously on every hardware update — delivering lower-latency, lower-CPU gamepad input for games and assistive tools. Behind a flag in Chrome 147, origin trial in Chrome 149.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Developer trial — behind a flag</strong>
+    The Gamepad Event-Driven Input API is in developer trial in Chrome 147. Enable the flag at <code>chrome://flags</code> to try it locally. The event name and interface shape may still change before general availability.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Status in Chrome 147</th><td>Developer trial (behind a flag)</td></tr>
+      <tr><th>Next stage</th><td>Origin trial in Chrome 149</td></tr>
+      <tr><th>Flag</th><td>Enable at <code>chrome://flags</code></td></tr>
+      <tr><th>Spec</th><td><a href="https://w3c.github.io/gamepad" target="_blank" rel="noopener">w3c.github.io/gamepad</a> (extension to existing Gamepad spec)</td></tr>
+      <tr><th>Standards position (Firefox)</th><td>No signal</td></tr>
+      <tr><th>Standards position (Safari)</th><td>No signal</td></tr>
+      <tr><th>Web developer interest</th><td>Positive — strong developer demand for event-driven gamepad input</td></tr>
+      <tr><th>Blink component</th><td>Blink&gt;GamepadAPI</td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5989275208253440" target="_blank" rel="noopener">5989275208253440 — Gamepad Event-Driven Input API</a></td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5989275208253440" target="_blank" rel="noopener">chromestatus.com/feature/5989275208253440</a></span>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>The existing Gamepad API is polling-only: an application must call <code>navigator.getGamepads()</code> inside a <code>requestAnimationFrame</code> loop to read gamepad state. This introduces up to one frame of latency (16 ms at 60 Hz) and wastes CPU cycles even when no button is pressed. High-frequency controllers (e.g. 250 Hz gaming pads) can report 4 samples per frame that the polling model silently discards.</p>
+    <p>The event-driven model fires a <code>rawgamepadinputchange</code> event on <code>window</code> every time the hardware sends new data, regardless of the frame rate. Games and accessibility tools that need tight timing — fighting games, rhythm games, assistive devices — benefit immediately without rebuilding their entire input loop.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5989275208253440" target="_blank" rel="noopener">chromestatus feature summary</a>; web developer interest via <a href="https://stackoverflow.com/questions/72294832/using-gamepad-api-via-events-rather-than-polling" target="_blank" rel="noopener">Stack Overflow</a> and <a href="https://github.com/w3c/gamepad/issues/4" target="_blank" rel="noopener">w3c/gamepad#4</a>.</span>
+  </section>
+
+  <section>
+    <h2>shape of the API</h2>
+    <table class="doc-table">
+      <tr><th>Event</th><th>Target</th><th>Fires when</th></tr>
+      <tr><td><code>rawgamepadinputchange</code></td><td><code>window</code></td><td>New input data arrives from any connected gamepad</td></tr>
+    </table>
+    <table class="doc-table" style="margin-top:1rem">
+      <tr><th>Event property</th><th>Type</th><th>Description</th></tr>
+      <tr><td><code>event.gamepad</code></td><td><code>Gamepad</code></td><td>Snapshot of the gamepad state at the moment of the hardware report</td></tr>
+      <tr><td><code>event.timestamp</code></td><td><code>DOMHighResTimeStamp</code></td><td>Time of the hardware report, independent of the render frame</td></tr>
+    </table>
+    <p>The existing <code>gamepadconnected</code> / <code>gamepaddisconnected</code> events and <code>navigator.getGamepads()</code> remain available and unchanged.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/gamepad" target="_blank" rel="noopener">W3C Gamepad spec</a>; <a href="https://chromestatus.com/feature/5989275208253440" target="_blank" rel="noopener">chromestatus summary</a></span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+<pre><code>// Requires: Gamepad Event-Driven Input flag enabled in Chrome 147
+// Event-driven: fires at hardware report rate, not frame rate
+window.addEventListener('rawgamepadinputchange', (event) => {
+  const pad = event.gamepad;
+
+  // Read axes (e.g. left stick: x, y)
+  const [lx, ly] = pad.axes;
+  moveCharacter(lx, ly);
+
+  // Read buttons
+  if (pad.buttons[0].pressed) {
+    jump();
+  }
+});
+
+// Polling still works and is unaffected by the new event
+function gameLoop() {
+  const pads = navigator.getGamepads();
+  for (const pad of pads) {
+    if (pad) renderHUD(pad);
+  }
+  requestAnimationFrame(gameLoop);
+}</code></pre>
+    <span class="citation">Pattern from <a href="https://w3c.github.io/gamepad" target="_blank" rel="noopener">W3C Gamepad spec</a>; live demo at <a href="https://gabrielsanbrito.github.io/gamepad-raw-input-events" target="_blank" rel="noopener">gabrielsanbrito.github.io/gamepad-raw-input-events</a></span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Browser</th><th>Support</th><th>Notes</th></tr>
+      <tr><td>Chrome 147</td><td>Developer trial (behind flag)</td><td>Enable at <code>chrome://flags</code></td></tr>
+      <tr><td>Chrome 149</td><td>Origin trial</td><td>Requires origin trial token</td></tr>
+      <tr><td>Firefox</td><td>No signal</td><td>Experimental <code>GamepadButtonEvent</code> / <code>GamepadAxisMoveEvent</code> IDL exists in Gecko</td></tr>
+      <tr><td>Safari</td><td>No signal</td><td>—</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5989275208253440" target="_blank" rel="noopener">chromestatus.com/feature/5989275208253440</a></span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/5989275208253440" target="_blank" rel="noopener">Chrome Platform Status — Gamepad Event-Driven Input API</a></li>
+      <li><a href="https://w3c.github.io/gamepad" target="_blank" rel="noopener">W3C Gamepad specification</a></li>
+      <li><a href="https://gabrielsanbrito.github.io/gamepad-raw-input-events" target="_blank" rel="noopener">Live demo — gamepad raw input events</a></li>
+      <li><a href="/v149/gamepad-event-driven-input-api/">Chrome 149 — Gamepad Event-Driven Input API (origin trial)</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/gamepad-event-driven-input-api/" target="_blank" rel="noopener">chrome-platform-showcase: Gamepad Event-Driven Input API</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
