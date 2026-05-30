@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Summarizer API performance preference — Chrome 148 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v148/">&larr; Chrome 148 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v148 · web ai · developer trial</p>
+    <h1>Summarizer API performance preference</h1>
+    <p class="lede">Extends the built-in Summarizer API with a <code>performancePreference</code> option that lets developers trade quality for speed and resource usage. On low-end or battery-constrained devices the browser can route to a smaller, faster model; on high-end devices the larger model stays available.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Developer trial / behind a flag</strong>
+    This extension to the Summarizer API is in developer trial in Chrome 148. The option name and enum values may change before general availability. Enable via <code>chrome://flags/#enable-experimental-web-platform-features</code>.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Status in 148</th><td>In developer trial (behind a flag)</td></tr>
+      <tr><th>Flag</th><td><code>chrome://flags/#enable-experimental-web-platform-features</code></td></tr>
+      <tr><th>Standards position</th><td>Firefox: No signal &nbsp;·&nbsp; Safari: No signal</td></tr>
+      <tr><th>Spec</th><td><a href="https://webmachinelearning.github.io/writing-assistance-apis/#the-summarizer-class" target="_blank" rel="noopener">Writing Assistance APIs §Summarizer</a></td></tr>
+      <tr><th>Blink component</th><td>Blink&gt;AI</td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/6309243756085248" target="_blank" rel="noopener">6309243756085248 — Summarizer API performance preference</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>The base Summarizer API relies on large on-device language models, which deliver high quality summaries but at the cost of latency, memory, and battery. Some devices (older hardware, battery-saver mode) cannot run the large model within acceptable limits. The <code>performancePreference</code> option gives developers a hint that the browser can use to select a smaller, faster model when appropriate — widening device compatibility without developers needing to detect hardware themselves.</p>
+    <span class="citation">Source: chromestatus summary + <a href="https://webmachinelearning.github.io/writing-assistance-apis/" target="_blank" rel="noopener">Writing Assistance APIs spec</a>.</span>
+  </section>
+
+  <section>
+    <h2>the option</h2>
+    <table class="doc-table">
+      <tr><th>Option</th><th>Value</th><th>Meaning</th></tr>
+      <tr><td rowspan="3"><code>performancePreference</code></td><td><code>"quality"</code></td><td>Prefer the best available model. May be slower or unavailable on low-end devices.</td></tr>
+      <tr><td><code>"balanced"</code></td><td>Browser chooses a model that balances quality and speed (default).</td></tr>
+      <tr><td><code>"speed"</code></td><td>Prefer a faster, lighter model. Quality may be lower.</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://webmachinelearning.github.io/writing-assistance-apis/#the-summarizer-class" target="_blank" rel="noopener">Writing Assistance APIs §Summarizer</a>. Enum values paraphrased.</span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+    <h3>Speed-optimised summarizer for live previews</h3>
+<pre><code>// Request a fast model for showing a live summary as the user types
+const summarizer = await Summarizer.create({
+  performancePreference: "speed",
+  type: "tl;dr",
+  length: "short",
+});
+
+inputArea.addEventListener("input", async () => {
+  const text = inputArea.value;
+  if (text.length &lt; 100) return;
+  preview.textContent = await summarizer.summarize(text);
+});</code></pre>
+
+    <h3>Quality-optimised summarizer for final output</h3>
+<pre><code>// Use the best available model for the final one-shot summary
+const summarizer = await Summarizer.create({
+  performancePreference: "quality",
+  type: "key-points",
+  length: "medium",
+});
+
+submitButton.addEventListener("click", async () => {
+  const text = document.getElementById("article").textContent;
+  const summary = await summarizer.summarize(text);
+  sendToServer(summary);
+});</code></pre>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome</th><td>148 — developer trial (flag required)</td></tr>
+      <tr><th>Edge</th><td>Tracking Chromium</td></tr>
+      <tr><th>Firefox</th><td>No signal</td></tr>
+      <tr><th>Safari</th><td>No signal</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus browser views, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://webmachinelearning.github.io/writing-assistance-apis/" target="_blank" rel="noopener">Writing Assistance APIs spec</a></li>
+      <li><a href="https://chromestatus.com/feature/5193953788559360" target="_blank" rel="noopener">chromestatus: Summarizer API (base feature)</a></li>
+      <li><a href="https://chromestatus.com/feature/6309243756085248" target="_blank" rel="noopener">chromestatus: Summarizer API performance preference</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/summarizer-api-performance-preference/" target="_blank" rel="noopener">chrome-platform-showcase: demos</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

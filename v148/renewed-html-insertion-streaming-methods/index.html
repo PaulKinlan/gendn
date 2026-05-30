@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Renewed HTML insertion &amp; streaming methods — Chrome 148 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v148/">&larr; Chrome 148 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v148 · html / dom · developer trial</p>
+    <h1>Renewed HTML insertion &amp; streaming methods</h1>
+    <p class="lede">A coherent set of new DOM methods for inserting HTML into an existing document. Adds <em>positional</em> methods (e.g. <code>el.setHTMLBefore()</code>, <code>el.replaceWith()</code> taking HTML strings) that replace the awkward <code>insertAdjacentHTML</code> API, plus <em>streaming</em> methods that accept <code>ReadableStream</code> for server-sent HTML chunks.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Developer trial / behind a flag</strong>
+    This API is in developer trial in Chrome 148. Enable via <code>chrome://flags/#enable-experimental-web-platform-features</code>. The method names and signatures may change before shipping.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Status in 148</th><td>In developer trial (behind a flag)</td></tr>
+      <tr><th>Flag</th><td><code>chrome://flags/#enable-experimental-web-platform-features</code></td></tr>
+      <tr><th>Standards position</th><td>Firefox: No signal &nbsp;·&nbsp; Safari: No signal</td></tr>
+      <tr><th>Spec / explainer</th><td><a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md#resulting-api" target="_blank" rel="noopener">WICG declarative-partial-updates explainer</a></td></tr>
+      <tr><th>Blink component</th><td>Blink&gt;HTML</td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5054329641893888" target="_blank" rel="noopener">5054329641893888 — Renewed HTML insertion &amp; streaming methods</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p><code>insertAdjacentHTML</code> was designed in the IE era and has a string-enum position argument (<code>"beforebegin"</code>, <code>"afterend"</code>, etc.) that is error-prone and verbose. <code>innerHTML</code> replaces content but doesn't provide relative insertion. Neither accepts streams. This feature replaces both with ergonomic methods that follow the naming of the existing <code>Element</code> manipulation API and adds streaming variants for progressive server-rendered HTML.</p>
+    <span class="citation">Source: chromestatus summary + <a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md" target="_blank" rel="noopener">WICG explainer</a>.</span>
+  </section>
+
+  <section>
+    <h2>positional insertion methods</h2>
+    <p>These methods mirror the existing <code>Node</code> manipulation API but accept HTML strings instead of <code>Node</code> objects. Each parses the string in the context of the element's owner document.</p>
+    <table class="doc-table">
+      <tr><th>el.setHTMLBefore(html)</th><td>Inserts parsed HTML immediately before <code>el</code> in its parent. Replaces <code>insertAdjacentHTML("beforebegin", html)</code>.</td></tr>
+      <tr><th>el.setHTMLAfter(html)</th><td>Inserts parsed HTML immediately after <code>el</code>. Replaces <code>insertAdjacentHTML("afterend", html)</code>.</td></tr>
+      <tr><th>el.setHTMLFirst(html)</th><td>Inserts parsed HTML as the first child. Replaces <code>insertAdjacentHTML("afterbegin", html)</code>.</td></tr>
+      <tr><th>el.setHTMLLast(html)</th><td>Inserts parsed HTML as the last child. Replaces <code>insertAdjacentHTML("beforeend", html)</code>.</td></tr>
+      <tr><th>el.setHTMLReplacing(html)</th><td>Replaces <code>el</code> itself with parsed HTML nodes. Replaces <code>outerHTML = html</code>.</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md#resulting-api" target="_blank" rel="noopener">WICG explainer §Resulting API</a>. Names paraphrased; verify in the spec before shipping.</span>
+
+    <h2>streaming methods</h2>
+    <p>Streaming variants accept a <code>ReadableStream</code> of HTML chunks and parse them progressively into the document, enabling low-latency rendering of server-streamed responses without JavaScript orchestration beyond kicking off the stream.</p>
+    <table class="doc-table">
+      <tr><th>el.streamHTMLBefore(stream)</th><td>Streams HTML before <code>el</code>. Returns a <code>Promise</code> that resolves when the stream ends.</td></tr>
+      <tr><th>el.streamHTMLAfter(stream)</th><td>Streams HTML after <code>el</code>.</td></tr>
+      <tr><th>el.streamHTMLFirst(stream)</th><td>Streams HTML as first children.</td></tr>
+      <tr><th>el.streamHTMLLast(stream)</th><td>Streams HTML as last children.</td></tr>
+      <tr><th>el.streamHTMLReplacing(stream)</th><td>Streams HTML to replace <code>el</code> itself.</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>example</h2>
+    <h3>Positional insert</h3>
+<pre><code>// Old
+container.insertAdjacentHTML("beforeend", "&lt;li&gt;New item&lt;/li&gt;");
+
+// New
+container.setHTMLLast("&lt;li&gt;New item&lt;/li&gt;");</code></pre>
+
+    <h3>Stream a fetch response into the page</h3>
+<pre><code>const res = await fetch("/partial/comments");
+const stream = res.body.pipeThrough(new TextDecoderStream());
+
+// Stream comment HTML into #comments-container without JS parsing
+await document.getElementById("comments-container").streamHTMLLast(stream);</code></pre>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome</th><td>148 — developer trial (flag required)</td></tr>
+      <tr><th>Edge</th><td>Tracking Chromium</td></tr>
+      <tr><th>Firefox</th><td>No signal</td></tr>
+      <tr><th>Safari</th><td>No signal</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus browser views, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://github.com/WICG/declarative-partial-updates" target="_blank" rel="noopener">WICG/declarative-partial-updates</a> — spec repository</li>
+      <li><a href="/v148/out-of-order-streaming/">Out of order streaming</a> — declarative (no-JS) streaming companion</li>
+      <li><a href="https://chromestatus.com/feature/5054329641893888" target="_blank" rel="noopener">chromestatus: Renewed HTML insertion &amp; streaming methods</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/renewed-html-insertion-streaming-methods/" target="_blank" rel="noopener">chrome-platform-showcase: demos</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
