@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Local network access restrictions — Chrome 147 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v147/">&larr; Chrome 147 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v147 · stepped rollout · security · network</p>
+    <h1>Local network access restrictions</h1>
+    <p class="lede">Chrome 147 continues a stepped rollout of Local Network Access (LNA) restrictions, requiring user permission before public websites can send subresource requests (fetch, XHR, WebSockets, WebTransport) to local and private IP addresses. The permission model prevents drive-by attacks against routers, printers, smart home devices, and internal services on the same LAN.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Breaking change for some deployments</strong>
+    Sites that make cross-origin requests to private IP ranges (192.168.x.x, 10.x.x.x, 172.16–31.x.x, localhost) without explicit user permission will start to fail. Enterprise environments with intranet tooling are most affected.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Status in Chrome 147</th><td>Stepped rollout (expanding to more users)</td></tr>
+      <tr><th>Feature rollout started</th><td>Chrome 123 (subresource fetch/XHR); Chrome 147 (WebSockets, WebTransport, Service Worker)</td></tr>
+      <tr><th>Request types covered</th><td>Fetch, XHR, WebSockets, WebTransport, <code>WindowClient.navigate()</code></td></tr>
+      <tr><th>Permission mechanism</th><td>Browser permission prompt; enterprise policies for allowlists</td></tr>
+      <tr><th>Spec</th><td><a href="https://wicg.github.io/local-network-access/" target="_blank" rel="noopener">WICG Local Network Access specification</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5152728072060928" target="_blank" rel="noopener">5152728072060928 — Local network access restrictions</a></td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5152728072060608" target="_blank" rel="noopener">chromestatus.com</a>; <a href="https://developer.chrome.com/blog/local-network-access" target="_blank" rel="noopener">Chrome for Developers — New permission prompt for Local Network Access</a></span>
+  </section>
+
+  <section>
+    <h2>what is local network access?</h2>
+    <p>LNA is a web security boundary: it prevents web pages served from public origins (e.g. <code>https://example.com</code>) from making requests to private/local IP addresses without the user's explicit knowledge. This matters because devices on the local network — home routers, NAS drives, printers, smart home hubs — typically have no authentication and assume incoming requests come from trusted local clients. A malicious public page that can silently fetch <code>http://192.168.1.1/admin</code> can attack those devices.</p>
+    <p>Chrome enforces LNA by requiring a preflight check and (when the page is not served from a secure context that is itself local) a user permission prompt before the browser sends such requests.</p>
+    <span class="citation">Source: <a href="https://developer.chrome.com/blog/local-network-access" target="_blank" rel="noopener">Chrome for Developers — Local Network Access</a></span>
+  </section>
+
+  <section>
+    <h2>what Chrome 147 adds</h2>
+    <p>Chrome 147 extends LNA restrictions to three additional request types that were previously uncovered:</p>
+    <table class="doc-table">
+      <thead><tr><th>Request type</th><th>Chrome 147 change</th><th>Details</th></tr></thead>
+      <tr><td>WebSockets</td><td>Permission prompt required</td><td><a href="/v147/local-network-access-restrictions-for-websockets/">WebSocket LNA page</a></td></tr>
+      <tr><td>WebTransport</td><td>Permission prompt required</td><td><a href="/v147/local-network-access-restrictions-for-webtransport/">WebTransport LNA page</a></td></tr>
+      <tr><td>Service Worker <code>WindowClient.navigate()</code></td><td>Blocked for local addresses</td><td><a href="/v147/local-network-access-restrictions-on-service-worker-windowclient-navigate/">Service Worker LNA page</a></td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5152728072060928" target="_blank" rel="noopener">chromestatus.com/feature/5152728072060928</a></span>
+  </section>
+
+  <section>
+    <h2>migration</h2>
+    <p>Sites affected by LNA restrictions have several options:</p>
+    <ul>
+      <li><strong>Serve from a local origin</strong>: Pages served from <code>localhost</code> or a private IP address are treated as local and can access other local resources without a prompt.</li>
+      <li><strong>Use HTTPS everywhere</strong>: An HTTPS page accessing an HTTPS local endpoint over a secure connection avoids the mixed-content LNA prompt.</li>
+      <li><strong>Request permission explicitly</strong>: Include the <code>targetAddressSpace: "private"</code> option on fetch calls to proactively request the permission before sending the request.</li>
+      <li><strong>Enterprise allowlists</strong>: Deploy <code>LocalNetworkAccessAllowedForUrls</code> policy to auto-grant permission for specific intranet origins.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://developer.chrome.com/blog/local-network-access" target="_blank" rel="noopener">Chrome for Developers — Local Network Access</a></span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/5152728072060928" target="_blank" rel="noopener">Chrome Platform Status — Local network access restrictions</a></li>
+      <li><a href="https://developer.chrome.com/blog/local-network-access" target="_blank" rel="noopener">Chrome for Developers — New permission prompt for Local Network Access</a></li>
+      <li><a href="https://wicg.github.io/local-network-access/" target="_blank" rel="noopener">WICG Local Network Access specification</a></li>
+      <li><a href="/v147/local-network-access-restrictions-for-websockets/">Local network access restrictions for WebSockets — Chrome 147</a></li>
+      <li><a href="/v147/local-network-access-restrictions-for-webtransport/">Local network access restrictions for WebTransport — Chrome 147</a></li>
+      <li><a href="/v147/local-network-access-restrictions-on-service-worker-windowclient-navigate/">Local network access restrictions on Service Worker WindowClient.navigate() — Chrome 147</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
