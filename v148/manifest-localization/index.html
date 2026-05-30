@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Manifest Localization — Chrome 148 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v148/">&larr; Chrome 148 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v148 · web app · shipped</p>
+    <h1>Manifest Localization</h1>
+    <p class="lede">Web app manifests can now carry built-in translations for name, short name, description, and icons using <code>_localized</code>-suffixed fields. The browser picks the closest match to the user's language — no server-side manifest switching or separate manifest files needed.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 148, Microsoft Edge 148</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Flag</th><td>None</td></tr>
+      <tr><th>Standards position</th><td>W3C Web Application Manifest + Localizable Manifests</td></tr>
+      <tr><th>Spec</th><td><a href="https://www.w3.org/TR/localizable-manifests/" target="_blank" rel="noopener">Developing Localizable Manifests — W3C Working Draft</a></td></tr>
+      <tr><th>Explainer</th><td><a href="https://developer.chrome.com/blog/manifest-localization" target="_blank" rel="noopener">Localization support for web app manifests — Chrome for Developers</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5090807862394880" target="_blank" rel="noopener">5090807862394880 — Manifest Localization</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Before Chrome 148, a PWA that needed localized names had to either serve a different manifest from a different URL per locale, or use server-side content negotiation to rewrite the manifest dynamically. Neither approach integrates cleanly with install-time metadata or icon selection. Manifest Localization bakes translations directly into the manifest file using a standardised <code>_localized</code> suffix convention, matching the existing pattern used by the web app manifest specification's internationalization work in W3C.</p>
+    <span class="citation">Source: Chrome for Developers — Manifest Localization blog, W3C Localizable Manifests spec, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>the manifest fields</h2>
+    <p>Any localizable manifest member gains a companion field whose name is the original field name with <code>_localized</code> appended. Each companion field is an object whose keys are <a href="https://www.rfc-editor.org/rfc/rfc5646" target="_blank" rel="noopener">BCP 47</a> language tags and whose values are localization entries.</p>
+
+    <table class="doc-table">
+      <thead><tr><th>Original field</th><th>Localized companion</th><th>Value type</th></tr></thead>
+      <tr><td><code>name</code></td><td><code>name_localized</code></td><td>object mapping lang tag → localization entry</td></tr>
+      <tr><td><code>short_name</code></td><td><code>short_name_localized</code></td><td>same</td></tr>
+      <tr><td><code>description</code></td><td><code>description_localized</code></td><td>same</td></tr>
+      <tr><td><code>icons</code></td><td><code>icons_localized</code></td><td>object mapping lang tag → array of icon objects</td></tr>
+    </table>
+
+    <h3>Localization entry</h3>
+    <table class="doc-table">
+      <thead><tr><th>Key</th><th>Required</th><th>Description</th></tr></thead>
+      <tr><td><code>value</code></td><td>Yes</td><td>The translated string (or array of icon objects for <code>icons_localized</code>).</td></tr>
+      <tr><td><code>dir</code></td><td>No</td><td>Text direction override: <code>"ltr"</code>, <code>"rtl"</code>, or <code>"auto"</code>. Defaults to the manifest's top-level <code>dir</code>.</td></tr>
+      <tr><td><code>lang</code></td><td>No</td><td>Language override for the value. Defaults to the map key.</td></tr>
+    </table>
+    <span class="citation">Source: W3C Localizable Manifests spec and Chrome for Developers blog, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+
+    <h3>Localizing name and short_name</h3>
+    <pre><code>{
+  "name": "Weather Now",
+  "name_localized": {
+    "fr": { "value": "Météo en direct" },
+    "de": { "value": "Aktuelles Wetter" },
+    "ja": { "value": "天気ナウ" },
+    "ar": { "value": "الطقس الآن", "dir": "rtl" }
+  },
+  "short_name": "Weather",
+  "short_name_localized": {
+    "fr": { "value": "Météo" },
+    "de": { "value": "Wetter" },
+    "ja": { "value": "天気" },
+    "ar": { "value": "الطقس", "dir": "rtl" }
+  },
+  "description": "Real-time weather for your location.",
+  "description_localized": {
+    "fr": { "value": "Météo en temps réel pour votre emplacement." },
+    "de": { "value": "Echtzeit-Wetter für Ihren Standort." }
+  },
+  "start_url": "/",
+  "display": "standalone",
+  "icons": [
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}</code></pre>
+
+    <h3>Language selection</h3>
+    <p>The browser matches the user's preferred language (from the OS or browser settings) against the keys in the localized maps using BCP 47 lookup (subtag fallback). A French-Canadian user (<code>fr-CA</code>) sees the <code>fr</code> value if no <code>fr-CA</code> key is present. If no matching key is found, the base (non-suffixed) field value is used.</p>
+
+    <h3>Locale-specific icons</h3>
+    <pre><code>{
+  "icons": [
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ],
+  "icons_localized": {
+    "ja": [
+      { "src": "/icons/icon-512-ja.png", "sizes": "512x512", "type": "image/png" }
+    ]
+  }
+}</code></pre>
+    <span class="citation">Source: Chrome for Developers — Manifest Localization blog, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Support</th></tr></thead>
+      <tr><td>Chrome 148+ (desktop + Android)</td><td>Enabled by default</td></tr>
+      <tr><td>Microsoft Edge 148+</td><td>Enabled by default</td></tr>
+      <tr><td>Firefox</td><td>No position</td></tr>
+      <tr><td>Safari</td><td>No position</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.com browser views, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://developer.chrome.com/blog/manifest-localization" target="_blank" rel="noopener">Localization support for web app manifests — Chrome for Developers blog</a></li>
+      <li><a href="https://www.w3.org/TR/localizable-manifests/" target="_blank" rel="noopener">Developing Localizable Manifests — W3C Working Draft</a></li>
+      <li><a href="https://w3c.github.io/manifest/" target="_blank" rel="noopener">Web Application Manifest — W3C spec</a></li>
+      <li><a href="https://chromestatus.com/feature/5090807862394880" target="_blank" rel="noopener">chromestatus — Manifest Localization (5090807862394880)</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/manifest-localization/" target="_blank" rel="noopener">chrome-platform-showcase — live demo</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
