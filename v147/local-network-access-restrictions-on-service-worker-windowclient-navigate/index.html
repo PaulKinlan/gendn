@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Local Network Access restrictions on Service Worker WindowClient.navigate() — Chrome 147 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v147/">&larr; Chrome 147 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v147 · shipped · security · service workers</p>
+    <h1>Local Network Access restrictions on Service Worker WindowClient.navigate()</h1>
+    <p class="lede">Chrome 147 extends Local Network Access (LNA) enforcement to navigations initiated by service workers via <code>WindowClient.navigate()</code>. When the <code>WindowClient</code> is a subframe, any attempt to navigate it to a local/private IP address now triggers the same LNA checks as other restricted request types.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Behaviour change</strong>
+    Service workers that call <code>windowClient.navigate(url)</code> where <code>url</code> resolves to a local or private address (loopback, RFC 1918, link-local) may now be blocked in Chrome 147 when the <code>WindowClient</code> is a subframe served from a public origin. Main-frame navigations are not affected.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 147 (desktop, Android)</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Affected API</th><td><code>WindowClient.navigate()</code> from service workers</td></tr>
+      <tr><th>Spec</th><td><a href="https://wicg.github.io/local-network-access/" target="_blank" rel="noopener">WICG Local Network Access spec</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5172375182245888" target="_blank" rel="noopener">5172375182245888 — Local Network Access restrictions on Service Worker WindowClient.navigate()</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Chrome's Local Network Access protections prevent public websites from silently reaching devices on the user's private network. Earlier work applied LNA checks to <code>fetch()</code> requests initiated from service workers. However, service workers can also trigger subframe navigations via <code>WindowClient.navigate()</code> — and that path was not covered. A compromised or malicious service worker from a public origin could navigate an embedded subframe to a local admin interface or device URL without the user's knowledge. Chrome 147 closes this hole by applying the same initiator-based LNA logic to <code>WindowClient.navigate()</code> calls.</p>
+    <p>Only subframe <code>WindowClient</code> navigations are affected. Chrome does not currently enforce LNA restrictions on main-frame navigations.</p>
+    <span class="citation">Source: blink-dev Intent to Ship — Local Network Access restrictions on Service Worker WindowClient.navigate(), April 2026.</span>
+  </section>
+
+  <section>
+    <h2>what changes</h2>
+    <p>When a service worker calls <code>windowClient.navigate(url)</code>:</p>
+    <ul>
+      <li>If the <code>WindowClient</code> is a <strong>main frame</strong>: no change, no LNA check is applied.</li>
+      <li>If the <code>WindowClient</code> is a <strong>subframe</strong> and the target URL resolves to a local/private address:
+        <ul>
+          <li>Chrome uses the <code>WindowClient</code> (i.e. the subframe's origin) as the navigation initiator.</li>
+          <li>If the initiator is a public origin, the LNA permission check is triggered.</li>
+          <li>If the user has not granted permission, or the context is not secure, the navigation is blocked.</li>
+        </ul>
+      </li>
+    </ul>
+
+    <h3>Affected address ranges</h3>
+    <table class="doc-table">
+      <thead><tr><th>Address range</th><th>Examples</th></tr></thead>
+      <tr><td>Loopback</td><td><code>127.0.0.1</code>, <code>localhost</code>, <code>::1</code></td></tr>
+      <tr><td>Private (RFC 1918)</td><td><code>10.x.x.x</code>, <code>172.16–31.x.x</code>, <code>192.168.x.x</code></td></tr>
+      <tr><td>Link-local</td><td><code>169.254.x.x</code>, <code>fe80::/10</code></td></tr>
+    </table>
+    <span class="citation">Source: blink-dev Intent to Ship — Local Network Access restrictions on Service Worker WindowClient.navigate(), April 2026.</span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Support</th></tr></thead>
+      <tr><td>Chrome 147+ (desktop, Android)</td><td>Enabled by default</td></tr>
+      <tr><td>Firefox</td><td>No position</td></tr>
+      <tr><td>Safari</td><td>No position</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.com feature page, April 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://wicg.github.io/local-network-access/" target="_blank" rel="noopener">WICG Local Network Access specification</a></li>
+      <li><a href="https://chromestatus.com/feature/5172375182245888" target="_blank" rel="noopener">chromestatus — Local Network Access restrictions on Service Worker WindowClient.navigate() (5172375182245888)</a></li>
+      <li><a href="/v147/local-network-access-restrictions-for-websockets/">Local network access restrictions for WebSockets — Chrome 147</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

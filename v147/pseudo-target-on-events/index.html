@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pseudo target on events — Chrome 147 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v147/">&larr; Chrome 147 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v147 · shipped · dom · events</p>
+    <h1>Pseudo target on events</h1>
+    <p class="lede">Chrome 147 adds a <code>pseudoTarget</code> property to <code>UIEvent</code>, <code>AnimationEvent</code>, and <code>TransitionEvent</code>. When an event originates from a CSS pseudo-element such as <code>::before</code> or <code>::after</code>, <code>pseudoTarget</code> returns the corresponding <code>CSSPseudoElement</code> object rather than <code>null</code>, letting event handlers distinguish pseudo-element interactions without relying on hit-test workarounds.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 147 (desktop, Android, WebView)</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>New property</th><td><code>Event.pseudoTarget</code></td></tr>
+      <tr><th>Returns</th><td><code>CSSPseudoElement</code> or <code>null</code></td></tr>
+      <tr><th>Spec</th><td><a href="https://drafts.csswg.org/css-pseudo-4/" target="_blank" rel="noopener">CSS Pseudo-Elements Level 4</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5179328935624704" target="_blank" rel="noopener">5179328935624704 — Pseudo target on events</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>CSS pseudo-elements like <code>::before</code> and <code>::after</code> generate rendered content and are fully interactive — they receive pointer events, fire animation events, and participate in transitions. Before Chrome 147, <code>Event.target</code> always referred to the originating DOM <em>element</em>, with no way to tell programmatically that the interaction happened on a pseudo-element rather than the element itself. Developers resorted to geometry calculations or layout mirrors to infer the hit. <code>pseudoTarget</code> closes this gap directly in the event object.</p>
+    <span class="citation">Source: blink-dev Intent to Ship — Pseudo target on events, April 2026.</span>
+  </section>
+
+  <section>
+    <h2>shape of the API</h2>
+
+    <h3>The pseudoTarget property</h3>
+    <p>Every <code>UIEvent</code>, <code>AnimationEvent</code>, and <code>TransitionEvent</code> now carries a <code>pseudoTarget</code> property:</p>
+    <ul>
+      <li>If the event was dispatched on a pseudo-element, <code>pseudoTarget</code> is a <code>CSSPseudoElement</code> whose <code>type</code> is the pseudo-element selector (e.g. <code>"::before"</code>) and whose <code>element</code> is the originating DOM element.</li>
+      <li>If the event was not dispatched on a pseudo-element, <code>pseudoTarget</code> is <code>null</code>.</li>
+      <li><code>Event.target</code> remains the originating DOM element in both cases — existing code is unaffected.</li>
+    </ul>
+
+    <h3>Supported event types</h3>
+    <table class="doc-table">
+      <thead><tr><th>Interface</th><th>Typical events</th></tr></thead>
+      <tr><td><code>UIEvent</code></td><td><code>click</code>, <code>pointerdown</code>, <code>focus</code>, <code>keydown</code>, …</td></tr>
+      <tr><td><code>AnimationEvent</code></td><td><code>animationstart</code>, <code>animationend</code>, <code>animationiteration</code></td></tr>
+      <tr><td><code>TransitionEvent</code></td><td><code>transitionstart</code>, <code>transitionend</code>, <code>transitionrun</code></td></tr>
+    </table>
+    <p>Note: <code>mouseover</code>, <code>mouseout</code>, <code>mouseenter</code>, <code>mouseleave</code>, and their <code>pointer*</code> hover counterparts are not yet supported.</p>
+    <span class="citation">Source: blink-dev Intent to Ship — Pseudo target on events, April 2026.</span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+
+    <h3>Detecting a click on ::after</h3>
+    <pre><code>const box = document.querySelector('.box');
+
+box.addEventListener('click', (event) => {
+  if (event.pseudoTarget !== null) {
+    console.log('Clicked on pseudo-element:', event.pseudoTarget.type);
+    // e.g. "::after"
+    console.log('Originating element:', event.pseudoTarget.element);
+  } else {
+    console.log('Clicked on the element itself');
+  }
+});</code></pre>
+
+    <h3>Reacting to a transition on ::before</h3>
+    <pre><code>document.addEventListener('transitionend', (event) => {
+  if (event.pseudoTarget?.type === '::before') {
+    // A ::before pseudo-element finished its CSS transition
+    const host = event.pseudoTarget.element;
+    host.classList.remove('transitioning');
+  }
+});</code></pre>
+    <span class="citation">Source: blink-dev Intent to Ship — Pseudo target on events, April 2026.</span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Support</th></tr></thead>
+      <tr><td>Chrome 147+ (desktop, Android, WebView)</td><td>Enabled by default</td></tr>
+      <tr><td>Firefox</td><td>No signal</td></tr>
+      <tr><td>Safari</td><td>No signal</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.com feature page, April 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/CSSPseudoElement" target="_blank" rel="noopener">MDN: CSSPseudoElement</a></li>
+      <li><a href="https://drafts.csswg.org/css-pseudo-4/" target="_blank" rel="noopener">CSS Pseudo-Elements Level 4 specification</a></li>
+      <li><a href="https://chromestatus.com/feature/5179328935624704" target="_blank" rel="noopener">chromestatus — Pseudo target on events (5179328935624704)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
