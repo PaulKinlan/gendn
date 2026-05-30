@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Disable SVG filters on plugins and cross-origin or restricted iframes — Chrome 150 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v150/">&larr; Chrome 150 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v150 · security · css · svg · iframes</p>
+    <h1>Disable SVG filters on plugins and cross-origin or restricted iframes</h1>
+    <p class="lede">Chrome 150 prevents SVG CSS filter effects from being applied to cross-origin iframes, sandboxed iframes, and embedded plugins (such as PDFs). When such a filter is encountered, Chrome skips it and uses the nearest ancestor effect that doesn't involve an SVG filter, closing a pixel-readback side-channel.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 150 (Enabled by default)</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>API change</th><td>None — behavioural security fix; SVG filters silently skipped on restricted frames</td></tr>
+      <tr><th>Standards position (Firefox)</th><td>Under consideration</td></tr>
+      <tr><th>Standards position (Safari)</th><td>Shipped/Shipping</td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5117170452398080" target="_blank" rel="noopener">5117170452398080 — Disable SVG filters on plugins and cross-origin or restricted iframes</a></td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5117170452398080" target="_blank" rel="noopener">chromestatus.com/feature/5117170452398080</a></span>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>SVG filter primitives such as <code>feBlend</code>, <code>feColorMatrix</code>, and <code>feComposite</code> can be used to read pixel colours from a composited surface. When applied to a cross-origin iframe, these filters can theoretically expose the rendered content of the embedded page to the parent page — a form of cross-origin information leak.</p>
+    <p>Chrome 150 closes this leak by refusing to apply SVG filter effects to:</p>
+    <ul>
+      <li>Cross-origin <code>&lt;iframe&gt;</code> elements</li>
+      <li>Sandboxed <code>&lt;iframe&gt;</code> elements (e.g. those with a <code>sandbox</code> attribute)</li>
+      <li>Embedded plugins (e.g. PDFs rendered via the PDF plugin)</li>
+    </ul>
+    <p>When Chrome encounters such a combination, it traverses the effect tree to find the highest ancestor effect that does <em>not</em> include an SVG filter, and applies that instead. This means non-SVG CSS effects (like <code>opacity</code>, <code>transform</code>, <code>backdrop-filter</code>) applied above or around the restricted frame continue to work normally. Only the SVG-specific filter primitives are blocked.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5117170452398080" target="_blank" rel="noopener">chromestatus feature summary</a></span>
+  </section>
+
+  <section>
+    <h2>what changes</h2>
+    <table class="doc-table">
+      <tr><th>Scenario</th><th>Before Chrome 150</th><th>Chrome 150+</th></tr>
+      <tr><td>SVG filter on same-origin <code>&lt;iframe&gt;</code></td><td>Applied normally</td><td>Applied normally (unchanged)</td></tr>
+      <tr><td>SVG filter on cross-origin <code>&lt;iframe&gt;</code></td><td>Applied (potential info leak)</td><td>SVG filter skipped; nearest non-SVG ancestor effect used</td></tr>
+      <tr><td>SVG filter on sandboxed <code>&lt;iframe&gt;</code></td><td>Applied (potential info leak)</td><td>SVG filter skipped</td></tr>
+      <tr><td>SVG filter on PDF plugin</td><td>Applied</td><td>SVG filter skipped</td></tr>
+      <tr><td><code>opacity</code> / <code>transform</code> on cross-origin iframe</td><td>Applied normally</td><td>Applied normally (unchanged)</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5117170452398080" target="_blank" rel="noopener">chromestatus feature summary</a></span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+<pre><code>/* This SVG filter WILL be applied — same-origin iframe */
+.same-origin-frame {
+  filter: url(#blur-effect);
+}
+
+/* This SVG filter will be SKIPPED in Chrome 150+ — cross-origin iframe */
+.cross-origin-frame {
+  filter: url(#custom-svg-filter); /* skipped */
+  /* Non-SVG effects still work: */
+  opacity: 0.9;
+  transform: scale(0.95);
+}
+
+/* Workaround: use CSS filter functions (not SVG) for cross-origin frames */
+.cross-origin-frame {
+  filter: blur(2px) brightness(0.8); /* these still apply */
+}</code></pre>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5117170452398080" target="_blank" rel="noopener">chromestatus feature summary</a></span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Browser</th><th>Support</th><th>Notes</th></tr>
+      <tr><td>Chrome 150+</td><td>Enabled by default</td><td>All platforms</td></tr>
+      <tr><td>Firefox</td><td>Under consideration</td><td>—</td></tr>
+      <tr><td>Safari</td><td>Shipped/Shipping</td><td>—</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5117170452398080" target="_blank" rel="noopener">chromestatus.com/feature/5117170452398080</a></span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/5117170452398080" target="_blank" rel="noopener">Chrome Platform Status — Disable SVG filters on plugins and cross-origin or restricted iframes</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
