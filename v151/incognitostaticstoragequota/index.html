@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IncognitoStaticStorageQuota — Chrome 151 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v151/">&larr; Chrome 151 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v151 · storage · privacy · bug fix</p>
+    <h1>IncognitoStaticStorageQuota</h1>
+    <p class="lede">Chrome 151 patches a residual Incognito detection vector in the predictable-storage-quota rollout: by returning a truly static quota from <code>navigator.storage.estimate()</code> in Incognito mode, rather than a value that still leaks information about the user's actual disk size.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 151 (Enabled by default)</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>API change</th><td>None — behavioural fix to <code>StorageManager.estimate()</code></td></tr>
+      <tr><th>Related feature</th><td><a href="/v148/predictable-reported-storage-quota/">v148: Predictable reported storage quota</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5143175657291776" target="_blank" rel="noopener">5143175657291776 — IncognitoStaticStorageQuota</a></td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5143175657291776" target="_blank" rel="noopener">chromestatus.com/feature/5143175657291776</a></span>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Chrome 148 introduced <a href="/v148/predictable-reported-storage-quota/">Predictable reported storage quota</a>, which changed <code>navigator.storage.estimate()</code> to return an artificial quota value — <code>usage + min(10&nbsp;GiB, disk rounded up to 1&nbsp;GiB)</code> — to prevent Incognito detection. However, the formula still exposes a signal: in Incognito mode, the "disk rounded up to 1&nbsp;GiB" component reflects the device's actual disk size, which differs between a laptop with a 256&nbsp;GB drive and one with a 2&nbsp;TB drive. A script that sees this variation can still distinguish Incognito users on specific hardware configurations.</p>
+    <p>Chrome 151 fixes this by substituting a <em>fixed static value</em> for the quota in Incognito mode, removing the disk-size signal entirely. The fix only affects Incognito; regular windows with limited storage continue to use the Chrome 148 formula unchanged.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5143175657291776" target="_blank" rel="noopener">chromestatus feature summary</a></span>
+  </section>
+
+  <section>
+    <h2>what changes</h2>
+    <table class="doc-table">
+      <tr><th>Context</th><th>Chrome 148–150</th><th>Chrome 151+</th></tr>
+      <tr><td>Incognito, limited-storage site</td><td><code>usage + min(10 GiB, disk ↑ 1 GiB)</code></td><td>Fixed static value (no disk-size signal)</td></tr>
+      <tr><td>Regular window, limited-storage site</td><td><code>usage + min(10 GiB, disk ↑ 1 GiB)</code></td><td>Unchanged</td></tr>
+      <tr><td>Any window, unlimited-storage site</td><td>Real quota</td><td>Unchanged</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5143175657291776" target="_blank" rel="noopener">chromestatus feature summary</a></span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+    <p>No code changes are needed. <code>navigator.storage.estimate()</code> continues to work as before:</p>
+<pre><code>const { usage, quota } = await navigator.storage.estimate();
+// quota is now fully static in Incognito (Chrome 151+)
+// usage is always the real bytes-used value (unchanged)
+const pct = (usage / quota) * 100;
+if (pct > 80) warnLowStorage();</code></pre>
+    <span class="citation">Source: <a href="https://storage.spec.whatwg.org/#dom-storagemanager-estimate" target="_blank" rel="noopener">Storage Living Standard §StorageManager.estimate()</a></span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/5143175657291776" target="_blank" rel="noopener">Chrome Platform Status — IncognitoStaticStorageQuota</a></li>
+      <li><a href="/v148/predictable-reported-storage-quota/">gendn — v148: Predictable reported storage quota</a></li>
+      <li><a href="https://storage.spec.whatwg.org/#dom-storagemanager-estimate" target="_blank" rel="noopener">Storage Living Standard — StorageManager.estimate()</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

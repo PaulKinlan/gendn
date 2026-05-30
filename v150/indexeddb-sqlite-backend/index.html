@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IndexedDB: SQLite backend — Chrome 150 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v150/">&larr; Chrome 150 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v150 · storage · indexeddb · browser internals</p>
+    <h1>IndexedDB: SQLite backend</h1>
+    <p class="lede">Chrome 150 rewrites Chromium's IndexedDB storage layer on top of SQLite, replacing the previous hybrid of LevelDB and flat files. There is no API change — existing IndexedDB code continues to work unchanged — but the new backend improves reliability and, to a lesser extent, performance.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 150 (Enabled by default for new databases)</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>API change</th><td>None — transparent to web code</td></tr>
+      <tr><th>Spec</th><td><a href="https://www.w3.org/TR/IndexedDB" target="_blank" rel="noopener">W3C IndexedDB</a></td></tr>
+      <tr><th>Standards position (Firefox)</th><td>Already uses SQLite</td></tr>
+      <tr><th>Standards position (Safari)</th><td>Already uses SQLite</td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5161589557821440" target="_blank" rel="noopener">5161589557821440 — IndexedDB: SQLite backend</a></td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5161589557821440" target="_blank" rel="noopener">chromestatus.com/feature/5161589557821440</a></span>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Chrome's previous IndexedDB storage engine used LevelDB (a log-structured merge-tree) as its key-value core, with separate flat files for large blobs. This combination had known reliability issues: crashes or power failures during writes could leave the database in an inconsistent state that required the entire database to be wiped and rebuilt from scratch, causing silent data loss for users.</p>
+    <p>Firefox and Safari have always stored IndexedDB data in SQLite, which has decades of battle-tested crash-recovery code (write-ahead logging). The new Chrome backend aligns with them, inheriting SQLite's ACID guarantees. Chrome 150 applies the SQLite backend to <em>new</em> databases; existing databases are migrated gradually in later releases. The W3C IndexedDB specification remains unchanged, so all IndexedDB APIs behave identically from a developer's perspective.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5161589557821440" target="_blank" rel="noopener">chromestatus feature summary</a></span>
+  </section>
+
+  <section>
+    <h2>what this means for developers</h2>
+    <table class="doc-table">
+      <tr><th>Area</th><th>Before Chrome 150</th><th>Chrome 150+</th></tr>
+      <tr><td>API surface</td><td>Full IndexedDB API</td><td>Identical — no changes</td></tr>
+      <tr><td>Crash recovery</td><td>LevelDB — inconsistent state possible</td><td>SQLite WAL — ACID, consistent on crash</td></tr>
+      <tr><td>Blob storage</td><td>Separate flat files</td><td>Stored in SQLite (new databases)</td></tr>
+      <tr><td>Existing data</td><td>LevelDB format</td><td>Migrated lazily in future releases</td></tr>
+      <tr><td>Storage quota</td><td>As before</td><td>Unchanged</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5161589557821440" target="_blank" rel="noopener">chromestatus feature summary</a></span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+    <p>No code changes are needed. Existing IndexedDB patterns continue to work:</p>
+<pre><code>// This code works identically before and after the backend change.
+const request = indexedDB.open('myDB', 1);
+
+request.onupgradeneeded = (event) => {
+  const db = event.target.result;
+  db.createObjectStore('notes', { keyPath: 'id', autoIncrement: true });
+};
+
+request.onsuccess = (event) => {
+  const db = event.target.result;
+  const tx = db.transaction('notes', 'readwrite');
+  tx.objectStore('notes').add({ title: 'Hello', body: 'World' });
+  tx.oncomplete = () => console.log('Saved — now on SQLite backend in Chrome 150+');
+};</code></pre>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/IndexedDB" target="_blank" rel="noopener">W3C IndexedDB specification</a></span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Browser</th><th>Backend</th></tr>
+      <tr><td>Chrome 150+</td><td>SQLite (new databases); LevelDB (existing, migrated later)</td></tr>
+      <tr><td>Firefox</td><td>SQLite (has always used SQLite)</td></tr>
+      <tr><td>Safari</td><td>SQLite (has always used SQLite)</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5161589557821440" target="_blank" rel="noopener">chromestatus.com/feature/5161589557821440</a></span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/5161589557821440" target="_blank" rel="noopener">Chrome Platform Status — IndexedDB: SQLite backend</a></li>
+      <li><a href="https://www.w3.org/TR/IndexedDB" target="_blank" rel="noopener">W3C IndexedDB specification</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
