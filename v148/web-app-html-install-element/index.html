@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Web app HTML install element — Chrome 148 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v148/">&larr; Chrome 148 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v148 · origin trial · html element</p>
+    <h1>Web app HTML install element</h1>
+    <p class="lede">A new <code>&lt;install&gt;</code> HTML element that lets a page declaratively offer PWA installation — for the current origin or a different one — without orchestrating the <code>beforeinstallprompt</code> ceremony in JavaScript. The button's label and appearance are browser-controlled, so the click carries a genuine user-intent signal.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Origin trial</strong>
+    The <code>&lt;install&gt;</code> element is in origin trial from Chrome and Edge 148 through 153. You need an origin trial token to use it in production. The API surface is still being refined; check the Chrome for Developers blog before shipping. To test locally: <code>about://flags/#web-app-install-element</code>.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Origin trial</th><td>Chrome 148 – 153, Edge 148 – 153 (same token works in both)</td></tr>
+      <tr><th>Status</th><td>Origin trial (behind flag: <code>#web-app-install-element</code>)</td></tr>
+      <tr><th>Implemented by</th><td>Microsoft Edge team, in collaboration with the Chrome team</td></tr>
+      <tr><th>Spec / Explainer</th><td><a href="https://developer.chrome.com/blog/install-element-ot" target="_blank" rel="noopener">Install web apps with the new HTML install element — Chrome for Developers</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5152834368700416" target="_blank" rel="noopener">5152834368700416 — Web app HTML install element</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>The existing <code>beforeinstallprompt</code> pattern requires JavaScript to intercept and store an event, then replay it on a button click — around 20+ lines of boilerplate. Worse, it only works for the same origin. App stores and catalog pages that want to offer cross-origin installs had no standard mechanism at all. The <code>&lt;install&gt;</code> element provides a single declarative element: the browser renders it as an install button, trusts the click, and handles the installation flow natively. Cross-origin installs are supported via the <code>installurl</code> attribute, enabling catalog pages to offer many apps each with its own install button.</p>
+    <span class="citation">Source: Chrome for Developers blog — Install web apps with the new HTML install element, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>shape of the API</h2>
+
+    <h3>Attributes</h3>
+    <table class="doc-table">
+      <thead><tr><th>Attribute</th><th>Required</th><th>Description</th></tr></thead>
+      <tr>
+        <td><code>installurl</code></td>
+        <td>No (required for cross-origin)</td>
+        <td>URL of the web app to install. For same-origin apps whose manifest has an <code>id</code> field, you can omit this — the browser infers the target from the current page's manifest.</td>
+      </tr>
+      <tr>
+        <td><code>manifestid</code></td>
+        <td>No</td>
+        <td>Computed manifest ID string. Use this when the target app's manifest does not have an explicit <code>id</code> field, so the browser can uniquely identify the app to install.</td>
+      </tr>
+    </table>
+
+    <h3>Events</h3>
+    <table class="doc-table">
+      <thead><tr><th>Event</th><th>Fires when</th></tr></thead>
+      <tr><td><code>promptaction</code></td><td>The user accepted the installation prompt — the app was installed (or is being installed).</td></tr>
+      <tr><td><code>promptdismiss</code></td><td>The user dismissed the installation prompt without installing.</td></tr>
+      <tr><td><code>validationstatuschanged</code></td><td>The element's validation status changed — e.g. the target URL resolved (or failed to resolve) to an installable manifest.</td></tr>
+    </table>
+    <span class="citation">Source: Chrome for Developers blog and infoq.com Web Install API coverage, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>recipes</h2>
+
+    <h3>Same-origin install button</h3>
+    <p>If your page is served from the same origin as the PWA manifest and the manifest has an <code>id</code> field, a bare element is sufficient:</p>
+    <pre><code>&lt;install&gt;&lt;/install&gt;</code></pre>
+
+    <h3>Cross-origin install button (app catalog)</h3>
+    <pre><code>&lt;!-- Catalog page at catalog.example.com offering another app --&gt;
+&lt;install installurl="https://awesome-app.example/"&gt;&lt;/install&gt;
+
+&lt;!-- App without a manifest id field — provide the computed id --&gt;
+&lt;install
+  installurl="https://awesome-app.example/"
+  manifestid="https://awesome-app.example/?source=pwa"
+&gt;&lt;/install&gt;</code></pre>
+
+    <h3>Reacting to install outcome</h3>
+    <pre><code>const installBtn = document.querySelector('install');
+
+installBtn.addEventListener('promptaction', () =&gt; {
+  console.log('App installed!');
+  installBtn.hidden = true; // hide after successful install
+});
+
+installBtn.addEventListener('promptdismiss', () =&gt; {
+  console.log('User dismissed the install prompt.');
+});
+
+installBtn.addEventListener('validationstatuschanged', (e) =&gt; {
+  // e.g. target manifest failed to load
+  if (!installBtn.validity?.valid) {
+    console.warn('Install element validation error');
+  }
+});</code></pre>
+
+    <h3>Enabling the origin trial</h3>
+    <pre><code>&lt;!-- Add your origin trial token in the &lt;head&gt; --&gt;
+&lt;meta http-equiv="origin-trial" content="YOUR_TOKEN_HERE"&gt;</code></pre>
+    <p>Obtain a token at <a href="https://developer.chrome.com/origintrials/" target="_blank" rel="noopener">developer.chrome.com/origintrials</a> — search for "Web app HTML install element".</p>
+    <span class="citation">Source: Chrome for Developers blog — Install web apps with the new HTML install element, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Support</th></tr></thead>
+      <tr><td>Chrome 148 – 153</td><td>Origin trial (or flag: <code>#web-app-install-element</code>)</td></tr>
+      <tr><td>Microsoft Edge 148 – 153</td><td>Origin trial (same token as Chrome)</td></tr>
+      <tr><td>Firefox</td><td>No position</td></tr>
+      <tr><td>Safari</td><td>No position</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.com feature page, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://developer.chrome.com/blog/install-element-ot" target="_blank" rel="noopener">Install web apps with the new HTML install element — Chrome for Developers</a></li>
+      <li><a href="https://developer.chrome.com/origintrials/" target="_blank" rel="noopener">Origin Trials — register for a token</a></li>
+      <li><a href="https://chromestatus.com/feature/5152834368700416" target="_blank" rel="noopener">chromestatus — Web app HTML install element (5152834368700416)</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/web-app-html-install-element/" target="_blank" rel="noopener">chrome-platform-showcase — live demo</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
