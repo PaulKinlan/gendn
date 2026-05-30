@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agentic Federated Login — Chrome 148 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v148/">&larr; Chrome 148 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v148 · origin trial · fedcm · identity · agentic browsing</p>
+    <h1>Agentic Federated Login</h1>
+    <p class="lede">A set of FedCM extensions that let an agentic browser (an AI-driven browser agent acting on behalf of a user) log the user in to websites using their existing federated identity — without requiring the user to manually navigate a login flow. The embedder (the agent) initiates the credential request; the user still controls consent through their identity provider.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Origin trial</strong>
+    Agentic Federated Login is in origin trial on desktop from Chrome 148 through Chrome 154. The trial is intended for agentic browsing contexts and is not enabled for regular (non-agentic) browsing sessions. Register at <a href="https://developer.chrome.com/origintrials/" target="_blank" rel="noopener">developer.chrome.com/origintrials</a> to get a token. DevTrial is also available in Chrome 148.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Origin trial</th><td>Chrome 148 – 154 (desktop: Windows, Mac, Linux, ChromeOS)</td></tr>
+      <tr><th>Status</th><td>Origin trial (Experiment)</td></tr>
+      <tr><th>Builds on</th><td><a href="https://developer.chrome.com/docs/identity/fedcm/" target="_blank" rel="noopener">FedCM (Federated Credential Management API)</a></td></tr>
+      <tr><th>Explainer</th><td><a href="https://github.com/samuelgoto/agentic-federated-login" target="_blank" rel="noopener">samuelgoto/agentic-federated-login — GitHub</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5141084139290624" target="_blank" rel="noopener">5141084139290624 — Agentic Federated Login</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Standard FedCM is designed for user-initiated login: the user clicks a "Sign in with Google" button, the browser shows a prompt, the user picks an account. Agentic browsers — AI agents that browse the web autonomously on a user's behalf — cannot replicate this user gesture flow. Without a structured mechanism, an agentic browser would either be unable to log the user in at all, or would resort to filling login forms programmatically (bypassing privacy protections). Agentic Federated Login extends FedCM so that an <em>embedder</em> (the agentic context hosting the browsing session) can initiate a credential request on behalf of the user. The identity provider still controls the user experience and can prompt for explicit consent. Chrome monitors for false positives and false negatives, degrading gracefully by stopping the agent and handing control back to the user when issues are detected.</p>
+    <span class="citation">Source: blink-dev Intent to Experiment: Agentic Federated Login; GitHub explainer samuelgoto/agentic-federated-login; May 2026.</span>
+  </section>
+
+  <section>
+    <h2>how it works</h2>
+    <p>Agentic Federated Login introduces an <em>embedder-initiated</em> call path into FedCM. In normal FedCM, the RP (relying party web page) calls <code>navigator.credentials.get({ identity: … })</code>. In agentic contexts, the embedder can trigger an equivalent flow without a user gesture on the RP page, subject to IdP and user consent policies.</p>
+
+    <h3>Key extensions</h3>
+    <table class="doc-table">
+      <thead><tr><th>Concept</th><th>Description</th></tr></thead>
+      <tr>
+        <td>Embedder-initiated login</td>
+        <td>The browser agent (embedder) calls the login flow rather than the page's own JS. The call uses the same FedCM <code>IdentityCredential</code> API shape.</td>
+      </tr>
+      <tr>
+        <td>IdP consent gate</td>
+        <td>The identity provider's <code>accounts_endpoint</code> and <code>id_assertion_endpoint</code> responses can signal whether agentic login is permitted for a given user/account.</td>
+      </tr>
+      <tr>
+        <td>Graceful degradation</td>
+        <td>If false positives are detected (wrong account, suspicious context), Chrome stops the agent and surfaces a manual login prompt.</td>
+      </tr>
+      <tr>
+        <td>Finch feature name</td>
+        <td><code>FedCmEmbedderInitiatedLogin</code></td>
+      </tr>
+    </table>
+    <span class="citation">Source: blink-dev Intent to Experiment — Agentic Federated Login, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>relationship to FedCM</h2>
+    <p>Agentic Federated Login is built on top of the existing <a href="https://developer.chrome.com/docs/identity/fedcm/" target="_blank" rel="noopener">FedCM API</a>. Relying parties and identity providers that already support FedCM require minimal changes; the new surface is primarily in how the browser initiates the flow (embedder-driven vs. page-script-driven). Identity providers that want to support agentic login explicitly can signal this in their FedCM configuration endpoints. For web developers building RPs, the API shape is the same <code>navigator.credentials.get()</code> call — you do not need to modify existing FedCM code to be compatible.</p>
+    <span class="citation">Source: samuelgoto/agentic-federated-login explainer, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Support</th></tr></thead>
+      <tr><td>Chrome 148 – 154 (desktop only)</td><td>Origin trial (agentic contexts)</td></tr>
+      <tr><td>Firefox</td><td>No position</td></tr>
+      <tr><td>Safari</td><td>No position</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.com feature page, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://github.com/samuelgoto/agentic-federated-login" target="_blank" rel="noopener">samuelgoto/agentic-federated-login — GitHub explainer</a></li>
+      <li><a href="https://developer.chrome.com/docs/identity/fedcm/" target="_blank" rel="noopener">FedCM documentation — Chrome for Developers</a></li>
+      <li><a href="https://chromestatus.com/feature/5141084139290624" target="_blank" rel="noopener">chromestatus — Agentic Federated Login (5141084139290624)</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/agentic-federated-login/" target="_blank" rel="noopener">chrome-platform-showcase — live demo</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

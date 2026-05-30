@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Connection Allowlists — Chrome 148 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v148/">&larr; Chrome 148 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v148 · origin trial · security · http header</p>
+    <h1>Connection Allowlists</h1>
+    <p class="lede">A new HTTP response header — <code>Connection-Allowlist</code> — that lets a server declare exactly which external endpoints its page is permitted to connect to. The browser enforces this allowlist at the network level, blocking subresource fetches, navigations, redirects, and WebSocket connections that don't match, before they're made.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Origin trial</strong>
+    Connection Allowlists is in origin trial from Chrome 148 through Chrome 151. Register at <a href="https://developer.chrome.com/origintrials/" target="_blank" rel="noopener">developer.chrome.com/origintrials</a> (search "Connection Allowlists") to get a token. To test locally: <code>chrome://flags/#connection-allowlist</code>.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Origin trial</th><td>Chrome 148 – 151</td></tr>
+      <tr><th>Status</th><td>Origin trial (Experiment)</td></tr>
+      <tr><th>Standards</th><td>WICG Proposal</td></tr>
+      <tr><th>Spec</th><td><a href="https://wicg.github.io/connection-allowlists/" target="_blank" rel="noopener">WICG Connection Allowlists spec</a></td></tr>
+      <tr><th>Explainer</th><td><a href="https://github.com/WICG/connection-allowlists" target="_blank" rel="noopener">WICG/connection-allowlists — GitHub</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5175745573945344" target="_blank" rel="noopener">5175745573945344 — Connection Allowlists</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Content Security Policy's <code>connect-src</code> directive can restrict where a page connects, but it is set by the server as a policy header and cannot easily be updated per-response or composed with dynamic endpoint lists. Connection Allowlists takes a complementary approach: the server sends a structured list of permitted URL patterns in the <code>Connection-Allowlist</code> response header, and the browser evaluates every outgoing connection — subresource fetches, navigations, redirects, prefetch, preload, WebSocket connections, and <code>history.back()</code>/<code>history.forward()</code> navigations — against that list before the connection is made. Connections that don't match are blocked at the network level. A report-only variant (<code>Connection-Allowlist-Report-Only</code>) lets developers audit their connection surface before enforcing it.</p>
+    <span class="citation">Source: WICG Connection Allowlists spec, blink-dev Intent to Experiment, Chrome for Developers blog, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>the header</h2>
+
+    <h3>Connection-Allowlist</h3>
+    <p>The header value is a Structured Field list containing a single inner list. Each element is either the token <code>response-origin</code> (dynamically adds the response's own origin) or a quoted string matching the <a href="https://urlpattern.spec.whatwg.org/" target="_blank" rel="noopener">URLPattern</a> syntax for absolute URLs.</p>
+
+    <table class="doc-table">
+      <thead><tr><th>Element</th><th>Meaning</th></tr></thead>
+      <tr><td><code>response-origin</code></td><td>Dynamically permits the origin from which the current response was served. Useful for same-origin requests without hard-coding the origin.</td></tr>
+      <tr><td><code>"https://api.example.com/*"</code></td><td>A quoted URLPattern string. Permits any URL under <code>api.example.com</code>.</td></tr>
+      <tr><td><code>"https://*.cdn.example"</code></td><td>Wildcard subdomain pattern.</td></tr>
+    </table>
+
+    <h3>Optional report-to parameter</h3>
+    <p>Append <code>; report-to=&lt;endpoint-name&gt;</code> to route violation reports to a <a href="https://developer.mozilla.org/en-US/docs/Web/API/Reporting_API" target="_blank" rel="noopener">Reporting API</a> endpoint.</p>
+    <span class="citation">Source: WICG Connection Allowlists spec, blink-dev Intent to Experiment, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>examples</h2>
+
+    <h3>Basic allowlist — same origin plus a CDN</h3>
+    <pre><code># Server response header
+Connection-Allowlist: (response-origin "https://cdn.example.com/*")</code></pre>
+
+    <h3>Multiple trusted endpoints</h3>
+    <pre><code>Connection-Allowlist: (response-origin "https://api.example.com/*" "https://*.assets.example.com")</code></pre>
+
+    <h3>Report-only mode (audit without blocking)</h3>
+    <pre><code>Connection-Allowlist-Report-Only: ("https://api.example.com/*" response-origin); report-to=security-endpoint</code></pre>
+
+    <h3>Express / Node.js middleware snippet</h3>
+    <pre><code>app.use((req, res, next) => {
+  res.setHeader(
+    'Connection-Allowlist',
+    '(response-origin "https://api.example.com/*" "https://fonts.googleapis.com/*")'
+  );
+  next();
+});</code></pre>
+
+    <h3>Origin trial token</h3>
+    <pre><code>&lt;meta http-equiv="origin-trial" content="YOUR_TOKEN_HERE"&gt;</code></pre>
+    <p>Obtain a token at <a href="https://developer.chrome.com/origintrials/" target="_blank" rel="noopener">developer.chrome.com/origintrials</a> — search for "Connection Allowlists".</p>
+    <span class="citation">Source: WICG Connection Allowlists spec and blink-dev, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>what the allowlist covers</h2>
+    <p>At the start of the origin trial the following outgoing connections are checked against the allowlist:</p>
+    <ul>
+      <li>Subresource fetches (<code>fetch()</code>, <code>&lt;img&gt;</code>, <code>&lt;script&gt;</code>, <code>&lt;link&gt;</code>, etc.)</li>
+      <li>Navigation requests and redirects</li>
+      <li>Fetches from local-scheme navigations</li>
+      <li><code>history.back()</code> and <code>history.forward()</code> navigations</li>
+      <li>Link prefetch and preload</li>
+      <li>WebSocket connections</li>
+    </ul>
+    <span class="citation">Source: blink-dev Intent to Experiment — Connection Allowlists, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Support</th></tr></thead>
+      <tr><td>Chrome 148 – 151</td><td>Origin trial (flag: <code>#connection-allowlist</code>)</td></tr>
+      <tr><td>Firefox</td><td>No position</td></tr>
+      <tr><td>Safari</td><td>No position</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.com feature page, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://wicg.github.io/connection-allowlists/" target="_blank" rel="noopener">WICG Connection Allowlists — spec</a></li>
+      <li><a href="https://github.com/WICG/connection-allowlists" target="_blank" rel="noopener">WICG/connection-allowlists — GitHub explainer</a></li>
+      <li><a href="https://developer.chrome.com/blog/connection-allowlists-origin-trial" target="_blank" rel="noopener">Connection Allowlists origin trial — Chrome for Developers</a></li>
+      <li><a href="https://chromestatus.com/feature/5175745573945344" target="_blank" rel="noopener">chromestatus — Connection Allowlists (5175745573945344)</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/connection-allowlists/" target="_blank" rel="noopener">chrome-platform-showcase — live demo</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
