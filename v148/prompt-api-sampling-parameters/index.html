@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Prompt API Sampling Parameters — Chrome 148 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v148/">&larr; Chrome 148 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v148 · web ai · origin trial</p>
+    <h1>Prompt API Sampling Parameters</h1>
+    <p class="lede">Adds <code>temperature</code> and <code>topK</code> sampling parameters to the built-in Prompt API's <code>LanguageModel</code> interface, giving developers direct control over the randomness and diversity of on-device model outputs. Also exposes static helpers to query the browser's supported ranges for these parameters.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Origin trial / experimental</strong>
+    This feature is in origin trial in Chrome 148. The API shape described here is based on the spec draft and may change before general availability. Register at the Chrome Origin Trials dashboard before shipping.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Status in 148</th><td>Origin trial</td></tr>
+      <tr><th>Flag</th><td>None (requires OT token)</td></tr>
+      <tr><th>Standards position</th><td>Firefox: No signal &nbsp;·&nbsp; Safari: No signal</td></tr>
+      <tr><th>Spec</th><td><a href="https://webmachinelearning.github.io/prompt-api" target="_blank" rel="noopener">webmachinelearning.github.io/prompt-api</a> (W3C WICG)</td></tr>
+      <tr><th>Blink component</th><td>Blink&gt;AI&gt;Prompt</td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/6325545693478912" target="_blank" rel="noopener">6325545693478912 — Prompt API Sampling Parameters</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>The built-in Prompt API relies on an on-device language model managed by the browser. Without sampling controls, every prompt runs with the browser's fixed defaults, which can produce deterministic but low-creativity outputs. By exposing <code>temperature</code> (how "random" the distribution is) and <code>topK</code> (how many candidate tokens are considered at each step), developers can tune the trade-off between coherence and variety — useful for creative writing, brainstorming, or testing model robustness.</p>
+    <span class="citation">Source: chromestatus summary + <a href="https://webmachinelearning.github.io/prompt-api" target="_blank" rel="noopener">Prompt API spec</a>.</span>
+  </section>
+
+  <section>
+    <h2>shape of the API</h2>
+
+    <h3>Session creation options</h3>
+    <table class="doc-table">
+      <tr><th>LanguageModelCreateOptions.temperature</th><td><code>float</code> — Controls token distribution sharpness. <code>0.0</code> = fully deterministic (argmax); higher values increase randomness. Default and max are device-dependent.</td></tr>
+      <tr><th>LanguageModelCreateOptions.topK</th><td><code>unsigned long</code> — Restricts sampling to the top-K most probable tokens. <code>1</code> = greedy decoding. Device-dependent max.</td></tr>
+    </table>
+
+    <h3>Instance attributes (read-back)</h3>
+    <table class="doc-table">
+      <tr><th>LanguageModel.temperature</th><td>The effective temperature for this session (the value set at creation, or browser default).</td></tr>
+      <tr><th>LanguageModel.topK</th><td>The effective topK for this session.</td></tr>
+    </table>
+
+    <h3>Static capability query</h3>
+    <table class="doc-table">
+      <tr><th>LanguageModel.params()</th><td>Returns a <code>Promise&lt;LanguageModelParams&gt;</code> describing the browser's <code>defaultTemperature</code>, <code>maxTemperature</code>, <code>defaultTopK</code>, and <code>maxTopK</code>.</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://webmachinelearning.github.io/prompt-api" target="_blank" rel="noopener">Prompt API spec</a> §LanguageModel. Field names paraphrased; verify against the live spec before shipping.</span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+    <h3>Query device limits then create a creative session</h3>
+<pre><code>// 1. Check what the device supports
+const params = await LanguageModel.params();
+console.log(params.defaultTemperature, params.maxTemperature);
+// e.g. 1.0, 2.0
+
+// 2. Create a higher-temperature session for brainstorming
+const session = await LanguageModel.create({
+  temperature: Math.min(1.8, params.maxTemperature),
+  topK: 40,
+  systemPrompt: "You are a creative writing assistant."
+});
+
+// 3. Verify the applied values
+console.log(session.temperature, session.topK); // 1.8, 40
+
+// 4. Prompt
+const result = await session.prompt("Give me five unusual fantasy city names.");
+console.log(result);</code></pre>
+
+    <h3>Conservative/deterministic session</h3>
+<pre><code>const session = await LanguageModel.create({
+  temperature: 0.2,
+  topK: 1,  // greedy decoding — most deterministic
+  systemPrompt: "Extract structured data from text."
+});
+const json = await session.prompt(
+  "Extract: 'Alice, 30, engineer, London'"
+);</code></pre>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome</th><td>Origin trial in 148</td></tr>
+      <tr><th>Edge</th><td>Tracking Chromium</td></tr>
+      <tr><th>Firefox</th><td>No signal</td></tr>
+      <tr><th>Safari</th><td>No signal</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus browser views, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://webmachinelearning.github.io/prompt-api" target="_blank" rel="noopener">Prompt API spec</a> — W3C WICG draft</li>
+      <li><a href="https://developer.chrome.com/docs/ai/built-in" target="_blank" rel="noopener">Chrome built-in AI overview</a></li>
+      <li><a href="https://chromestatus.com/feature/6325545693478912" target="_blank" rel="noopener">chromestatus: Prompt API Sampling Parameters</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/prompt-api-sampling-parameters/" target="_blank" rel="noopener">chrome-platform-showcase: demos</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
