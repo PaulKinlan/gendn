@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Long Animation Frames style duration — Chrome 148 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v148/">&larr; Chrome 148 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v148 · performance · origin trial</p>
+    <h1>Long Animation Frames style duration</h1>
+    <p class="lede">Two new timing fields — <code>styleDuration</code> and <code>forcedStyleDuration</code> — added to the Long Animation Frames (LoAF) API, letting developers distinguish time spent in style and layout from other work inside a slow frame.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Origin trial</strong>
+    These new fields are in origin trial in Chrome 148. The final property names may differ. Track the spec PR linked below before relying on these in production.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Status in Chrome 148</th><td>Origin trial</td></tr>
+      <tr><th>Flag</th><td>None when OT token is present</td></tr>
+      <tr><th>Spec PR</th><td><a href="https://github.com/w3c/long-animation-frames/pull/30" target="_blank" rel="noopener">w3c/long-animation-frames PR #30</a></td></tr>
+      <tr><th>Standards position (Firefox)</th><td>No signal</td></tr>
+      <tr><th>Standards position (Safari)</th><td>No signal</td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5171478175809536" target="_blank" rel="noopener">5171478175809536 — Long Animation Frames style duration</a></td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5171478175809536" target="_blank" rel="noopener">chromestatus.com/feature/5171478175809536</a></span>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>The Long Animation Frames API (LoAF) reports every frame that takes more than 50 ms to render. Before this addition, the <code>PerformanceLongAnimationFrameTiming</code> entry exposed total frame duration (<code>duration</code>) and script execution time (<code>blockingDuration</code>), but lumped style recalculation and layout into the general duration bucket. In pages that trigger forced layouts (style reads after DOM writes), style and layout often dominate the slow frame — but developers had no way to confirm this from the LoAF entry alone.</p>
+    <p>Adding <code>styleDuration</code> (total time for style + layout) and <code>forcedStyleDuration</code> (time for <em>forced</em> style + layout triggered mid-frame) makes it possible to diagnose layout-thrashing patterns directly from the performance timeline.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5171478175809536" target="_blank" rel="noopener">chromestatus feature summary</a>; <a href="https://github.com/w3c/long-animation-frames/pull/30" target="_blank" rel="noopener">spec PR #30</a></span>
+  </section>
+
+  <section>
+    <h2>shape of the API</h2>
+    <p>Two new properties on <code>PerformanceLongAnimationFrameTiming</code>:</p>
+    <table class="doc-table">
+      <tr><th>Property</th><th>Type</th><th>Description</th></tr>
+      <tr><td><code>styleDuration</code></td><td><code>DOMHighResTimeStamp</code></td><td>Total time (ms) spent in style recalculation and layout during the frame</td></tr>
+      <tr><td><code>forcedStyleDuration</code></td><td><code>DOMHighResTimeStamp</code></td><td>Subset of <code>styleDuration</code> that was forced (layout triggered mid-frame by a script)</td></tr>
+    </table>
+    <p>All other existing LoAF properties (<code>duration</code>, <code>blockingDuration</code>, <code>renderStart</code>, <code>scripts</code>, etc.) remain unchanged.</p>
+    <span class="citation">Source: <a href="https://github.com/w3c/long-animation-frames/pull/30" target="_blank" rel="noopener">w3c/long-animation-frames PR #30</a></span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+<pre><code>const observer = new PerformanceObserver((list) => {
+  for (const entry of list.getEntries()) {
+    if (entry.entryType !== 'long-animation-frame') continue;
+
+    console.log(`LoAF: ${entry.duration.toFixed(1)} ms total`);
+    console.log(`  style+layout:        ${entry.styleDuration.toFixed(1)} ms`);
+    console.log(`  forced style+layout: ${entry.forcedStyleDuration.toFixed(1)} ms`);
+
+    // Threshold: warn if >50% of the frame is forced layout
+    const forcedRatio = entry.forcedStyleDuration / entry.duration;
+    if (forcedRatio > 0.5) {
+      console.warn('Layout thrashing detected in this frame');
+    }
+  }
+});
+
+observer.observe({ type: 'long-animation-frame', buffered: true });</code></pre>
+    <span class="citation">Pattern from <a href="https://developer.chrome.com/docs/web-platform/long-animation-frames" target="_blank" rel="noopener">developer.chrome.com — Long Animation Frames</a></span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Browser</th><th>Support</th><th>Notes</th></tr>
+      <tr><td>Chrome 148</td><td>Origin trial</td><td><code>styleDuration</code> and <code>forcedStyleDuration</code></td></tr>
+      <tr><td>Firefox</td><td>No signal</td><td>—</td></tr>
+      <tr><td>Safari</td><td>No signal</td><td>—</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5171478175809536" target="_blank" rel="noopener">chromestatus.com/feature/5171478175809536</a></span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/5171478175809536" target="_blank" rel="noopener">Chrome Platform Status — Long Animation Frames style duration</a></li>
+      <li><a href="https://github.com/w3c/long-animation-frames/pull/30" target="_blank" rel="noopener">W3C spec PR #30 — styleDuration addition</a></li>
+      <li><a href="https://developer.chrome.com/docs/web-platform/long-animation-frames" target="_blank" rel="noopener">Long Animation Frames API (Chrome Developers)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
