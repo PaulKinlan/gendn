@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Opaque origin for data: URL Dedicated and Shared Workers — Chrome 150 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block { border: 2px solid var(--border-black); background: var(--bg-stone); padding: 0.75rem 1rem; margin: 1rem 0; font-size: 0.9rem; }
+    .warn-block strong { display: block; margin-bottom: 0.25rem; font-family: var(--font-mono); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v150/">&larr; Chrome 150 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v150 · web api · shipped · breaking change</p>
+    <h1>Opaque origin for data: URL Dedicated and Shared Workers</h1>
+    <p class="lede">Chrome 150 aligns with the HTML specification and other browsers by giving Dedicated and Shared Workers created from <code>data:</code> URLs a unique opaque origin instead of inheriting the creator's origin — a security fix that breaks sites relying on same-origin access from <code>data:</code>-URL workers.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 150 (desktop, Android, WebView)</td></tr>
+      <tr><th>Type</th><td>Interoperability / security fix (breaking change)</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Finch flag</th><td>kDataUrlWorkerOpaqueOrigin</td></tr>
+      <tr><th>Spec</th><td><a href="https://html.spec.whatwg.org/multipage/workers.html#dom-worker" target="_blank" rel="noopener">HTML Living Standard — Worker</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/6290352295247872" target="_blank" rel="noopener">6290352295247872 — Opaque origin for data: URL workers</a></td></tr>
+      <tr><th>Tracking bug</th><td><a href="https://crbug.com/40051700" target="_blank" rel="noopener">crbug.com/40051700</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>the change</h2>
+    <p>Before Chrome 150, a Dedicated or Shared Worker created with a <code>data:</code> URL inherited the security origin of the JavaScript context that created it:</p>
+<pre><code>// Old Chrome behaviour (non-standard):
+// This worker's origin === window.location.origin
+const worker = new Worker("data:text/javascript,self.postMessage(location.href)");
+// or
+const shared = new SharedWorker("data:text/javascript,...");</code></pre>
+
+    <p>This non-standard behaviour allowed <code>data:</code>-URL workers to access same-origin resources — <code>BroadcastChannel</code>, <code>localStorage</code>, <code>IndexedDB</code> — as if they were trusted scripts on the host page.</p>
+
+    <p>Chrome 150 fixes this: a worker created from a <code>data:</code> URL now receives a unique opaque origin (the same as <code>null</code> for <code>document.domain</code> purposes). This matches Firefox, Safari, and the HTML specification.</p>
+    <span class="citation">Source: <a href="http://www.mail-archive.com/blink-dev@chromium.org/msg16425.html" target="_blank" rel="noopener">blink-dev Intent to Ship</a>.</span>
+  </section>
+
+  <section>
+    <div class="warn-block">
+      <strong>breaking change</strong>
+      Code that creates a <code>data:</code>-URL worker and then uses <code>BroadcastChannel</code>, <code>localStorage</code>, <code>IndexedDB</code>, or any other same-origin-gated API from inside the worker will break in Chrome 150. The worker's origin is now opaque and those calls will be blocked.
+    </div>
+  </section>
+
+  <section>
+    <h2>what breaks</h2>
+    <table class="doc-table">
+      <tr><th>Pattern</th><th>Effect after Chrome 150</th></tr>
+      <tr><td><code>new BroadcastChannel("ch")</code> inside a data: worker</td><td>Blocked — opaque origins cannot join named broadcast channels</td></tr>
+      <tr><td><code>localStorage</code> / <code>sessionStorage</code></td><td>Throws <code>SecurityError</code></td></tr>
+      <tr><td><code>indexedDB.open(...)</code></td><td>Returns a rejected request</td></tr>
+      <tr><td>Cookie access</td><td>Empty — opaque origins have no cookies</td></tr>
+      <tr><td><code>postMessage</code> to/from the worker</td><td>Still works — <code>postMessage</code> is not origin-gated</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>fix: use a blob: URL instead</h2>
+    <p>If you need the worker to share the creator's origin, create it from a <code>blob:</code> URL instead of a <code>data:</code> URL. A <code>blob:</code> URL inherits the origin of its creating context and preserves same-origin access:</p>
+<pre><code>const workerCode = `
+  const channel = new BroadcastChannel("my-channel");
+  channel.postMessage("ready");
+`;
+
+// data: URL (breaks in Chrome 150 — opaque origin)
+// const worker = new Worker("data:text/javascript," + workerCode);
+
+// blob: URL (correct — inherits creator's origin)
+const blob = new Blob([workerCode], { type: "text/javascript" });
+const url = URL.createObjectURL(blob);
+const worker = new Worker(url);
+// Remember to revoke when done:
+URL.revokeObjectURL(url);</code></pre>
+  </section>
+
+  <section>
+    <h2>browser compatibility of the new behaviour</h2>
+    <table class="doc-table">
+      <tr><th>Chrome / Edge</th><td>150 (opaque origin assigned)</td></tr>
+      <tr><th>Firefox</th><td>Already assigns opaque origin (spec-compliant)</td></tr>
+      <tr><th>Safari</th><td>Already assigns opaque origin (spec-compliant)</td></tr>
+    </table>
+    <span class="citation">Source: blink-dev Intent to Ship, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://html.spec.whatwg.org/multipage/workers.html#dom-worker" target="_blank" rel="noopener">HTML Living Standard — Worker constructor</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Worker/Worker" target="_blank" rel="noopener">MDN: Worker() constructor</a></li>
+      <li><a href="https://chromestatus.com/feature/6290352295247872" target="_blank" rel="noopener">chromestatus.com — Opaque origin for data: URL workers (6290352295247872)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
