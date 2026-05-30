@@ -31,6 +31,74 @@ function escapeHTML(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
+// ----- Last-commit info (fetched from GitHub, cached for 5 minutes) -----
+
+interface CommitInfo {
+  sha: string;
+  shortSha: string;
+  date: string;
+  htmlUrl: string;
+}
+
+const COMMIT_TTL_MS = 5 * 60 * 1000;
+let commitCache: { at: number; value: CommitInfo | null } | null = null;
+
+async function getLatestCommit(): Promise<CommitInfo | null> {
+  if (commitCache && Date.now() - commitCache.at < COMMIT_TTL_MS) return commitCache.value;
+  try {
+    const res = await fetch(
+      "https://api.github.com/repos/PaulKinlan/gendn/commits/main",
+      { headers: { accept: "application/vnd.github+json" } },
+    );
+    if (!res.ok) {
+      commitCache = { at: Date.now(), value: null };
+      return null;
+    }
+    const data = await res.json();
+    const value: CommitInfo = {
+      sha: data.sha,
+      shortSha: String(data.sha).slice(0, 7),
+      date: data.commit?.author?.date ?? data.commit?.committer?.date ?? "",
+      htmlUrl: data.html_url,
+    };
+    commitCache = { at: Date.now(), value };
+    return value;
+  } catch {
+    return null;
+  }
+}
+
+function relativeTime(d: Date): string {
+  const diff = Date.now() - d.getTime();
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return "just now";
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.floor(hr / 24);
+  return `${day}d ago`;
+}
+
+function formatCommitLine(c: CommitInfo | null): string {
+  if (!c) return "";
+  const when = c.date ? new Date(c.date) : null;
+  const relative = when ? relativeTime(when) : "";
+  const absolute = when
+    ? when.toLocaleString("en-GB", {
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZoneName: "short",
+    })
+    : "";
+  return `<p class="updated-line">Last updated ${escapeHTML(relative)} <span class="updated-abs">(${
+    escapeHTML(absolute)
+  })</span> &middot; commit <a href="${
+    escapeHTML(c.htmlUrl)
+  }" target="_blank" rel="noopener"><code>${escapeHTML(c.shortSha)}</code></a></p>`;
+}
+
 async function readPublicAsset(path: string): Promise<Response> {
   try {
     const file = await Deno.readFile("." + path);
@@ -63,6 +131,7 @@ async function readReleaseAsset(release: string, sub: string): Promise<Response 
 // ----- Index page -----
 
 async function renderIndex(channels: Channels): Promise<string> {
+  const commit = await getLatestCommit();
   const prevStable = channels.stable.mstone - 1;
   const releases: { mstone: number; status: string; date: string }[] = [
     { mstone: channels.dev.mstone, status: "Dev", date: channels.dev.stable_date },
@@ -107,11 +176,13 @@ async function renderIndex(channels: Channels): Promise<string> {
       note = "Most users are here";
     }
     return `<li class="release-card">
-      <a href="/v${r.mstone}/">
-        <span class="release-label">Chrome ${r.mstone}</span>
-        <span class="release-status">${escapeHTML(r.status)}</span>
+      <a class="release-card-link" href="/v${r.mstone}/">
+        <span class="release-card-row">
+          <span class="release-label">Chrome ${r.mstone}</span>
+          <span class="release-status">${escapeHTML(r.status)}</span>
+        </span>
+        <span class="release-note">${escapeHTML(note)}</span>
       </a>
-      <p class="release-note">${escapeHTML(note)}</p>
     </li>`;
   }).join("");
 
@@ -129,6 +200,7 @@ async function renderIndex(channels: Channels): Promise<string> {
       <p class="eyebrow">work in progress</p>
       <h1>gendn</h1>
       <p class="lede">Generated reference docs for the APIs that ship in Chrome but don't yet have a page on MDN. When MDN already covers an API, gendn just links out. The goal is the gap between "shipped in Chrome" and "documented on developer.mozilla.org".</p>
+      ${formatCommitLine(commit)}
     </header>
 
     <section>
