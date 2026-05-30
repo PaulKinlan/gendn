@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Local network access restrictions for WebSockets — Chrome 147 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v147/">&larr; Chrome 147 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v147 · shipped · security · websocket</p>
+    <h1>Local network access restrictions for WebSockets</h1>
+    <p class="lede">Chrome 147 extends Local Network Access (LNA) protections to WebSocket connections. Public websites now need explicit user permission before connecting via WebSocket to local or private IP addresses (loopback, LAN). This prevents silent cross-origin requests to devices on the user's private network.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Breaking change</strong>
+    WebSocket connections from public websites to local addresses (<code>localhost</code>, <code>192.168.x.x</code>, <code>10.x.x.x</code>, etc.) now trigger a permission prompt in Chrome 147 and Edge 147. Existing apps that relied on silent WebSocket connections to local services will stop working until users grant permission — or until the site obtains a per-origin policy exemption.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 147, Edge 147 (desktop, Android)</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Flag</th><td><code>chrome://flags/#local-network-access-check-websockets</code></td></tr>
+      <tr><th>Spec</th><td><a href="https://wicg.github.io/local-network-access/" target="_blank" rel="noopener">WICG Local Network Access spec</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5197681148428288" target="_blank" rel="noopener">5197681148428288 — Local network access restrictions for WebSockets</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Private network devices (printers, routers, smart home hubs, development servers) often lack authentication and CORS headers, making them easy targets. A malicious public website could silently open a WebSocket to <code>ws://192.168.1.1</code> and interact with a home router's local admin interface without the user's knowledge. Chrome already gated subresource fetches (HTTP/HTTPS) to local addresses behind LNA checks; Chrome 147 closes the same gap for WebSocket connections.</p>
+    <span class="citation">Source: blink-dev Intent to Ship — Local network access restrictions for WebSockets, April 2026.</span>
+  </section>
+
+  <section>
+    <h2>what changes</h2>
+    <p>WebSocket connection attempts from secure public pages to local/private addresses now require a user permission grant. The browser shows a permission prompt; if the user denies (or no prompt is shown because the site is not secure), the WebSocket connection is blocked.</p>
+
+    <h3>Affected address ranges</h3>
+    <table class="doc-table">
+      <thead><tr><th>Address range</th><th>Examples</th></tr></thead>
+      <tr><td>Loopback</td><td><code>127.0.0.1</code>, <code>localhost</code>, <code>::1</code></td></tr>
+      <tr><td>Private (RFC 1918)</td><td><code>10.x.x.x</code>, <code>172.16–31.x.x</code>, <code>192.168.x.x</code></td></tr>
+      <tr><td>Link-local</td><td><code>169.254.x.x</code>, <code>fe80::/10</code></td></tr>
+    </table>
+
+    <h3>Requirements for the connection to proceed</h3>
+    <ul>
+      <li>The page must be served over HTTPS (secure context).</li>
+      <li>For WebSocket connections from <code>&lt;iframe&gt;</code> content, the iframe must include <code>allow="loopback-network"</code>.</li>
+      <li>The user must grant the Local Network Access permission when prompted.</li>
+    </ul>
+    <span class="citation">Source: Chrome for Developers blog — Local Network Access permission prompt, April 2026.</span>
+  </section>
+
+  <section>
+    <h2>enterprise policy</h2>
+    <p>Enterprise deployments can bypass the restriction via Chrome policies:</p>
+    <table class="doc-table">
+      <thead><tr><th>Policy</th><th>Effect</th></tr></thead>
+      <tr><td><code>LocalNetworkAccessAllowedForUrls</code></td><td>Origins allowed to connect to local network without a prompt.</td></tr>
+      <tr><td><code>LocalNetworkAccessBlockedForUrls</code></td><td>Origins blocked from connecting to local network.</td></tr>
+      <tr><td><code>LocalNetworkAccessRestrictionsTemporaryOptOut</code></td><td>Temporarily disables the restriction enterprise-wide during rollout.</td></tr>
+    </table>
+    <span class="citation">Source: Chrome enterprise release notes, April 2026.</span>
+  </section>
+
+  <section>
+    <h2>mitigation for developers</h2>
+    <p>If your web application connects via WebSocket to a local server (e.g. a companion native app or dev-mode tool), you have several options:</p>
+    <ul>
+      <li><strong>Use a local HTTPS server</strong> (with a self-signed cert or mkcert): Chrome may allow the connection with permission after the user trusts the cert.</li>
+      <li><strong>Serve from localhost</strong>: Pages served from <code>http://localhost</code> are themselves treated as a local context and are subject to different rules than public pages.</li>
+      <li><strong>Inform users</strong>: If the permission prompt is expected, explain it in your onboarding UI — users may dismiss an unexpected prompt and assume something is broken.</li>
+      <li><strong>Switch to Isolated Web Apps (IWAs)</strong>: IWAs have different network access rules and can use <code>allow="loopback-network"</code> in the manifest.</li>
+    </ul>
+    <span class="citation">Source: blink-dev Intent to Ship — Local network access restrictions for WebSockets, April 2026.</span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Support</th></tr></thead>
+      <tr><td>Chrome 147+ (desktop, Android)</td><td>Enabled by default</td></tr>
+      <tr><td>Edge 147+</td><td>Enabled by default</td></tr>
+      <tr><td>Firefox</td><td>No position</td></tr>
+      <tr><td>Safari</td><td>No position</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.com feature page, April 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://developer.chrome.com/blog/local-network-access" target="_blank" rel="noopener">New permission prompt for Local Network Access — Chrome for Developers</a></li>
+      <li><a href="https://wicg.github.io/local-network-access/" target="_blank" rel="noopener">WICG Local Network Access specification</a></li>
+      <li><a href="https://chromestatus.com/feature/5197681148428288" target="_blank" rel="noopener">chromestatus — Local network access restrictions for WebSockets (5197681148428288)</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/local-network-access-restrictions-for-websockets/" target="_blank" rel="noopener">chrome-platform-showcase — live demo</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
