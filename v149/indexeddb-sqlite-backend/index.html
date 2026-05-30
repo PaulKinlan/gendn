@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IndexedDB: SQLite backend — Chrome 149 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v149/">&larr; Chrome 149 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v149 · storage · enabled by default</p>
+    <h1>IndexedDB: SQLite backend</h1>
+    <p class="lede">Chrome 149 replaces IndexedDB's previous storage engine (a hybrid of LevelDB and flat files) with SQLite. The Web API is unchanged — existing code continues to work without modification — but storage reliability improves and some operations get faster.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 149</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>API change</th><td>None — internal implementation only</td></tr>
+      <tr><th>Standards position</th><td>Firefox: Shipped &nbsp;·&nbsp; Safari: Shipped (both already use SQLite for IDB)</td></tr>
+      <tr><th>Spec</th><td><a href="https://www.w3.org/TR/IndexedDB" target="_blank" rel="noopener">W3C IndexedDB API</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5161589557821440" target="_blank" rel="noopener">5161589557821440 — IndexedDB: SQLite backend</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Chrome's original IndexedDB implementation used LevelDB as its key–value store, augmented with flat files for large values. While functional, this hybrid produced reliability problems: database files could become inconsistent after unexpected shutdowns, and the flat-file layer added complexity that caused occasional data-loss bugs. Firefox and Safari already use SQLite for IndexedDB, and SQLite's ACID guarantees and battle-tested reliability made it the natural choice for Chromium's rewrite. The migration also aligns the implementation more closely with the other major engines, reducing the surface area for interoperability differences.</p>
+    <span class="citation">Source: chromestatus summary.</span>
+  </section>
+
+  <section>
+    <h2>what changes for developers</h2>
+    <table class="doc-table">
+      <tr><th>Web API</th><td>No change. All <code>IDBDatabase</code>, <code>IDBObjectStore</code>, <code>IDBTransaction</code>, and related interfaces work identically.</td></tr>
+      <tr><th>Data migration</th><td>Chrome migrates existing IDB data automatically on first run of 149. No developer action needed.</td></tr>
+      <tr><th>Performance</th><td>Read-heavy workloads may see improvement; write performance is similar or better. Results vary by workload and device.</td></tr>
+      <tr><th>Reliability</th><td>Improved crash recovery due to SQLite's WAL (write-ahead log) and ACID transaction model.</td></tr>
+      <tr><th>Storage quota</th><td>Same quota limits apply. SQLite overhead is minimal.</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus summary.</span>
+  </section>
+
+  <section>
+    <h2>the IndexedDB API (unchanged)</h2>
+    <p>No code changes needed. The public API is the same:</p>
+<pre><code>const request = indexedDB.open("mydb", 1);
+
+request.onupgradeneeded = (e) => {
+  const db = e.target.result;
+  const store = db.createObjectStore("items", { keyPath: "id", autoIncrement: true });
+  store.createIndex("name", "name", { unique: false });
+};
+
+request.onsuccess = (e) => {
+  const db = e.target.result;
+  const tx = db.transaction("items", "readwrite");
+  tx.objectStore("items").add({ name: "Widget", price: 9.99 });
+  tx.oncomplete = () => console.log("Saved");
+};</code></pre>
+
+    <p>Everything above works identically before and after the SQLite migration.</p>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome</th><td>149 — SQLite backend</td></tr>
+      <tr><th>Edge</th><td>149 (Chromium)</td></tr>
+      <tr><th>Firefox</th><td>SQLite backend (already)</td></tr>
+      <tr><th>Safari</th><td>SQLite backend (already)</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus browser views.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://www.w3.org/TR/IndexedDB" target="_blank" rel="noopener">W3C IndexedDB API specification</a></li>
+      <li><a href="https://chromestatus.com/feature/5161589557821440" target="_blank" rel="noopener">chromestatus: IndexedDB: SQLite backend</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v149/indexeddb-sqlite-backend/" target="_blank" rel="noopener">chrome-platform-showcase: demos</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
