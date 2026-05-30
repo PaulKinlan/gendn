@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Predictable reported storage quota — Chrome 148 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v148/">&larr; Chrome 148 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v148 · storage · privacy</p>
+    <h1>Predictable reported storage quota</h1>
+    <p class="lede">Chrome 148 changes <code>navigator.storage.estimate()</code> to return a consistent artificial quota for sites without unlimited storage permissions, closing a channel that scripts used to detect Incognito mode.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 148 (desktop, Android, WebView)</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Flag</th><td>None — on by default</td></tr>
+      <tr><th>Standards position (Firefox)</th><td>No signal</td></tr>
+      <tr><th>Standards position (Safari)</th><td>No signal</td></tr>
+      <tr><th>Blink component</th><td>Blink&gt;Storage&gt;Quota</td></tr>
+      <tr><th>Chromium bug</th><td><a href="https://issues.chromium.org/issues/369865059" target="_blank" rel="noopener">issues.chromium.org/369865059</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/4977371751645184" target="_blank" rel="noopener">4977371751645184 — Predictable reported storage quota</a></td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/4977371751645184" target="_blank" rel="noopener">chromestatus.com/feature/4977371751645184</a></span>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Before Chrome 148, <code>navigator.storage.estimate()</code> returned very different <code>quota</code> values depending on the browsing mode. In a normal window Chrome reported a quota derived from the full disk (often tens of gigabytes); in Incognito the quota was a small fixed amount (often a few hundred megabytes). Analytics and paywall libraries exploited this gap to reliably detect Incognito mode — a privacy bypass that could not be patched at the application layer.</p>
+    <p>Chrome 148 closes the gap by reporting an artificial quota equal to <code>usage + min(10&nbsp;GiB, disk rounded up to the nearest 1&nbsp;GiB)</code> in every browsing mode for sites without the unlimited-storage permission. Sites granted unlimited storage (e.g. via the persistent-storage permission) continue to receive the real hardware quota. Enforced eviction thresholds are unaffected.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/4977371751645184" target="_blank" rel="noopener">chromestatus feature summary</a>; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/7q0YGQNVkjs" target="_blank" rel="noopener">blink-dev PSA</a></span>
+  </section>
+
+  <section>
+    <h2>shape of the API</h2>
+    <p>There is no new surface. The change affects the value returned by the existing <code>StorageManager.estimate()</code> method.</p>
+    <table class="doc-table">
+      <tr><th>Property</th><th>Type</th><th>Behaviour in Chrome 148+</th></tr>
+      <tr><td><code>StorageEstimate.quota</code></td><td><code>number</code></td><td>Artificial ceiling: <code>usage + min(10 GiB, disk ↑ 1 GiB)</code> for limited-permission sites</td></tr>
+      <tr><td><code>StorageEstimate.usage</code></td><td><code>number</code></td><td>Actual bytes used by the origin — unchanged</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://storage.spec.whatwg.org/#dom-storagemanager-estimate" target="_blank" rel="noopener">Storage Living Standard §StorageManager.estimate()</a></span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+<pre><code>const { usage, quota } = await navigator.storage.estimate();
+
+// Chrome 148+: both a normal window and an Incognito window see
+// the same quota for the same origin (for non-unlimited sites).
+console.log(`used: ${(usage / 1e6).toFixed(1)} MB`);
+console.log(`quota: ${(quota / 1e9).toFixed(1)} GB`);
+
+// Percentage-of-used calculations remain valid; the absolute
+// quota figure is now an artificial privacy-preserving value.
+const pct = (usage / quota) * 100;
+if (pct > 80) showStorageWarning();
+
+// Sites granted persistent-storage permission receive the real quota:
+const persisted = await navigator.storage.persisted();
+// persisted === true → quota reflects actual disk capacity</code></pre>
+    <span class="citation">Pattern from <a href="https://developer.chrome.com/blog/estimating-available-storage-space/" target="_blank" rel="noopener">developer.chrome.com — Estimating Available Storage Space</a></span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Browser</th><th>Support</th><th>Notes</th></tr>
+      <tr><td>Chrome 148+</td><td>Enabled by default</td><td>Desktop, Android, WebView</td></tr>
+      <tr><td>Firefox</td><td>No signal</td><td><code>estimate()</code> exists; this clamping is Chrome-specific</td></tr>
+      <tr><td>Safari</td><td>No signal</td><td><code>estimate()</code> exists; this clamping is Chrome-specific</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/4977371751645184" target="_blank" rel="noopener">chromestatus.com/feature/4977371751645184</a></span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/4977371751645184" target="_blank" rel="noopener">Chrome Platform Status — Predictable reported storage quota</a></li>
+      <li><a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/7q0YGQNVkjs" target="_blank" rel="noopener">blink-dev PSA thread</a></li>
+      <li><a href="https://storage.spec.whatwg.org/#dom-storagemanager-estimate" target="_blank" rel="noopener">Storage Living Standard — StorageManager.estimate()</a></li>
+      <li><a href="https://issues.chromium.org/issues/369865059" target="_blank" rel="noopener">Chromium issue 369865059</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
