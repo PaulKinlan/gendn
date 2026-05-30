@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Payment Handler Internal Error Reporting — Chrome 149 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v149/">&larr; Chrome 149 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v149 · web api · shipped</p>
+    <h1>Payment Handler Internal Error Reporting</h1>
+    <p class="lede">Payment handlers can now distinguish between "user cancelled" and "internal payment app error" when rejecting <code>PaymentRequestEvent.respondWith()</code>. Merchants receive an <code>OperationError</code> for app failures rather than the generic <code>AbortError</code> used for user cancellation — enabling more accurate error recovery flows.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 149 / Edge 149</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Flag</th><td>None</td></tr>
+      <tr><th>Spec</th><td><a href="https://w3c.github.io/payment-request/#payment-handler-indicates-an-internal-error-algorithm" target="_blank" rel="noopener">W3C Payment Request — §"Payment handler indicates an internal error"</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5942637229113344" target="_blank" rel="noopener">5942637229113344 — Allow payment handlers to report back internal errors</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>The Payment Handler API lets a web-based payment app respond to <code>PaymentRequest.show()</code> by handling the <code>paymentrequest</code> event in a service worker and calling <code>PaymentRequestEvent.respondWith(promise)</code>. Before Chrome 149, any rejection of that promise — whether caused by the user pressing "cancel" or by a crash inside the payment app — reached the merchant as an <code>AbortError</code>. There was no way to tell the two apart.</p>
+    <p>This matters because the correct merchant response differs: a user cancellation should keep the checkout flow open so the user can choose a different payment method, while an internal payment app error might warrant an error message, a fallback, or a retry. The new behaviour gives payment handlers a dedicated signal for internal failures.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5942637229113344" target="_blank" rel="noopener">chromestatus</a> and blink-dev Intent to Ship thread.</span>
+  </section>
+
+  <section>
+    <h2>shape of the change</h2>
+
+    <h3>Error type contract</h3>
+    <table class="doc-table">
+      <tr>
+        <th>Rejection with <code>AbortError</code> (or any non-<code>OperationError</code>)</th>
+        <td>Treated as <strong>user cancellation</strong>. <code>PaymentRequest.show()</code> rejects with an <code>AbortError</code> on the merchant side. This is the pre-existing behaviour.</td>
+      </tr>
+      <tr>
+        <th>Rejection with <code>OperationError</code></th>
+        <td><strong>New in Chrome 149.</strong> Treated as an <strong>internal payment app error</strong>. <code>PaymentRequest.show()</code> rejects with an <code>OperationError</code> on the merchant side, allowing the merchant to distinguish it from user cancellation.</td>
+      </tr>
+    </table>
+
+    <h3>Affected APIs</h3>
+    <table class="doc-table">
+      <tr>
+        <th><code>PaymentRequestEvent.respondWith()</code></th>
+        <td>On the <strong>payment handler side</strong> (service worker). Reject the promise argument with <code>new DOMException("…", "OperationError")</code> to signal an internal error.</td>
+      </tr>
+      <tr>
+        <th><code>PaymentRequest.show()</code></th>
+        <td>On the <strong>merchant side</strong>. The returned promise now rejects with either <code>AbortError</code> (user cancel) or <code>OperationError</code> (internal payment app error) — previously it always rejected with <code>AbortError</code>.</td>
+      </tr>
+    </table>
+    <span class="citation">Source: <a href="https://w3c.github.io/payment-request/#payment-handler-indicates-an-internal-error-algorithm" target="_blank" rel="noopener">W3C Payment Request spec</a>.</span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+
+    <h3>Payment handler (service-worker.js) — signal internal error</h3>
+<pre><code>self.addEventListener("paymentrequest", (event) => {
+  event.respondWith(
+    new Promise(async (resolve, reject) => {
+      try {
+        const result = await openPaymentWindow(event);
+        if (result.userCancelled) {
+          // User tapped "cancel" — AbortError signals cancellation.
+          reject(new DOMException("User cancelled", "AbortError"));
+          return;
+        }
+        resolve({
+          methodName: event.methodData[0].supportedMethods,
+          details: result.paymentDetails,
+        });
+      } catch (err) {
+        // Internal failure (network error, crypto failure, etc.)
+        // OperationError signals an internal payment app error — new in Chrome 149.
+        reject(new DOMException("Payment app error: " + err.message, "OperationError"));
+      }
+    })
+  );
+});</code></pre>
+
+    <h3>Merchant page — handle both error types</h3>
+<pre><code>const request = new PaymentRequest(methodData, details);
+
+try {
+  const response = await request.show();
+  await processPayment(response);
+  await response.complete("success");
+} catch (err) {
+  if (err.name === "AbortError") {
+    // User explicitly cancelled — return to checkout.
+    showCheckoutForm();
+  } else if (err.name === "OperationError") {
+    // Payment app had an internal failure — offer fallback or retry.
+    showPaymentError("The payment app encountered an error. Please try again.");
+    logToMonitoring("payment_app_internal_error", err.message);
+  } else {
+    throw err;
+  }
+}</code></pre>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome</th><td>149</td></tr>
+      <tr><th>Edge</th><td>149 (Chromium)</td></tr>
+      <tr><th>Firefox</th><td>No signal (as of Chrome 149)</td></tr>
+      <tr><th>Safari</th><td>No signal (as of Chrome 149)</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5942637229113344" target="_blank" rel="noopener">chromestatus</a>, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/PaymentRequestEvent/respondWith" target="_blank" rel="noopener">MDN: PaymentRequestEvent.respondWith()</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/PaymentRequest/show" target="_blank" rel="noopener">MDN: PaymentRequest.show()</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Web-Based_Payment_Handler_API" target="_blank" rel="noopener">MDN: Web-based Payment Handler API</a></li>
+      <li><a href="https://w3c.github.io/payment-request/" target="_blank" rel="noopener">W3C Payment Request specification</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
