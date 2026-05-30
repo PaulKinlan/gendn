@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Out of order streaming — Chrome 150 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v150/">&larr; Chrome 150 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v150 · html · shipped</p>
+    <h1>Out of order streaming</h1>
+    <p class="lede">A new declarative HTML mechanism for delivering page sections out of document order — using processing-instruction markers and <code>&lt;template for&gt;</code> — so servers can stream expensive content at the end of the response and have it appear in the right place, without any JavaScript. Ships in Chrome 150 on desktop and Android.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 150 (desktop, Android); DevTrial from Chrome 148</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Flag</th><td>None (was <code>chrome://flags/#enable-experimental-web-platform-features</code>)</td></tr>
+      <tr><th>Standards position</th><td>Gecko: positive &nbsp;·&nbsp; WebKit: under consideration</td></tr>
+      <tr><th>Spec</th><td><a href="https://github.com/whatwg/html/pull/11818" target="_blank" rel="noopener">WHATWG HTML spec pull #11818</a></td></tr>
+      <tr><th>Explainer</th><td><a href="https://github.com/WICG/declarative-partial-updates/blob/main/patching-explainer.md" target="_blank" rel="noopener">WICG / declarative-partial-updates — patching-explainer.md</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5111042975465472" target="_blank" rel="noopener">5111042975465472 — Out of order streaming</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Server-side rendering works best when HTML is streamed top-to-bottom: the browser can paint the top of the page while the server is still computing the bottom. But some page sections are expensive — a user's personalised feed, live prices, or a complex query result — while surrounding structure is cheap. With traditional streaming you must choose between blocking the early paint on expensive content or sending a skeleton that JavaScript fills in later.</p>
+    <p>Out of order streaming lets the server send a placeholder marker in the cheap HTML that arrives early, then send the expensive section as a patch at the end of the response stream. The browser moves the patch to the correct position in the document as the bytes arrive — no client-side JavaScript needed.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/declarative-partial-updates/blob/main/patching-explainer.md" target="_blank" rel="noopener">WICG declarative-partial-updates explainer</a>.</span>
+  </section>
+
+  <section>
+    <h2>the two primitives</h2>
+
+    <h3>1. Marker processing instructions — the placeholder</h3>
+    <p>A processing instruction of the form <code>&lt;?marker id&gt;</code> (or paired <code>&lt;?start id&gt;</code> / <code>&lt;?end id&gt;</code>) reserves a named slot in the document where patched content will be inserted. These markers have no visual rendering; they are annotation nodes only.</p>
+<pre><code>&lt;!-- Early in the response: fast static HTML --&gt;
+&lt;header&gt;...&lt;/header&gt;
+&lt;main&gt;
+  &lt;h1&gt;Latest prices&lt;/h1&gt;
+  &lt;?marker prices&gt;          &lt;!-- placeholder for slow content --&gt;
+  &lt;p&gt;Loading…&lt;/p&gt;
+&lt;/main&gt;
+&lt;footer&gt;...&lt;/footer&gt;
+
+&lt;!-- Later in the response: expensive content finally ready --&gt;
+&lt;template for="prices"&gt;
+  &lt;table&gt;...live prices...&lt;/table&gt;
+&lt;/template&gt;</code></pre>
+
+    <h3>2. &lt;template for&gt; — the patch</h3>
+    <p>A <code>&lt;template&gt;</code> element with a <code>for</code> attribute names the target marker. When the browser parses the template it moves its content to the position of the named marker, replacing the placeholder. No JavaScript event listener, no <code>innerHTML</code> manipulation.</p>
+<pre><code>&lt;!-- Inserts children at the &lt;?marker content&gt; position --&gt;
+&lt;template for="content"&gt;
+  &lt;article&gt;
+    &lt;h2&gt;Expensive article&lt;/h2&gt;
+    &lt;p&gt;...&lt;/p&gt;
+  &lt;/article&gt;
+&lt;/template&gt;</code></pre>
+
+    <h3>range markers (paired start/end)</h3>
+    <p>For replacing a block of existing content rather than a single insertion point, use paired markers:</p>
+<pre><code>&lt;?start skeleton&gt;
+  &lt;p class="skeleton"&gt;Loading…&lt;/p&gt;
+&lt;?end skeleton&gt;
+
+&lt;!-- Replaces everything between the start and end markers --&gt;
+&lt;template for="skeleton"&gt;
+  &lt;p&gt;Real content is here.&lt;/p&gt;
+&lt;/template&gt;</code></pre>
+    <span class="citation">Source: <a href="https://github.com/WICG/declarative-partial-updates/blob/main/patching-explainer.md" target="_blank" rel="noopener">declarative-partial-updates explainer</a>, §Patching.</span>
+  </section>
+
+  <section>
+    <h2>end-to-end example (server perspective)</h2>
+<pre><code>&lt;!-- Server begins streaming immediately with fast, cheap HTML --&gt;
+&lt;!doctype html&gt;
+&lt;html&gt;&lt;body&gt;
+  &lt;nav&gt;...&lt;/nav&gt;
+  &lt;main&gt;
+    &lt;?marker user-feed&gt;
+    &lt;p&gt;Loading your feed…&lt;/p&gt;
+  &lt;/main&gt;
+  &lt;aside&gt;...&lt;/aside&gt;
+
+  &lt;!-- Server finishes the expensive DB query 300ms later,
+       then flushes the patch at the bottom of the same response --&gt;
+  &lt;template for="user-feed"&gt;
+    &lt;article&gt;Post 1&lt;/article&gt;
+    &lt;article&gt;Post 2&lt;/article&gt;
+  &lt;/template&gt;
+&lt;/body&gt;&lt;/html&gt;</code></pre>
+    <p>The user sees the nav and sidebar immediately. The feed replaces the "Loading…" placeholder when the template arrives, with no layout thrash and no JavaScript. This is the server-rendered equivalent of Suspense (React) or progressive hydration, without a client framework.</p>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome / Edge</th><td>150 (enabled by default)</td></tr>
+      <tr><th>Firefox</th><td>Standards-positive; not yet shipped</td></tr>
+      <tr><th>Safari</th><td>Under consideration</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.com browser positions, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://github.com/WICG/declarative-partial-updates" target="_blank" rel="noopener">WICG/declarative-partial-updates — spec and explainer repository</a></li>
+      <li><a href="https://developer.chrome.com/blog/declarative-partial-updates" target="_blank" rel="noopener">Chrome blog: Declarative partial updates</a></li>
+      <li><a href="https://chromestatus.com/feature/5111042975465472" target="_blank" rel="noopener">chromestatus.com — Out of order streaming (5111042975465472)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
