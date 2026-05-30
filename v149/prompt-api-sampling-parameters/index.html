@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Prompt API Sampling Parameters — Chrome 149 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v149/">&larr; Chrome 149 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v149 · origin trial · ai · language-model</p>
+    <h1>Prompt API Sampling Parameters</h1>
+    <p class="lede">An extension to the Prompt API (<code>LanguageModel</code>) that exposes <code>temperature</code> and <code>topK</code> sampling parameters, letting sites control how creatively or predictably the on-device model responds — and query the model's defaults and supported ranges.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Origin trial</strong>
+    Prompt API Sampling Parameters are in origin trial (Chrome 148–153). Sampling parameters were deliberately excluded from the initial Prompt API ship due to interoperability concerns across models and browsers. The OT gathers data before standardisation. Check the chromestatus entry for current status.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Status in Chrome 149</th><td>Origin trial (experimental)</td></tr>
+      <tr><th>Extends</th><td>Prompt API — <code>LanguageModel</code> interface (<a href="/v148/prompt-api/">v148/prompt-api</a>)</td></tr>
+      <tr><th>New parameters</th><td><code>temperature</code>, <code>topK</code></td></tr>
+      <tr><th>New static method</th><td><code>LanguageModel.params()</code></td></tr>
+      <tr><th>Finch feature</th><td><code>AIPromptAPIParams</code></td></tr>
+      <tr><th>Platforms</th><td>Desktop only (Windows, macOS, Linux, ChromeOS)</td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/6325545693478912" target="_blank" rel="noopener">6325545693478912 — Prompt API Sampling Parameters</a></td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.com/feature/6325545693478912; blink-dev Intent to Experiment — Prompt API Sampling Parameters.</span>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Language models use sampling algorithms to pick the next token. Two key parameters govern this:</p>
+    <ul>
+      <li><strong>temperature</strong>: scales the probability distribution over candidate tokens. A lower value (e.g. 0.2) makes the model more deterministic and focused; a higher value (e.g. 1.2) makes it more varied and creative.</li>
+      <li><strong>topK</strong>: limits sampling to the K most likely tokens at each step. A lower K (e.g. 5) increases coherence; a higher K allows more diversity.</li>
+    </ul>
+    <p>The initial Prompt API ship intentionally omitted these parameters because their semantics — and safe defaults — vary by model and implementation, making cross-browser standardisation difficult. The origin trial exists to gather production data on how developers use sampling parameters before the values and ranges are locked into the spec.</p>
+    <span class="citation">Source: blink-dev Intent to Experiment — Prompt API Sampling Parameters; chromestatus feature page.</span>
+  </section>
+
+  <section>
+    <h2>shape of the API</h2>
+
+    <h3>Creating a session with custom sampling parameters</h3>
+<pre><code>const session = await LanguageModel.create({
+  temperature: 0.8,  // float: 0.0 = deterministic, higher = more creative
+  topK: 10           // integer: number of top token candidates to sample from
+});
+
+// Parameters are readable on the session
+console.log(session.temperature); // 0.8
+console.log(session.topK);        // 10</code></pre>
+
+    <h3>Querying model defaults and limits</h3>
+<pre><code>const params = await LanguageModel.params();
+
+console.log(params.defaultTemperature); // e.g. 1.0
+console.log(params.maxTemperature);     // e.g. 2.0
+console.log(params.defaultTopK);        // e.g. 3
+console.log(params.maxTopK);            // e.g. 8</code></pre>
+
+    <h3>Full example</h3>
+<pre><code>async function runWithSampling() {
+  const params = await LanguageModel.params();
+
+  // Creative mode: higher temperature, wider topK
+  const creativeSession = await LanguageModel.create({
+    temperature: Math.min(1.5, params.maxTemperature),
+    topK: Math.min(20, params.maxTopK)
+  });
+
+  const story = await creativeSession.prompt(
+    'Continue this story: The lighthouse keeper noticed something strange...'
+  );
+
+  creativeSession.destroy();
+  return story;
+}</code></pre>
+    <span class="citation">Source: webmachinelearning/prompt-api GitHub; blink-dev Intent to Experiment — Prompt API Sampling Parameters.</span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Support</th><th>Notes</th></tr></thead>
+      <tr><td>Chrome 148–153 (desktop)</td><td>Origin trial</td><td>Windows, macOS, Linux, ChromeOS. Requires OT token.</td></tr>
+      <tr><td>Chrome (Android, WebView)</td><td>Not available</td><td>Desktop only for initial OT</td></tr>
+      <tr><td>Firefox</td><td>No signal</td><td>—</td></tr>
+      <tr><td>Safari</td><td>No signal</td><td>—</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.com/feature/6325545693478912; Edge 149 release notes.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="/v148/prompt-api/">Prompt API — Chrome 148</a></li>
+      <li><a href="https://github.com/webmachinelearning/prompt-api" target="_blank" rel="noopener">webmachinelearning/prompt-api (GitHub spec)</a></li>
+      <li><a href="https://chromestatus.com/feature/6325545693478912" target="_blank" rel="noopener">chromestatus — Prompt API Sampling Parameters (6325545693478912)</a></li>
+      <li><a href="https://chromestatus.com/feature/5134603979063296" target="_blank" rel="noopener">chromestatus — Prompt API (5134603979063296)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
