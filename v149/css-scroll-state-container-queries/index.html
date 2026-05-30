@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CSS scroll-state() Container Queries — Chrome 149 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v149/">&larr; Chrome 149 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v149 · css · shipped</p>
+    <h1>CSS scroll-state() Container Queries</h1>
+    <p class="lede">Style elements based on their scroll container's live state — whether a sticky item is stuck, a snap target is currently snapped, or a scroll container has overflowed — without any JavaScript polling.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 149 (desktop + Android)</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Flag</th><td>None</td></tr>
+      <tr><th>Standards position</th><td>Spec in CSS Conditional Rules Level 5</td></tr>
+      <tr><th>Spec</th><td><a href="https://drafts.csswg.org/css-conditional-5/#scroll-state" target="_blank" rel="noopener">CSS Conditional Rules Level 5 §scroll-state</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/features#scroll-state" target="_blank" rel="noopener">chromestatus.com — search "scroll-state"</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Before <code>scroll-state()</code>, reacting to sticky headers, snap targets, or scrollable overflow required JavaScript observers — IntersectionObserver for stickiness, MutationObserver hacks for snap, ResizeObserver for overflow. These all involve layout recalculation callbacks that race with painting. <code>scroll-state()</code> exposes three commonly-needed scroll signals as CSS custom container properties, letting the browser style them synchronously during its own paint pass with no script overhead.</p>
+    <span class="citation">Source: <a href="https://drafts.csswg.org/css-conditional-5/#scroll-state" target="_blank" rel="noopener">CSS Conditional Rules Level 5</a> §scroll-state motivation.</span>
+  </section>
+
+  <section>
+    <h2>shape of the feature</h2>
+
+    <h3>Step 1: establish a scroll-state container</h3>
+    <p>Add <code>container-type: scroll-state</code> to the element you want to query. You can combine it with a <code>container-name</code> for targeting.</p>
+<pre><code>.sticky-header {
+  position: sticky;
+  top: 0;
+  container-type: scroll-state;
+  container-name: sticky-nav;
+}</code></pre>
+
+    <h3>Step 2: query with @container scroll-state()</h3>
+    <p>Use the <code>@container scroll-state()</code> at-rule inside the container or on its descendants.</p>
+
+    <h3>Supported scroll-state features</h3>
+    <table class="doc-table">
+      <tr><th>Feature</th><th>Values</th><th>Matches when…</th></tr>
+      <tr>
+        <td><code>stuck</code></td>
+        <td><code>none</code> | <code>top</code> | <code>right</code> | <code>bottom</code> | <code>left</code> | <code>block-start</code> | <code>block-end</code> | <code>inline-start</code> | <code>inline-end</code></td>
+        <td>The container has <code>position: sticky</code> and is visually shifted to stay inside its sticky view rectangle on that edge. <code>none</code> matches when not stuck on any edge.</td>
+      </tr>
+      <tr>
+        <td><code>snapped</code></td>
+        <td><code>none</code> | <code>x</code> | <code>y</code> | <code>block</code> | <code>inline</code> | <code>both</code></td>
+        <td>The container is a snap target that is (or would be) snapped to its scroll container on the given axis. <code>none</code> when not snapped.</td>
+      </tr>
+      <tr>
+        <td><code>scrollable</code></td>
+        <td><code>none</code> | <code>top</code> | <code>right</code> | <code>bottom</code> | <code>left</code> | <code>block-start</code> | <code>block-end</code> | <code>inline-start</code> | <code>inline-end</code> | <code>x</code> | <code>y</code> | <code>block</code> | <code>inline</code> | <code>both</code></td>
+        <td>The container is a scroll container with clipped content in that direction that the user can scroll to. Does not match for <code>overflow: hidden</code> containers.</td>
+      </tr>
+    </table>
+    <span class="citation">Source: <a href="https://drafts.csswg.org/css-conditional-5/#scroll-state" target="_blank" rel="noopener">CSS Conditional Rules Level 5 §scroll-state features</a>.</span>
+  </section>
+
+  <section>
+    <h2>example: style a sticky header when stuck</h2>
+    <p>Show a box-shadow only when the header is actually pinned to the top — no JavaScript.</p>
+<pre><code>.page-header {
+  position: sticky;
+  top: 0;
+  container-type: scroll-state;
+  background: white;
+  transition: box-shadow 0.2s;
+}
+
+@container scroll-state(stuck: top) {
+  .page-header {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+}</code></pre>
+  </section>
+
+  <section>
+    <h2>example: highlight the currently snapped carousel item</h2>
+<pre><code>.carousel-item {
+  container-type: scroll-state;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+@container scroll-state(snapped: x) {
+  .carousel-item {
+    opacity: 1;
+  }
+}</code></pre>
+  </section>
+
+  <section>
+    <h2>example: show a "more content below" indicator</h2>
+<pre><code>.article {
+  overflow-y: auto;
+  max-height: 400px;
+  container-type: scroll-state;
+  container-name: article-scroller;
+}
+
+.scroll-hint {
+  display: none;
+}
+
+@container article-scroller scroll-state(scrollable: bottom) {
+  .scroll-hint {
+    display: block; /* visible only when there's more to scroll down */
+  }
+}</code></pre>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome</th><td>149+ (enabled by default)</td></tr>
+      <tr><th>Edge</th><td>149+ (tracking Chromium)</td></tr>
+      <tr><th>Firefox</th><td>No signal yet</td></tr>
+      <tr><th>Safari</th><td>No signal yet</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/features#scroll-state" target="_blank" rel="noopener">chromestatus.com</a>, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://drafts.csswg.org/css-conditional-5/#scroll-state" target="_blank" rel="noopener">CSS Conditional Rules Level 5 — scroll-state()</a> (W3C editor's draft)</li>
+      <li><a href="https://github.com/w3c/csswg-drafts/issues?q=scroll-state" target="_blank" rel="noopener">CSS WG issues tagged scroll-state</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v149/css-scroll-state-container-queries/" target="_blank" rel="noopener">chrome-platform-showcase: scroll-state demos</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
