@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CSS URL request modifiers — Chrome 149 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v149/">&larr; Chrome 149 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v149 · css · shipped</p>
+    <h1>CSS URL request modifiers</h1>
+    <p class="lede">The CSS <code>url()</code> function now accepts optional request modifiers — <code>cross-origin()</code>, <code>integrity()</code>, and <code>referrer-policy()</code> — that control how the browser fetches the referenced resource, bringing CSS resource loading to parity with HTML's <code>&lt;link&gt;</code> and <code>&lt;script&gt;</code> fetch attributes. Ships in Chrome 149 on all platforms.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 149 (desktop, Android, WebView)</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Finch flag</th><td>CSSURLRequestModifiers</td></tr>
+      <tr><th>Spec</th><td><a href="https://drafts.csswg.org/css-values-5/#request-url-modifiers" target="_blank" rel="noopener">CSS Values and Units Level 5 — Request URL modifiers</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5111997147512832" target="_blank" rel="noopener">5111997147512832 — CSS URL request modifiers</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>HTML has long allowed fine-grained fetch control on individual elements: <code>&lt;img crossorigin="anonymous"&gt;</code>, <code>&lt;script integrity="sha384-..."&gt;</code>, <code>&lt;link referrerpolicy="no-referrer"&gt;</code>. CSS has no equivalent — a <code>background-image: url("image.png")</code> uses whatever defaults apply to the stylesheet's fetch context, with no way to request CORS mode, enforce subresource integrity, or suppress the referrer on a per-resource basis.</p>
+    <p>CSS URL request modifiers close this gap. The three modifiers map directly to the HTML attributes developers already know:</p>
+    <table class="doc-table">
+      <tr><th>Modifier</th><th>HTML equivalent</th><th>Controls</th></tr>
+      <tr><td><code>cross-origin()</code></td><td><code>crossorigin="..."</code></td><td>CORS mode for the fetch</td></tr>
+      <tr><td><code>integrity()</code></td><td><code>integrity="..."</code></td><td>Subresource Integrity hash check</td></tr>
+      <tr><td><code>referrer-policy()</code></td><td><code>referrerpolicy="..."</code></td><td>Referrer header sent with the request</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://drafts.csswg.org/css-values-5/#request-url-modifiers" target="_blank" rel="noopener">CSS Values 5 specification</a>.</span>
+  </section>
+
+  <section>
+    <h2>syntax</h2>
+    <p>Modifiers are placed inside the <code>url()</code> function, after the quoted URL string, separated by whitespace:</p>
+<pre><code>url( &lt;string&gt; &lt;url-modifier&gt;* )</code></pre>
+
+    <h3>cross-origin()</h3>
+<pre><code>/* CORS anonymous — no credentials sent */
+background-image: url("https://cdn.example.com/hero.png" cross-origin(anonymous));
+
+/* CORS with credentials */
+background-image: url("https://cdn.example.com/profile.png" cross-origin(use-credentials));</code></pre>
+    <p>Values match the <code>crossorigin</code> attribute: <code>anonymous</code> or <code>use-credentials</code>.</p>
+
+    <h3>integrity()</h3>
+<pre><code>/* Subresource Integrity check — resource must match the hash */
+@font-face {
+  font-family: "MyFont";
+  src: url("https://cdn.example.com/font.woff2"
+           integrity("sha384-oqVuAfXRKap7fdgcCY5uykM6+R9GqQ8K/uxy9rx7HNQlGYl1kPzQho1wx4JwY8wC"))
+       format("woff2");
+}</code></pre>
+    <p>The hash format matches the <code>integrity</code> attribute on <code>&lt;script&gt;</code> and <code>&lt;link&gt;</code>.</p>
+
+    <h3>referrer-policy()</h3>
+<pre><code>/* Do not send any referrer header for this resource */
+background-image: url("https://external.example/tracking-pixel.gif"
+                       referrer-policy(no-referrer));
+
+/* Use strict-origin for the referrer */
+mask-image: url("mask.svg" referrer-policy(strict-origin));</code></pre>
+    <p>Accepts the same values as the <code>Referrer-Policy</code> HTTP header and the HTML <code>referrerpolicy</code> attribute.</p>
+
+    <h3>combining modifiers</h3>
+<pre><code>background-image:
+  url("https://cdn.example.com/image.png"
+      cross-origin(anonymous)
+      integrity("sha384-abc123...")
+      referrer-policy(no-referrer));</code></pre>
+  </section>
+
+  <section>
+    <h2>which CSS properties can use modifiers</h2>
+    <p>Any CSS property that accepts a <code>url()</code> value can use request modifiers, including:</p>
+    <ul>
+      <li><code>background-image</code></li>
+      <li><code>mask-image</code>, <code>-webkit-mask-image</code></li>
+      <li><code>clip-path</code> (referencing external SVG)</li>
+      <li><code>@font-face src</code></li>
+      <li><code>cursor</code></li>
+      <li><code>content</code></li>
+      <li><code>border-image-source</code>, <code>list-style-image</code></li>
+      <li><code>@import</code> (for stylesheets)</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome / Edge</th><td>149 — all three modifiers</td></tr>
+      <tr><th>Safari</th><td>cross-origin() and referrer-policy() (no integrity() yet)</td></tr>
+      <tr><th>Firefox</th><td>No signal</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.com browser positions, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://drafts.csswg.org/css-values-5/#request-url-modifiers" target="_blank" rel="noopener">CSS Values and Units Level 5 — Request URL modifiers</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/CSS/url_function" target="_blank" rel="noopener">MDN: url() CSS function</a></li>
+      <li><a href="https://chromestatus.com/feature/5111997147512832" target="_blank" rel="noopener">chromestatus.com — CSS URL request modifiers (5111997147512832)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
