@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebGPU: linear_indexing feature — Chrome 148 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v148/">&larr; Chrome 148 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v148 · webgpu · wgsl · shipped</p>
+    <h1>WebGPU: <code>linear_indexing</code> feature</h1>
+    <p class="lede">A WGSL language extension shipping in Chrome 148 that adds two new compute shader built-in values — <code>global_invocation_index</code> and <code>workgroup_index</code> — giving compute shaders a flat linear index without manual 3D-to-1D coordinate math.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 148 (desktop, Android, WebView)</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Feature detection</th><td><code>navigator.gpu.wgslLanguageFeatures.has("linear_indexing")</code></td></tr>
+      <tr><th>WGSL opt-in</th><td><code>requires linear_indexing;</code></td></tr>
+      <tr><th>Spec</th><td><a href="https://www.w3.org/TR/WGSL/" target="_blank" rel="noopener">W3C WGSL specification</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5071243424432128" target="_blank" rel="noopener">5071243424432128 — WebGPU: linear_indexing feature</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>WebGPU compute shaders dispatch work in a 3D grid of workgroups, each containing a 3D grid of invocations. To process a flat buffer — the common case for data-parallel tasks — developers had to compute a linear index from three separate coordinates every time:</p>
+    <pre><code>// Old pattern — manual linear index calculation
+let linear = global_id.z * (workgroup_size.x * workgroup_size.y * num_workgroups.x * num_workgroups.y)
+           + global_id.y * (workgroup_size.x * num_workgroups.x)
+           + global_id.x;</code></pre>
+    <p>This is boilerplate that must be repeated in every compute shader that processes linear data, and it's easy to get wrong. <code>linear_indexing</code> moves this calculation into the language itself.</p>
+    <span class="citation">Source: blink-dev Intent to Ship — WebGPU: linear_indexing feature, Chrome for Developers WebGPU blog, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>new built-in values</h2>
+    <table class="doc-table">
+      <thead><tr><th>Built-in</th><th>Type</th><th>Description</th></tr></thead>
+      <tr>
+        <td><code>global_invocation_index</code></td>
+        <td><code>u32</code></td>
+        <td>The linear index of this invocation within the entire dispatch grid. Equivalent to computing a 1D offset from <code>global_invocation_id.xyz</code> manually.</td>
+      </tr>
+      <tr>
+        <td><code>workgroup_index</code></td>
+        <td><code>u32</code></td>
+        <td>The linear index of this invocation's workgroup within the grid of workgroups. All invocations in the same workgroup share the same value.</td>
+      </tr>
+    </table>
+    <span class="citation">Source: W3C WGSL specification, Chrome for Developers WebGPU 147-148 blog, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+
+    <h3>Feature detection and WGSL shader</h3>
+    <pre><code>// JavaScript: detect before using
+if (!navigator.gpu.wgslLanguageFeatures.has('linear_indexing')) {
+  throw new Error('linear_indexing WGSL extension not available');
+}
+
+const shaderCode = `
+  requires linear_indexing;
+
+  @group(0) @binding(0) var&lt;storage, read_write&gt; data: array&lt;f32&gt;;
+
+  @compute @workgroup_size(64)
+  fn main(@builtin(global_invocation_index) idx: u32) {
+    if (idx &lt; arrayLength(&data)) {
+      data[idx] = data[idx] * 2.0;
+    }
+  }
+`;
+
+const shaderModule = device.createShaderModule({ code: shaderCode });
+// ... create pipeline and dispatch as usual</code></pre>
+
+    <h3>workgroup_index example</h3>
+    <pre><code>requires linear_indexing;
+
+var&lt;workgroup&gt; workgroup_data: array&lt;f32, 64&gt;;
+
+@compute @workgroup_size(64)
+fn accumulate(
+  @builtin(workgroup_index) wg_idx: u32,
+  @builtin(local_invocation_index) local_idx: u32,
+) {
+  // wg_idx identifies which workgroup we're in (flat index)
+  // useful for indexing per-workgroup output buffers
+  workgroup_data[local_idx] = f32(wg_idx);
+}</code></pre>
+    <span class="citation">Source: W3C WGSL spec, blink-dev Intent to Ship — WebGPU linear_indexing, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Support</th></tr></thead>
+      <tr><td>Chrome 148+ (desktop, Android, WebView)</td><td>Enabled by default</td></tr>
+      <tr><td>Firefox</td><td>No position</td></tr>
+      <tr><td>Safari</td><td>No position</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.com feature page, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://www.w3.org/TR/WGSL/" target="_blank" rel="noopener">W3C WebGPU Shading Language (WGSL) specification</a></li>
+      <li><a href="https://developer.chrome.com/blog/new-in-webgpu-147-148" target="_blank" rel="noopener">What's New in WebGPU (Chrome 147-148) — Chrome for Developers</a></li>
+      <li><a href="https://chromestatus.com/feature/5071243424432128" target="_blank" rel="noopener">chromestatus — WebGPU: linear_indexing feature (5071243424432128)</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/webgpu-linear-indexing-feature/" target="_blank" rel="noopener">chrome-platform-showcase — live demo</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
