@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Prerendering cross-origin iframes — Chrome 147 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .mdn-card { border: 2px solid var(--border-black); background: var(--bg-stone); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .mdn-card a { font-family: var(--font-mono); font-size: 0.9rem; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v147/">&larr; Chrome 147 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v147 · covered on mdn</p>
+    <h1>Prerendering cross-origin iframes</h1>
+    <p class="lede">Lets a prerendered page opt in to eagerly loading its cross-origin iframes during prerendering, rather than waiting until the page activates. The opt-in is a single HTTP response header on the prerendered page: <code>Supports-Loading-Mode: prerender-cross-origin-frames</code>.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Origin trial</strong>
+    This feature is in an origin trial from Chrome 147 to 152 (desktop + Android). Register at the Chrome Origin Trial console to receive a trial token before using it in production.
+  </div>
+
+  <section>
+    <h2>this API is documented on MDN</h2>
+    <div class="mdn-card">
+      <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Supports-Loading-Mode" target="_blank" rel="noopener">
+        MDN: Supports-Loading-Mode — HTTP Headers
+      </a>
+    </div>
+    <p>The <code>Supports-Loading-Mode</code> reference page on MDN covers the full set of tokens, including <code>prerender-cross-origin-frames</code>, browser compatibility data, and the specification link. gendn doesn't duplicate MDN reference pages when they exist and include browser compat and spec anchors.</p>
+    <span class="citation">Source: developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Supports-Loading-Mode, retrieved May 2026.</span>
+  </section>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Origin trial</th><td>Chrome 147–152 (desktop + Android)</td></tr>
+      <tr><th>Status</th><td>Origin trial</td></tr>
+      <tr><th>Flag</th><td><code>prerender2-cross-origin-iframes</code> (from M148)</td></tr>
+      <tr><th>Standards position</th><td>Firefox: No signal &nbsp;·&nbsp; Safari: No signal</td></tr>
+      <tr><th>Spec</th><td><a href="https://wicg.github.io/nav-speculation/prerendering.html" target="_blank" rel="noopener">WICG Nav Speculation — Prerendering</a></td></tr>
+      <tr><th>Explainer</th><td><a href="https://github.com/WICG/nav-speculation/blob/main/prerendering-cross-origin-iframes.md" target="_blank" rel="noopener">WICG / nav-speculation / prerendering-cross-origin-iframes.md</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5112398709129216" target="_blank" rel="noopener">5112398709129216 — Prerendering cross-origin iframes</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Navigational prerendering normally delays the load of all cross-origin iframes until the user activates the prerendered page (making it visible). For pages built around a "shell" architecture — where important content lives in embedded, cross-origin frames such as maps, video players, or chat widgets — that delay erases the latency benefit that prerendering was supposed to provide. The <code>prerender-cross-origin-frames</code> token lets those pages declare that they trust their embedded iframes enough to start loading them early.</p>
+    <span class="citation">Source: WICG nav-speculation explainer and chromestatus motivation.</span>
+  </section>
+
+  <section>
+    <h2>how it works</h2>
+    <p>The prerendered page (page B — the one being loaded speculatively, not the referring page A) adds the header to its HTTP response. The browser then treats cross-origin frames on B identically to same-origin frames during prerendering: <code>document.prerendering</code> is <code>true</code> inside them, and <code>prerenderingchange</code> fires on activation.</p>
+<pre><code># Response headers for the prerendered page (page B):
+Supports-Loading-Mode: prerender-cross-origin-frames
+
+# Combine with credentialed-prerender if needed:
+Supports-Loading-Mode: credentialed-prerender, prerender-cross-origin-frames</code></pre>
+    <p>Browsers may ignore the hint under memory pressure or on low-battery devices. The iframe's own origin does not need to send anything; only the top-level prerendered page's response is checked.</p>
+    <span class="citation">Source: WICG nav-speculation / prerendering-cross-origin-iframes.md explainer.</span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome</th><td>Origin trial 147–152 (desktop + Android)</td></tr>
+      <tr><th>Edge</th><td>Tracking Chromium</td></tr>
+      <tr><th>Firefox</th><td>No signal</td></tr>
+      <tr><th>Safari</th><td>No signal</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.com browser views, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Supports-Loading-Mode" target="_blank" rel="noopener">MDN: Supports-Loading-Mode</a></li>
+      <li><a href="https://wicg.github.io/nav-speculation/prerendering.html" target="_blank" rel="noopener">WICG Nav Speculation spec — Prerendering</a></li>
+      <li><a href="https://github.com/WICG/nav-speculation/blob/main/prerendering-cross-origin-iframes.md" target="_blank" rel="noopener">Explainer: prerendering-cross-origin-iframes.md</a></li>
+      <li><a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/CyGHPL8Z6IY" target="_blank" rel="noopener">Intent to Experiment: Prerendering cross-origin iframes</a></li>
+      <li><a href="https://chromestatus.com/feature/5112398709129216" target="_blank" rel="noopener">chromestatus — Prerendering cross-origin iframes (5112398709129216)</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/prerendering-cross-origin-iframes/" target="_blank" rel="noopener">chrome-platform-showcase: Prerendering cross-origin iframes demos</a> (when built)</li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
