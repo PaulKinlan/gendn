@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Renewed HTML insertion &amp; streaming methods — Chrome 151 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v151/">&larr; Chrome 151 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v151 · html · dom · streaming</p>
+    <h1>Renewed HTML insertion &amp; streaming methods</h1>
+    <p class="lede">Chrome 151 adds a coherent set of HTML-string insertion methods to <code>Element</code> — positional variants of <code>before</code>, <code>after</code>, <code>append</code>, <code>prepend</code>, and <code>replaceWith</code> that accept raw HTML strings — plus a <code>streamAppendHTML()</code> method for incrementally inserting HTML from a <code>ReadableStream</code> without blocking the main thread.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 151 (Enabled by default)</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Explainer</th><td><a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md" target="_blank" rel="noopener">WICG/declarative-partial-updates — dynamic markup explainer</a></td></tr>
+      <tr><th>Standards position (Firefox)</th><td>No signal</td></tr>
+      <tr><th>Standards position (Safari)</th><td>No signal</td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5054329641893888" target="_blank" rel="noopener">5054329641893888 — Renewed HTML insertion &amp; streaming methods</a></td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5054329641893888" target="_blank" rel="noopener">chromestatus.com/feature/5054329641893888</a></span>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>The existing <code>insertAdjacentHTML()</code> method works but is verbose, positional-string-based, and has no streaming counterpart. The <code>innerHTML</code> setter destroys and recreates the full subtree, breaking references and event listeners. Server-side rendering and MPA frameworks that stream HTML fragments (out-of-order streaming, HTMX-style patterns) need a way to <em>append</em> HTML from a <code>fetch()</code> <code>ReadableStream</code> chunk-by-chunk, exactly as the network delivers it, without accumulating the whole string first.</p>
+    <p>The new methods provide: clean positional shortcuts that replace <code>insertAdjacentHTML</code>, and <code>streamAppendHTML()</code> which accepts a <code>ReadableStream&lt;string&gt;</code> and feeds it to the HTML parser incrementally, yielding control back to the event loop between chunks.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md" target="_blank" rel="noopener">WICG explainer</a></span>
+  </section>
+
+  <section>
+    <h2>shape of the API</h2>
+    <p><strong>Positional HTML-string methods</strong> on <code>Element</code>:</p>
+    <table class="doc-table">
+      <tr><th>Method</th><th>Inserts</th></tr>
+      <tr><td><code>element.beforeHTML(html)</code></td><td>HTML string immediately before <code>element</code></td></tr>
+      <tr><td><code>element.afterHTML(html)</code></td><td>HTML string immediately after <code>element</code></td></tr>
+      <tr><td><code>element.prependHTML(html)</code></td><td>HTML string as first child(ren)</td></tr>
+      <tr><td><code>element.appendHTML(html)</code></td><td>HTML string as last child(ren)</td></tr>
+      <tr><td><code>element.replaceWithHTML(html)</code></td><td>Replaces <code>element</code> with parsed HTML</td></tr>
+    </table>
+    <p><strong>Streaming method</strong>:</p>
+    <table class="doc-table">
+      <tr><th>Method</th><th>Signature</th><th>Returns</th></tr>
+      <tr><td><code>element.streamAppendHTML(stream)</code></td><td><code>ReadableStream&lt;string&gt;</code></td><td><code>Promise&lt;void&gt;</code> — resolves when stream closes</td></tr>
+    </table>
+    <p>All methods parse the HTML in the context of the element's owner document. Script execution behaviour follows the same rules as <code>innerHTML</code>.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md#resulting-api" target="_blank" rel="noopener">WICG explainer — Resulting API</a></span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+<pre><code>// Positional insertion (replaces insertAdjacentHTML)
+const list = document.querySelector('#results');
+list.appendHTML('&lt;li&gt;New item&lt;/li&gt;');
+list.prependHTML('&lt;li class="pinned"&gt;Pinned&lt;/li&gt;');
+
+// Streaming: append HTML as it arrives from the network
+const container = document.querySelector('#stream-target');
+const response = await fetch('/api/html-fragment');
+// response.body is a ReadableStream&lt;Uint8Array&gt;; decode to strings
+const textStream = response.body.pipeThrough(new TextDecoderStream());
+await container.streamAppendHTML(textStream);
+console.log('Stream complete');
+
+// Works well with server-sent HTML updates
+async function loadMoreResults(url) {
+  const res = await fetch(url);
+  await list.streamAppendHTML(
+    res.body.pipeThrough(new TextDecoderStream())
+  );
+}</code></pre>
+    <span class="citation">Source: <a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md#resulting-api" target="_blank" rel="noopener">WICG explainer</a></span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Browser</th><th>Support</th><th>Notes</th></tr>
+      <tr><td>Chrome 151+</td><td>Enabled by default</td><td>All platforms</td></tr>
+      <tr><td>Firefox</td><td>No signal</td><td>—</td></tr>
+      <tr><td>Safari</td><td>No signal</td><td>—</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5054329641893888" target="_blank" rel="noopener">chromestatus.com/feature/5054329641893888</a></span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/5054329641893888" target="_blank" rel="noopener">Chrome Platform Status — Renewed HTML insertion &amp; streaming methods</a></li>
+      <li><a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md" target="_blank" rel="noopener">WICG — dynamic-markup-revamped explainer</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
