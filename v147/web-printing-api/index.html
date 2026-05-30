@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Web Printing API — Chrome 147 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v147/">&larr; Chrome 147 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v147 · web api · isolated web apps only</p>
+    <h1>Web Printing API</h1>
+    <p class="lede">A JavaScript API for querying local printers, submitting print jobs, and managing print options — available exclusively in <a href="https://chromestatus.com/feature/5146307550248960" target="_blank" rel="noopener">Isolated Web Apps</a> (IWAs). Targets remote/virtual desktop and kiosk scenarios where <code>window.print()</code> falls short.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Isolated Web Apps only</strong>
+    The Web Printing API is not available on ordinary web pages. It is restricted to Isolated Web Apps, which require their own install and packaging process. IWAs are ChromeOS / enterprise focused. Do not use this API if you are building a general website or PWA.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 147 (for Isolated Web Apps)</td></tr>
+      <tr><th>Status</th><td>Enabled by default (IWAs only)</td></tr>
+      <tr><th>Availability</th><td>Isolated Web Apps only; not available on regular web origins</td></tr>
+      <tr><th>Standards</th><td>WICG Proposal</td></tr>
+      <tr><th>Spec</th><td><a href="https://wicg.github.io/web-printing/" target="_blank" rel="noopener">WICG Web Printing API spec</a></td></tr>
+      <tr><th>Explainer</th><td><a href="https://github.com/WICG/web-printing" target="_blank" rel="noopener">WICG/web-printing — GitHub</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5100352332627968" target="_blank" rel="noopener">5100352332627968 — Web Printing API</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p><code>window.print()</code> shows a browser-controlled print dialog and offers no control over printer selection, job settings, or status. In remote desktop and managed enterprise deployments, an IWA may need to silently print to specific local printers, stream print job status back to a server, or let users pick from available printers in an in-app UI. The Web Printing API exposes these capabilities through <code>navigator.printing</code> inside IWA contexts, following the Internet Printing Protocol (IPP) semantics for attribute names and semantics.</p>
+    <span class="citation">Source: WICG Web Printing explainer, blink-dev Intent to Ship, April 2026.</span>
+  </section>
+
+  <section>
+    <h2>shape of the API</h2>
+
+    <h3>Entry point</h3>
+    <p>The API is exposed via <code>navigator.printing</code> in IWA contexts:</p>
+
+    <table class="doc-table">
+      <thead><tr><th>Method / Property</th><th>Description</th></tr></thead>
+      <tr>
+        <td><code>navigator.printing.getPrinters()</code></td>
+        <td>Returns a Promise resolving to an array of <code>WebPrinter</code> objects representing locally available printers. Triggers a permission prompt on first call.</td>
+      </tr>
+    </table>
+
+    <h3>WebPrinter interface</h3>
+    <table class="doc-table">
+      <thead><tr><th>Member</th><th>Description</th></tr></thead>
+      <tr><td><code>printerInfo</code></td><td>Object with printer metadata: name, URI, description, state.</td></tr>
+      <tr><td><code>fetchAttributes()</code></td><td>Returns the printer's IPP attribute set — supported media sizes, color modes, finishing options, etc.</td></tr>
+      <tr><td><code>printJob(document, jobAttributes)</code></td><td>Submits a print job. <code>document</code> is a <code>Blob</code> (e.g. PDF); <code>jobAttributes</code> is an IPP-style attribute map.</td></tr>
+    </table>
+    <span class="citation">Source: WICG Web Printing API spec and blink-dev thread, April 2026.</span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+
+    <h3>Listing available printers</h3>
+    <pre><code>// Only works inside an Isolated Web App
+const printers = await navigator.printing.getPrinters();
+for (const printer of printers) {
+  console.log(printer.printerInfo.name, printer.printerInfo.state);
+}
+</code></pre>
+
+    <h3>Submitting a silent print job</h3>
+    <pre><code>// Fetch a PDF and print it to the first available printer
+const [printer] = await navigator.printing.getPrinters();
+const attrs = await printer.fetchAttributes();
+
+// e.g., print to A4 paper, color, 2 copies
+const response = await fetch('/report.pdf');
+const pdfBlob = await response.blob();
+
+await printer.printJob(pdfBlob, {
+  'media': 'iso_a4_210x297mm',
+  'print-color-mode': 'color',
+  'copies': 2,
+});
+console.log('Print job submitted');
+</code></pre>
+    <span class="citation">Source: WICG Web Printing API spec and explainer, April 2026.</span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Support</th></tr></thead>
+      <tr><td>Chrome 147+ (IWAs, ChromeOS/enterprise)</td><td>Enabled by default</td></tr>
+      <tr><td>Firefox</td><td>No position</td></tr>
+      <tr><td>Safari</td><td>No position</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.com feature page, April 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://wicg.github.io/web-printing/" target="_blank" rel="noopener">WICG Web Printing API — spec</a></li>
+      <li><a href="https://github.com/WICG/web-printing" target="_blank" rel="noopener">WICG/web-printing — GitHub explainer</a></li>
+      <li><a href="https://chromestatus.com/feature/5146307550248960" target="_blank" rel="noopener">chromestatus — Isolated Web Apps</a></li>
+      <li><a href="https://chromestatus.com/feature/5100352332627968" target="_blank" rel="noopener">chromestatus — Web Printing API (5100352332627968)</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/web-printing-api/" target="_blank" rel="noopener">chrome-platform-showcase — live demo</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
