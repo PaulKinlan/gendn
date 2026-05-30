@@ -36,7 +36,7 @@ git config user.email 'paul.kinlan@gmail.com'
 git config user.name 'Paul Kinlan'
 ```
 
-Note Unix time at start. Soft 45-minute deadline. Cron is hourly; next run continues.
+Note Unix time at start. Soft 45-minute deadline. Cron fires every 2 hours; next run continues.
 
 ## Step 2: Get current channels
 
