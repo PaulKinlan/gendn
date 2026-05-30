@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Responsively-sized &lt;iframe&gt; — Chrome 150 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v150/">&larr; Chrome 150 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v150 · html · css · shipped</p>
+    <h1>Responsively-sized &lt;iframe&gt;</h1>
+    <p class="lede">A browser-native mechanism that lets an <code>&lt;iframe&gt;</code> automatically size itself to match the intrinsic height of its embedded document — without scrollbars, JavaScript resize observers, or wrapper hacks — by combining a new CSS property on the embedding side with an opt-in meta tag in the embedded document. Ships in Chrome 150.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 150 (desktop, Android, WebView)</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Spec</th><td><a href="https://drafts.csswg.org/css-sizing-4/#responsive-iframes" target="_blank" rel="noopener">CSS Sizing Level 4 — Responsive iframes</a></td></tr>
+      <tr><th>Explainer</th><td><a href="https://github.com/w3c/csswg-drafts/blob/main/css-sizing-4/responsive-iframes-explainer.md" target="_blank" rel="noopener">css-sizing-4 responsive-iframes-explainer.md</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5108373464547328" target="_blank" rel="noopener">5108373464547328 — Responsively-sized &lt;iframe&gt;</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Embedding a third-party widget or a self-contained page in an <code>&lt;iframe&gt;</code> almost always requires workarounds to avoid scrollbars: the padding-bottom percentage hack, <code>ResizeObserver</code> inside the iframe sending <code>postMessage</code> to the parent, or server-side knowledge of the content height. None of these are reliable across all content types, and the <code>postMessage</code> approach requires cooperation between two independent codebases.</p>
+    <p>The responsively-sized iframe feature provides a declarative, standards-based alternative. The iframe element automatically shrinks or grows to fit its content at load time — no scripting required on either side.</p>
+    <span class="citation">Source: <a href="https://github.com/w3c/csswg-drafts/blob/main/css-sizing-4/responsive-iframes-explainer.md" target="_blank" rel="noopener">css-sizing-4 responsive-iframes-explainer.md</a>.</span>
+  </section>
+
+  <section>
+    <h2>double opt-in</h2>
+    <p>Both sides must opt in — the embedding document and the embedded document — before the feature activates. This protects cross-origin privacy: neither party can measure the other's content without explicit consent.</p>
+
+    <h3>embedding document: the CSS property</h3>
+<pre><code>/* In the embedding page's stylesheet */
+iframe.auto-height {
+  frame-sizing: content-height;
+  width: 100%;
+}</code></pre>
+    <p>Setting <code>frame-sizing: content-height</code> on the <code>&lt;iframe&gt;</code> element tells the browser to size the element's height based on the embedded document's natural (intrinsic) height once loaded.</p>
+
+    <h3>embedded document: the meta tag</h3>
+<pre><code>&lt;!-- In the embedded document's &lt;head&gt; --&gt;
+&lt;meta name="responsive-embedded-sizing"&gt;</code></pre>
+    <p>The embedded document opts in by including this meta tag. The tag must be present when the <code>load</code> event fires for the sizing to take effect.</p>
+  </section>
+
+  <section>
+    <h2>end-to-end example</h2>
+<pre><code>&lt;!-- embedding page --&gt;
+&lt;!doctype html&gt;
+&lt;html&gt;&lt;head&gt;
+  &lt;style&gt;
+    .widget-frame {
+      frame-sizing: content-height;
+      width: 100%;
+      border: 1px solid #ccc;
+    }
+  &lt;/style&gt;
+&lt;/head&gt;&lt;body&gt;
+  &lt;iframe class="widget-frame" src="https://widget.example.com/"&gt;&lt;/iframe&gt;
+&lt;/body&gt;&lt;/html&gt;
+
+
+&lt;!-- embedded document: widget.example.com --&gt;
+&lt;!doctype html&gt;
+&lt;html&gt;&lt;head&gt;
+  &lt;meta name="responsive-embedded-sizing"&gt;
+  &lt;style&gt;body { margin: 0; }&lt;/style&gt;
+&lt;/head&gt;&lt;body&gt;
+  &lt;p&gt;Widget content that determines the iframe height.&lt;/p&gt;
+  &lt;p&gt;More content here.&lt;/p&gt;
+&lt;/body&gt;&lt;/html&gt;</code></pre>
+    <p>The iframe renders without a fixed height and without scrollbars. Its height matches the widget's layout overflow height at load time.</p>
+  </section>
+
+  <section>
+    <h2>behaviour and constraints</h2>
+    <table class="doc-table">
+      <tr><th>Behaviour</th><th>Detail</th></tr>
+      <tr><td>Timing</td><td>One-shot at load time only. Subsequent content changes do not trigger re-sizing, preventing layout loops and performance issues.</td></tr>
+      <tr><td>Direction</td><td>Height sizing only. Width is still controlled by the embedding document as normal.</td></tr>
+      <tr><td>Cross-origin</td><td>Works across origins — both parties must opt in explicitly.</td></tr>
+      <tr><td>Fallback</td><td>If the embedded document does not include the meta tag, the iframe falls back to its normal (scrollable) behaviour; <code>frame-sizing</code> has no effect.</td></tr>
+      <tr><td>Meta timing</td><td>The meta tag must be present in the document at the time the <code>load</code> event fires. Dynamically adding it afterwards does not activate the feature.</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://github.com/w3c/csswg-drafts/blob/main/css-sizing-4/responsive-iframes-explainer.md" target="_blank" rel="noopener">css-sizing-4 responsive-iframes-explainer.md</a>.</span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome / Edge</th><td>150 (enabled by default)</td></tr>
+      <tr><th>Firefox</th><td>No signal</td></tr>
+      <tr><th>Safari</th><td>No signal</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.com browser positions, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://drafts.csswg.org/css-sizing-4/#responsive-iframes" target="_blank" rel="noopener">CSS Sizing Level 4 — Responsive iframes</a></li>
+      <li><a href="https://github.com/w3c/csswg-drafts/blob/main/css-sizing-4/responsive-iframes-explainer.md" target="_blank" rel="noopener">css-sizing-4 responsive-iframes-explainer.md (explainer)</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/HTML/Element/iframe" target="_blank" rel="noopener">MDN: &lt;iframe&gt; element</a></li>
+      <li><a href="https://chromestatus.com/feature/5108373464547328" target="_blank" rel="noopener">chromestatus.com — Responsively-sized &lt;iframe&gt; (5108373464547328)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
