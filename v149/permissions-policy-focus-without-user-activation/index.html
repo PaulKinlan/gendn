@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Permissions Policy: focus-without-user-activation — Chrome 149 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v149/">&larr; Chrome 149 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v149 · permissions policy · origin trial</p>
+    <h1>Permissions Policy: focus-without-user-activation</h1>
+    <p class="lede">A new permissions policy that lets embedders block programmatic focus from embedded iframes unless the focus is triggered by a genuine user gesture. Prevents malicious or poorly-behaved third-party content from stealing input focus without the user's awareness.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Origin trial</strong>
+    The <code>focus-without-user-activation</code> policy is in origin trial in Chrome 149–151, with stable ship targeting Chrome 150. Enable for testing with an origin trial token, or via <code>chrome://flags/#enable-experimental-web-platform-features</code>. Check the <a href="https://chromestatus.com/feature/5179186249465856" target="_blank" rel="noopener">ChromeStatus entry</a> for the current timeline.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Origin trial in</th><td>Chrome 149–151</td></tr>
+      <tr><th>Expected stable ship</th><td>Chrome 150</td></tr>
+      <tr><th>Spec</th><td><a href="https://github.com/whatwg/html/pull/10672" target="_blank" rel="noopener">WHATWG HTML PR #10672</a></td></tr>
+      <tr><th>Policy explainer</th><td><a href="https://github.com/w3c/webappsec-feature-policy/blob/master/policies/focus-without-user-activation.md" target="_blank" rel="noopener">w3c/webappsec-permissions-policy — focus-without-user-activation.md</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5179186249465856" target="_blank" rel="noopener">5179186249465856 — Permissions Policy: focus-without-user-activation</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Embedding third-party content in an iframe is common — payment widgets, maps, video players, comment sections. These embeds run in their own browsing context and can call <code>element.focus()</code> at any time, including to shift focus away from the user's current interaction. A malicious embed could use this to intercept keystrokes (by focusing a hidden text input), suppress keyboard shortcuts, or disrupt an in-progress form fill on the parent page.</p>
+    <p>The <code>focus-without-user-activation</code> permissions policy gives the embedder a declarative way to restrict this: when the policy is denied for a frame, any programmatic focus operation in that frame (and its descendants) that is not directly triggered by a user gesture is silently ignored.</p>
+    <span class="citation">Source: <a href="https://github.com/w3c/webappsec-feature-policy/blob/master/policies/focus-without-user-activation.md" target="_blank" rel="noopener">w3c/webappsec-permissions-policy</a> explainer.</span>
+  </section>
+
+  <section>
+    <h2>shape of the API</h2>
+
+    <h3>What the policy controls</h3>
+    <p>When the policy is denied for a browsing context, the following focus operations are blocked unless there is an active user gesture in the current task:</p>
+    <table class="doc-table">
+      <tr><th><code>element.focus()</code></th><td>Scripted focus calls on any element.</td></tr>
+      <tr><th><code>window.focus()</code></th><td>Focus requests from a window to itself or a child window.</td></tr>
+      <tr><th><code>autofocus</code> attribute</th><td>Automatic focusing of form controls on load.</td></tr>
+      <tr><th><code>dialog.showModal()</code></th><td>Modal dialogs that would automatically receive focus.</td></tr>
+      <tr><th>Popover focus</th><td>Popovers that would auto-focus their first interactive child.</td></tr>
+    </table>
+    <p>User-initiated focus (clicking, tabbing via keyboard) is <strong>never</strong> affected by this policy.</p>
+
+    <h3>Focus delegation exception</h3>
+    <p>A parent frame that currently holds focus can delegate that focus to a child iframe programmatically — even if the child has the policy denied. This allows legitimate "pass focus into the embed" patterns (e.g. a sign-in button that opens a payment iframe and sets focus to the first field). Once the frame has focus, it can move focus freely within its own subtree.</p>
+
+    <h3>Default allowlist</h3>
+    <p>The default allowlist for <code>focus-without-user-activation</code> is <code>*</code> (all frames allowed), preserving existing behaviour. You must explicitly deny it to apply the restriction.</p>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/10672" target="_blank" rel="noopener">WHATWG HTML PR #10672</a> and blink-dev Intent to Experiment thread.</span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+
+    <h3>Deny focus-without-user-activation for all iframes (HTTP header)</h3>
+<pre><code>Permissions-Policy: focus-without-user-activation=()</code></pre>
+    <p>Blocks programmatic focus in all subframes. The main frame is not affected.</p>
+
+    <h3>Deny for a specific third-party embed</h3>
+<pre><code>&lt;!-- Block programmatic focus from the third-party embed. --&gt;
+&lt;iframe
+  src="https://embed.example.com/widget"
+  allow="focus-without-user-activation 'none'"
+&gt;&lt;/iframe&gt;
+
+&lt;!-- Explicitly allow focus for a trusted first-party iframe. --&gt;
+&lt;iframe
+  src="/payment/widget"
+  allow="focus-without-user-activation 'src'"
+&gt;&lt;/iframe&gt;</code></pre>
+
+    <h3>Allow the main frame only, deny all subframes</h3>
+<pre><code>Permissions-Policy: focus-without-user-activation=(self)</code></pre>
+    <p>With this header, embedded iframes cannot focus elements programmatically unless the user has interacted with them first.</p>
+
+    <h3>Feature detection (JavaScript)</h3>
+<pre><code>// Check if the policy controls focus in the current frame.
+const allowed = document.featurePolicy
+  ? document.featurePolicy.allowsFeature("focus-without-user-activation")
+  : true; // Assume allowed if API not present.
+
+if (!allowed) {
+  // Autofocus or programmatic focus will be ignored here.
+  console.log("Programmatic focus is restricted in this frame.");
+}</code></pre>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome</th><td>Origin trial 149–151; stable ship targeting 150</td></tr>
+      <tr><th>Edge</th><td>Tracking Chromium</td></tr>
+      <tr><th>Firefox</th><td>No signal (as of Chrome 149)</td></tr>
+      <tr><th>Safari</th><td>No signal (as of Chrome 149)</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5179186249465856" target="_blank" rel="noopener">chromestatus</a> and blink-dev, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Permissions-Policy" target="_blank" rel="noopener">MDN: Permissions-Policy HTTP header</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/HTML/Element/iframe#allow" target="_blank" rel="noopener">MDN: &lt;iframe&gt; — allow attribute</a></li>
+      <li><a href="https://github.com/whatwg/html/issues/11839" target="_blank" rel="noopener">WHATWG HTML issue #11839</a> — clarifications on focus across browsing contexts</li>
+      <li><a href="https://webkit.org/standards-positions/#focus-without-user-activation" target="_blank" rel="noopener">WebKit standards position</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
