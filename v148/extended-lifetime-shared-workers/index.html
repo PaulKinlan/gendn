@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Extended lifetime shared workers — Chrome 148 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v148/">&larr; Chrome 148 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v148 · web api · shipped</p>
+    <h1>Extended lifetime shared workers</h1>
+    <p class="lede">A new <code>extendedLifetime: true</code> option on the <code>SharedWorker</code> constructor keeps the worker alive after all its clients have unloaded. This lets pages hand off in-flight async work — network requests, IndexedDB writes, analytics flushes — to a shared worker that outlives any individual page, without needing a Service Worker.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Constructor option</th><td><code>new SharedWorker(url, { extendedLifetime: true })</code></td></tr>
+      <tr><th>Effect</th><td>Worker stays alive after the last client unloads; terminates when it becomes idle (no pending tasks, microtasks, or Web Locks)</td></tr>
+      <tr><th>Standard SharedWorker</th><td>Terminates as soon as the last client disconnects</td></tr>
+      <tr><th>Shipped in</th><td>Chrome 148 (desktop + Android + WebView)</td></tr>
+      <tr><th>Origin trial ran</th><td>Chrome 139 – 148</td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5138641357373440" target="_blank" rel="noopener">5138641357373440 — Extended lifetime shared workers</a></td></tr>
+      <tr><th>Blog post</th><td><a href="https://developer.chrome.com/blog/extended-lifetime-shared-workers-origin-trial" target="_blank" rel="noopener">Extended lifetime shared workers — Chrome for Developers</a></td></tr>
+    </table>
+    <span class="citation">Source: chromestatus and blink-dev ITS, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Pages frequently need to complete async work (save data, flush events, finish network requests) after the user navigates away. <code>navigator.sendBeacon()</code> covers fire-and-forget POST, but not complex multi-step flows. Service Workers can run after page unload but add complexity — a shared scope, update lifecycle, and push infrastructure. Extended lifetime shared workers fill the gap: a shared worker with <code>extendedLifetime: true</code> stays alive long enough to complete in-progress work, then terminates naturally once idle.</p>
+    <span class="citation">Source: blink-dev ITS and origin trial blog post, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>usage</h2>
+    <pre><code>// Page code: create (or connect to) an extended-lifetime worker
+const worker = new SharedWorker('/workers/persistence.js', {
+  extendedLifetime: true
+});
+
+worker.port.start();
+
+// Hand off work before unloading
+window.addEventListener('pagehide', () => {
+  worker.port.postMessage({ type: 'flush', data: pendingEvents });
+});</code></pre>
+
+    <pre><code>// persistence.js — shared worker
+self.onconnect = (e) => {
+  const port = e.ports[0];
+  port.onmessage = async ({ data }) => {
+    if (data.type === 'flush') {
+      // Worker stays alive to complete this even after the page unloads
+      await fetch('/api/events', {
+        method: 'POST',
+        body: JSON.stringify(data.data)
+      });
+    }
+  };
+  port.start();
+};</code></pre>
+    <span class="citation">Source: extended lifetime shared workers blog post, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>lifetime rules</h2>
+    <table class="doc-table">
+      <thead><tr><th>Condition</th><th>Result</th></tr></thead>
+      <tr><td>All clients connected — normal operation</td><td>Worker runs normally</td></tr>
+      <tr><td>Last client disconnects — standard SharedWorker</td><td>Worker terminates immediately</td></tr>
+      <tr><td>Last client disconnects — <code>extendedLifetime: true</code></td><td>Worker stays alive until idle (no tasks, no pending locks)</td></tr>
+      <tr><td>Worker holds a Web Lock indefinitely</td><td>Worker will not terminate — this is a foot-gun to avoid</td></tr>
+      <tr><td>Extended workers cannot be mixed with standard workers</td><td>A standard and extended-lifetime worker with the same URL are treated as separate workers</td></tr>
+    </table>
+    <span class="citation">Source: blink-dev ITS — Extended lifetime shared workers, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://developer.chrome.com/blog/extended-lifetime-shared-workers-origin-trial" target="_blank" rel="noopener">Chrome for Developers — Extended lifetime shared workers blog post</a></li>
+      <li><a href="https://chromestatus.com/feature/5138641357373440" target="_blank" rel="noopener">chromestatus — Extended lifetime shared workers (5138641357373440)</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/SharedWorker" target="_blank" rel="noopener">MDN: SharedWorker</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

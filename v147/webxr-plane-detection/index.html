@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebXR Plane Detection — Chrome 147 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v147/">&larr; Chrome 147 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v147 · web api · shipped</p>
+    <h1>WebXR Plane Detection</h1>
+    <p class="lede">A WebXR module that exposes flat surfaces (floors, walls, tables) detected by the underlying AR system. Each <code>XRPlane</code> has a coordinate space, a polygon boundary, an optional semantic label (<code>"floor"</code>, <code>"wall"</code>, <code>"table"</code>, …), and an orientation. Requires a WebXR AR session with the <code>"plane-detection"</code> feature descriptor.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Feature descriptor</th><td><code>"plane-detection"</code> — pass in <code>requiredFeatures</code> or <code>optionalFeatures</code></td></tr>
+      <tr><th>Session type</th><td><code>"immersive-ar"</code></td></tr>
+      <tr><th>Planes accessed via</th><td><code>XRFrame.detectedPlanes</code> — a <code>XRPlaneSet</code> of <code>XRPlane</code> objects</td></tr>
+      <tr><th>Platform requirement</th><td>Android with ARCore support; desktop with compatible AR hardware</td></tr>
+      <tr><th>Shipped in</th><td>Chrome 147 (desktop + Android)</td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5732397976911872" target="_blank" rel="noopener">5732397976911872 — WebXR Plane Detection API</a></td></tr>
+      <tr><th>Spec</th><td><a href="https://immersive-web.github.io/plane-detection/" target="_blank" rel="noopener">WebXR Plane Detection Module — Immersive Web WG</a></td></tr>
+    </table>
+    <span class="citation">Source: chromestatus and immersive-web/plane-detection spec, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Depth sensing gives per-pixel distance data but doesn't classify surfaces or provide boundaries. Plane detection is a higher-level API: the platform's AR engine segments the environment into flat surfaces and provides structured data (position, orientation, polygon, semantic label) that AR experiences can use directly — for placing virtual objects on floors, aligning content to walls, or occluding virtual objects behind physical furniture. Occluded planes (walls behind objects) can still be represented if the AR system knows their extent.</p>
+    <span class="citation">Source: blink-dev ITS — WebXR Plane Detection, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>XRPlane object</h2>
+    <table class="doc-table">
+      <thead><tr><th>Property</th><th>Type</th><th>Description</th></tr></thead>
+      <tr><td><code>planeSpace</code></td><td><code>XRSpace</code></td><td>Coordinate system for the plane; native origin at the plane's centre</td></tr>
+      <tr><td><code>polygon</code></td><td><code>FrozenArray&lt;DOMPointReadOnly&gt;</code></td><td>Vertices of the plane boundary in <code>planeSpace</code> coordinates, expressed as a loop</td></tr>
+      <tr><td><code>orientation</code></td><td><code>"horizontal" | "vertical" | null</code></td><td>Plane classification; <code>null</code> if the AR system can't classify it</td></tr>
+      <tr><td><code>semanticLabel</code></td><td><code>DOMString | null</code></td><td>Human-readable label when available — e.g. <code>"floor"</code>, <code>"wall"</code>, <code>"ceiling"</code>, <code>"table"</code></td></tr>
+      <tr><td><code>lastChangedTime</code></td><td><code>DOMHighResTimeStamp</code></td><td>Timestamp of the last update to this plane's data</td></tr>
+    </table>
+    <span class="citation">Source: WebXR Plane Detection Module spec, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+    <pre><code>const session = await navigator.xr.requestSession('immersive-ar', {
+  requiredFeatures: ['plane-detection']
+});
+
+// In the render loop:
+function onXRFrame(time, frame) {
+  const planes = frame.detectedPlanes;
+  planes.forEach(plane => {
+    const pose = frame.getPose(plane.planeSpace, referenceSpace);
+    if (!pose) return;
+
+    console.log('Plane:', {
+      orientation: plane.orientation,       // "horizontal" or "vertical"
+      label: plane.semanticLabel,           // e.g. "floor"
+      vertices: plane.polygon.length,       // number of boundary points
+    });
+
+    // Use pose.transform.matrix to position content on this plane
+  });
+
+  session.requestAnimationFrame(onXRFrame);
+}</code></pre>
+    <span class="citation">Source: WebXR Plane Detection Module spec and chromestatus, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Support</th></tr></thead>
+      <tr><td>Chrome 147+ (Android/ARCore)</td><td>Enabled by default</td></tr>
+      <tr><td>Chrome 147+ (desktop, AR hardware)</td><td>Enabled by default</td></tr>
+      <tr><td>Firefox</td><td>No support</td></tr>
+      <tr><td>Safari</td><td>No support</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.com, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://immersive-web.github.io/plane-detection/" target="_blank" rel="noopener">WebXR Plane Detection Module spec</a></li>
+      <li><a href="https://chromestatus.com/feature/5732397976911872" target="_blank" rel="noopener">chromestatus — WebXR Plane Detection API (5732397976911872)</a></li>
+      <li><a href="/v147/webxr-layers/">gendn — WebXR Layers — related Chrome 147 feature</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
