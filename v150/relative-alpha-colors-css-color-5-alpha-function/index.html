@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Relative Alpha Colors (CSS Color 5 alpha() function) — Chrome 150 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v150/">&larr; Chrome 150 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v150 · css · shipped</p>
+    <h1>Relative Alpha Colors (CSS Color 5 alpha() function)</h1>
+    <p class="lede">A new CSS color function that takes an origin color and produces the same color at a different opacity — without having to repeat or decompose the color's channel values. Ships in Chrome 150 across desktop, Android, and WebView.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 150 (desktop, Android, WebView)</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Flag</th><td>None (Finch: CSSAlphaColorFunction)</td></tr>
+      <tr><th>Standards position</th><td>Gecko: no signal &nbsp;·&nbsp; WebKit: no signal</td></tr>
+      <tr><th>Spec</th><td><a href="https://drafts.csswg.org/css-color-5/#relative-alpha" target="_blank" rel="noopener">CSS Color Level 5 — Relative Alpha Colors</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5070160203481088" target="_blank" rel="noopener">5070160203481088 — Relative Alpha Colors</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Relative color syntax (shipped in Chrome 119) lets you derive one color from another by referencing the origin color's individual channel values. To change only the alpha channel of <code>oklch(0.6 0.15 240)</code> you write:</p>
+    <pre><code>oklch(from oklch(0.6 0.15 240) l c h / 50%)</code></pre>
+    <p>This is verbose — you must repeat the color space name and list every channel just to keep them unchanged. When the origin color comes from a custom property the ceremony is even worse:</p>
+    <pre><code>oklch(from var(--brand) l c h / 50%)</code></pre>
+    <p>The <code>alpha()</code> function formalises the "change only opacity" pattern into a single, readable call. It is a pure shorthand: it produces an identical result to the longhand relative color form but without the boilerplate.</p>
+    <span class="citation">Source: <a href="https://drafts.csswg.org/css-color-5/#relative-alpha" target="_blank" rel="noopener">CSS Color Level 5 §relative-alpha</a>.</span>
+  </section>
+
+  <section>
+    <h2>the function</h2>
+
+    <h3>syntax</h3>
+<pre><code>alpha(from &lt;color&gt;, &lt;alpha-value&gt;)</code></pre>
+
+    <table class="doc-table">
+      <tr><th>Parameter</th><th>Description</th></tr>
+      <tr><td><code>from &lt;color&gt;</code></td><td>The origin color. Can be any <code>&lt;color&gt;</code> value — a keyword, hex, <code>oklch()</code>, <code>var()</code>, another color function, etc.</td></tr>
+      <tr><td><code>&lt;alpha-value&gt;</code></td><td>The desired alpha. A <code>&lt;number&gt;</code> (0–1) or <code>&lt;percentage&gt;</code> (0%–100%). Values outside the range are accepted but clamped at paint time.</td></tr>
+    </table>
+
+    <p>The function returns a color identical to the origin in every channel (hue, lightness, chroma, etc.) with only the alpha replaced. The color space of the result is the same as the origin color.</p>
+    <span class="citation">Source: <a href="https://drafts.csswg.org/css-color-5/#relative-alpha" target="_blank" rel="noopener">CSS Color Level 5 §relative-alpha</a>.</span>
+  </section>
+
+  <section>
+    <h2>examples</h2>
+
+    <h3>fading a keyword color</h3>
+<pre><code>/* 50% transparent red */
+background-color: alpha(from red, 0.5);
+
+/* equivalent longhand: */
+background-color: rgb(from red r g b / 0.5);</code></pre>
+
+    <h3>fading a design token</h3>
+<pre><code>:root {
+  --brand: oklch(0.55 0.18 250);
+}
+
+.overlay {
+  /* 20% opaque version of --brand */
+  background: alpha(from var(--brand), 20%);
+}
+
+.hover-state {
+  /* 70% opaque version of --brand */
+  background: alpha(from var(--brand), 70%);
+}</code></pre>
+    <p>Because <code>alpha()</code> works with any <code>&lt;color&gt;</code> — including <code>var()</code> references — it pairs naturally with design-token systems where the base color palette is stored in custom properties and variants are derived on demand.</p>
+
+    <h3>combining with light-dark()</h3>
+<pre><code>/* Adaptive semi-transparent overlay */
+background: alpha(
+  from light-dark(black, white),
+  30%
+);</code></pre>
+
+    <h3>in a border shorthand</h3>
+<pre><code>/* A slightly transparent version of the text color */
+border: 1px solid alpha(from currentColor, 0.4);</code></pre>
+  </section>
+
+  <section>
+    <h2>comparison with relative color syntax</h2>
+    <table class="doc-table">
+      <tr><th>Pattern</th><th>Syntax</th></tr>
+      <tr><td>Relative color (longhand, any channel)</td><td><code>oklch(from var(--c) l c h / 50%)</code></td></tr>
+      <tr><td><code>alpha()</code> shorthand</td><td><code>alpha(from var(--c), 50%)</code></td></tr>
+    </table>
+    <p><code>alpha()</code> only applies when you want to keep all channels unchanged. For adjusting hue, lightness, or saturation you still use the full relative color syntax.</p>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome / Edge</th><td>150 (enabled by default)</td></tr>
+      <tr><th>Firefox</th><td>No signal</td></tr>
+      <tr><th>Safari</th><td>No signal</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.com browser positions, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://drafts.csswg.org/css-color-5/#relative-alpha" target="_blank" rel="noopener">CSS Color Level 5 — Relative Alpha Colors specification</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_colors/Relative_colors" target="_blank" rel="noopener">MDN: Using relative colors</a></li>
+      <li><a href="https://developer.chrome.com/blog/css-relative-color-syntax" target="_blank" rel="noopener">Chrome blog: CSS relative color syntax (Chrome 119)</a></li>
+      <li><a href="https://chromestatus.com/feature/5070160203481088" target="_blank" rel="noopener">chromestatus.com — Relative Alpha Colors (5070160203481088)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
