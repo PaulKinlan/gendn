@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>User-Action Pseudo-Class Top-Layer Boundary — Chrome 149 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v149/">&larr; Chrome 149 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v149 · css · behavior change</p>
+    <h1>User-Action Pseudo-Class Top-Layer Boundary</h1>
+    <p class="lede">Chrome 149 implements the CSS Selectors Level 4 rule that <code>:hover</code>, <code>:active</code>, and <code>:focus-within</code> propagate up the ancestor chain only as far as the nearest top-layer element — so interacting with a popover or dialog no longer accidentally triggers hover/active styles on elements behind it in the regular document flow.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Behaviour change</strong>
+    If you have CSS rules that rely on <code>:hover</code> or <code>:focus-within</code> propagating from a popover or dialog into its DOM ancestors, those rules will stop matching in Chrome 149. This is the correct interoperable behaviour per the spec.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 149 / Edge 149</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Flag</th><td>None</td></tr>
+      <tr><th>Spec</th><td><a href="https://drafts.csswg.org/selectors-4/" target="_blank" rel="noopener">CSS Selectors Level 4</a> — user-action pseudo-class propagation rules</td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/6296574159355904" target="_blank" rel="noopener">6296574159355904 — User action pseudo class top layer boundary</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>what changed and why</h2>
+    <p>The <code>:hover</code>, <code>:active</code>, and <code>:focus-within</code> pseudo-classes propagate upward through the DOM: when an element matches, all its ancestors match too. This makes sense for regular document flow — hovering a button inside a card should allow you to style the card.</p>
+    <p>Top-layer elements (<code>popover</code>s, <code>&lt;dialog&gt;</code>s, and fullscreen elements) are special: although they exist in the DOM tree, they are rendered in a separate stacking layer entirely above the rest of the page. When a button inside a popover is hovered, propagating <code>:hover</code> all the way up to the <code>&lt;body&gt;</code> or a container <code>&lt;section&gt;</code> makes no visual sense — those elements are displayed behind the popover and the user is not interacting with them.</p>
+    <p>CSS Selectors Level 4 specifies that user-action pseudo-class propagation stops at the first top-layer element in the ancestor chain. Chrome 149 implements this rule.</p>
+    <span class="citation">Source: <a href="http://www.mail-archive.com/blink-dev@chromium.org/msg16264.html" target="_blank" rel="noopener">blink-dev Web-Facing Change PSA</a>.</span>
+  </section>
+
+  <section>
+    <h2>the rule</h2>
+    <p>Given this DOM structure:</p>
+<pre><code>&lt;main&gt;
+  &lt;div popover id="panel"&gt;
+    &lt;button&gt;Click me&lt;/button&gt;
+  &lt;/div&gt;
+&lt;/main&gt;</code></pre>
+
+    <p>When the user hovers the <code>&lt;button&gt;</code>:</p>
+    <table class="doc-table">
+      <tr>
+        <th>Element</th>
+        <th>Before Chrome 149</th>
+        <th>Chrome 149+</th>
+      </tr>
+      <tr>
+        <td><code>&lt;button&gt;</code></td>
+        <td>:hover matches</td>
+        <td>:hover matches</td>
+      </tr>
+      <tr>
+        <td><code>&lt;div popover&gt;</code> (top-layer element)</td>
+        <td>:hover matches</td>
+        <td>:hover matches</td>
+      </tr>
+      <tr>
+        <td><code>&lt;main&gt;</code> (ancestor of the top-layer element)</td>
+        <td>:hover matches</td>
+        <td>:hover does NOT match</td>
+      </tr>
+      <tr>
+        <td><code>&lt;body&gt;</code>, <code>&lt;html&gt;</code></td>
+        <td>:hover matches</td>
+        <td>:hover does NOT match</td>
+      </tr>
+    </table>
+    <p>The same boundary rule applies to <code>:active</code> and <code>:focus-within</code>. It applies to all top-layer promotion types: <code>popover</code> attribute, <code>&lt;dialog&gt;</code> (opened with <code>showModal()</code>), and <code>requestFullscreen()</code>.</p>
+    <span class="citation">Source: CSS Selectors Level 4 and blink-dev PSA.</span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+
+    <h3>CSS that breaks in Chrome 149</h3>
+<pre><code>/* This selector will NO longer match when the user hovers a button
+   inside a popover that is a descendant of .sidebar. */
+.sidebar:hover {
+  background: var(--hover-tint);
+}</code></pre>
+
+    <h3>CSS that still works</h3>
+<pre><code>/* Hovering within the popover itself still sets :hover on the popover. */
+[popover]:hover {
+  box-shadow: 0 4px 20px rgba(0,0,0,.2);
+}
+
+/* Hover on regular (non-top-layer) ancestors still propagates. */
+.card:has(button:hover) {
+  border-color: var(--accent);
+}</code></pre>
+
+    <h3>Feature detecting the new behaviour</h3>
+<pre><code>// No CSS feature query for this change. Use the :has() workaround
+// for styling ancestors of hovered children, which works regardless.
+.container:has(:popover-open:hover) {
+  /* applies when an open popover inside .container is hovered */
+}</code></pre>
+  </section>
+
+  <section>
+    <h2>affected pseudo-classes</h2>
+    <table class="doc-table">
+      <tr><th><code>:hover</code></th><td>Stops propagating at the first top-layer ancestor.</td></tr>
+      <tr><th><code>:active</code></th><td>Stops propagating at the first top-layer ancestor.</td></tr>
+      <tr><th><code>:focus-within</code></th><td>Stops propagating at the first top-layer ancestor.</td></tr>
+      <tr><th><code>:focus</code>, <code>:focus-visible</code></th><td>Not affected — these match the focused element itself, not its ancestors.</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome</th><td>149</td></tr>
+      <tr><th>Edge</th><td>149 (Chromium)</td></tr>
+      <tr><th>Firefox</th><td>Status unknown (as of Chrome 149)</td></tr>
+      <tr><th>Safari</th><td>Status unknown (as of Chrome 149)</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6296574159355904" target="_blank" rel="noopener">chromestatus</a>, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/CSS/:hover" target="_blank" rel="noopener">MDN: :hover</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/CSS/:focus-within" target="_blank" rel="noopener">MDN: :focus-within</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/CSS/:active" target="_blank" rel="noopener">MDN: :active</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Popover_API" target="_blank" rel="noopener">MDN: Popover API</a></li>
+      <li><a href="https://drafts.csswg.org/selectors-4/" target="_blank" rel="noopener">CSS Selectors Level 4 specification</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
