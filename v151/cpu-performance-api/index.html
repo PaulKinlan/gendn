@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CPU Performance API — Chrome 151 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v151/">&larr; Chrome 151 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v151 · performance · device</p>
+    <h1>CPU Performance API</h1>
+    <p class="lede">A new <code>navigator.cpu</code> namespace that exposes a bucketed, privacy-safe signal about the device's CPU performance tier — letting web applications adapt their rendering quality, workload parallelism, and feature set to the actual hardware without fingerprinting individual machines.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 151 (Enabled by default)</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Flag</th><td>None — on by default</td></tr>
+      <tr><th>Spec</th><td><a href="https://wicg.github.io/cpu-performance" target="_blank" rel="noopener">wicg.github.io/cpu-performance</a> (WICG)</td></tr>
+      <tr><th>Standards position (Firefox)</th><td>No signal</td></tr>
+      <tr><th>Standards position (Safari)</th><td>Oppose</td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5189864286978048" target="_blank" rel="noopener">5189864286978048 — CPU Performance API</a></td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5189864286978048" target="_blank" rel="noopener">chromestatus.com/feature/5189864286978048</a></span>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Web applications — especially WebGL/WebGPU games, video editors, and complex data-visualization dashboards — often need to tailor their workload to the device. Today, developers are forced to approximate CPU power by measuring the time taken to run synthetic microbenchmarks, which is slow, unreliable, and a fingerprinting vector in itself.</p>
+    <p>The CPU Performance API surfaces a <em>coarsened bucket</em> rather than precise clock speed or core counts, deliberately preventing individual device identification while still allowing the application to pick an appropriate quality preset. The API is specifically scoped to use cases like "should I enable 4× supersampling or 1×?" or "how many Web Workers should I spin up for this task?"</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5189864286978048" target="_blank" rel="noopener">chromestatus feature summary</a>; <a href="https://wicg.github.io/cpu-performance" target="_blank" rel="noopener">WICG spec</a></span>
+  </section>
+
+  <section>
+    <h2>shape of the API</h2>
+    <table class="doc-table">
+      <tr><th>Property</th><th>Type</th><th>Description</th></tr>
+      <tr><td><code>navigator.cpu.normalizedPerformance</code></td><td><code>number</code> (0.0–1.0)</td><td>Bucketed performance score where 1.0 is the highest tier; values are coarsened to a small set of buckets to reduce fingerprint surface</td></tr>
+    </table>
+    <p>The exact bucket boundaries and score mapping are defined in the WICG spec and may be refined before the final standard is published.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/cpu-performance" target="_blank" rel="noopener">wicg.github.io/cpu-performance</a></span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+<pre><code>// Adjust rendering quality based on CPU tier
+const perf = navigator.cpu?.normalizedPerformance ?? 0.5;
+
+if (perf >= 0.75) {
+  // High-end: enable shadows, anti-aliasing, 60fps target
+  initRenderer({ shadows: true, msaa: 4, targetFPS: 60 });
+} else if (perf >= 0.4) {
+  // Mid-range: reduced quality
+  initRenderer({ shadows: false, msaa: 2, targetFPS: 30 });
+} else {
+  // Low-end: minimal quality
+  initRenderer({ shadows: false, msaa: 0, targetFPS: 24 });
+}
+
+// Choose parallelism for CPU-bound work
+const workerCount = Math.max(1, Math.round(navigator.cpu.normalizedPerformance * 4));
+const pool = createWorkerPool(workerCount);</code></pre>
+    <span class="citation">Source: <a href="https://wicg.github.io/cpu-performance" target="_blank" rel="noopener">WICG CPU Performance spec</a></span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Browser</th><th>Support</th><th>Notes</th></tr>
+      <tr><td>Chrome 151+</td><td>Enabled by default</td><td>All platforms</td></tr>
+      <tr><td>Firefox</td><td>No signal</td><td>—</td></tr>
+      <tr><td>Safari</td><td>Oppose</td><td>Privacy concerns about CPU bucketing as a fingerprinting signal</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5189864286978048" target="_blank" rel="noopener">chromestatus.com/feature/5189864286978048</a></span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/5189864286978048" target="_blank" rel="noopener">Chrome Platform Status — CPU Performance API</a></li>
+      <li><a href="https://wicg.github.io/cpu-performance" target="_blank" rel="noopener">WICG CPU Performance spec</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

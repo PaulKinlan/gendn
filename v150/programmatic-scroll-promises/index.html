@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Programmatic scroll promises — Chrome 150 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v150/">&larr; Chrome 150 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v150 · css · scroll</p>
+    <h1>Programmatic scroll promises</h1>
+    <p class="lede">All programmatic scroll methods on <code>Element</code> and <code>Window</code> — <code>scrollTo()</code>, <code>scrollBy()</code>, <code>scroll()</code>, and <code>scrollIntoView()</code> — now return <code>Promise</code> objects that resolve when the scroll completes or is interrupted, giving reliable completion signals for smooth-scroll animations.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 150 (Enabled by default)</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Standards position (Firefox)</th><td>No signal</td></tr>
+      <tr><th>Standards position (Safari)</th><td>Shipped/Shipping</td></tr>
+      <tr><th>Spec issue</th><td><a href="https://github.com/w3c/csswg-drafts/issues/1562" target="_blank" rel="noopener">w3c/csswg-drafts issue #1562</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5082138340491264" target="_blank" rel="noopener">5082138340491264 — Programmatic scroll promises</a></td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5082138340491264" target="_blank" rel="noopener">chromestatus.com/feature/5082138340491264</a></span>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Before this change, <code>element.scrollTo({ behavior: 'smooth', ... })</code> returned <code>undefined</code>. Developers who needed to know when a smooth scroll finished had to resort to <code>IntersectionObserver</code>, polling <code>scrollTop</code>, or listening to the <code>scroll</code> event and debouncing it. None of those approaches cleanly distinguished between "scroll is still in flight" and "scroll has settled".</p>
+    <p>The Promise-returning scroll methods provide a first-class completion signal. The returned Promise resolves with <code>undefined</code> when the scroll reaches its destination, or when it is interrupted (e.g. by another scroll, layout change, or user interaction). A rejected Promise indicates an error (e.g. element was removed).</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5082138340491264" target="_blank" rel="noopener">chromestatus feature summary</a>; <a href="https://github.com/w3c/csswg-drafts/issues/1562" target="_blank" rel="noopener">CSSWG issue #1562</a></span>
+  </section>
+
+  <section>
+    <h2>shape of the API</h2>
+    <table class="doc-table">
+      <tr><th>Method</th><th>Old return type</th><th>New return type</th></tr>
+      <tr><td><code>Element.scrollTo(options)</code></td><td><code>void</code></td><td><code>Promise&lt;void&gt;</code></td></tr>
+      <tr><td><code>Element.scrollBy(options)</code></td><td><code>void</code></td><td><code>Promise&lt;void&gt;</code></td></tr>
+      <tr><td><code>Element.scroll(options)</code></td><td><code>void</code></td><td><code>Promise&lt;void&gt;</code></td></tr>
+      <tr><td><code>Element.scrollIntoView(options)</code></td><td><code>void</code></td><td><code>Promise&lt;void&gt;</code></td></tr>
+      <tr><td><code>Window.scrollTo(options)</code></td><td><code>void</code></td><td><code>Promise&lt;void&gt;</code></td></tr>
+      <tr><td><code>Window.scrollBy(options)</code></td><td><code>void</code></td><td><code>Promise&lt;void&gt;</code></td></tr>
+      <tr><td><code>Window.scroll(options)</code></td><td><code>void</code></td><td><code>Promise&lt;void&gt;</code></td></tr>
+    </table>
+    <p>The two-argument forms (<code>scrollTo(x, y)</code>, <code>scrollBy(x, y)</code>) continue to return <code>undefined</code> for backwards-compatibility; pass an options object to get a Promise.</p>
+    <span class="citation">Source: <a href="https://github.com/w3c/csswg-drafts/issues/1562" target="_blank" rel="noopener">CSSWG issue #1562</a></span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+<pre><code>// Await a smooth scroll to the top, then run an animation
+await document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
+revealHeroAnimation();
+
+// Chain multiple smooth scrolls
+async function scrollTour(sections) {
+  for (const section of sections) {
+    await section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    await highlightSection(section);
+  }
+}
+
+// Instant scrolls also return a Promise (already resolved)
+await window.scrollTo({ top: 500 }); // resolves immediately
+console.log('done');
+
+// Feature detection
+const scroll = document.documentElement.scrollTo({ top: 0 });
+if (scroll instanceof Promise) {
+  console.log('Promise-returning scrolls supported');
+}</code></pre>
+    <span class="citation">Source: <a href="https://github.com/w3c/csswg-drafts/issues/1562" target="_blank" rel="noopener">CSSWG issue #1562</a></span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Browser</th><th>Support</th><th>Notes</th></tr>
+      <tr><td>Chrome 150+</td><td>Enabled by default</td><td>All platforms</td></tr>
+      <tr><td>Safari</td><td>Shipped/Shipping</td><td>Also supported</td></tr>
+      <tr><td>Firefox</td><td>No signal</td><td>—</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5082138340491264" target="_blank" rel="noopener">chromestatus.com/feature/5082138340491264</a></span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/5082138340491264" target="_blank" rel="noopener">Chrome Platform Status — Programmatic scroll promises</a></li>
+      <li><a href="https://github.com/w3c/csswg-drafts/issues/1562" target="_blank" rel="noopener">CSSWG issue #1562 — scrollTo/scrollBy return a Promise</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
