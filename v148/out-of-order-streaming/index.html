@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Out of order streaming — Chrome 148 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v148/">&larr; Chrome 148 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v148 · html · enabled by default</p>
+    <h1>Out of order streaming</h1>
+    <p class="lede">Lets a server update any named region of a streamed HTML document without JavaScript — using processing instruction range markers (<code>&lt;?start id?&gt;</code> / <code>&lt;?end id?&gt;</code>) and <code>&lt;template for="id"&gt;</code> elements that replace matched regions as they arrive in the stream.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 148</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Flag</th><td>None</td></tr>
+      <tr><th>Standards position</th><td>Safari: Support &nbsp;·&nbsp; Firefox: No signal</td></tr>
+      <tr><th>Spec</th><td><a href="https://github.com/whatwg/html/pull/11818" target="_blank" rel="noopener">whatwg/html PR #11818</a> (Working draft)</td></tr>
+      <tr><th>Blink component</th><td>Blink&gt;HTML</td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5111042975465472" target="_blank" rel="noopener">5111042975465472 — Out of order streaming</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Classic HTTP streaming delivers content top-to-bottom. If a slow database query powers a section at the top of the page, everything below waits. Today, fixing this requires either JavaScript (e.g. fetch + innerHTML) or multiple round-trips. Out of order streaming is a declarative, zero-JS solution: the server streams a placeholder, continues with fast content below, then later streams a <code>&lt;template for="id"&gt;</code> that the browser uses to replace the placeholder — no script involved.</p>
+    <span class="citation">Source: chromestatus summary + <a href="https://github.com/whatwg/html/pull/11818" target="_blank" rel="noopener">whatwg/html PR #11818</a>.</span>
+  </section>
+
+  <section>
+    <h2>how it works</h2>
+
+    <h3>1. Mark a region with PI range markers</h3>
+    <p>The server emits processing instructions to delimit the region that should be replaced later. These require the <a href="/v148/parse-processing-instructions-in-html/">Parse processing instructions in HTML</a> feature (also v148).</p>
+<pre><code>&lt;!-- Server streams this first --&gt;
+&lt;main&gt;
+  &lt;?start slow-section?&gt;
+  &lt;p&gt;Loading…&lt;/p&gt;
+  &lt;?end slow-section?&gt;
+
+  &lt;p&gt;Fast content rendered immediately.&lt;/p&gt;
+&lt;/main&gt;</code></pre>
+
+    <h3>2. Stream a replacement template later</h3>
+    <p>When the slow data is ready, the server writes a <code>&lt;template for="slow-section"&gt;</code>. The browser replaces the marked region's content with the template's content in-place — no layout disruption, no JS required.</p>
+<pre><code>&lt;!-- Server streams this after the slow query completes --&gt;
+&lt;template for="slow-section"&gt;
+  &lt;article&gt;
+    &lt;h2&gt;Top result: Gadget X&lt;/h2&gt;
+    &lt;p&gt;Price: $49 — In stock&lt;/p&gt;
+  &lt;/article&gt;
+&lt;/template&gt;</code></pre>
+
+    <h3>Result</h3>
+    <p>The user sees "Loading…" for the slow section, while fast content below renders immediately. When the template arrives, the placeholder is replaced without a repaint of unrelated content.</p>
+  </section>
+
+  <section>
+    <h2>key primitives</h2>
+    <table class="doc-table">
+      <tr><th><code>&lt;?start id?&gt;</code></th><td>Processing instruction that opens a named streaming region.</td></tr>
+      <tr><th><code>&lt;?end id?&gt;</code></th><td>Processing instruction that closes the named region.</td></tr>
+      <tr><th><code>&lt;template for="id"&gt;</code></th><td>HTML element whose content replaces the matched region when the parser sees it. The <code>for</code> attribute references the region id.</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/11818" target="_blank" rel="noopener">whatwg/html PR #11818</a>. Syntax may change before the spec is merged.</span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome</th><td>148 (desktop)</td></tr>
+      <tr><th>Edge</th><td>148 (Chromium)</td></tr>
+      <tr><th>Firefox</th><td>No signal</td></tr>
+      <tr><th>Safari</th><td>Support (date TBD)</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus browser views at time of generation.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://github.com/whatwg/html/pull/11818" target="_blank" rel="noopener">whatwg/html PR #11818</a> — spec draft</li>
+      <li><a href="/v148/parse-processing-instructions-in-html/">Parse processing instructions in HTML</a> — prerequisite feature</li>
+      <li><a href="/v148/renewed-html-insertion-streaming-methods/">Renewed HTML insertion &amp; streaming methods</a> — JS-based companion</li>
+      <li><a href="https://chromestatus.com/feature/5111042975465472" target="_blank" rel="noopener">chromestatus: Out of order streaming</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/out-of-order-streaming/" target="_blank" rel="noopener">chrome-platform-showcase: demos</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
