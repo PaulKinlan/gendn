@@ -34,7 +34,7 @@ v<N>/                 One folder per Chrome milestone. Each contains <api-slug>/
 ## The routine
 
 Cron `30 */2 * * *` (every 2 hours at :30 UTC, offset from the showcase routine at :00). Anthropic
-cloud, fresh checkout of `main` per run. Soft 45-minute budget. Picks up where the last left off.
+cloud, fresh checkout of `main` per run. Soft 90-minute budget. Picks up where the last left off.
 
 Cadence was halved from hourly to every-2-hours on 2026-05-30 after the account hit a
 routines-per-day cap. If you bump it back to hourly, watch the cap.
@@ -42,14 +42,21 @@ routines-per-day cap. If you bump it back to hourly, watch the cap.
 Routine prompt lives in `.claude/routine-prompt.md`. When you change it, also push to the live
 routine via the `RemoteTrigger` MCP tool (action `update`).
 
-### Triggering a run manually
+### Triggering a manual run
 
-Just ask Claude in chat: "run gendn" (or "fire off the gendn routine"). Claude calls `RemoteTrigger`
-with `action: "run"` and `trigger_id: trig_01MrJLxCb66ZYcfnvEPsooC5`. The run kicks off immediately
-on top of the next scheduled tick; the next cron tick still fires as normal.
+Manual runs do NOT use the remote routine — they run in Claude's local session against the working
+checkout at `/home/paulkinlan/gendn/`, so they don't burn the daily routines quota and Paul sees the
+work appear in chat as it happens.
 
-Web UI alternative: https://claude.ai/code/routines/trig_01MrJLxCb66ZYcfnvEPsooC5 has a "Run now"
-button.
+Convention: Paul says "run gendn" (or "build the next 2 references" etc) in chat. Claude then:
+
+1. `cd /home/paulkinlan/gendn && git pull --rebase`
+2. Follows `.claude/routine-prompt.md` end-to-end against this local checkout
+3. Builds the requested number of features (default 2-3), one commit per feature, pushing after each
+4. Reports each commit + URL back in chat as it lands
+
+The remote routine continues to fire on its 2-hour cron in the background. Manual + remote both
+write to `main` safely because every run skips any folder that already exists.
 
 ## Critical invariants (read these — every one has bitten us)
 

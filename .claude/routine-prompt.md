@@ -36,7 +36,7 @@ git config user.email 'paul.kinlan@gmail.com'
 git config user.name 'Paul Kinlan'
 ```
 
-Note Unix time at start. Soft 45-minute deadline. Cron fires every 2 hours; next run continues.
+Note Unix time at start. Soft 90-minute deadline. Cron fires every 2 hours; next run continues.
 
 ## Step 2: Get current channels
 
@@ -168,7 +168,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 git push
 ```
 
-One feature per commit. If past 45 minutes, stop.
+One feature per commit. If past 90 minutes, stop.
 
 ## Step 8: Summary at end
 
@@ -180,5 +180,5 @@ the MDN URLs.
 - Never overwrite existing `v<N>/<slug>/`.
 - Never edit outside `v<N>/` and `/tmp`. `server.ts`, `lib/`, `public/` are off-limits.
 - Pushes go to main. No branches. No issues.
-- Respect the 45-minute deadline.
+- Respect the 90-minute deadline.
 - **Slug from listing name; milestone from listing position. Both inviolable.**
