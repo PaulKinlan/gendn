@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Web Authentication Immediate UI mode — Chrome 148 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v148/">&larr; Chrome 148 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v148 · web api · shipped</p>
+    <h1>Web Authentication Immediate UI mode</h1>
+    <p class="lede">A new <code>uiMode: "immediate"</code> option for <code>navigator.credentials.get()</code> that shows a sign-in dialog <em>instantly</em> when the user clicks a button — if the browser has a passkey or saved password for the site. If no credential exists, the call rejects with <code>NotAllowedError</code> rather than showing an empty or confusing UI.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 148 (desktop); previously in origin trial since Chrome 142</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Flag</th><td>None</td></tr>
+      <tr><th>Standards position</th><td>W3C Web Authentication Level 3 (WebAuthn)</td></tr>
+      <tr><th>Spec</th><td><a href="https://www.w3.org/TR/webauthn-3/" target="_blank" rel="noopener">Web Authentication Level 3 — uiMode</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5164322780872704" target="_blank" rel="noopener">5164322780872704 — Web Authentication Immediate UI mode</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>The existing <code>mediation: "conditional"</code> flow shows passkey suggestions in the browser's native autofill UI — good for sign-in forms with a username field. But some flows (single-button sign-in, checkout, re-authentication) have no username field; they just need an immediate credential picker. <code>uiMode: "immediate"</code> triggers that picker directly on a user gesture, succeeds only when a credential exists, and fails fast when none does — so the site can fall back to a registration flow without showing a confusing empty dialog.</p>
+    <span class="citation">Source: Chrome for Developers — Immediate UI mode blog post and chromestatus motivation, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>shape of the API</h2>
+    <p>A single new option on the existing <code>navigator.credentials.get()</code> call:</p>
+    <table class="doc-table">
+      <thead><tr><th>Option</th><th>Type</th><th>Description</th></tr></thead>
+      <tr>
+        <td><code>uiMode</code></td>
+        <td><code>"default" | "immediate"</code></td>
+        <td><code>"immediate"</code> — show the credential picker immediately on a user gesture. Rejects with <code>NotAllowedError</code> if no credential is available. <code>"default"</code> is the existing behaviour.</td>
+      </tr>
+    </table>
+
+    <h3>Capability detection</h3>
+    <p>Before using immediate mode, check that the browser supports it:</p>
+    <pre><code>const caps = await PublicKeyCredential.getClientCapabilities();
+if (caps.immediateGet) {
+  // Safe to use uiMode: 'immediate'
+}</code></pre>
+    <span class="citation">Source: Chrome for Developers — Immediate UI mode documentation, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+
+    <h3>One-click sign-in with passkey</h3>
+    <pre><code>signInBtn.addEventListener('click', async () => {
+  const caps = await PublicKeyCredential.getClientCapabilities();
+  if (!caps?.immediateGet) {
+    // Fall back to conditional UI or form-based flow
+    return startConditionalUI();
+  }
+
+  try {
+    const credential = await navigator.credentials.get({
+      uiMode: 'immediate',
+      publicKey: {
+        challenge: await fetchChallengeFromServer(),
+        rpId: location.hostname,
+        userVerification: 'required'
+      }
+    });
+    // credential is a PublicKeyCredential; send to server to verify
+    await verifyOnServer(credential);
+  } catch (err) {
+    if (err.name === 'NotAllowedError') {
+      // No passkey available — offer registration
+      startRegistrationFlow();
+    } else {
+      throw err;
+    }
+  }
+});</code></pre>
+
+    <h3>Password credential support</h3>
+    <pre><code>const credential = await navigator.credentials.get({
+  uiMode: 'immediate',
+  password: true  // also accept saved passwords
+});</code></pre>
+    <span class="citation">Source: Chrome for Developers — Immediate UI mode blog, chromestatus, and WebAuthn spec, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Support</th></tr></thead>
+      <tr><td>Chrome 148+ (desktop)</td><td>Enabled by default</td></tr>
+      <tr><td>Edge</td><td>Planned</td></tr>
+      <tr><td>Firefox</td><td>No position yet</td></tr>
+      <tr><td>Safari</td><td>No position yet</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.com standards positions, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/CredentialsContainer/get" target="_blank" rel="noopener">MDN: CredentialsContainer.get() — full API reference</a></li>
+      <li><a href="https://www.w3.org/TR/webauthn-3/" target="_blank" rel="noopener">WebAuthn Level 3 spec</a></li>
+      <li><a href="https://chromestatus.com/feature/5164322780872704" target="_blank" rel="noopener">chromestatus — Web Authentication Immediate UI mode (5164322780872704)</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/web-authentication-immediate-ui-mode/" target="_blank" rel="noopener">chrome-platform-showcase — live demo</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
