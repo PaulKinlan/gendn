@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Popover=hint behavior changes — Chrome 149 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v149/">&larr; Chrome 149 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v149 · html · enabled by default</p>
+    <h1>Popover=hint behavior changes</h1>
+    <p class="lede">Chrome 149 ships a revised and simplified stacking model for <code>popover="hint"</code> and its interactions with <code>popover="auto"</code>, resolving corner-case inconsistencies that could cause hint popovers to close unexpectedly or stack incorrectly when nested.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 149</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Flag</th><td>None</td></tr>
+      <tr><th>Standards position</th><td>Firefox: Positive &nbsp;·&nbsp; Safari: Positive</td></tr>
+      <tr><th>Spec / PR</th><td><a href="https://github.com/whatwg/html/pull/12345" target="_blank" rel="noopener">whatwg/html PR #12345</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/6282804208992256" target="_blank" rel="noopener">6282804208992256 — Popover=hint behavior changes</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>background: popover types</h2>
+    <p>The Popover API has three values for the <code>popover</code> attribute:</p>
+    <table class="doc-table">
+      <tr><th><code>popover="auto"</code></th><td>Light-dismiss on outside click. Multiple autos form a stack; opening a new auto closes unrelated ones.</td></tr>
+      <tr><th><code>popover="hint"</code></th><td>Tooltip-like. Does not close other autos when it opens. Light-dismiss.</td></tr>
+      <tr><th><code>popover="manual"</code></th><td>No automatic dismissal; must be closed programmatically.</td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://html.spec.whatwg.org/#the-popover-attribute" target="_blank" rel="noopener">HTML Standard §popover attribute</a>.</span>
+  </section>
+
+  <section>
+    <h2>what changed in Chrome 149</h2>
+    <p>The original <code>popover="hint"</code> implementation had edge cases where:</p>
+    <ul>
+      <li>Opening a hint over a nested <code>popover="auto"</code> would incorrectly dismiss the auto.</li>
+      <li>A hint was treated as part of the auto stack in situations where it shouldn't be, causing it to close when unrelated autos were opened.</li>
+      <li>The ordering rules between simultaneous hints were not well-defined.</li>
+    </ul>
+    <p>Chrome 149 implements the revised model from <a href="https://github.com/whatwg/html/pull/12345" target="_blank" rel="noopener">whatwg/html PR #12345</a>:</p>
+    <table class="doc-table">
+      <tr><th>Hints sit above autos</th><td>A <code>popover="hint"</code> always renders above <code>popover="auto"</code> elements in the top layer, not interleaved.</td></tr>
+      <tr><th>Hints don't disrupt auto stack</th><td>Opening a hint never causes an open auto to close.</td></tr>
+      <tr><th>One hint at a time</th><td>Opening a new hint closes any other currently-open hint (like tooltips replacing each other).</td></tr>
+      <tr><th>Light-dismiss rules unchanged</th><td>Clicking outside any popover still closes light-dismissable popovers.</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus summary + <a href="https://github.com/whatwg/html/pull/12345" target="_blank" rel="noopener">whatwg/html PR #12345</a>.</span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+<pre><code>&lt;button popovertarget="menu"&gt;Open menu&lt;/button&gt;
+&lt;div id="menu" popover="auto"&gt;
+  &lt;button popovertarget="tip"&gt;Hover for tip&lt;/button&gt;
+  &lt;p&gt;Menu content&lt;/p&gt;
+&lt;/div&gt;
+
+&lt;div id="tip" popover="hint"&gt;
+  This is a tooltip — does not close the menu
+&lt;/div&gt;</code></pre>
+    <p>In Chrome 149+, showing <code>#tip</code> no longer dismisses <code>#menu</code>. The hint stacks on top of the auto, and dismissing the hint leaves the auto open.</p>
+  </section>
+
+  <section>
+    <h2>compatibility</h2>
+    <p>Most code using <code>popover="hint"</code> will behave more correctly after this change. If you had workarounds for the incorrect closing behaviour, those workarounds may now cause double-closes and should be removed.</p>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome</th><td>149 — revised model</td></tr>
+      <tr><th>Edge</th><td>149 (Chromium)</td></tr>
+      <tr><th>Firefox</th><td>Positive signal; implementation tracking</td></tr>
+      <tr><th>Safari</th><td>Positive signal; implementation tracking</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus browser views.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://github.com/whatwg/html/pull/12345" target="_blank" rel="noopener">whatwg/html PR #12345</a> — the spec change</li>
+      <li><a href="https://html.spec.whatwg.org/#the-popover-attribute" target="_blank" rel="noopener">HTML Standard §popover attribute</a></li>
+      <li><a href="https://chromestatus.com/feature/6282804208992256" target="_blank" rel="noopener">chromestatus: Popover=hint behavior changes</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v149/popover-hint-behavior-changes/" target="_blank" rel="noopener">chrome-platform-showcase: demos</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Platform-provided behaviors — Chrome 149 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v149/">&larr; Chrome 149 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v149 · custom elements · developer trial</p>
+    <h1>Platform-provided behaviors</h1>
+    <p class="lede">Extends <code>ElementInternals</code> to let autonomous custom elements opt in to a list of named native behaviors — things like <em>listbox</em> semantics, <em>checkbox</em> state management, or <em>text-field</em> editing — without subclassing built-in elements or re-implementing complex logic from scratch.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Developer trial / behind a flag</strong>
+    In developer trial in Chrome 149. Enable via <code>chrome://flags/#enable-experimental-web-platform-features</code>. The behavior identifier names are early-stage and will likely change before shipping.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Status in 149</th><td>In developer trial (behind a flag)</td></tr>
+      <tr><th>Flag</th><td><code>chrome://flags/#enable-experimental-web-platform-features</code></td></tr>
+      <tr><th>Standards position</th><td>Firefox: No signal &nbsp;·&nbsp; Safari: No signal</td></tr>
+      <tr><th>Spec / PR</th><td><a href="https://github.com/whatwg/html/pull/12409" target="_blank" rel="noopener">whatwg/html PR #12409</a></td></tr>
+      <tr><th>Blink component</th><td>Blink&gt;HTML&gt;CustomElements</td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/6035800057839616" target="_blank" rel="noopener">6035800057839616 — Platform-provided behaviors</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Customized built-in elements (<code>class MyButton extends HTMLButtonElement</code>) are the existing escape hatch for adopting native behaviors in a custom element — but the pattern is blocked by Safari and involves extending prototypes in ways that conflict with some frameworks. Autonomous custom elements (<code>class MyEl extends HTMLElement</code>) work everywhere but have to re-implement every behavior from scratch. Platform-provided behaviors are a third path: the author writes an autonomous custom element, calls <code>internals.behaviors = ["listbox"]</code> in <code>attachInternals</code>, and the browser grafts in the native listbox behavior (keyboard navigation, selection model, ARIA, scrolling) without requiring element subclassing.</p>
+    <span class="citation">Source: chromestatus summary + <a href="https://github.com/whatwg/html/pull/12409" target="_blank" rel="noopener">whatwg/html PR #12409</a>.</span>
+  </section>
+
+  <section>
+    <h2>shape of the API</h2>
+
+    <h3>attachInternals with behaviors</h3>
+    <table class="doc-table">
+      <tr><th>el.attachInternals({ behaviors: [...] })</th><td>Passes a list of named behavior strings to the internals object. The browser installs the requested behaviors on the element. Can only be called once per element lifetime.</td></tr>
+      <tr><th>ElementInternals.behaviors</th><td>Read-back of the installed behavior list.</td></tr>
+    </table>
+
+    <h3>Behavior identifiers (early-stage)</h3>
+    <table class="doc-table">
+      <tr><th><code>"listbox"</code></th><td>Provides listbox keyboard navigation, selection model, and ARIA roles.</td></tr>
+      <tr><th><code>"checkbox"</code></th><td>Toggle state management, indeterminate support, form participation.</td></tr>
+      <tr><th><code>"textfield"</code></th><td>Text editing, clipboard, IME, form participation.</td></tr>
+    </table>
+    <p>The identifier set is not final. Behavior availability can be queried at runtime.</p>
+    <span class="citation">Source: chromestatus summary + <a href="https://github.com/whatwg/html/pull/12409" target="_blank" rel="noopener">whatwg/html PR #12409</a>. Names paraphrased.</span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+<pre><code>class FancySelect extends HTMLElement {
+  #internals;
+
+  constructor() {
+    super();
+    // Request listbox behavior at construction time
+    this.#internals = this.attachInternals({ behaviors: ["listbox"] });
+    this.attachShadow({ mode: "open" });
+  }
+
+  connectedCallback() {
+    this.shadowRoot.innerHTML = `
+      &lt;slot&gt;&lt;/slot&gt;
+    `;
+    // The browser manages keyboard nav, selection, and ARIA role
+    // based on the "listbox" behavior — no manual event handling needed
+  }
+}
+
+customElements.define("fancy-select", FancySelect);</code></pre>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome</th><td>149 — developer trial (flag required)</td></tr>
+      <tr><th>Edge</th><td>Tracking Chromium</td></tr>
+      <tr><th>Firefox</th><td>No signal</td></tr>
+      <tr><th>Safari</th><td>No signal</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus browser views, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://github.com/whatwg/html/pull/12409" target="_blank" rel="noopener">whatwg/html PR #12409</a> — spec draft</li>
+      <li><a href="https://chromestatus.com/feature/6035800057839616" target="_blank" rel="noopener">chromestatus: Platform-provided behaviors</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v149/platform-provided-behaviors/" target="_blank" rel="noopener">chrome-platform-showcase: demos</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
