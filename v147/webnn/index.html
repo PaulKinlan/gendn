@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebNN — Chrome 147 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v147/">&larr; Chrome 147 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v147 · web api · origin trial</p>
+    <h1>WebNN</h1>
+    <p class="lede">The Web Neural Network API lets web apps and frameworks run neural network inference against the device's hardware accelerators — CPU, GPU, or a dedicated NPU — without tying the code to any platform-specific backend. <code>navigator.ml</code> is the entry point; the rest is a graph builder API that compiles to whatever hardware is available.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Experimental</strong>
+    WebNN is in an origin trial phase. The API surface has evolved substantially through 2026 (over 100 spec changes since April 2024). Field names, operator lists, and the <code>MLTensor</code> buffer-sharing API are still stabilising. Check the spec before shipping anything.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipping target</th><td>Chrome 147 (origin trial; exact GA milestone TBD)</td></tr>
+      <tr><th>Status</th><td>Origin trial / Proposed</td></tr>
+      <tr><th>Flag</th><td><code>chrome://flags/#web-machine-learning-neural-network</code></td></tr>
+      <tr><th>Standards position</th><td>Firefox: Positive &nbsp;·&nbsp; Safari: No signal (Apple active in WG)</td></tr>
+      <tr><th>Spec</th><td><a href="https://webmachinelearning.github.io/webnn" target="_blank" rel="noopener">Web Neural Network API</a> (W3C WebML Working Group, Candidate Recommendation)</td></tr>
+      <tr><th>Explainer</th><td><a href="https://github.com/webmachinelearning/webnn/blob/main/explainer.md" target="_blank" rel="noopener">webmachinelearning / webnn / explainer.md</a></td></tr>
+      <tr><th>Samples</th><td><a href="https://webmachinelearning.github.io/webnn-samples" target="_blank" rel="noopener">webnn-samples</a> &nbsp;·&nbsp; <a href="https://microsoft.github.io/webnn-developer-preview" target="_blank" rel="noopener">Microsoft developer preview</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5176273954144256" target="_blank" rel="noopener">5176273954144256 — WebNN</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Neural network inference on the web has historically meant one of two things: a heavyweight WASM runtime that can't touch the GPU, or WebGL/WebGPU compute shaders that require hand-rolling matrix math and shader strings. Neither path can reach a device's Neural Processing Unit. WebNN is a hardware-agnostic graph API — the browser maps it onto Windows DirectML, macOS ML Compute, Android NNAPI, or whatever native stack is present. The Chromium implementation is a three-way collaboration between Google, Intel, and Microsoft; Edge ships WebNN at the same time as Chrome from the same code.</p>
+    <span class="citation">Source: chromestatus motivation and the WebNN explainer §1 ("Background").</span>
+  </section>
+
+  <section>
+    <h2>shape of the API</h2>
+    <p>Four core interfaces; the workflow is always: create a context → build a graph → compile → compute.</p>
+
+    <h3>navigator.ml → ML</h3>
+    <table class="doc-table">
+      <tr><th><code>navigator.ml.createContext(options?)</code></th><td>Returns <code>Promise&lt;MLContext&gt;</code>. Options can specify a device preference (<code>"cpu"</code>, <code>"gpu"</code>, <code>"npu"</code>) and a power preference (<code>"high-performance"</code>, <code>"low-power"</code>, <code>"default"</code>).</td></tr>
+    </table>
+
+    <h3>MLContext</h3>
+    <table class="doc-table">
+      <tr><th><code>compute(graph, inputs, outputs)</code></th><td>Runs a compiled <code>MLGraph</code>. <code>inputs</code> and <code>outputs</code> are plain objects keyed by operand name; values are <code>ArrayBufferView</code>. Returns <code>Promise&lt;MLComputeResult&gt;</code>.</td></tr>
+      <tr><th><code>createTensor(descriptor, writable?, readable?)</code></th><td>Allocates a device-side <code>MLTensor</code> for zero-copy buffer sharing between the graph and WebGPU (if available).</td></tr>
+      <tr><th><code>dispatch(graph, inputs, outputs)</code></th><td>Fire-and-forget version of compute for <code>MLTensor</code>-backed buffers; does not transfer data back to JS until <code>readTensor()</code> is called.</td></tr>
+    </table>
+
+    <h3>MLGraphBuilder</h3>
+    <table class="doc-table">
+      <tr><th><code>new MLGraphBuilder(context)</code></th><td>Constructor. Binds the builder to a context.</td></tr>
+      <tr><th><code>input(name, descriptor)</code></th><td>Declares an input operand. Descriptor: <code>{ dataType, dimensions }</code>.</td></tr>
+      <tr><th><code>constant(descriptor, data)</code></th><td>Embeds a constant (e.g. model weights) into the graph at build time.</td></tr>
+      <tr><th>Operators</th><td><code>add</code>, <code>mul</code>, <code>matMul</code>, <code>conv2d</code>, <code>relu</code>, <code>sigmoid</code>, <code>softmax</code>, <code>transpose</code>, <code>reshape</code>, <code>gather</code>, <code>layerNormalization</code>, <code>gru</code>, <code>lstm</code>, and ~70 more. Each returns an <code>MLOperand</code>.</td></tr>
+      <tr><th><code>build(outputs)</code></th><td>Compiles the graph. <code>outputs</code> is an object mapping output names to <code>MLOperand</code>. Returns <code>Promise&lt;MLGraph&gt;</code>.</td></tr>
+    </table>
+
+    <h3>MLGraph</h3>
+    <table class="doc-table">
+      <tr><td>Opaque compiled representation. Pass to <code>context.compute()</code> or <code>context.dispatch()</code>. Immutable after construction.</td><td></td></tr>
+    </table>
+    <span class="citation">Source: WebNN explainer §3–§6 and webnn.io API reference. Operator count as of January 2026 Candidate Recommendation snapshot.</span>
+  </section>
+
+  <section>
+    <h2>example: add two matrices</h2>
+<pre><code>const context = await navigator.ml.createContext({ deviceType: 'gpu' });
+const builder = new MLGraphBuilder(context);
+
+// Declare two 2×2 float32 inputs
+const A = builder.input('A', { dataType: 'float32', dimensions: [2, 2] });
+const B = builder.input('B', { dataType: 'float32', dimensions: [2, 2] });
+
+// Build a computation: C = A + B
+const C = builder.add(A, B);
+const graph = await builder.build({ C });
+
+// Run inference
+const inputs = {
+  A: new Float32Array([1, 2, 3, 4]),
+  B: new Float32Array([5, 6, 7, 8]),
+};
+const outputs = { C: new Float32Array(4) };
+await context.compute(graph, inputs, outputs);
+// outputs.C → [6, 8, 10, 12]</code></pre>
+  </section>
+
+  <section>
+    <h2>example: softmax classifier (weights as constants)</h2>
+<pre><code>const context = await navigator.ml.createContext();
+const builder = new MLGraphBuilder(context);
+
+// Embed weights and bias as graph constants
+const W = builder.constant(
+  { dataType: 'float32', dimensions: [4, 128] },
+  Float32Array.from(modelWeights)          // pre-loaded Uint8Array / Float32Array
+);
+const b = builder.constant(
+  { dataType: 'float32', dimensions: [4] },
+  Float32Array.from(modelBias)
+);
+
+// Single input: a 128-d feature vector
+const x = builder.input('x', { dataType: 'float32', dimensions: [128] });
+
+// Linear layer + softmax
+const logits = builder.add(builder.matMul(x, builder.transpose(W)), b);
+const probs  = builder.softmax(logits, 0);
+
+const graph = await builder.build({ probs });
+
+// Reuse the graph for every prediction — graph compilation is the slow step
+async function predict(featureVector) {
+  const out = { probs: new Float32Array(4) };
+  await context.compute(graph, { x: featureVector }, out);
+  return out.probs;
+}</code></pre>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome</th><td>Origin trial in 147 (Google + Intel + Microsoft collaboration)</td></tr>
+      <tr><th>Edge</th><td>Launches alongside Chrome (same Chromium code)</td></tr>
+      <tr><th>Firefox</th><td>Positive — Mozilla standards position #1215</td></tr>
+      <tr><th>Safari</th><td>No signal (Apple active in W3C WebML Working Group)</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus browser views and Mozilla standards-positions issue #1215, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://webmachinelearning.github.io/webnn" target="_blank" rel="noopener">W3C WebNN Candidate Recommendation</a></li>
+      <li><a href="https://webnn.io/en" target="_blank" rel="noopener">webnn.io — community documentation and API reference</a></li>
+      <li><a href="https://webmachinelearning.github.io/webnn-samples" target="_blank" rel="noopener">webnn-samples — official sample collection</a></li>
+      <li><a href="https://microsoft.github.io/webnn-developer-preview" target="_blank" rel="noopener">Microsoft WebNN developer preview</a></li>
+      <li><a href="https://github.com/webmachinelearning/webnn/blob/main/explainer.md" target="_blank" rel="noopener">WebNN explainer</a></li>
+      <li><a href="https://github.com/mozilla/standards-positions/issues/1215" target="_blank" rel="noopener">Mozilla standards-positions — WebNN (#1215)</a></li>
+      <li><a href="https://chromestatus.com/feature/5176273954144256" target="_blank" rel="noopener">chromestatus — WebNN (5176273954144256)</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/webnn/" target="_blank" rel="noopener">chrome-platform-showcase: WebNN demos</a> (when built)</li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
