@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Declarative CSS module scripts — Chrome 148 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v148/">&larr; Chrome 148 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v148 · origin trial · web components · css</p>
+    <h1>Declarative CSS module scripts</h1>
+    <p class="lede">An extension of CSS module scripts that lets you define and share stylesheets declaratively — using <code>&lt;style type="module"&gt;</code> — and apply them to Declarative Shadow DOM via the new <code>shadowrootadoptedstylesheets</code> attribute, without any JavaScript required.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Origin trial</strong>
+    Declarative CSS module scripts is in origin trial from Chrome 148 through Chrome 153. Register at <a href="https://developer.chrome.com/origintrials/" target="_blank" rel="noopener">developer.chrome.com/origintrials</a> (search "Declarative CSS module scripts") to get a token. The API is still being refined; check the WICG explainer before shipping.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Origin trial</th><td>Chrome 148 – 153 (desktop, Android, WebView)</td></tr>
+      <tr><th>Status</th><td>Origin trial (Experiment)</td></tr>
+      <tr><th>Standards</th><td>WICG / WHATWG proposal</td></tr>
+      <tr><th>Explainer</th><td><a href="https://microsoftedge.github.io/MSEdgeExplainers/ShadowDOM/explainer.html" target="_blank" rel="noopener">MSEdge Explainers — Declarative adopted stylesheets</a></td></tr>
+      <tr><th>Issue</th><td><a href="https://github.com/WICG/webcomponents/issues/939" target="_blank" rel="noopener">WICG/webcomponents #939</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/4790543041298432" target="_blank" rel="noopener">4790543041298432 — Declarative CSS module scripts</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Declarative Shadow DOM (DSD) lets you ship server-rendered shadow roots without JavaScript, but it has a stylesheet-sharing problem. When multiple shadow roots need the same CSS, authors must inline it inside every <code>&lt;template shadowrootmode="open"&gt;</code>. A component used 100 times means 100 copies of the same styles in the HTML payload — inflating page weight and increasing both latency and memory use. The imperative equivalent (<code>adoptedStyleSheets</code>) solves this for JavaScript-instantiated shadow roots but can't help with DSD. Declarative CSS module scripts bridges the gap: define a stylesheet once in a <code>&lt;style type="module"&gt;</code> and reference it by name across any number of DSD instances.</p>
+    <span class="citation">Source: blink-dev Intent to Experiment, WICG/webcomponents issue #939, WHATWG/html issue #10673, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>shape of the API</h2>
+
+    <h3>Defining a named stylesheet</h3>
+    <p>Use <code>&lt;style type="module"&gt;</code> with a module specifier to define an inline CSS module:</p>
+    <pre><code>&lt;!-- Define a reusable card stylesheet --&gt;
+&lt;style type="module" specifier="card-styles"&gt;
+  :host { display: block; border: 1px solid #ccc; padding: 1rem; }
+  h2 { margin: 0 0 0.5rem; }
+&lt;/style&gt;</code></pre>
+
+    <h3>Referencing it from Declarative Shadow DOM</h3>
+    <p>Use the <code>shadowrootadoptedstylesheets</code> attribute on a <code>&lt;template&gt;</code> tag to adopt the named module:</p>
+    <pre><code>&lt;my-card&gt;
+  &lt;template shadowrootmode="open"
+            shadowrootadoptedstylesheets="card-styles"&gt;
+    &lt;h2&gt;Card Title&lt;/h2&gt;
+    &lt;p&gt;Card content here.&lt;/p&gt;
+  &lt;/template&gt;
+&lt;/my-card&gt;
+
+&lt;my-card&gt;
+  &lt;template shadowrootmode="open"
+            shadowrootadoptedstylesheets="card-styles"&gt;
+    &lt;h2&gt;Another Card&lt;/h2&gt;
+    &lt;p&gt;Same styles, one definition.&lt;/p&gt;
+  &lt;/template&gt;
+&lt;/my-card&gt;</code></pre>
+
+    <h3>Multiple stylesheets</h3>
+    <pre><code>&lt;style type="module" specifier="base"&gt;
+  :host { box-sizing: border-box; }
+&lt;/style&gt;
+&lt;style type="module" specifier="theme"&gt;
+  :host { color: var(--primary, #333); }
+&lt;/style&gt;
+
+&lt;my-widget&gt;
+  &lt;template shadowrootmode="open"
+            shadowrootadoptedstylesheets="base theme"&gt;
+    &lt;slot&gt;&lt;/slot&gt;
+  &lt;/template&gt;
+&lt;/my-widget&gt;</code></pre>
+
+    <h3>Enabling the origin trial</h3>
+    <pre><code>&lt;meta http-equiv="origin-trial" content="YOUR_TOKEN_HERE"&gt;</code></pre>
+    <span class="citation">Source: blink-dev Intent to Experiment — Declarative CSS module scripts, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Support</th></tr></thead>
+      <tr><td>Chrome 148 – 153</td><td>Origin trial</td></tr>
+      <tr><td>Firefox</td><td>No position</td></tr>
+      <tr><td>Safari</td><td>No position</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.com feature page, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://microsoftedge.github.io/MSEdgeExplainers/ShadowDOM/explainer.html" target="_blank" rel="noopener">MSEdge Explainers — Declarative adopted stylesheets for shadow DOM</a></li>
+      <li><a href="https://github.com/WICG/webcomponents/issues/939" target="_blank" rel="noopener">WICG/webcomponents #939 — Declarative CSS module scripts discussion</a></li>
+      <li><a href="https://developer.chrome.com/docs/css-ui/declarative-shadow-dom" target="_blank" rel="noopener">Chrome for Developers — Declarative Shadow DOM</a></li>
+      <li><a href="https://chromestatus.com/feature/4790543041298432" target="_blank" rel="noopener">chromestatus — Declarative CSS module scripts (4790543041298432)</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/declarative-css-module-scripts/" target="_blank" rel="noopener">chrome-platform-showcase — live demo</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
