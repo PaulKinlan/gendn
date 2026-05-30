@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>named-feature() function for CSS @supports — Chrome 150 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v150/">&larr; Chrome 150 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v150 · css · shipped</p>
+    <h1>named-feature() function for CSS @supports</h1>
+    <p class="lede">A new <code>@supports</code> testing function for CSS features that cannot be detected through the standard property-value, selector, or at-rule mechanisms — resolving a class of situations where <code>@supports</code> was structurally unable to help. Ships in Chrome 150 on desktop, Android, and WebView.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 150 (desktop, Android, WebView); DevTrial from Chrome 146</td></tr>
+      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Flag</th><td>None</td></tr>
+      <tr><th>Standards position</th><td>Gecko: positive &nbsp;·&nbsp; WebKit: no signal</td></tr>
+      <tr><th>Spec</th><td><a href="https://drafts.csswg.org/css-conditional-5/#typedef-supports-named-feature-fn" target="_blank" rel="noopener">CSS Conditional Rules Level 5 — named-feature()</a></td></tr>
+      <tr><th>Explainer</th><td><a href="https://github.com/w3c/csswg-drafts/blob/main/css-conditional-5/named-feature-explainer.md" target="_blank" rel="noopener">csswg-drafts / named-feature-explainer.md</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5153932394102784" target="_blank" rel="noopener">5153932394102784 — named-feature() for CSS @supports</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p><code>@supports</code> can test property-value pairs (<code>@supports (display: grid)</code>), selectors (<code>@supports selector(:has())</code>), and at-rule conditions (<code>@supports at-rule(@layer)</code>). But some CSS behaviours don't have a natural property-value encoding:</p>
+    <ul>
+      <li><code>align-content</code> on <em>block-level</em> boxes is a distinct behaviour from <code>align-content</code> on flex or grid containers. Writing <code>@supports (align-content: stretch)</code> passes in browsers that only support it on flex/grid, giving a false positive.</li>
+      <li>Behavioural changes like new cascade rules, new pseudo-class interaction semantics, or new default handling may not correspond to any property-value test.</li>
+    </ul>
+    <p>The <code>named-feature()</code> function provides a curated, specification-controlled list of keyword identifiers that authors can test. Browsers that understand a named feature report <code>true</code>; others fall through to the unsupported path without false positives.</p>
+    <span class="citation">Source: <a href="https://github.com/w3c/csswg-drafts/blob/main/css-conditional-5/named-feature-explainer.md" target="_blank" rel="noopener">csswg-drafts named-feature explainer</a>.</span>
+  </section>
+
+  <section>
+    <h2>syntax</h2>
+<pre><code>@supports named-feature( &lt;ident&gt; ) {
+  /* Declarations applied when the named feature is supported */
+}</code></pre>
+    <p>The <code>&lt;ident&gt;</code> is a keyword registered in the CSS Conditional Rules Level 5 specification. Only CSS WG-specified identifiers are valid; authors cannot invent arbitrary names. Unknown identifiers evaluate to <code>false</code>.</p>
+    <p>The function composes with <code>and</code>, <code>or</code>, and <code>not</code> exactly like other <code>@supports</code> conditions:</p>
+<pre><code>@supports named-feature(align-content-on-display-block)
+          and (display: grid) {
+  /* requires both */
+}</code></pre>
+  </section>
+
+  <section>
+    <h2>current named feature</h2>
+    <p>As of Chrome 150 the specification defines one named feature:</p>
+    <table class="doc-table">
+      <tr><th>Identifier</th><th>What it detects</th></tr>
+      <tr>
+        <td><code>align-content-on-display-block</code></td>
+        <td>The browser supports <code>align-content</code> on block-level boxes (not just flex and grid containers). Chrome added this in Chrome 123; with Chrome 150 it is testable without false positives.</td>
+      </tr>
+    </table>
+    <span class="citation">Source: <a href="https://drafts.csswg.org/css-conditional-5/#typedef-supports-named-feature-fn" target="_blank" rel="noopener">CSS Conditional Rules Level 5</a>, §supports-named-feature-fn.</span>
+  </section>
+
+  <section>
+    <h2>examples</h2>
+
+    <h3>progressive enhancement for align-content on block boxes</h3>
+<pre><code>/* Fallback: standard block layout */
+main {
+  display: block;
+}
+
+/* Enhancement only if the engine supports align-content on blocks */
+@supports named-feature(align-content-on-display-block) {
+  main {
+    min-height: min-content;
+    align-content: stretch;
+  }
+}</code></pre>
+    <p>Without <code>named-feature()</code>, the only alternative is to test a property-value pair that evaluates to <code>true</code> in old engines but means something different — a false positive that applies styles unintentionally.</p>
+
+    <h3>combining with other supports conditions</h3>
+<pre><code>@supports named-feature(align-content-on-display-block) or (display: flex) {
+  .container {
+    align-content: center;
+  }
+}</code></pre>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome / Edge</th><td>150 (enabled by default)</td></tr>
+      <tr><th>Firefox</th><td>Standards-positive; not yet shipped</td></tr>
+      <tr><th>Safari</th><td>No signal</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.com browser positions, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://drafts.csswg.org/css-conditional-5/#typedef-supports-named-feature-fn" target="_blank" rel="noopener">CSS Conditional Rules Level 5 — named-feature()</a></li>
+      <li><a href="https://github.com/w3c/csswg-drafts/blob/main/css-conditional-5/named-feature-explainer.md" target="_blank" rel="noopener">csswg-drafts — named-feature explainer</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/CSS/@supports" target="_blank" rel="noopener">MDN: @supports</a></li>
+      <li><a href="https://chromestatus.com/feature/5153932394102784" target="_blank" rel="noopener">chromestatus.com — named-feature() for CSS @supports (5153932394102784)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
