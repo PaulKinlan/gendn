@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Prompt API — Chrome 148 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v148/">&larr; Chrome 148 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v148 · web api · experimental</p>
+    <h1>Prompt API</h1>
+    <p class="lede">A browser-provided interface to an on-device large language model (Gemini Nano in Chrome). Pages call <code>LanguageModel.create()</code> to get a session, then send text, images, or audio via <code>session.prompt()</code> — no API key, no network round-trip, inference runs locally.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Chrome-specific / experimental</strong>
+    The Prompt API is a Chrome-only origin trial feature currently proposed to W3C Web Machine Learning CG. The interface is subject to change. The model is available only where Gemini Nano is installed; always check <code>LanguageModel.availability()</code> before calling <code>create()</code>. This page is generated from the webmachinelearning/prompt-api explainer.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 148 (desktop)</td></tr>
+      <tr><th>Status</th><td>Origin trial / Enabled by default (requires Gemini Nano download)</td></tr>
+      <tr><th>Flag</th><td><code>chrome://flags/#optimization-guide-on-device-model</code> (must be set to Enabled)</td></tr>
+      <tr><th>Standards position</th><td>Proposed at W3C Web Machine Learning CG</td></tr>
+      <tr><th>Spec / Explainer</th><td><a href="https://github.com/webmachinelearning/prompt-api" target="_blank" rel="noopener">webmachinelearning/prompt-api</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5134603979063296" target="_blank" rel="noopener">5134603979063296 — Prompt API</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Cloud AI APIs require a network connection, a billing account, and introduce latency and privacy concerns for sensitive content. Devices running Chrome already download a small on-device LLM (Gemini Nano) for browser-level features. The Prompt API exposes that same model to web pages through a sandboxed JS interface, letting developers add language model capabilities without external dependencies, API keys, or sending user data off-device.</p>
+    <span class="citation">Source: webmachinelearning/prompt-api README §Background, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>shape of the API</h2>
+    <p>All interactions flow through a <em>session</em> object. The static <code>LanguageModel</code> namespace creates and introspects sessions; each session maintains a rolling conversation context and token budget.</p>
+
+    <h3>LanguageModel static methods</h3>
+    <table class="doc-table">
+      <thead><tr><th>Method</th><th>Returns</th><th>Description</th></tr></thead>
+      <tr>
+        <td><code>LanguageModel.availability(opts?)</code></td>
+        <td><code>Promise&lt;"unavailable" | "downloadable" | "downloading" | "available"&gt;</code></td>
+        <td>Check whether the model is ready before attempting creation. <code>"available"</code> = ready to use; <code>"downloadable"</code> = supported but not yet downloaded.</td>
+      </tr>
+      <tr>
+        <td><code>LanguageModel.create(opts?)</code></td>
+        <td><code>Promise&lt;LanguageModelSession&gt;</code></td>
+        <td>Create a session. Options: <code>initialPrompts</code>, <code>expectedInputs</code>, <code>expectedOutputs</code>, <code>tools</code>, <code>temperature</code>, <code>topK</code>, <code>signal</code>, <code>monitor</code>.</td>
+      </tr>
+      <tr>
+        <td><code>LanguageModel.params()</code></td>
+        <td><code>Promise&lt;{defaultTemperature, maxTemperature, defaultTopK, maxTopK}&gt;</code></td>
+        <td>Retrieve the model's default and maximum sampling parameter values.</td>
+      </tr>
+    </table>
+
+    <h3>LanguageModelSession instance members</h3>
+    <table class="doc-table">
+      <thead><tr><th>Member</th><th>Type</th><th>Description</th></tr></thead>
+      <tr><td><code>prompt(input, opts?)</code></td><td><code>Promise&lt;string&gt;</code></td><td>Send a message, get a complete response. <code>input</code> can be a string or array of multimodal parts.</td></tr>
+      <tr><td><code>promptStreaming(input, opts?)</code></td><td><code>ReadableStream&lt;string&gt;</code></td><td>Stream the response token by token as an async iterable.</td></tr>
+      <tr><td><code>append(messages, opts?)</code></td><td><code>Promise&lt;void&gt;</code></td><td>Add messages to the context without generating a reply — useful for seeding few-shot examples.</td></tr>
+      <tr><td><code>measureContextUsage(input, opts?)</code></td><td><code>Promise&lt;number&gt;</code></td><td>Count the tokens a hypothetical prompt would consume, without actually prompting.</td></tr>
+      <tr><td><code>clone(opts?)</code></td><td><code>Promise&lt;LanguageModelSession&gt;</code></td><td>Create a copy of the current session (including conversation history).</td></tr>
+      <tr><td><code>destroy()</code></td><td><code>void</code></td><td>Release the session's resources.</td></tr>
+      <tr><td><code>contextUsage</code></td><td><code>number</code></td><td>Tokens consumed so far by this session.</td></tr>
+      <tr><td><code>contextWindow</code></td><td><code>number</code></td><td>Total token budget for the session.</td></tr>
+    </table>
+    <span class="citation">Source: webmachinelearning/prompt-api README, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>recipes</h2>
+
+    <h3>Check availability and create a session</h3>
+    <pre><code>const avail = await LanguageModel.availability();
+if (avail === 'unavailable') {
+  console.warn('Prompt API not supported on this device');
+} else {
+  // 'downloadable' → browser will fetch the model on create()
+  const session = await LanguageModel.create({
+    initialPrompts: [
+      { role: 'system', content: 'You are a concise technical writer.' }
+    ]
+  });
+  const answer = await session.prompt('Explain CSS cascade in one sentence.');
+  console.log(answer);
+  session.destroy();
+}</code></pre>
+
+    <h3>Streaming response</h3>
+    <pre><code>const session = await LanguageModel.create();
+const stream = session.promptStreaming('Write a haiku about the browser cache.');
+let text = '';
+for await (const chunk of stream) {
+  text += chunk;
+  outputEl.textContent = text;
+}
+session.destroy();</code></pre>
+
+    <h3>Structured output (JSON schema constraint)</h3>
+    <pre><code>const session = await LanguageModel.create();
+const schema = {
+  type: 'object',
+  properties: {
+    sentiment: { type: 'string', enum: ['positive', 'neutral', 'negative'] },
+    score: { type: 'number', minimum: 0, maximum: 1 }
+  },
+  required: ['sentiment', 'score']
+};
+const raw = await session.prompt(
+  'Analyse: "The docs were clear and the API is elegant."',
+  { responseConstraint: schema }
+);
+const { sentiment, score } = JSON.parse(raw);
+session.destroy();</code></pre>
+
+    <h3>Multimodal input (image)</h3>
+    <pre><code>const session = await LanguageModel.create({
+  expectedInputs: [{ type: 'image' }]
+});
+const blob = await fetch('/screenshot.png').then(r => r.blob());
+const result = await session.prompt([
+  { type: 'text', value: 'Describe what is wrong in this UI screenshot.' },
+  { type: 'image', value: blob }
+]);
+session.destroy();</code></pre>
+    <span class="citation">Source: webmachinelearning/prompt-api README examples, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Support</th></tr></thead>
+      <tr><td>Chrome 148+ (desktop)</td><td>Enabled by default where Gemini Nano is installed</td></tr>
+      <tr><td>Edge</td><td>Separate Phi-based implementation under consideration</td></tr>
+      <tr><td>Firefox</td><td>No position</td></tr>
+      <tr><td>Safari</td><td>No position</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.com and webmachinelearning/prompt-api §Status, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://github.com/webmachinelearning/prompt-api" target="_blank" rel="noopener">webmachinelearning/prompt-api — Explainer and spec repo</a></li>
+      <li><a href="https://chromestatus.com/feature/5134603979063296" target="_blank" rel="noopener">chromestatus — Prompt API (5134603979063296)</a></li>
+      <li><a href="https://developer.chrome.com/docs/ai/prompt-api" target="_blank" rel="noopener">Chrome for Developers — Prompt API guide</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/prompt-api/" target="_blank" rel="noopener">chrome-platform-showcase — live demo</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
