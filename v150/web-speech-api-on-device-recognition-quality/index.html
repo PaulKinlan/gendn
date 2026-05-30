@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Web Speech API: On-Device Recognition Quality — Chrome 150 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v150/">&larr; Chrome 150 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v150 · web api · shipped</p>
+    <h1>Web Speech API: On-Device Recognition Quality</h1>
+    <p class="lede">A new <code>quality</code> property on <code>SpeechRecognitionOptions</code> that lets developers declare the semantic complexity of their use case — command, dictation, or conversation — so the browser can match the on-device speech model to the task and report whether a model of sufficient quality is available. Ships in Chrome 150 on desktop.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 150 (desktop)</td></tr>
+      <tr><th>Status</th><td>Enabled by default (Finch: OnDeviceWebSpeechQuality)</td></tr>
+      <tr><th>Depends on</th><td>On-device speech recognition (Chrome 139+); <code>processLocally: true</code></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5136859632107520" target="_blank" rel="noopener">5136859632107520 — Web Speech API: On-Device Recognition Quality</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>context: on-device speech in Chrome</h2>
+    <p>Chrome 139 shipped on-device speech recognition for desktop via the <code>processLocally: true</code> option on <code>SpeechRecognition</code>. This ensures audio and transcripts never leave the user's device. On-device models range widely in capability — a small command model can recognise "play", "stop", "next" reliably but may fail on free-form dictation; a large model handles meetings and conversations but requires significant RAM and a capable CPU.</p>
+    <p>Before Chrome 150, there was no way for a site to express which tier of model it needs, or to learn whether a suitable model is installed. A site requesting transcription for meeting notes would silently receive lower-quality results if only a command model was available. The <code>quality</code> property solves this.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5136859632107520" target="_blank" rel="noopener">chromestatus.com — Web Speech API: On-Device Recognition Quality</a>.</span>
+  </section>
+
+  <section>
+    <h2>the quality property</h2>
+
+    <h3>syntax</h3>
+<pre><code>const recognition = new SpeechRecognition();
+recognition.processLocally = true;     // required for quality to apply
+recognition.quality = "command";       // "command" | "dictation" | "conversation"</code></pre>
+
+    <h3>quality values</h3>
+    <table class="doc-table">
+      <tr><th>Value</th><th>Use case</th><th>Model requirements</th></tr>
+      <tr><td><code>"command"</code></td><td>Short spoken commands — navigation, media controls, voice buttons</td><td>Lightest; fast, low latency</td></tr>
+      <tr><td><code>"dictation"</code></td><td>Free-form text entry — composing messages, notes, form fields</td><td>Medium; handles full vocabulary</td></tr>
+      <tr><td><code>"conversation"</code></td><td>Extended back-and-forth dialogue — meeting transcription, interviews</td><td>Heaviest; context-aware, most accurate</td></tr>
+    </table>
+    <p>When <code>processLocally</code> is <code>false</code> or unset, the <code>quality</code> property is ignored — quality selection for cloud models is handled by the service.</p>
+    <span class="citation">Source: Intent to Prototype thread, blink-dev, January 2026.</span>
+  </section>
+
+  <section>
+    <h2>checking model availability</h2>
+    <p>The static <code>SpeechRecognition.available()</code> method (shipping Chrome 150) accepts quality options so sites can confirm a suitable model is installed before starting recognition:</p>
+<pre><code>const availability = await SpeechRecognition.available({
+  lang: "en-US",
+  processLocally: true,
+  quality: "dictation",
+});
+
+if (availability === "no") {
+  // No local dictation-quality model. Offer to install or fall back.
+  await SpeechRecognition.install({ lang: "en-US", quality: "dictation" });
+} else if (availability === "available") {
+  // Model ready — start recognition.
+  recognition.start();
+}</code></pre>
+    <p>The returned value is one of <code>"readily"</code>, <code>"available"</code> (download needed), or <code>"no"</code> (device cannot support this quality).</p>
+  </section>
+
+  <section>
+    <h2>example: falling back gracefully</h2>
+<pre><code>const recognition = new SpeechRecognition();
+recognition.lang = "en-US";
+recognition.processLocally = true;
+recognition.quality = "dictation";
+
+const avail = await SpeechRecognition.available({
+  lang: "en-US",
+  processLocally: true,
+  quality: "dictation",
+});
+
+if (avail === "no") {
+  // Device cannot support dictation-quality locally.
+  // Fall back to cloud or command-quality model.
+  recognition.processLocally = false;
+  recognition.quality = "command";
+}
+
+recognition.onresult = (e) => {
+  textarea.value += e.results[0][0].transcript;
+};
+recognition.start();</code></pre>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <tr><th>Chrome (desktop)</th><td>150 (enabled by default)</td></tr>
+      <tr><th>Chrome (Android)</th><td>Not yet</td></tr>
+      <tr><th>Firefox</th><td>No signal</td></tr>
+      <tr><th>Safari</th><td>No signal</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.com browser positions, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition" target="_blank" rel="noopener">MDN: SpeechRecognition</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition/processLocally" target="_blank" rel="noopener">MDN: SpeechRecognition.processLocally</a></li>
+      <li><a href="https://chromestatus.com/feature/6090916291674112" target="_blank" rel="noopener">chromestatus.com — On-device Web Speech API (6090916291674112)</a></li>
+      <li><a href="https://chromestatus.com/feature/5136859632107520" target="_blank" rel="noopener">chromestatus.com — Web Speech API: On-Device Recognition Quality (5136859632107520)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
