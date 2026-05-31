@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Clip Text overflow on user interaction — Chrome 147 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    .demo-box { border: 2px solid var(--border-black); padding: 1rem; margin: 1rem 0; background: var(--bg-stone); }
+    .demo-box p { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 260px; font-family: var(--font-mono); }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v147/">&larr; Chrome 147 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v147 · css · in developer trial</p>
+    <h1>Clip Text overflow on user interaction</h1>
+    <p class="lede">When a user clicks into, edits, or navigates by caret inside an element styled with <code>text-overflow: ellipsis</code>, the browser temporarily switches the overflow rendering to <code>clip</code> — revealing the hidden content while the user is interacting and restoring the ellipsis when they leave.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>In developer trial</strong>
+    This feature is behind a flag in Chrome 147. Enable <code>chrome://flags/#enable-experimental-web-platform-features</code> to test it. The behavior is still under development and the spec is not yet finalised for this interaction model.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Status in Chrome 147</th><td>In developer trial (behind a flag)</td></tr>
+      <tr><th>Flag</th><td><code>chrome://flags/#enable-experimental-web-platform-features</code></td></tr>
+      <tr><th>Applies to</th><td>All elements with <code>text-overflow: ellipsis</code> — editable and non-editable. Form controls already had this behavior; this extends it universally.</td></tr>
+      <tr><th>Standards position</th><td>Firefox: Shipped/Shipping &nbsp;·&nbsp; Safari: No signal</td></tr>
+      <tr><th>Spec</th><td><a href="https://www.w3.org/TR/css-overflow-3/#ellipsis-interaction" target="_blank" rel="noopener">CSS Overflow Module Level 3 §ellipsis-interaction</a></td></tr>
+      <tr><th>Chromium bug</th><td><a href="https://issues.chromium.org/issues/40731275" target="_blank" rel="noopener">issues.chromium.org/issues/40731275</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5146265241387008" target="_blank" rel="noopener">5146265241387008 — Clip Text overflow on user interaction</a></td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.com feature 5146265241387008, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>Developers have long used <code>text-overflow: ellipsis</code> to truncate long labels and headings in constrained layouts. The problem is that once a user focuses or clicks into an ellipsis-clipped element — a contenteditable title, a long filename in a table cell, or an inline-editing widget — the truncated content is hidden and the user cannot reach or read the overflowing characters. <code>&lt;input&gt;</code> and <code>&lt;textarea&gt;</code> already handle this by scrolling or switching to clip mode on focus; this feature brings the same affordance to all elements.</p>
+    <span class="citation">Source: chromestatus summary and CSS Overflow Level 3 §ellipsis-interaction, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>the behavior</h2>
+    <p>No new CSS property or JavaScript API. The change is purely in the rendering model:</p>
+    <table class="doc-table">
+      <tr><th>Trigger</th><td>User interaction begins on the element — a click, focus, caret navigation, or text selection.</td></tr>
+      <tr><th>While active</th><td>The browser renders overflow as <code>clip</code> (or scrollable, depending on the <code>overflow</code> property). The ellipsis character disappears and the user can see and interact with the full text content.</td></tr>
+      <tr><th>On blur / end of interaction</th><td>The ellipsis is restored and overflow truncation resumes.</td></tr>
+      <tr><th>Form controls</th><td>Already implement this model. The feature extends it to arbitrary elements.</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus summary field, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+    <p>The element below uses <code>text-overflow: ellipsis</code>. In a browser with this feature, clicking or focusing on it would reveal the full text.</p>
+    <div class="demo-box">
+      <p title="The quick brown fox jumped over the lazy dog, then kept running for a very long time">The quick brown fox jumped over the lazy dog, then kept running for a very long time</p>
+    </div>
+<pre><code>/* No special CSS needed — existing text-overflow: ellipsis benefits automatically. */
+.filename {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 200px;
+}
+
+/* To make an element interactable so the behavior triggers: */
+.filename[contenteditable] {
+  cursor: text;
+  outline: none;
+}</code></pre>
+    <span class="citation">Source: CSS Overflow Module Level 3 spec, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Support</th></tr></thead>
+      <tr><td>Chrome 147</td><td>In developer trial (behind flag)</td></tr>
+      <tr><td>Edge 147</td><td>Tracking Chromium</td></tr>
+      <tr><td>Firefox</td><td>Shipped/Shipping</td></tr>
+      <tr><td>Safari</td><td>No signal</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus browser views, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/5146265241387008" target="_blank" rel="noopener">chromestatus — Clip Text overflow on user interaction (5146265241387008)</a></li>
+      <li><a href="https://www.w3.org/TR/css-overflow-3/#ellipsis-interaction" target="_blank" rel="noopener">CSS Overflow Module Level 3 — §ellipsis-interaction</a></li>
+      <li><a href="https://issues.chromium.org/issues/40731275" target="_blank" rel="noopener">Chromium bug tracker — issue 40731275</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/clip-text-overflow-on-user-interaction/" target="_blank" rel="noopener">chrome-platform-showcase: Clip Text overflow demos</a> (when built)</li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
