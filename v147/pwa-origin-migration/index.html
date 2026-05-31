@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PWA origin migration — Chrome 147 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v147/">&larr; Chrome 147 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v147 · pwa · in developer trial</p>
+    <h1>PWA origin migration</h1>
+    <p class="lede">A mechanism for developers to seamlessly migrate an installed Progressive Web App from one origin to a new, same-site origin — preserving user trust, permissions, and the installed app icon — without requiring the user to manually uninstall and reinstall.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>In developer trial</strong>
+    PWA origin migration is behind a flag in Chrome 147. The spec is an incubation in WICG and may change. Enable <code>chrome://flags/#enable-experimental-web-platform-features</code> to test locally. Enterprise-managed installs (<code>WebAppInstallForceList</code>) will not be offered a migration.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Status in Chrome 147</th><td>In developer trial (behind a flag)</td></tr>
+      <tr><th>Flag</th><td><code>chrome://flags/#enable-experimental-web-platform-features</code></td></tr>
+      <tr><th>Constraint</th><td>New and old origins must be <em>same-site</em> (same eTLD+1). Cross-site migration is not supported.</td></tr>
+      <tr><th>Enterprise</th><td>Migration is blocked when the app is force-installed via <code>WebAppInstallForceList</code>. A banner informs the user.</td></tr>
+      <tr><th>Standards position</th><td>Firefox: No signal &nbsp;·&nbsp; Safari: No signal</td></tr>
+      <tr><th>Spec</th><td><a href="https://github.com/WICG/manifest-incubations/pull/136" target="_blank" rel="noopener">WICG manifest-incubations PR #136</a></td></tr>
+      <tr><th>Chromium bug</th><td><a href="https://issues.chromium.org/396504527" target="_blank" rel="noopener">issues.chromium.org/396504527</a></td></tr>
+      <tr><th>Demo / sample</th><td><a href="https://googlechrome.github.io/samples/pwa-migration" target="_blank" rel="noopener">googlechrome.github.io/samples/pwa-migration</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5123349239955456" target="_blank" rel="noopener">5123349239955456 — PWA origin migration</a></td></tr>
+    </table>
+    <span class="citation">Source: chromestatus.com feature 5123349239955456, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>A PWA's identity is bound to its web origin. When a developer needs to move to a new domain — due to rebranding, domain restructuring, or technical re-architecture — there is currently no upgrade path. The installed app on the user's device simply stops working or points to the wrong place, and the user has to manually uninstall and reinstall. This destroys any stored permissions, shortcuts, and the perceived continuity of the app. PWA origin migration introduces a first-party handshake: the old origin declares where it is moving, the new origin confirms the migration is intentional, and Chrome offers the user a seamless upgrade rather than a replacement.</p>
+    <span class="citation">Source: chromestatus summary field, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>how the migration works</h2>
+    <p>Migration requires cooperation from both the old origin and the new origin. Neither can unilaterally redirect an installed PWA to a different origin.</p>
+
+    <table class="doc-table">
+      <tr><th>Step 1: Old origin declares migration</th><td>The old origin&#39;s web app manifest includes a new <code>migration_target</code> field pointing to the new origin&#39;s manifest URL.</td></tr>
+      <tr><th>Step 2: New origin confirms</th><td>The new origin&#39;s manifest includes a <code>migration_source</code> field referencing the old origin. This two-way declaration prevents hijacking.</td></tr>
+      <tr><th>Step 3: Chrome offers migration</th><td>When Chrome detects the paired declaration, it shows the user a migration prompt explaining the change. The user can accept or decline.</td></tr>
+      <tr><th>Step 4: On acceptance</th><td>The installed app&#39;s identity is updated to the new origin. Permissions, shortcuts, and the icon are preserved where possible.</td></tr>
+      <tr><th>Enterprise block</th><td>If the app was force-installed by an enterprise policy (<code>WebAppInstallForceList</code>), no migration prompt is shown. Instead, a banner informs the user that migration is unavailable.</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus summary and WICG manifest-incubations PR #136, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>manifest fields</h2>
+    <table class="doc-table">
+      <tr><th><code>migration_target</code></th><td>In the <em>old</em> origin&#39;s manifest. Value: URL of the new origin&#39;s manifest. Signals that the app is moving to a new origin.</td></tr>
+      <tr><th><code>migration_source</code></th><td>In the <em>new</em> origin&#39;s manifest. Value: URL of the old origin&#39;s manifest. Confirms the migration is intentional and authorized.</td></tr>
+    </table>
+    <span class="citation">Source: WICG manifest-incubations PR #136, May 2026. Field names are subject to change during incubation.</span>
+  </section>
+
+  <section>
+    <h2>example</h2>
+    <h3>Old origin manifest (app.example.com)</h3>
+<pre><code>{
+  "name": "My App",
+  "start_url": "https://app.example.com/",
+  "migration_target": "https://app.newexample.com/manifest.json"
+}</code></pre>
+
+    <h3>New origin manifest (app.newexample.com)</h3>
+<pre><code>{
+  "name": "My App",
+  "start_url": "https://app.newexample.com/",
+  "migration_source": "https://app.example.com/manifest.json"
+}</code></pre>
+
+    <h3>Constraint check: same-site</h3>
+<pre><code>// Valid: both origins share the same eTLD+1 (example.com)
+// app.example.com  →  app.newexample.com  — VALID
+// app.example.com  →  totally-different.com — BLOCKED (cross-site)</code></pre>
+    <span class="citation">Source: WICG manifest-incubations PR #136 and chromestatus summary, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>browser support</h2>
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Support</th></tr></thead>
+      <tr><td>Chrome 147</td><td>In developer trial (behind flag)</td></tr>
+      <tr><td>Edge 147</td><td>Tracking Chromium</td></tr>
+      <tr><td>Firefox</td><td>No signal</td></tr>
+      <tr><td>Safari</td><td>No signal</td></tr>
+    </table>
+    <span class="citation">Source: chromestatus browser views, May 2026.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/5123349239955456" target="_blank" rel="noopener">chromestatus — PWA origin migration (5123349239955456)</a></li>
+      <li><a href="https://github.com/WICG/manifest-incubations/pull/136" target="_blank" rel="noopener">WICG manifest-incubations PR #136</a> — spec incubation</li>
+      <li><a href="https://googlechrome.github.io/samples/pwa-migration" target="_blank" rel="noopener">Sample: PWA origin migration</a></li>
+      <li><a href="https://issues.chromium.org/396504527" target="_blank" rel="noopener">Chromium bug — issue 396504527</a></li>
+      <li><a href="https://chromeenterprise.google/policies/#WebAppInstallForceList" target="_blank" rel="noopener">Chrome Enterprise: WebAppInstallForceList</a> — explains the enterprise block</li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/pwa-origin-migration/" target="_blank" rel="noopener">chrome-platform-showcase: PWA origin migration demos</a> (when built)</li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
