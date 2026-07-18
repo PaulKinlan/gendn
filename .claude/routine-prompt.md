@@ -6,11 +6,33 @@
 
 ---
 
-You generate reference documentation pages for the gendn project. Every run picks up where the
-previous left off and writes one page per Chrome feature, committing and pushing after each.
-Catalogue across every active milestone.
+You generate **MDN-style reference documentation** pages for the gendn project. Every run picks up
+where the previous left off and writes one page per Chrome feature, committing and pushing after
+each. Catalogue across every active milestone.
 
-This is NOT a demo project. Pages are reference docs: signatures, examples, citations.
+This is NOT a demo project — pages are reference docs (signatures, examples, citations) — but they
+must **read and look like a real MDN (Mozilla Developer Network) reference article**: a Baseline
+status banner, a summary, formal syntax, per-member reference sections, a real browser-compat table,
+live examples, specifications, and see-also. See Step 6.
+
+**Kept in sync with chrome-platform-showcase.** gendn and the showcase share the exact same
+chromestatus source and slug function, so they target the same feature set from the same milestone
+listings. Every gendn page embeds the matching **live showcase demo as an iframe** (the sample MDN
+wants; Rachel Andrew's point — every Chrome feature reaching MDN should ship with an example, and
+the showcase produces those). The showcase is live at
+`https://chrome-platform-showcase.paulkinlan-ea.deno.net/`.
+
+**This routine must run correctly STANDALONE — every rule below is load-bearing.** It runs
+unattended. Research each feature deeply (Step 4), generate an MDN-shaped page (Step 6), and verify
+it in a real browser (Step 6b) before you push. Depth and accuracy beat throughput — a wrong or
+invented signature is worse than an unwritten page, because the site is live and people cite it.
+
+### Toolset & verification environment (READ)
+
+The cloud routine runs with a limited toolset: **Bash, Read, Write, Edit, Glob, Grep** (+ WebFetch/
+WebSearch if available) — NO `chrome-devtools-mcp`. Do research with `curl`/WebFetch and verify with
+headless Chrome + `Read` the screenshot (Step 6b). Never claim a browser-verified result you did not
+produce.
 
 ## CRITICAL SLUG + MILESTONE RULES
 
@@ -36,7 +58,10 @@ git config user.email 'paul.kinlan@gmail.com'
 git config user.name 'Paul Kinlan'
 ```
 
-Note Unix time at start. Soft 90-minute deadline. Cron fires every 2 hours; next run continues.
+Note Unix time at start. Soft 90-minute deadline. Cron fires once a day; the next run continues
+where this one stops. Refresh the chromestatus channel data each run (don't trust a stale cache) and
+extend coverage to the current stable/beta/dev milestones — keep the milestone set in lockstep with
+chrome-platform-showcase.
 
 ## Step 2: Get current channels
 
@@ -81,6 +106,28 @@ safari_views, web_dev_views, blink_components.
 **Slug + folder path were already decided in Step 3.** The page H1 should be the LISTING name (what
 users see on /v<N>/), not the detail name if they differ.
 
+### Step 4b: Deep research — the reference is only as good as the sources you read
+
+Do NOT write from the chromestatus summary alone. Reference docs demand accuracy:
+
+1. **Follow every reference.** `curl` (or WebFetch) each `spec_link`/`standards.spec`, every
+   explainer/initial-proposal, `doc_links`, and `sample_links`, plus onward links. The exact IDL,
+   CSS grammar, member list, parameters, return values, and exceptions live there — capture them
+   verbatim.
+2. **Get the real flag** (for the "at a glance" + Baseline note):
+   `curl -s 'https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5?format=TEXT' | base64 -d | grep -iC2 '<FeatureName>'`.
+3. **Baseline + browser-compat data** (this is what makes it look like MDN — never hand-wave it):
+   - `curl -s 'https://api.webstatus.dev/v1/features?q=<name>'` (or the feature id) for the
+     **Baseline** status (widely / newly / limited + since date) and cross-browser support.
+   - `curl -s 'https://raw.githubusercontent.com/mdn/browser-compat-data/main/<path>.json'` for the
+     per-version **BCD** compat data when you can resolve the BCD key. Use the canonical web-feature
+     id / BCD key — do not guess spec URLs or BCD keys.
+4. **Read the actual Chromium behaviour** when the spec is ambiguous: `https://source.chromium.org`,
+   `https://issues.chromium.org/issues?q=<term>`, and open CLs/tests at
+   `https://chromium-review.googlesource.com`.
+5. Enumerate the members/values/use-cases you'll document from that reading. Never invent a method,
+   property, parameter, or enum value — if unsure, describe in prose and link the spec.
+
 ## Step 5: Check MDN coverage
 
 Decide whether MDN already covers this API.
@@ -119,30 +166,53 @@ Short stub at `v<N>/<slug>/index.html`:
 
 ### Case B: MDN does NOT cover it
 
-Full reference page. Templates: `v149/css-gap-decorations/index.html` (CSS) or
-`v149/webmcp/index.html` (Web API).
+Full reference page, shaped like an **MDN reference article**. Templates:
+`v149/css-gap-decorations/index.html` (CSS) or `v149/webmcp/index.html` (Web API) for the house
+style — but upgrade to the MDN structure below. Order and sections matter; this is the whole point
+of the "look like MDN" goal:
 
-Every page MUST include:
-
-1. `<link rel="stylesheet" href="/public/styles.css">`
-2. Crumbs to `/v<N>/`
-3. Lede block: eyebrow (`v<N> · <category short>`), H1 (LISTING name), lede paragraph (summary)
-4. `<h2>at a glance</h2>` table: Shipped in, Status, Flag, Standards positions, Spec, Explainer,
-   ChromeStatus link
-5. `<h2>why it exists</h2>` paragraph (motivation), with citation line
-6. `<h2>shape of the API</h2>` or `<h2>the properties</h2>` with `.doc-table` describing
-   methods/attributes/properties. Cite source.
-7. `<h2>example</h2>` or `<h2>recipes</h2>` with `<pre><code>` snippets. For CSS, embed a live demo
-   using the actual property.
-8. `<h2>browser support</h2>` table from chromestatus views, with citation.
-9. `<h2>see also</h2>` with related links and the chrome-platform-showcase URL for the same
-   `v<N>/<slug>/`.
+1. `<link rel="stylesheet" href="/public/styles.css">`; crumbs to `/v<N>/`.
+2. **Baseline status banner** (MDN's defining top element) — right under the H1, before the summary.
+   Compute from webstatus.dev/web-features (Step 4b): "Baseline Widely available" / "Baseline Newly
+   available (since <date>)" / "Limited availability", with the per-browser support icons/labels
+   (Chrome, Edge, Firefox, Safari). Cite the source. If it's not Baseline yet (Chrome-only /
+   experimental), say "Limited availability" honestly — do NOT imply cross-browser support.
+3. Lede block: eyebrow (`v<N> · <category short>`), H1 (LISTING name), summary paragraph.
+4. **`.warn-block`** immediately after the lede for any experimental / origin-trial / behind-a-flag
+   feature, giving the EXACT enable steps (chrome://flags/#id or --enable-blink-features=<Name> from
+   Step 4b) — not just "experimental".
+5. `<h2>Syntax</h2>` — a formal syntax block: for CSS the value-definition grammar (verbatim from
+   the spec); for a Web API the IDL / method signatures. Then per-member reference: Parameters /
+   Values, Return value, Exceptions — each described accurately, cited. Never invent members.
+6. `<h2>Examples</h2>` — **embed the live showcase demo as an iframe** plus a `<pre><code>` snippet.
+   HEAD-check the showcase concept route first and embed only if it returns 200:
+   ```bash
+   for c in "" ; do :; done   # discover concept slugs: the showcase feature index lists them
+   curl -sI "https://chrome-platform-showcase.paulkinlan-ea.deno.net/v<N>/<slug>/" | head -1
+   ```
+   Prefer a CONCEPT route (`/v<N>/<slug>/<concept>/`) — those are the interactive ones — over the
+   feature index. Emit:
+   ```html
+   <figure class="example-embed">
+     <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v<N>/<slug>/<concept>/"
+       title="Live example — <concept name>" loading="lazy" width="100%" height="520"
+       style="border:2px solid var(--border-black)"></iframe>
+     <figcaption>Live example from the Chrome Platform Showcase.<span class="citation">Source: chrome-platform-showcase</span></figcaption>
+   </figure>
+   ```
+   If the showcase route is NOT 200 yet (demo not built), fall back to a text link to the showcase
+   feature and a code snippet — do not embed a broken iframe.
+7. `<h2>Browser compatibility</h2>` — a **real per-version compat table** built from the BCD data
+   you fetched in Step 4b (Chrome / Edge / Firefox / Safari, with version numbers and
+   flag/no-support notes), NOT a prose "public support" sentence. Cite BCD. If BCD has no entry yet,
+   say so and show the chromestatus ship data as an interim, labelled as such.
+8. `<h2>Specifications</h2>` — the spec link(s), formatted like MDN's specifications table.
+9. `<h2>See also</h2>` — related links, the explainer, and the chrome-platform-showcase feature URL.
 10. Byline footer.
 
-Inline `<style>` block can use: `.doc-table`, `.citation`, `.warn-block` (only for experimental /
-origin-trial pages). Don't reinvent them.
-
-**Experimental / origin-trial features ALWAYS get a `.warn-block` after the lede.**
+Inline `<style>` may use `.doc-table`, `.citation`, `.warn-block`; add `.example-embed` /
+`.baseline-banner` / `.compat-table` styles as needed with CSS variables (WCAG AA). Don't reinvent
+the existing classes.
 
 Content rules:
 
@@ -155,6 +225,26 @@ Content rules:
 
 Every page (Case A or B) MUST include the `chromestatus.com/feature/<id>` link in references. This
 is how we recover from glitches.
+
+## Step 6b: Verify the page in a real browser before you push
+
+You have no `chrome-devtools-mcp`; verify with headless Chrome + `Read` the screenshot:
+
+```bash
+PORT=3100 deno run --allow-net --allow-read --allow-env server.ts > /tmp/gendn.log 2>&1 &
+sleep 3
+google-chrome-stable --headless=new --no-sandbox --screenshot=/tmp/gendn-<slug>.png \
+  --window-size=1280,2400 --dump-dom "http://localhost:3100/v<N>/<slug>/" > /tmp/gendn-dom.html 2>/dev/null
+```
+
+Then **`Read /tmp/gendn-<slug>.png`** and confirm: the Baseline banner renders, the compat table is
+readable (WCAG AA contrast, no overflow), the **showcase iframe actually loads a demo** (not a blank
+box or an error), no broken layout/overlap. Grep the DOM for the mandatory
+`chromestatus.com/feature/<id>` link. Anti-regression checks (each has bitten a docs site): no
+invented member names (every signature traces to the spec/IDL you fetched); attribute escaping — any
+`"`/`'`/`<` in summaries or examples is escaped; the `.warn-block` is present on experimental/OT
+pages; the iframe src is a 200 route, not a guess; Baseline claim matches webstatus.dev, not wishful
+cross-browser. Fix before committing.
 
 ## Step 7: Commit per feature, push, move on
 
