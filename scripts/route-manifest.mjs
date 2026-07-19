@@ -116,9 +116,32 @@ async function* walkPages(root) {
   }
 }
 
+// The responsive-support sidecar (git-tracked) carries each route's mobile+desktop support record.
+// It is merged into the manifest so the gate and any consumer see support state alongside identity.
+async function loadSupportRoutes(ref) {
+  let raw = null;
+  try {
+    raw = ref
+      ? await runGit(["show", `${ref}:responsive-support.json`])
+      : await Deno.readTextFile("responsive-support.json");
+  } catch {
+    return {};
+  }
+  try {
+    return JSON.parse(raw).routes ?? {};
+  } catch {
+    return {};
+  }
+}
+
 export async function buildManifest({ ref } = {}) {
   const entries = ref ? await collectFromRef(ref) : await collectFromWorkingTree();
-  return entries.map((e) => ({ ...e, aliases: [] }));
+  const supportRoutes = await loadSupportRoutes(ref);
+  return entries.map((e) => ({
+    ...e,
+    aliases: [],
+    support: supportRoutes[e.route] ?? { desktop: "untested", mobile: "untested" },
+  }));
 }
 
 if (import.meta.main) {

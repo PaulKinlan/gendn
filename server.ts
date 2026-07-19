@@ -6,6 +6,12 @@
 // flags each as "on MDN → link out" or "generated here → link to local page".
 
 import { Channels, getChannels, getMilestoneFeatures, slugify } from "./lib/chromestatus.ts";
+import {
+  renderConformanceIndex,
+  renderCritique,
+  renderRunAll,
+  renderSuite,
+} from "./lib/lifecycle.ts";
 
 const PORT = Number(Deno.env.get("PORT") ?? 3000);
 
@@ -585,6 +591,39 @@ Deno.serve({ port: PORT }, async (req) => {
       status: 301,
       headers: { location: target + url.search },
     });
+  }
+
+  // gendn serves no favicon; answer the browser's automatic request with 204 so it isn't a 404
+  // (keeps the conformance runner's same-origin network scan clean).
+  if (path === "/favicon.ico") return new Response(null, { status: 204 });
+
+  // ----- critique + conformance lifecycle views (additive, read-only) -----
+  if (path === "/conformance" || path === "/conformance/") {
+    try {
+      return new Response(await renderConformanceIndex(), {
+        headers: { "content-type": "text/html; charset=utf-8" },
+      });
+    } catch (err) {
+      return new Response(`Failed to render conformance index: ${err}`, { status: 502 });
+    }
+  }
+  if (path === "/conformance/run-all" || path === "/conformance/run-all/") {
+    const html = await renderRunAll();
+    return html
+      ? new Response(html, { headers: { "content-type": "text/html; charset=utf-8" } })
+      : new Response("No run-all rollup generated yet (run: deno task conformance)", {
+        status: 404,
+      });
+  }
+  const lifecycleMatch = path.match(/^\/(v\d+)\/([a-z0-9-]+)\/(conformance|critique)\/?$/);
+  if (lifecycleMatch) {
+    const [, release, slug, kind] = lifecycleMatch;
+    const html = kind === "conformance"
+      ? await renderSuite(release, slug)
+      : await renderCritique(release, slug);
+    return html
+      ? new Response(html, { headers: { "content-type": "text/html; charset=utf-8" } })
+      : new Response(`No ${kind} for ${release}/${slug} yet`, { status: 404 });
   }
 
   if (path === "/" || path === "/index.html") {

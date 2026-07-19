@@ -145,6 +145,36 @@ async function main() {
     }
   }
 
+  // Condition 6: mobile+desktop support parity — monotonic + no broken-while-claimed-supported.
+  // A route recorded `ok` (validated) on a class must never silently drop back to untested/broken
+  // without a migration record; and no route may be recorded `broken` on a class it claims to
+  // support. Many `untested` pages are fine (that's the audit backlog).
+  const supportOf = (e) => e?.support ?? { desktop: "untested", mobile: "untested" };
+  for (const b of baseline) {
+    const c = currById.get(b.id);
+    if (!c) continue;
+    const bs = supportOf(b), cs = supportOf(c);
+    for (const cls of ["desktop", "mobile"]) {
+      if (bs[cls] === "ok" && cs[cls] !== "ok" && cs[cls] !== "unsupported") {
+        if (!migrationCovers(migrations, b.id, "support-change")) {
+          failures.push(
+            `${b.id}: ${cls} support regressed ${bs[cls]} -> ${
+              cs[cls]
+            } (must stay ok or carry a support-change migration)`,
+          );
+        }
+      }
+    }
+  }
+  for (const c of current) {
+    const cs = supportOf(c);
+    for (const cls of ["desktop", "mobile"]) {
+      if (cs[cls] === "broken") {
+        failures.push(`${c.id}: recorded broken on ${cls} — fix the page (durable-demo contract)`);
+      }
+    }
+  }
+
   // Condition 5: published-count drop not covered by migrations.
   const removedCount = baseline.filter((b) => !currById.has(b.id)).length;
   const migratedRemovals = baseline.filter((b) =>
@@ -171,10 +201,21 @@ async function main() {
     if (c && b.demo && !c.demo) demoDropped.push(`${b.id} lost its showcase demo link (${b.demo})`);
   }
 
+  // Support coverage lines (reported, not failed-on for untested).
+  const cov = (cls) => {
+    const ok = current.filter((e) => supportOf(e)[cls] === "ok").length;
+    const unsupported = current.filter((e) => supportOf(e)[cls] === "unsupported").length;
+    const review = current.filter((e) => supportOf(e)[cls] === "needs-review").length;
+    const untested = current.filter((e) => supportOf(e)[cls] === "untested").length;
+    return `${ok} ok / ${unsupported} unsupported / ${review} needs-review / ${untested} untested (of ${current.length})`;
+  };
+
   console.log("route regression gate");
   console.log(`  baseline source : ${source}`);
   console.log(`  published        : ${baseline.length} baseline -> ${current.length} current`);
   console.log(`    built/stub     : ${countByStatus(current)}`);
+  console.log(`  desktop support  : ${cov("desktop")}`);
+  console.log(`  mobile support   : ${cov("mobile")}`);
   console.log(`  + added          : ${added.length}`);
   console.log(`  ~ fixed-in-place : ${fixedInPlace.length}`);
   console.log(`  migrations       : ${migrated.length ? migrated.join("; ") : "none"}`);
