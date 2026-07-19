@@ -49,6 +49,69 @@ Two rules that must never be broken. Both have bitten the project before:
 Every time you decide to write a folder, the path MUST be `v<N>/<slug(listing_name)>` where N is the
 milestone whose listing returned the feature.
 
+## DURABLE DEMO COMPATIBILITY CONTRACT (load-bearing — read before touching any existing page)
+
+This routine is almost always **additive**: you write NEW `v<N>/<slug>/` pages. You must never
+rename, repurpose, replace, merge, or delete a page that is already published just because this wave
+would design it differently. Before editing any existing page, **read its current implementation,
+its git history/rationale, and the route manifest** (`deno task manifest`), then make the SMALLEST
+change that satisfies the goal — never regenerate a working page from scratch. Run the route
+regression gate (`deno task check-routes`) before every push; it must pass.
+
+Embed verbatim (same wording as `CLAUDE.md` and `AGENTS.md`):
+
+### Durable demo compatibility contract — stable URLs · additive evolution · non-destructive
+
+Every **published** demo's identity is a durable compatibility contract. "Published" means it is
+live to users: it has a real route/URL and a catalogue entry (for this repo: a `built` demo, and any
+`blocked`/unsupported entry that is honestly recorded). A published demo's contract covers its
+**route/URL, its slug/ID, the model or platform feature it showcases, its core behavior, its
+controls, its use-case intent, and all inbound links.** Routine and agent waves MUST preserve these.
+
+- **Append-only identities.** Published slugs/IDs/routes are append-only. NEVER rename, repurpose,
+  replace, merge, or delete an existing published demo because a new wave has a different design
+  idea. (Catalogue entries that were never published — e.g. `pending` placeholders with no route —
+  are not under contract and may be repointed.)
+- **Additive evolution.** A newly discovered use case, interaction concept, model/feature
+  composition, presentation approach, or a substantially different demo is added as a NEW page with
+  a NEW stable slug + catalogue entry. Do NOT overwrite or repurpose an existing demo to make room.
+  Existing basic/practical/wild demos stay available after more ambitious ones are added.
+- **In-place fixes only when justified.** Change an existing published demo in place ONLY for a
+  demonstrated bug, accessibility/runtime/security issue, factual error, compatibility problem, or
+  clear quality improvement. Retain prior behavior/identity unless changing it is necessary; state
+  the reason + evidence in the commit message; regression-test the change. Default to the SMALLEST
+  patch — never regenerate a working page from scratch when a targeted edit suffices.
+- **Moves need a tested alias.** If a URL absolutely must move, keep the old route working via a
+  tested permanent redirect/alias recorded in the route manifest. Never silently break a route.
+- **Blocked stays recorded.** Unsupported/blocked entries remain honestly recorded (status
+  `blocked`), never deleted.
+- **Read before editing.** Before editing, read the existing implementation, its history/rationale,
+  and the route manifest, then make the smallest change that satisfies the goal.
+- **Removals/moves are exceptional.** Any removal, rename, route move, or identity change requires
+  an explicit reviewed **migration record** (`MIGRATIONS`/`migrations.json`) and must pass the route
+  regression gate. Stable does NOT mean frozen — improve existing demos when justified, and add new
+  demos/use cases freely; just never replace an old one merely to present a new idea.
+
+**Gate before every push:** run the route regression gate (`deno task check-routes`). It compares
+the previously published manifest against the working tree and fails on any missing published ID,
+deleted route, renamed/repurposed slug, changed published identity, or unexplained concept-count
+reduction — while allowing additive entries, honest `blocked` records, and in-place fixes.
+Exceptional removals/moves must be listed in the migration record with reason + evidence.
+
+### How the contract maps to gendn
+
+The **catalogue is the filesystem convention** `v<N>/<slug>/index.html`. A page's durable identity =
+its **id/route** (`v<N>/<slug>` → `/v<N>/<slug>/`, append-only), its **identity** (the
+`chromestatus.com/feature/<id>` link it carries — never repoint a slug to a different feature id),
+its **status** (`built` full reference or `stub` "covered on MDN" redirect — both published; a stub
+is the `blocked` analogue and must never be silently deleted), and its **embedded-demo identity**
+(the chrome-platform-showcase route it links/embeds for its own feature — don't repoint it either).
+A feature with no folder yet is `pending` — not published, not under contract. Emit the manifest
+with `deno task manifest`; gate with `deno task check-routes`; record exceptional moves in
+`migrations.json`. A legitimate slug/milestone correction that keeps a still-listed feature id live
+under the corrected route is a fix, not a break — record it as an `alias`/`move` migration so the
+old route stays honest and the gate stays green.
+
 ## Step 1: Setup
 
 Fresh checkout of PaulKinlan/gendn. Configure git author once:
@@ -248,7 +311,11 @@ cross-browser. Fix before committing.
 
 ## Step 7: Commit per feature, push, move on
 
+**Run the route regression gate before every push. It must pass.**
+
 ```bash
+deno task check-routes   # durable-demo contract gate: fails on any deleted/renamed/repurposed
+                         # published route or identity. All-additive waves pass automatically.
 git add v<N>/<slug>/
 git commit -m "v<N>: reference for <listing name>
 
@@ -258,7 +325,10 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 git push
 ```
 
-One feature per commit. If past 90 minutes, stop.
+One feature per commit. If past 90 minutes, stop. If the gate fails, you have deleted, renamed, or
+repurposed a published page — STOP and revert to an additive change, or (only for a genuine,
+evidenced correction) record the move in `migrations.json` and re-run the gate. Never push a red
+gate.
 
 ## Step 8: Summary at end
 
@@ -272,3 +342,6 @@ the MDN URLs.
 - Pushes go to main. No branches. No issues.
 - Respect the 90-minute deadline.
 - **Slug from listing name; milestone from listing position. Both inviolable.**
+- **Durable-demo contract: additive by default. Read the existing page + its history + the manifest
+  before any edit; make the smallest fix; never delete/rename/repurpose a published route or
+  identity. `deno task check-routes` must be green before every push.**
