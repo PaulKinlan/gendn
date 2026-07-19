@@ -9,6 +9,50 @@ import { Channels, getChannels, getMilestoneFeatures, slugify } from "./lib/chro
 
 const PORT = Number(Deno.env.get("PORT") ?? 3000);
 
+// ----- Durable-demo route aliases (301 redirects) -----
+//
+// migrations.json is the single source of truth for the compatibility contract (see AGENTS.md /
+// CLAUDE.md). Every `move`/`alias` record keeps an OLD published route alive with a permanent
+// redirect to the CURRENT route for the same chromestatus feature id, so pre-contract slug/milestone
+// corrections don't 404 old inbound links. `remove` records are provenance only (no redirect).
+// Don't hand-maintain a second list — this reads migrations.json directly.
+
+interface Migration {
+  id: string;
+  action: "move" | "alias" | "remove" | "identity-change";
+  from: string;
+  to: string | null;
+  reason?: string;
+  evidence?: string;
+  date?: string;
+}
+
+function loadRedirects(): { from: string; to: string }[] {
+  try {
+    const raw = Deno.readTextFileSync("./migrations.json");
+    const migrations = JSON.parse(raw) as Migration[];
+    return migrations
+      .filter((m) => (m.action === "move" || m.action === "alias") && m.from && m.to)
+      .map((m) => ({ from: m.from, to: m.to as string }));
+  } catch {
+    return [];
+  }
+}
+
+const REDIRECTS = loadRedirects();
+
+// Returns the 301 target for a request path if it falls under an aliased old route, else null.
+// Matches the old route exactly (with or without trailing slash) and any deep link under it,
+// carrying the remaining sub-path over to the new route.
+function redirectTarget(path: string): string | null {
+  for (const { from, to } of REDIRECTS) {
+    const fromNoSlash = from.endsWith("/") ? from.slice(0, -1) : from;
+    if (path === fromNoSlash || path === from) return to;
+    if (path.startsWith(from)) return to + path.slice(from.length);
+  }
+  return null;
+}
+
 const MIME: Record<string, string> = {
   html: "text/html; charset=utf-8",
   css: "text/css; charset=utf-8",
@@ -532,6 +576,16 @@ async function knownReleaseMilestones(channels: Channels): Promise<Set<number>> 
 Deno.serve({ port: PORT }, async (req) => {
   const url = new URL(req.url);
   const path = url.pathname;
+
+  // Durable-demo contract: 301 old (pre-contract) routes to their current page. Checked before
+  // everything else so a moved route never 404s.
+  const target = redirectTarget(path);
+  if (target) {
+    return new Response(null, {
+      status: 301,
+      headers: { location: target + url.search },
+    });
+  }
 
   if (path === "/" || path === "/index.html") {
     try {
