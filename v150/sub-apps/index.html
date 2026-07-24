@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sub apps — Chrome 150 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .doc-table caption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); text-align: left; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    .warn-block p { font-size: 0.98rem; }
+    .warn-block ul { font-family: var(--font-serif); font-size: 0.98rem; color: var(--text-charcoal); padding-left: 1.4rem; margin: 0.4rem 0 0.2rem; }
+    .warn-block li { margin-bottom: 0.3rem; }
+    .baseline-banner { border: 2px solid var(--border-black); background: var(--bg-paper); box-shadow: var(--thin-shadow); padding: 1rem 1.2rem; margin: 0 0 var(--space-5); }
+    .baseline-banner .baseline-status { font-family: var(--font-mono); font-weight: 500; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent-amber); margin: 0 0 0.6rem; }
+    .baseline-banner .baseline-browsers { display: flex; flex-wrap: wrap; gap: var(--space-2); list-style: none; padding: 0; margin: 0 0 0.6rem; }
+    .baseline-banner .baseline-browsers li { font-family: var(--font-mono); font-size: 0.75rem; border: 1px solid var(--border-black); padding: 0.25rem 0.6rem; background: var(--bg-stone); }
+    .baseline-banner .baseline-browsers li.limited { border-style: dashed; color: var(--text-muted); }
+    .baseline-banner p { font-size: 0.9rem; margin: 0; }
+    .example-embed { margin: var(--space-4) 0; }
+    .example-embed iframe { display: block; max-width: 100%; }
+    .example-embed figcaption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); margin-top: 0.5rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v150/">&larr; Chrome 150 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v150 · developer trial · isolated web apps</p>
+    <h1>Sub apps</h1>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome · developer trial 150</li>
+        <li class="limited">Edge · not separately reported</li>
+        <li class="limited">Firefox · no signal</li>
+        <li class="limited">Safari · no signal</li>
+      </ul>
+      <p>Not on the Baseline register (no web-features entry at webstatus.dev). Chrome-only, and currently usable only on platforms that support Isolated Web Apps — presently <strong>ChromeOS</strong> (other desktops may work but are not officially supported). The Chrome 152 milestone listing (Enabled by default) and the current feature detail (chromestatus API, updated 2026-07-24) agree on desktop 152 as the default-on target, while the feature's status text remains &ldquo;Proposed&rdquo;.</p>
+    </div>
+
+    <p class="lede">Sub apps let a single Isolated Web App (IWA) installation present multiple distinct applications to the OS — each with its own name, icons, shelf window, and integrations such as protocol and file handlers — while sharing the parent IWA&#39;s origin, storage, permissions, Signed Web Bundle resources, and update lifecycle.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Developer trial — API surface may move</strong>
+    <p>In Chrome 150 the Sub Apps API is in developer trial. It is not reachable from ordinary websites. The documented setup (per the official sample) is:</p>
+    <ul>
+      <li>Use a <strong>ChromeOS</strong> device — the only platform where Isolated Web Apps are currently available to end users. The API runs on other desktops but is not officially supported there; minor issues are possible.</li>
+      <li>In <code>chrome://flags</code> enable <code>#enable-isolated-web-apps</code>, <code>#enable-isolated-web-app-dev-mode</code>, and <code>#enable-sub-apps</code>.</li>
+      <li>Open <code>chrome://web-app-internals</code> and install the app as a signed <a href="https://chromeos.dev/en/web/isolated-web-apps" target="_blank" rel="noopener">Isolated Web App</a> (&ldquo;Install IWA from Update Manifest&rdquo;, or via Dev Mode Proxy) — the interface is exposed with <code>[SecureContext, IsolatedContext]</code>, so <code>window.subApps</code> only exists inside an installed IWA.</li>
+      <li>Declare the permission policy <code>Permissions-Policy: sub-apps=(self)</code>; without it every method rejects with <code>SecurityError</code>.</li>
+    </ul>
+    <p>Implementation/debug note: the runtime-enabled feature is <code>SubApps</code> (<code>status: stable</code> at trunk in <code>runtime_enabled_features.json5</code>), so <code>--enable-blink-features=SubApps</code> also gates the binding — but the flags-and-<code>chrome://web-app-internals</code> flow above is the documented complete setup.</p>
+    <span class="citation">Source: <a href="https://github.com/vkrot-cell/subapps-demo" target="_blank" rel="noopener">official subapps-demo README — how to try it</a>; <a href="https://chromestatus.com/feature/6260680824061952" target="_blank" rel="noopener">chromestatus.com/feature/6260680824061952</a></span>
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>At a glance</caption>
+      <tr><th scope="row">Milestone listings</th><td>Chrome 150 — In developer trial (Behind a flag). The same feature id is also listed under Chrome 152 as Enabled by default</td></tr>
+      <tr><th scope="row">Default-on milestone</th><td>Chrome 152, per two agreeing sources: the milestone listing (Enabled by default) and the feature detail (chromestatus API, updated 2026-07-24 12:57 UTC — shipping target desktop 152; active stage &ldquo;Prepare to ship&rdquo;, <code>desktop_first</code> 152). The feature's status text remains &ldquo;Proposed&rdquo;</td></tr>
+      <tr><th scope="row">Interface</th><td><code>SubApps</code>, reached via <code>window.subApps</code></td></tr>
+      <tr><th scope="row">Platform</th><td>Implemented on desktop; end-user availability currently limited to platforms supporting Isolated Web Apps — presently <strong>ChromeOS</strong> (other desktops unofficial)</td></tr>
+      <tr><th scope="row">Context</th><td>Installed Isolated Web Apps only (secure, isolated context)</td></tr>
+      <tr><th scope="row">Permission policy</th><td><code>sub-apps=(self)</code> required on the parent IWA; policies declared for a sub app have no effect</td></tr>
+      <tr><th scope="row">Dev-trial flags</th><td><code>#enable-isolated-web-apps</code>, <code>#enable-isolated-web-app-dev-mode</code>, <code>#enable-sub-apps</code>, then install via <code>chrome://web-app-internals</code></td></tr>
+      <tr><th scope="row">Runtime flag (impl. evidence)</th><td><code>SubApps</code> in <code>runtime_enabled_features.json5</code> (status <code>stable</code> at trunk)</td></tr>
+      <tr><th scope="row">Standards body</th><td><a href="https://wicg.github.io/sub-apps" target="_blank" rel="noopener">WICG — Sub Apps (unofficial draft)</a></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/6260680824061952" target="_blank" rel="noopener">6260680824061952 — Sub apps</a></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6260680824061952" target="_blank" rel="noopener">chromestatus.com/feature/6260680824061952</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium runtime_enabled_features.json5</a></span>
+  </section>
+
+  <section>
+    <h2>Syntax</h2>
+    <p>The API hangs off <code>Window</code> as a single read-only attribute returning a <code>SubApps</code> instance with three asynchronous batch methods. IDL from the WICG draft:</p>
+<pre><code>[Exposed=Window, SecureContext, IsolatedContext]
+partial interface Window {
+  [SameObject] readonly attribute SubApps subApps;
+};
+
+// Represents the https://w3c.github.io/manifest/#id-member
+typedef USVString ManifestId;
+
+dictionary SubAppsAddResponse {
+  record&lt;USVString, ManifestId&gt; installedApps;
+  record&lt;USVString, DOMException&gt; failedApps;
+};
+
+dictionary SubAppsRemoveResponse {
+  sequence&lt;ManifestId&gt; removedApps;
+  record&lt;USVString, DOMException&gt; failedApps;
+};
+
+dictionary SubAppsListResult {
+  required DOMString appName;
+};
+
+[Exposed=Window, SecureContext, IsolatedContext]
+interface SubApps {
+  Promise&lt;SubAppsAddResponse&gt; add(sequence&lt;USVString&gt; install_paths);
+  Promise&lt;SubAppsRemoveResponse&gt; remove(sequence&lt;ManifestId&gt; manifest_ids);
+  Promise&lt;record&lt;USVString, SubAppsListResult&gt;&gt; list();
+};</code></pre>
+    <span class="citation">Source: <a href="https://wicg.github.io/sub-apps" target="_blank" rel="noopener">WICG Sub Apps draft — IDL index</a></span>
+
+    <h3><code>add(install_paths)</code></h3>
+    <p>Installs a batch of sub apps. Each install path is a relative URL (it must start with <code>/</code>) to the sub app&#39;s entry <code>index.html</code>, which must reference a web manifest. A single system prompt lists every requested sub app in one dialog (scrollable when batched).</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>add() — parameters, return value, exceptions</caption>
+      <tr><th scope="col">Part</th><th scope="col">Detail</th></tr>
+      <tr><th scope="row">Parameters</th><td><code>install_paths</code> — <code>sequence&lt;USVString&gt;</code> of same-origin absolute paths to sub-app entry documents</td></tr>
+      <tr><th scope="row">Returns</th><td><code>Promise&lt;SubAppsAddResponse&gt;</code> — <code>installedApps</code> maps each install path to its new <code>ManifestId</code>; <code>failedApps</code> maps each failed path to a <code>DOMException</code></td></tr>
+      <tr><th scope="row">Batch rejection</th><td><code>TypeError</code> (invalid relative paths), <code>SecurityError</code> (policy missing), <code>NotSupportedError</code> (called inside a sub app), <code>NotAllowedError</code> (user declined the prompt), <code>QuotaExceededError</code> (platform limits exceeded), <code>OperationError</code></td></tr>
+      <tr><th scope="row">Per-app failure</th><td><code>ConstraintError</code> (scope prefix conflict, or path points at the parent&#39;s own manifest), <code>DataError</code> (manifest invalid/unparseable), <code>InvalidStateError</code> (already installed), <code>OperationError</code></td></tr>
+    </table>
+    </div>
+
+    <h3><code>remove(manifest_ids)</code></h3>
+    <p>Uninstalls a batch of previously installed sub apps, identified by the <code>ManifestId</code> values returned from <code>add()</code> or <code>list()</code>.</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>remove() — parameters, return value, exceptions</caption>
+      <tr><th scope="col">Part</th><th scope="col">Detail</th></tr>
+      <tr><th scope="row">Parameters</th><td><code>manifest_ids</code> — <code>sequence&lt;ManifestId&gt;</code></td></tr>
+      <tr><th scope="row">Returns</th><td><code>Promise&lt;SubAppsRemoveResponse&gt;</code> — <code>removedApps</code> lists the removed <code>ManifestId</code> values; <code>failedApps</code> maps each failed id to a <code>DOMException</code></td></tr>
+      <tr><th scope="row">Batch rejection</th><td><code>TypeError</code>, <code>SecurityError</code>, <code>NotSupportedError</code>, <code>OperationError</code></td></tr>
+      <tr><th scope="row">Per-app failure</th><td><code>NotFoundError</code> (no such sub app under this parent IWA, or already removed), <code>OperationError</code></td></tr>
+    </table>
+    </div>
+
+    <h3><code>list()</code></h3>
+    <p>Returns the sub apps currently installed under this parent IWA as a record keyed by <code>ManifestId</code>, so dictionary lookups (e.g. membership checks) work directly on the result. Each value is a <code>SubAppsListResult</code> whose <code>appName</code> is the name from the sub app&#39;s web manifest.</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>list() — return value, exceptions</caption>
+      <tr><th scope="col">Part</th><th scope="col">Detail</th></tr>
+      <tr><th scope="row">Returns</th><td><code>Promise&lt;record&lt;USVString, SubAppsListResult&gt;&gt;</code></td></tr>
+      <tr><th scope="row">Rejection</th><td><code>SecurityError</code> (policy missing), <code>NotSupportedError</code> (called inside a sub app), <code>OperationError</code></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/WICG/sub-apps/blob/main/README.md" target="_blank" rel="noopener">WICG Sub Apps explainer — API design</a></span>
+  </section>
+
+  <section>
+    <h2>Sub app identity, resources, and limits</h2>
+    <p>A sub app is not a separate security principal. It shares the parent IWA&#39;s origin, <code>SignedWebBundleId</code>, cookies, IndexedDB, localStorage, Cache Storage, and all granted permissions — the same-origin policy treats parent and sub apps as one entity. What distinguishes a sub app is its presentation and OS integration:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>Identity fields (per the explainer&#39;s identity table)</caption>
+      <tr><th scope="col">Identifier</th><th scope="col">Rule</th></tr>
+      <tr><th scope="row">Origin / bundle id</th><td>Identical to the parent IWA</td></tr>
+      <tr><th scope="row"><code>start_url</code></th><td>Required in the sub app&#39;s manifest; must be unique across sub apps and the parent</td></tr>
+      <tr><th scope="row">Scope</th><td>Sub-app scopes must not be prefixes of one another, nor of the parent scope — otherwise install/update fails with <code>ConstraintError</code></td></tr>
+      <tr><th scope="row"><code>ManifestId</code></th><td>The manifest <code>id</code> member; falls back to <code>start_url</code> without the fragment. Used by <code>remove()</code> and <code>list()</code></td></tr>
+    </table>
+    </div>
+    <p>Sub-app manifests can carry their own OS integrations — <code>protocol_handlers</code>, <code>file_handlers</code>, and <code>launch_handler</code> act per sub app. Resources can be provisioned statically (bundled in the parent IWA, updated when the parent updates) or dynamically (a service worker serves the sub app&#39;s HTML and manifest, so sub apps update without a parent bundle update).</p>
+    <p>Two platform quotas guard against launcher flooding: at most <strong>50 installed sub apps per parent IWA</strong>, and at most <strong>20 sub apps per installation prompt</strong>. Exceeding either rejects the whole <code>add()</code> call with <code>QuotaExceededError</code>.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/sub-apps/blob/main/README.md" target="_blank" rel="noopener">WICG Sub Apps explainer — identity, provisioning, quota</a></span>
+  </section>
+
+  <section>
+    <h2>Enterprise policies</h2>
+    <p>Three Chrome enterprise policies govern whether sub-app installs require a user prompt:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>Sub apps enterprise policies</caption>
+      <tr><th scope="col">Policy</th><th scope="col">Effect</th></tr>
+      <tr><td><a href="https://chromeenterprise.google/policies/#DefaultSubAppsWithoutPromptsSetting" target="_blank" rel="noopener">DefaultSubAppsWithoutPromptsSetting</a></td><td>Globally sets whether IWA sub-app installs require a user permission prompt</td></tr>
+      <tr><td><a href="https://chromeenterprise.google/policies/#SubAppsWithoutPromptsAllowedForOrigins" target="_blank" rel="noopener">SubAppsWithoutPromptsAllowedForOrigins</a></td><td>Lists IWA URLs that may add or update sub apps without a prompt</td></tr>
+      <tr><td><a href="https://chromeenterprise.google/policies/#SubAppsWithoutPromptsBlockedForOrigins" target="_blank" rel="noopener">SubAppsWithoutPromptsBlockedForOrigins</a></td><td>Lists IWA URLs that may only add sub apps with a prompt</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6260680824061952" target="_blank" rel="noopener">chromestatus.com/feature/6260680824061952</a></span>
+  </section>
+
+  <section>
+    <h2>Examples</h2>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v150/sub-apps/capability-gate/"
+        title="Live example — Capability &amp; context gate (Sub apps)" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase: probes each prerequisite (secure context, IWA binding, permission policy) and reports exactly which gate is closed. <span class="citation">Source: chrome-platform-showcase</span></figcaption>
+    </figure>
+
+<pre><code>// Inside an installed IWA with Permissions-Policy: sub-apps=(self)
+const { installedApps, failedApps } = await window.subApps.add(["/calc/", "/docs/"]);
+
+for (const [installPath, manifestId] of Object.entries(installedApps)) {
+  console.log(`installed: ${installPath} -&gt; ${manifestId}`);
+}
+for (const [installPath, exception] of Object.entries(failedApps)) {
+  console.error(`failed: ${installPath} — ${exception.name}`);
+}
+
+// Later: enumerate and remove
+const all = await window.subApps.list();          // record&lt;ManifestId, { appName }&gt;
+const calcId = Object.keys(all).find((id) =&gt; all[id].appName === "Calculator");
+if (calcId) {
+  const { removedApps } = await window.subApps.remove([calcId]);
+  console.log("removed:", removedApps);
+}</code></pre>
+    <span class="citation">Source: <a href="https://github.com/WICG/sub-apps/blob/main/README.md" target="_blank" rel="noopener">WICG Sub Apps explainer — examples</a></span>
+  </section>
+
+  <section>
+    <h2>Browser compatibility</h2>
+    <p>There is no browser-compat-data (BCD) entry for this API yet, so the table below is an <strong>interim</strong> view built from ChromeStatus ship data and public vendor signals — not from BCD.</p>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <caption>Interim compatibility — from ChromeStatus, not BCD</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col">Status</th><th scope="col">Notes</th></tr></thead>
+      <tr><td>Chrome</td><td>150 (developer trial)</td><td>Isolated Web Apps only — presently ChromeOS for end users. Default-on target desktop 152, per the agreeing v152 milestone listing (Enabled by default) and feature detail (API, 2026-07-24); status text &ldquo;Proposed&rdquo;</td></tr>
+      <tr><td>Edge</td><td>Not separately reported</td><td>No Edge position is recorded on ChromeStatus; no public support evidence (Chromium engine equivalence is not a support commitment)</td></tr>
+      <tr><td>Firefox</td><td>No signal</td><td>Recorded on ChromeStatus</td></tr>
+      <tr><td>Safari</td><td>No signal</td><td>Recorded on ChromeStatus</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6260680824061952" target="_blank" rel="noopener">chromestatus.com/feature/6260680824061952</a>; <a href="https://github.com/mdn/browser-compat-data" target="_blank" rel="noopener">mdn/browser-compat-data</a> (no <code>api/SubApps</code> entry as of July 2026)</span>
+  </section>
+
+  <section>
+    <h2>Specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>Specifications</caption>
+      <thead><tr><th scope="col">Specification</th><th scope="col">Status</th></tr></thead>
+      <tr><td><a href="https://wicg.github.io/sub-apps" target="_blank" rel="noopener">Sub Apps</a></td><td>WICG unofficial draft (incubation)</td></tr>
+      <tr><td><a href="https://www.w3.org/TR/appmanifest/" target="_blank" rel="noopener">Web Application Manifest</a></td><td>W3C Working Draft — sub apps reuse its <code>id</code>, <code>start_url</code>, scope, and OS-integration members</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: spec links recorded on <a href="https://chromestatus.com/feature/6260680824061952" target="_blank" rel="noopener">chromestatus.com/feature/6260680824061952</a></span>
+  </section>
+
+  <section>
+    <h2>See also</h2>
+    <ul>
+      <li><a href="https://github.com/WICG/sub-apps" target="_blank" rel="noopener">WICG — Sub Apps explainer</a></li>
+      <li><a href="https://github.com/vkrot-cell/subapps-demo" target="_blank" rel="noopener">Sample sub-apps demo (static and service-worker-provisioned)</a></li>
+      <li><a href="https://github.com/WICG/proposals/issues/282" target="_blank" rel="noopener">WICG proposal — Sub Apps</a></li>
+      <li><a href="https://chromeos.dev/en/web/isolated-web-apps" target="_blank" rel="noopener">Isolated Web Apps on chromeos.dev</a></li>
+      <li><a href="https://github.com/w3ctag/design-reviews/issues/842#issuecomment-2917031448" target="_blank" rel="noopener">W3C TAG — does not review Isolated Web Apps</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v150/sub-apps/" target="_blank" rel="noopener">Chrome Platform Showcase — Sub apps</a> (also: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v150/sub-apps/identity-roundtrip/" target="_blank" rel="noopener">manifest-id round trip</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v150/sub-apps/install-response-map/" target="_blank" rel="noopener">install response map</a>)</li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
