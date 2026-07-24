@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Speculative load measurement — Chrome 150 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .doc-table caption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); text-align: left; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    .warn-block p { font-size: 0.98rem; }
+    .warn-block ul { font-family: var(--font-serif); font-size: 0.98rem; color: var(--text-charcoal); padding-left: 1.4rem; margin: 0.4rem 0 0.2rem; }
+    .warn-block li { margin-bottom: 0.3rem; }
+    .baseline-banner { border: 2px solid var(--border-black); background: var(--bg-paper); box-shadow: var(--thin-shadow); padding: 1rem 1.2rem; margin: 0 0 var(--space-5); }
+    .baseline-banner .baseline-status { font-family: var(--font-mono); font-weight: 500; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent-amber); margin: 0 0 0.6rem; }
+    .baseline-banner .baseline-browsers { display: flex; flex-wrap: wrap; gap: var(--space-2); list-style: none; padding: 0; margin: 0 0 0.6rem; }
+    .baseline-banner .baseline-browsers li { font-family: var(--font-mono); font-size: 0.75rem; border: 1px solid var(--border-black); padding: 0.25rem 0.6rem; background: var(--bg-stone); }
+    .baseline-banner .baseline-browsers li.limited { border-style: dashed; color: var(--text-muted); }
+    .baseline-banner p { font-size: 0.9rem; margin: 0; }
+    .example-embed { margin: var(--space-4) 0; }
+    .example-embed iframe { display: block; max-width: 100%; }
+    .example-embed figcaption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); margin-top: 0.5rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v150/">&larr; Chrome 150 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v150 · origin trial · performance · proposal</p>
+    <h1>Speculative load measurement</h1>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome · origin trial 150&ndash;155</li>
+        <li class="limited">Edge · not separately reported</li>
+        <li class="limited">Firefox · no signal</li>
+        <li class="limited">Safari · no signal</li>
+      </ul>
+      <p>Not on the Baseline register (no web-features entry at webstatus.dev), and not yet a published specification &mdash; this is a WICG explainer-stage proposal with a live Chromium origin trial on desktop (Chrome 150&ndash;155). The feature detail (chromestatus API, updated 2026-06-05) records no ship estimate; status text &ldquo;Proposed&rdquo;.</p>
+    </div>
+
+    <p class="lede">Speculative loads (preconnects, preloads, and speculation-rules prefetches and prerenders) only pay off when they are actually used &mdash; and today developers lack a unified view. This proposal adds <code>performance.getSpeculations()</code>, which records preconnect, preload, and speculative-navigation metadata, including when a preload was consumed and the same-origin navigation destination when available.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Proposal &amp; origin trial — surface may change</strong>
+    <p>There is no published or normative API specification yet: ChromeStatus records no spec link. The proposed design is described by the WICG explainer, while Chromium&#39;s experimental implementation IDL shows the current browser binding. It is available through an origin trial on desktop in Chrome 150&ndash;155. To use it:</p>
+    <ul>
+      <li>Register for the <code>SpeculationMeasurement</code> origin trial at <a href="https://developer.chrome.com/origintrials/" target="_blank" rel="noopener">developer.chrome.com/origintrials</a> and serve the token (third-party tokens are allowed). ChromeStatus records the trial registration (origin-trial id <code>2748884622556266497</code>) with the explainer as its documentation.</li>
+      <li>Or, locally: launch Chrome with <code>--enable-blink-features=SpeculationMeasurement</code> (runtime-enabled feature <code>SpeculationMeasurement</code>, status <code>experimental</code>).</li>
+      <li>Read the data during page dismissal (for example, in the explainer&#39;s <code>pagehide</code> pattern). A preload cannot be classified as unused until the browser knows it was not consumed during that page lifetime.</li>
+    </ul>
+    <p><strong>Naming divergence to be aware of:</strong> the ChromeStatus origin-trial metadata and the comment in Chromium&#39;s <code>runtime_enabled_features.json5</code> both say <code>performance.speculations</code> — but the WICG explainer (the trial&#39;s own documentation) and Chromium&#39;s current experimental IDL expose a <strong>method</strong>, <code>performance.getSpeculations()</code>. The explainer records an earlier property-shaped design on dismissal events, but does not prove the exact lineage of the stale <code>performance.speculations</code> wording. This page documents the current explainer/IDL agreement and keeps the divergence visible.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/speculative_load_measurement/blob/main/README.md" target="_blank" rel="noopener">WICG explainer</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/timing/performance.idl" target="_blank" rel="noopener">Chromium performance.idl</a>; <a href="https://chromestatus.com/feature/5118840377835520" target="_blank" rel="noopener">chromestatus.com/feature/5118840377835520</a></span>
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>At a glance</caption>
+      <tr><th scope="row">Milestone listing</th><td>Chrome 150 — Origin trial (trial window 150&ndash;155, desktop)</td></tr>
+      <tr><th scope="row">Origin trial</th><td>Registerable: id <code>2748884622556266497</code>, feature name <code>SpeculationMeasurement</code>, third-party tokens allowed, docs = WICG explainer</td></tr>
+      <tr><th scope="row">Ship estimate</th><td>None recorded &mdash; feature detail (chromestatus API, updated 2026-06-05): status text &ldquo;Proposed&rdquo;, no ship milestone on the active stages</td></tr>
+      <tr><th scope="row">Interface</th><td><code>performance.getSpeculations()</code> returning a <code>SpeculationData</code> (Window only)</td></tr>
+      <tr><th scope="row">Spec status</th><td>WICG explainer (proposal) — no published spec yet</td></tr>
+      <tr><th scope="row">Runtime flag</th><td><code>SpeculationMeasurement</code> in <code>runtime_enabled_features.json5</code> (status <code>experimental</code>, origin-trial feature)</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5118840377835520" target="_blank" rel="noopener">5118840377835520 — Speculative load measurement</a></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5118840377835520" target="_blank" rel="noopener">chromestatus.com/feature/5118840377835520</a></span>
+  </section>
+
+  <section>
+    <h2>Syntax</h2>
+    <p>The proposal hangs a single method off <code>performance</code>, returning a <code>SpeculationData</code> with one array per speculation kind plus the navigation destination. IDL from Chromium&#39;s implementation of the explainer (Window-only, gated on <code>SpeculationMeasurement</code>):</p>
+<pre><code>// partial interface Performance (core/timing/performance.idl)
+[Exposed=Window, RuntimeEnabled=SpeculationMeasurement,
+ MeasureAs=SpeculationMeasurement]
+SpeculationData getSpeculations();
+
+[RuntimeEnabled=SpeculationMeasurement, Exposed=Window]
+interface SpeculationData {
+  readonly attribute FrozenArray&lt;PreloadData&gt; preloads;
+  readonly attribute FrozenArray&lt;PreconnectData&gt; preconnects;
+  readonly attribute FrozenArray&lt;SpeculationNavigationData&gt; navigations;
+  readonly attribute USVString? navigationDestinationURL;
+};
+
+enum CrossOriginMode { "none", "anonymous", "use-credentials" };
+
+[RuntimeEnabled=SpeculationMeasurement, Exposed=Window]
+interface PreloadData {
+  readonly attribute USVString url;
+  readonly attribute DOMString as;
+  readonly attribute CrossOriginMode crossorigin;
+  readonly attribute boolean earlyhint;
+  [CallWith=ScriptState] readonly attribute DOMHighResTimeStamp? used;
+};
+
+[RuntimeEnabled=SpeculationMeasurement, Exposed=Window]
+interface PreconnectData {
+  readonly attribute USVString origin;
+  readonly attribute CrossOriginMode crossorigin;
+  readonly attribute boolean earlyhint;
+};
+
+enum SpeculationNavigationType { "prefetch", "prerender", "prerender-until-script" };
+enum SpeculationEagernessValue { "conservative", "moderate", "eager", "immediate" };
+
+[RuntimeEnabled=SpeculationMeasurement, Exposed=Window]
+interface SpeculationNavigationData {
+  readonly attribute SpeculationNavigationType type;
+  readonly attribute USVString url;
+  readonly attribute FrozenArray&lt;DOMString&gt;? tags;
+  readonly attribute SpeculationEagernessValue? eagerness;
+};</code></pre>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/timing/performance.idl" target="_blank" rel="noopener">Chromium performance.idl</a>, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/timing/speculation_data.idl" target="_blank" rel="noopener">speculation_data.idl</a>, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/timing/speculation_navigation_data.idl" target="_blank" rel="noopener">speculation_navigation_data.idl</a>, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/timing/preload_data.idl" target="_blank" rel="noopener">preload_data.idl</a>, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/timing/preconnect_data.idl" target="_blank" rel="noopener">preconnect_data.idl</a></span>
+
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>Members — what each one tells you (per the explainer)</caption>
+      <thead><tr><th scope="col">Member</th><th scope="col">Contract</th></tr></thead>
+      <tr><td><code>preloads[]</code></td><td>Each preload recorded for this page view, with its <code>as</code> value, <code>crossorigin</code> mode, whether it arrived via Early Hints (<code>earlyhint</code>), and <code>used</code> — a timestamp of when the resource was consumed from the preload map, or <code>null</code> if it was never used. This includes header-delivered preloads, so it is not limited to DOM <code>&lt;link&gt;</code> elements. Unused preloads are the waste signal.</td></tr>
+      <tr><td><code>preconnects[]</code></td><td>Each preconnected origin, its <code>crossorigin</code> mode, and whether it came from a 103 Early Hints response.</td></tr>
+      <tr><td><code>navigations[]</code></td><td>Each speculation-rules navigation candidate: <code>type</code> (<code>prefetch</code>, <code>prerender</code>, or <code>prerender-until-script</code>), target <code>url</code>, the rule&#39;s <code>tags</code>, and its <code>eagerness</code> — the metadata needed to judge which rules pay off.</td></tr>
+      <tr><td><code>navigationDestinationURL</code></td><td>The explainer says this is where the user went next, exposed only for non-same-document, same-origin navigations after the same value is exposed to <code>NavigationDestination</code> in the <code>navigate</code> event. Chromium&#39;s current IDL includes the nullable member, but the explainer also retains a TODO about finalizing how to expose that URL, so treat these semantics as provisional.</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/WICG/speculative_load_measurement/blob/main/README.md" target="_blank" rel="noopener">WICG explainer — API design</a></span>
+
+    <p>Scope notes from the explainer: only speculations made by the <em>current</em> document are reported (even cross-origin ones), no cross-origin data leaks; resource <em>prefetches</em> (as opposed to navigation prefetches) are an explicit non-goal because they may still be used by a future page; <code>&lt;link rel=prerender&gt;</code> (the legacy API) is excluded in favour of speculation-rules prerenders.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/speculative_load_measurement/blob/main/README.md" target="_blank" rel="noopener">WICG explainer — goals and non-goals</a></span>
+  </section>
+
+  <section>
+    <h2>Proposal, implementation, and the stale property name</h2>
+    <p>Nothing here is a shipped standard yet. The explainer records an early iteration that exposed a <code>speculations</code> object on dismissal events, then moved away from it because that coupled the design too tightly to dismissal-event behavior. The current explainer and Chromium&#39;s experimental IDL agree on the method form, <code>getSpeculations()</code>. ChromeStatus&#39;s trial description and Chromium&#39;s flag comment still say <code>performance.speculations</code>. That stale property wording is consistent with an earlier property-shaped design, but the available sources do not prove it came from the exact dismissal-event iteration, so this page does not claim that lineage. The explainer also discusses why PerformanceObserver and the Reporting API were not selected.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/speculative_load_measurement/blob/main/README.md" target="_blank" rel="noopener">WICG explainer — considered alternatives</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5 (comment)</a></span>
+  </section>
+
+  <section>
+    <h2>Examples</h2>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v150/speculative-load-measurement/speculation-inspector/"
+        title="Live example — Speculation Inspector (Speculative load measurement)" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase: calls the real <code>performance.getSpeculations()</code> when available and otherwise reports that absence without fabricating data. The demo includes two real preload links so an enabled implementation has preload activity to inspect. <span class="citation">Source: chrome-platform-showcase</span></figcaption>
+    </figure>
+
+<pre><code>// The explainer's canonical pattern: report on dismissal, keep the payload small.
+window.addEventListener("pagehide", () =&gt; {
+  const { preloads, navigations } = performance.getSpeculations();
+
+  fetch("/analytics/unused-speculations", {
+    method: "POST",
+    keepalive: true,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ preloads, navigations }),
+  });
+});</code></pre>
+    <span class="citation">Source: <a href="https://github.com/WICG/speculative_load_measurement/blob/main/README.md" target="_blank" rel="noopener">WICG explainer — example usage</a></span>
+  </section>
+
+  <section>
+    <h2>Browser compatibility</h2>
+    <p>There is no browser-compat-data (BCD) entry for this API yet (checked <code>api/Performance.json</code> directly — neither <code>getSpeculations</code> nor <code>speculations</code> is present), so the table below is an <strong>interim</strong> view built from ChromeStatus data and public signals — not from BCD.</p>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <caption>Interim compatibility — from ChromeStatus, not BCD</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col">Status</th><th scope="col">Notes</th></tr></thead>
+      <tr><td>Chrome</td><td>150&ndash;155 (origin trial)</td><td>Desktop origin trial with public registration; explainer-stage proposal, ship estimate unset, status &ldquo;Proposed&rdquo;</td></tr>
+      <tr><td>Edge</td><td>Not separately reported</td><td>No Edge position is recorded on ChromeStatus; no public support evidence (Chromium engine equivalence is not a support commitment)</td></tr>
+      <tr><td>Firefox</td><td>No signal</td><td>Recorded on ChromeStatus</td></tr>
+      <tr><td>Safari</td><td>No signal</td><td>Recorded on ChromeStatus</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5118840377835520" target="_blank" rel="noopener">chromestatus.com/feature/5118840377835520</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Performance.json" target="_blank" rel="noopener">mdn/browser-compat-data — api/Performance.json</a> (no entry as of July 2026)</span>
+  </section>
+
+  <section>
+    <h2>Specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>Specifications</caption>
+      <thead><tr><th scope="col">Specification</th><th scope="col">Status</th></tr></thead>
+      <tr><td><a href="https://github.com/WICG/speculative_load_measurement/blob/main/README.md" target="_blank" rel="noopener">Speculative load measurement API (WICG explainer)</a></td><td>Proposal / incubation — no published spec</td></tr>
+      <tr><td><a href="https://html.spec.whatwg.org/multipage/semantics.html#speculative-loading" target="_blank" rel="noopener">HTML — Speculative loading (speculation rules)</a></td><td>WHATWG Living Standard — the rules being measured</td></tr>
+      <tr><td><a href="https://html.spec.whatwg.org/multipage/links.html#map-of-preloaded-resources" target="_blank" rel="noopener">HTML — Map of preloaded resources</a></td><td>WHATWG Living Standard — defines when a preload counts as used</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: ChromeStatus records no feature-level specification link; the WICG explainer links the related WHATWG concepts shown above.</span>
+  </section>
+
+  <section>
+    <h2>See also</h2>
+    <ul>
+      <li><a href="https://github.com/WICG/speculative_load_measurement/blob/main/README.md" target="_blank" rel="noopener">WICG — Speculative load measurement explainer</a></li>
+      <li><a href="https://github.com/WICG/speculative_load_measurement/issues" target="_blank" rel="noopener">Origin trial feedback — WICG issues</a></li>
+      <li><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/CAOmohSKBXF5hKYn9Lp6AvyEnESrBSvruyCVcHVcJae-56dcYNQ%40mail.gmail.com" target="_blank" rel="noopener">blink-dev intent thread</a></li>
+      <li><a href="https://developer.chrome.com/origintrials/" target="_blank" rel="noopener">Chrome origin trials — registration</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v150/speculative-load-measurement/" target="_blank" rel="noopener">Chrome Platform Showcase — Speculative load measurement</a> (also: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v150/speculative-load-measurement/unused-preload-auditor/" target="_blank" rel="noopener">unused preload auditor</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v150/speculative-load-measurement/pagehide-beacon/" target="_blank" rel="noopener">pagehide beacon</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v150/speculative-load-measurement/speculation-rules-lab/" target="_blank" rel="noopener">speculation rules lab</a>)</li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
