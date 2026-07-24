@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Algorithm Updates in WebCrypto — Chrome 150 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .doc-table caption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); text-align: left; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    .warn-block p { font-size: 0.98rem; }
+    .warn-block ul { font-family: var(--font-serif); font-size: 0.98rem; color: var(--text-charcoal); padding-left: 1.4rem; margin: 0.4rem 0 0.2rem; }
+    .warn-block li { margin-bottom: 0.3rem; }
+    .baseline-banner { border: 2px solid var(--border-black); background: var(--bg-paper); box-shadow: var(--thin-shadow); padding: 1rem 1.2rem; margin: 0 0 var(--space-5); }
+    .baseline-banner .baseline-status { font-family: var(--font-mono); font-weight: 500; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent-amber); margin: 0 0 0.6rem; }
+    .baseline-banner .baseline-browsers { display: flex; flex-wrap: wrap; gap: var(--space-2); list-style: none; padding: 0; margin: 0 0 0.6rem; }
+    .baseline-banner .baseline-browsers li { font-family: var(--font-mono); font-size: 0.75rem; border: 1px solid var(--border-black); padding: 0.25rem 0.6rem; background: var(--bg-stone); }
+    .baseline-banner .baseline-browsers li.limited { border-style: dashed; color: var(--text-muted); }
+    .baseline-banner p { font-size: 0.9rem; margin: 0; }
+    .example-embed { margin: var(--space-4) 0; }
+    .example-embed iframe { display: block; max-width: 100%; }
+    .example-embed figcaption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); margin-top: 0.5rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v150/">&larr; Chrome 150 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v150 · developer trial · webcrypto · post-quantum</p>
+    <h1>Algorithm Updates in WebCrypto</h1>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome · dev trial 150 · origin trial 151&ndash;154</li>
+        <li class="limited">Edge · not separately reported</li>
+        <li class="limited">Firefox · neutral</li>
+        <li class="limited">Safari · neutral</li>
+      </ul>
+      <p>Not on the Baseline register (no web-features entry at webstatus.dev). In Chrome 150 this is a developer trial (behind a flag); the active origin trial runs on desktop in Chrome 151&ndash;154 with public registration. The feature detail (chromestatus API, updated 2026-06-17) records no default-on estimate &mdash; desktop ship milestone unset, status text &ldquo;Proposed&rdquo;.</p>
+    </div>
+
+    <p class="lede">A modernization of the Web Cryptography API: post-quantum algorithms (ML-KEM, ML-DSA, SLH-DSA), modern AEAD ciphers (AES-OCB, ChaCha20-Poly1305), the SHA-3/Keccak family (SHA3 digests, cSHAKE, TurboSHAKE, KangarooTwelve, KMAC), and the Argon2 password KDF &mdash; plus new <code>SubtleCrypto</code> methods for key encapsulation (<code>encapsulateKey</code>/<code>decapsulateKey</code> and their <code>-Bits</code> forms), <code>getPublicKey</code>, and a static <code>supports()</code> capability check.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Developer trial &amp; origin trial — API surface may move</strong>
+    <p>In Chrome 150 these algorithms and methods are in developer trial (behind a flag). An origin trial follows on desktop in Chrome 151&ndash;154 (chromestatus API, updated 2026-06-17; ship estimate unset, status &ldquo;Proposed&rdquo;). To use them:</p>
+    <ul>
+      <li>In Chrome 151&ndash;154: register your origin for the &ldquo;WebCrypto Additional Algorithms&rdquo; origin trial at <a href="https://developer.chrome.com/origintrials/" target="_blank" rel="noopener">developer.chrome.com/origintrials</a> and serve the token. ChromeStatus records a live trial registration (origin-trial id <code>1379790335835635713</code>) with <a href="https://docs.google.com/document/d/1iFYtR2gab5wDh9DM00BSO8sqPtG6ATWPczmBoD2yLng/edit?usp=sharing" target="_blank" rel="noopener">trial documentation</a>.</li>
+      <li>In Chrome 150 (or for local development): launch Chrome with <code>--enable-blink-features=WebCryptoPQC</code> (runtime-enabled feature <code>WebCryptoPQC</code>, origin-trial feature name <code>WebCryptoAdditionalAlgorithms202606</code>).</li>
+      <li>Serve over HTTPS &mdash; the partial interface is exposed with <code>[SecureContext]</code> in Window and Worker contexts.</li>
+      <li>Feature-detect with the new static <code>SubtleCrypto.supports(operation, algorithm)</code> before calling &mdash; algorithm availability varies by build and platform.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5198951632470016" target="_blank" rel="noopener">chromestatus.com/feature/5198951632470016</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium runtime_enabled_features.json5</a></span>
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>At a glance</caption>
+      <tr><th scope="row">Milestone listings</th><td>Chrome 150 — In developer trial (Behind a flag); the same feature id is listed under Chrome 151 as Origin trial</td></tr>
+      <tr><th scope="row">Origin trial</th><td>Desktop, Chrome 151&ndash;154; public registration listed (origin-trial id <code>1379790335835635713</code>, feature name <code>WebCryptoAdditionalAlgorithms202606</code>)</td></tr>
+      <tr><th scope="row">Ship estimate</th><td>None recorded &mdash; feature detail (chromestatus API, updated 2026-06-17): desktop milestone unset, status text &ldquo;Proposed&rdquo;</td></tr>
+      <tr><th scope="row">Interface</th><td><code>SubtleCrypto</code> (partial), via <code>crypto.subtle</code></td></tr>
+      <tr><th scope="row">Context</th><td>Secure contexts, Window and Worker</td></tr>
+      <tr><th scope="row">Runtime flag</th><td><code>WebCryptoPQC</code> in <code>runtime_enabled_features.json5</code></td></tr>
+      <tr><th scope="row">Standards body</th><td><a href="https://wicg.github.io/webcrypto-modern-algos" target="_blank" rel="noopener">WICG — WebCrypto Modern Algorithms</a></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5198951632470016" target="_blank" rel="noopener">5198951632470016 — Algorithm Updates in WebCrypto</a></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5198951632470016" target="_blank" rel="noopener">chromestatus.com/feature/5198951632470016</a></span>
+  </section>
+
+  <section>
+    <h2>Syntax</h2>
+    <p>The update extends <code>SubtleCrypto</code> with four key-encapsulation methods (KEM support for ML-KEM), a public-key derivation helper, and a static feature-detection method. IDL from the WICG draft:</p>
+<pre><code>[SecureContext, Exposed=(Window,Worker)]
+partial interface SubtleCrypto {
+  Promise&lt;EncapsulatedKey&gt; encapsulateKey(
+    AlgorithmIdentifier encapsulationAlgorithm,
+    CryptoKey encapsulationKey,
+    AlgorithmIdentifier sharedKeyAlgorithm,
+    boolean extractable,
+    sequence&lt;KeyUsage&gt; keyUsages
+  );
+  Promise&lt;EncapsulatedBits&gt; encapsulateBits(
+    AlgorithmIdentifier encapsulationAlgorithm,
+    CryptoKey encapsulationKey
+  );
+
+  Promise&lt;CryptoKey&gt; decapsulateKey(
+    AlgorithmIdentifier decapsulationAlgorithm,
+    CryptoKey decapsulationKey,
+    BufferSource ciphertext,
+    AlgorithmIdentifier sharedKeyAlgorithm,
+    boolean extractable,
+    sequence&lt;KeyUsage&gt; keyUsages
+  );
+  Promise&lt;ArrayBuffer&gt; decapsulateBits(
+    AlgorithmIdentifier decapsulationAlgorithm,
+    CryptoKey decapsulationKey,
+    BufferSource ciphertext
+  );
+
+  Promise&lt;CryptoKey&gt; getPublicKey(
+    CryptoKey key,
+    sequence&lt;KeyUsage&gt; keyUsages
+  );
+
+  static boolean supports(DOMString operation,
+                   AlgorithmIdentifier algorithm,
+                   optional unsigned long? length = null);
+  static boolean supports(DOMString operation,
+                   AlgorithmIdentifier algorithm,
+                   AlgorithmIdentifier additionalAlgorithm);
+};</code></pre>
+    <span class="citation">Source: <a href="https://wicg.github.io/webcrypto-modern-algos" target="_blank" rel="noopener">WICG WebCrypto Modern Algorithms — Partial SubtleCrypto interface</a></span>
+
+<pre><code>enum KeyFormat { "raw-public", "raw-private", "raw-seed", "raw-secret",
+                 "raw", "spki", "pkcs8", "jwk" };
+
+enum KeyUsage { "encrypt", "decrypt", "sign", "verify", "deriveKey", "deriveBits",
+                "wrapKey", "unwrapKey",
+                "encapsulateKey", "encapsulateBits",
+                "decapsulateKey", "decapsulateBits" };
+
+dictionary EncapsulatedKey {
+  CryptoKey sharedKey;
+  ArrayBuffer ciphertext;
+};
+
+dictionary EncapsulatedBits {
+  ArrayBuffer sharedKey;
+  ArrayBuffer ciphertext;
+};</code></pre>
+    <span class="citation">Source: <a href="https://wicg.github.io/webcrypto-modern-algos" target="_blank" rel="noopener">WICG WebCrypto Modern Algorithms — Data types, Encapsulation dictionaries</a></span>
+
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>New SubtleCrypto members</caption>
+      <thead><tr><th scope="col">Member</th><th scope="col">Contract</th></tr></thead>
+      <tr><td><code>encapsulateKey(alg, key, sharedAlg, extractable, usages)</code></td><td>Runs the KEM encapsulation against the recipient public key and resolves to an <code>EncapsulatedKey</code>: the freshly encapsulated shared secret as a <code>CryptoKey</code> (algorithm <code>sharedAlg</code>, with the requested usages) plus the <code>ciphertext</code> to send</td></tr>
+      <tr><td><code>encapsulateBits(alg, key)</code></td><td>Same encapsulation, but the shared secret comes back as raw <code>ArrayBuffer</code> bits (an <code>EncapsulatedBits</code>) instead of an imported <code>CryptoKey</code></td></tr>
+      <tr><td><code>decapsulateKey(alg, key, ciphertext, sharedAlg, extractable, usages)</code></td><td>Reverses encapsulation with the private key: resolves to the shared secret as a <code>CryptoKey</code></td></tr>
+      <tr><td><code>decapsulateBits(alg, key, ciphertext)</code></td><td>Decapsulates to raw <code>ArrayBuffer</code> bits</td></tr>
+      <tr><td><code>getPublicKey(key, keyUsages)</code></td><td>Derives the public <code>CryptoKey</code> from an asymmetric private key, so only the private half needs to be stored</td></tr>
+      <tr><td><code>static supports(operation, algorithm, length?)</code> / <code>static supports(operation, algorithm, additionalAlgorithm)</code></td><td>Static capability check: is this algorithm identifier (with parameters, key length, or a second algorithm) supported for the named operation on this build?</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://wicg.github.io/webcrypto-modern-algos" target="_blank" rel="noopener">WICG WebCrypto Modern Algorithms — Methods and parameters</a></span>
+  </section>
+
+  <section>
+    <h2>The new algorithm roster</h2>
+    <p>Eleven algorithm families are registered, each with its own operations section in the spec (key generation, import/export, and the operations below). All are optional to implement per the spec &mdash; use <code>SubtleCrypto.supports()</code> to detect them.</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>Registered algorithms and their normative references</caption>
+      <thead><tr><th scope="col">Algorithm(s)</th><th scope="col">Kind</th><th scope="col">Primary operations</th><th scope="col">Reference</th></tr></thead>
+      <tr><td>ML-KEM</td><td>Post-quantum key encapsulation</td><td>encapsulateKey/Bits, decapsulateKey/Bits, generateKey, importKey, exportKey</td><td>FIPS 203</td></tr>
+      <tr><td>ML-DSA</td><td>Post-quantum signatures</td><td>sign, verify, generateKey, importKey, exportKey</td><td>FIPS 204</td></tr>
+      <tr><td>SLH-DSA</td><td>Post-quantum hash-based signatures</td><td>sign, verify, generateKey, importKey, exportKey</td><td>FIPS 205</td></tr>
+      <tr><td>AES-OCB</td><td>Authenticated encryption</td><td>encrypt, decrypt, generateKey, importKey, exportKey, getKeyLength</td><td>RFC 7253</td></tr>
+      <tr><td>ChaCha20-Poly1305</td><td>Authenticated encryption</td><td>encrypt, decrypt, generateKey, importKey, exportKey, getKeyLength</td><td>RFC 8439</td></tr>
+      <tr><td>SHA3-256, SHA3-384, SHA3-512</td><td>SHA-3 digests</td><td>digest</td><td>FIPS 202</td></tr>
+      <tr><td>cSHAKE128, cSHAKE256</td><td>Customizable XOF</td><td>digest</td><td>NIST SP 800-185</td></tr>
+      <tr><td>TurboSHAKE128, TurboSHAKE256</td><td>Fast XOF</td><td>digest</td><td>RFC 9861</td></tr>
+      <tr><td>KT128, KT256 (KangarooTwelve)</td><td>Fast XOF / hashing</td><td>digest</td><td>RFC 9861</td></tr>
+      <tr><td>KMAC128, KMAC256</td><td>Keyed MAC (Keccak)</td><td>sign, verify, generateKey, importKey, exportKey, getKeyLength</td><td>NIST SP 800-185</td></tr>
+      <tr><td>Argon2d, Argon2i, Argon2id</td><td>Password-based key derivation</td><td>deriveBits, importKey, getKeyLength</td><td>RFC 9106</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://wicg.github.io/webcrypto-modern-algos" target="_blank" rel="noopener">WICG WebCrypto Modern Algorithms — Introduction and per-algorithm Registration/Operations sections</a></span>
+  </section>
+
+  <section>
+    <h2>Examples</h2>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v150/algorithm-updates-in-webcrypto/ml-kem-key-exchange/"
+        title="Live example — ML-KEM key exchange (Algorithm Updates in WebCrypto)" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase: an ML-KEM encapsulate &rarr; decapsulate key exchange with the real methods. <span class="citation">Source: chrome-platform-showcase</span></figcaption>
+    </figure>
+
+<pre><code>// 1. Feature-detect first — the method and every algorithm are optional
+const kemOK = SubtleCrypto.supports?.("encapsulateKey", "ML-KEM-768") ?? false;
+if (!kemOK) throw new DOMException("ML-KEM-768 is unavailable", "NotSupportedError");
+
+// 2. Recipient generates an ML-KEM key pair
+const pair = await crypto.subtle.generateKey("ML-KEM-768", true, [
+  "encapsulateKey", "decapsulateKey",
+]);
+
+// 3. Sender encapsulates a shared secret against the recipient public key
+const { sharedKey, ciphertext } = await crypto.subtle.encapsulateKey(
+  "ML-KEM-768", pair.publicKey, "AES-GCM", true, ["encrypt", "decrypt"],
+);
+// -> send { ciphertext } to the recipient; keep sharedKey local
+
+// 4. Recipient decapsulates with the private key — same shared secret
+const recovered = await crypto.subtle.decapsulateKey(
+  "ML-KEM-768", pair.privateKey, ciphertext, "AES-GCM", true, ["encrypt", "decrypt"],
+);</code></pre>
+    <span class="citation">Source: composed from the <a href="https://wicg.github.io/webcrypto-modern-algos#partial-subtlecrypto-interface" target="_blank" rel="noopener">WICG partial <code>SubtleCrypto</code> interface</a> and <a href="https://wicg.github.io/webcrypto-modern-algos#ml-kem-registration" target="_blank" rel="noopener">ML-KEM registered names and operations</a>; the draft does not provide an ML-KEM JavaScript example.</span>
+  </section>
+
+  <section>
+    <h2>Browser compatibility</h2>
+    <p>There is no browser-compat-data (BCD) entry for these methods and algorithms yet, so the table below is an <strong>interim</strong> view built from ChromeStatus ship data and public vendor signals — not from BCD.</p>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <caption>Interim compatibility — from ChromeStatus, not BCD</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col">Status</th><th scope="col">Notes</th></tr></thead>
+      <tr><td>Chrome</td><td>150 (developer trial)</td><td>Behind <code>--enable-blink-features=WebCryptoPQC</code> in 150; desktop origin trial 151&ndash;154 with public registration; ship estimate unset, status &ldquo;Proposed&rdquo;</td></tr>
+      <tr><td>Edge</td><td>Not separately reported</td><td>No Edge position is recorded on ChromeStatus; no public support evidence (Chromium engine equivalence is not a support commitment)</td></tr>
+      <tr><td>Firefox</td><td>Neutral</td><td>Recorded on ChromeStatus (no public support or opposition)</td></tr>
+      <tr><td>Safari</td><td>Neutral</td><td>Recorded on ChromeStatus (no public support or opposition)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5198951632470016" target="_blank" rel="noopener">chromestatus.com/feature/5198951632470016</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/SubtleCrypto.json" target="_blank" rel="noopener">BCD <code>api/SubtleCrypto.json</code></a> (none of the six new members are present as of 2026-07-24)</span>
+  </section>
+
+  <section>
+    <h2>Specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>Specifications</caption>
+      <thead><tr><th scope="col">Specification</th><th scope="col">Status</th></tr></thead>
+      <tr><td><a href="https://wicg.github.io/webcrypto-modern-algos" target="_blank" rel="noopener">WebCrypto Modern Algorithms</a></td><td>WICG draft (incubation)</td></tr>
+      <tr><td><a href="https://www.w3.org/TR/webcrypto/" target="_blank" rel="noopener">Web Cryptography API</a></td><td>W3C Recommendation — the base <code>SubtleCrypto</code> interface this draft extends</td></tr>
+      <tr><td>FIPS 203 / 204 / 205, FIPS 202, NIST SP 800-185, RFC 7253 / 8439 / 9106 / 9861</td><td>Normative algorithm references (linked from the draft)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: spec links recorded on <a href="https://chromestatus.com/feature/5198951632470016" target="_blank" rel="noopener">chromestatus.com/feature/5198951632470016</a></span>
+  </section>
+
+  <section>
+    <h2>See also</h2>
+    <ul>
+      <li><a href="https://docs.google.com/document/d/1iFYtR2gab5wDh9DM00BSO8sqPtG6ATWPczmBoD2yLng/edit?usp=sharing" target="_blank" rel="noopener">Origin trial documentation — WebCrypto Additional Algorithms</a></li>
+      <li><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a32a33e.341e3fe1.243138.0c5e.GAE%40google.com" target="_blank" rel="noopener">blink-dev intent thread</a></li>
+      <li><a href="https://developer.chrome.com/origintrials/" target="_blank" rel="noopener">Chrome origin trials — registration</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v150/algorithm-updates-in-webcrypto/" target="_blank" rel="noopener">Chrome Platform Showcase — Algorithm Updates in WebCrypto</a> (also: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v150/algorithm-updates-in-webcrypto/capability-matrix/" target="_blank" rel="noopener">capability matrix</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v150/algorithm-updates-in-webcrypto/ml-dsa-signatures/" target="_blank" rel="noopener">ML-DSA signatures</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v150/algorithm-updates-in-webcrypto/chacha20-poly1305/" target="_blank" rel="noopener">ChaCha20-Poly1305</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v150/algorithm-updates-in-webcrypto/hybrid-session-key/" target="_blank" rel="noopener">hybrid session key</a>)</li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
