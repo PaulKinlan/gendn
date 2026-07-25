@@ -38,7 +38,7 @@
     <h1>Speculation rules: form_submission field</h1>
 
     <div class="baseline-banner" role="note" aria-label="Baseline status">
-      <p class="baseline-status">Limited availability</p>
+      <p class="baseline-status">Not Baseline-tracked · Chrome-only evidence</p>
       <ul class="baseline-browsers">
         <li>Chrome · enabled by default 151</li>
         <li class="limited">Edge · not separately reported</li>
@@ -53,7 +53,7 @@
 
   <div class="warn-block">
     <strong>Availability — listing vs detail</strong>
-    <p>The Chrome 151 milestone listing records this feature Enabled by default, and Chromium's runtime feature <code>PrerenderActivationByFormSubmission</code> is marked <code>stable</code> at trunk (it was an origin trial from Chrome 146). The feature detail, updated 2026-06-16, still reports status text &ldquo;Proposed&rdquo; and no public position from Firefox or Safari — so the field should be treated as Chrome-only for now, with feature detection where your code depends on it.</p>
+    <p>The Chrome 151 milestone listing records this feature Enabled by default, and Chromium's runtime feature <code>PrerenderActivationByFormSubmission</code> is marked <code>stable</code> at trunk (it was an origin trial from Chrome 146). The feature detail, updated 2026-06-16, still reports status text &ldquo;Proposed&rdquo; and no public position from Firefox or Safari — so the field should be treated as Chrome-only for now. There is no direct client-side feature-detection API for this JSON member; use progressive enhancement and validate real prerender activation rather than treating script insertion as support proof.</p>
     <span class="citation">Source: <a href="https://chromestatus.com/feature/5074313831120896" target="_blank" rel="noopener">chromestatus.com/feature/5074313831120896</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium runtime_enabled_features.json5</a></span>
   </div>
 
@@ -65,7 +65,7 @@
       <tr><th scope="row">Milestone listing</th><td>Chrome 151 — Enabled by default</td></tr>
       <tr><th scope="row">Feature detail</th><td>Desktop 151, status text &ldquo;Proposed&rdquo; (updated 2026-06-16); ship stage (intent 5) desktop_first 151; origin trial stage (intent 3) desktop_first 146</td></tr>
       <tr><th scope="row">Surface</th><td>A JSON field inside <code>&lt;script type="speculationrules"&gt;</code> — not a JavaScript API</td></tr>
-      <tr><th scope="row">Field type</th><td>Boolean, on prerender rules only; non-boolean values warn in console and discard the rule</td></tr>
+      <tr><th scope="row">Field type</th><td>Boolean. The open PR discards prefetch rules that specify it; a non-boolean value discards the individual rule and the user agent may warn in the console.</td></tr>
       <tr><th scope="row">Runtime flag</th><td><code>PrerenderActivationByFormSubmission</code> (status <code>stable</code> at trunk; crbug.com/346555939)</td></tr>
       <tr><th scope="row">Standards body</th><td><a href="https://github.com/WICG/nav-speculation/pull/426" target="_blank" rel="noopener">WICG nav-speculation PR #426</a> (spec-previews diff of prerendering.html)</td></tr>
       <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5074313831120896" target="_blank" rel="noopener">5074313831120896 — Speculation rules: form_submission field</a></td></tr>
@@ -76,7 +76,7 @@
 
   <section>
     <h2>Syntax</h2>
-    <p>The field lives inside a prerender rule in a <code>&lt;script type="speculationrules"&gt;</code> block. Per the spec-previews diff of <code>prerendering.html</code>, the rule parser accepts a <code>form_submission</code> member only when its value is a boolean; a non-boolean value lets the user agent report a console warning and discards the rule (the parse returns null). The explainer restricts it further: it applies to <strong>list rules</strong> (explicit <code>urls</code>), never to document rules, because document rules match links, not form buttons.</p>
+    <p>The field lives inside a prerender rule in a <code>&lt;script type="speculationrules"&gt;</code> block. Per the open PR's spec-preview diff of <code>prerendering.html</code>, the rule parser accepts a <code>form_submission</code> member only when its value is a boolean; for a non-boolean value, the user agent may report a console warning and the individual rule parser returns null. The explainer says the intended form-submission use is restricted to <strong>list rules</strong> (explicit <code>urls</code>) because document rules match links, not submit buttons. However, the current open PR diff parses the member generically and propagates it through the predicate/document-rule candidate path; it does not visibly add a list-only rejection. Treat that as unresolved proposal text, not a settled parser guarantee.</p>
 <pre><code>// Two prerendered candidates: one prepared as a form submission, one ordinary.
 // A navigation that matches the parameters activates the matching one.
 {
@@ -97,8 +97,8 @@
       <caption>Field contract (per the spec diff + explainer)</caption>
       <tr><th scope="col">Aspect</th><th scope="col">Contract</th></tr>
       <tr><th scope="row">Where it lives</th><td>A member of a prerender speculation rule inside <code>&lt;script type="speculationrules"&gt;</code></td></tr>
-      <tr><th scope="row">Value type</th><td>Boolean; a non-boolean value produces a console warning and the rule is discarded</td></tr>
-      <tr><th scope="row">Rule kinds</th><td>List rules (<code>urls</code>) only — document rules cannot use it (they match links, not buttons)</td></tr>
+      <tr><th scope="row">Value type</th><td>Boolean; a non-boolean value discards the individual rule and may produce a console warning</td></tr>
+      <tr><th scope="row">Rule kinds</th><td>The explainer intends list rules (<code>urls</code>) because document rules match links rather than submit buttons. The open PR diff currently propagates the member through its predicate path, so list-only parser enforcement is not yet settled.</td></tr>
       <tr><th scope="row">Effect when <code>true</code></th><td>The browser prepares the prerender as a form submission, so a real form-submission navigation can activate it</td></tr>
       <tr><th scope="row">What it does NOT do</th><td>It does not trigger the speculation itself — the page decides when to speculate (hover the submit button, pause after typing, or a form-specific point)</td></tr>
       <tr><th scope="row">Eligibility</th><td>Preparing as a form submission lets the browser run the form-action/CSP checks up front, avoiding wasted prerenders on ineligible pages</td></tr>
@@ -109,7 +109,7 @@
 
   <section>
     <h2>Why it exists</h2>
-    <p>Prerendering loads a page before the user navigates so the navigation is instant. But form submissions are special navigations: they carry state ordinary navigations lack, and at least Chrome runs extra checks on them that a prerendered page never went through. So a prerender prepared the ordinary way can never be activated by a form submission — and without an eligibility check, the browser could waste resources prerendering a page CSP would reject anyway (via <code>form-action</code>). Developers asked for this specifically for search-style GET forms (<a href="https://issues.chromium.org/issues/346555939" target="_blank" rel="noopener">crbug.com/346555939</a>). The field solves both halves: the prerender is created in the form-submission mode, passes the extra checks up front, and a matching form submission can then activate it.</p>
+    <p>Prerendering loads a page before the user navigates so the navigation is instant. But form submissions are special navigations: they carry state ordinary navigations lack, and at least Chrome runs extra checks on them that a prerendered page never went through. So a prerender prepared the ordinary way can never be activated by a form submission — and without an eligibility check, the browser could waste resources prerendering a page CSP would reject anyway (via <code>form-action</code>). Developers asked for this specifically for search-style GET forms (<a href="https://issues.chromium.org/issues/346555939" target="_blank" rel="noopener">crbug.com/346555939</a>). The proposal addresses both halves: a candidate marked for form submission can run the additional eligibility checks while being prepared, and a later form submission can activate it only if the browser created and retained an eligible prerender and the activation navigation matches.</p>
     <p>Prefetch rules are unaffected: prefetch only downloads HTML without starting a navigation, so form navigations already work without this field.</p>
     <span class="citation">Source: <a href="https://github.com/WICG/nav-speculation/blob/main/prerendering-form-submission.md" target="_blank" rel="noopener">WICG form_submission explainer — problem &amp; motivation</a></span>
   </section>
@@ -123,21 +123,28 @@
       <figcaption>Live example from the Chrome Platform Showcase: build prerender rules with and without the <code>form_submission</code> field and inspect the JSON. <span class="citation">Source: chrome-platform-showcase</span></figcaption>
     </figure>
 
-<pre><code>// In the page with the search form: decide WHEN to speculate yourself.
-// This proposal deliberately leaves that to you — e.g. after the user pauses typing:
+<pre><code>// Simple GET search form: decide WHEN to speculate yourself.
+// `debounce` is an application helper, omitted here for brevity.
 const form = document.querySelector("#search");
+let rulesScript;
 
 function speculate() {
-  const s = document.createElement("script");
-  s.type = "speculationrules";
-  s.textContent = JSON.stringify({
-    prerender: [{ form_submission: true, urls: ["/search"] }]
+  // Build the same URL this simple GET form will submit, including its query.
+  const target = new URL(form.action, location.href);
+  target.search = new URLSearchParams(new FormData(form));
+
+  rulesScript?.remove(); // replace the old candidate instead of accumulating rules
+  rulesScript = document.createElement("script");
+  rulesScript.type = "speculationrules";
+  rulesScript.textContent = JSON.stringify({
+    prerender: [{ form_submission: true, urls: [target.href] }]
   });
-  document.head.appendChild(s);
+  document.head.appendChild(rulesScript);
 }
 
 form.querySelector("input").addEventListener("input", debounce(speculate, 300));
-// When the user finally submits, the form-submission navigation activates the prerender.</code></pre>
+// Submission can activate only if an eligible prerender was created, retained,
+// and matches the eventual form navigation.</code></pre>
     <span class="citation">Source: <a href="https://github.com/WICG/nav-speculation/blob/main/prerendering-form-submission.md" target="_blank" rel="noopener">WICG form_submission explainer — example &amp; triggering guidance</a>; <a href="https://chrome.dev/prerender-demos/prerender-get-form.html" target="_blank" rel="noopener">chrome.dev prerender GET-form demo</a></span>
   </section>
 
@@ -148,7 +155,7 @@ form.querySelector("input").addEventListener("input", debounce(speculate, 300));
     <table class="doc-table compat-table">
       <caption>Interim compatibility — from ChromeStatus, not BCD</caption>
       <thead><tr><th scope="col">Browser</th><th scope="col">Status</th><th scope="col">Notes</th></tr></thead>
-      <tr><td>Chrome</td><td>151 (enabled by default)</td><td>Milestone listing: Enabled by default; detail desktop 151 with status text &ldquo;Proposed&rdquo; (updated 2026-06-16); origin trial from Chrome 146; runtime feature stable at trunk</td></tr>
+      <tr><td>Chrome</td><td>151 (enabled by default listing)</td><td>Feature detail records desktop 151 and Android 151 with status text &ldquo;Proposed&rdquo; (updated 2026-06-16); origin-trial stage began at 146; runtime feature is stable at trunk</td></tr>
       <tr><td>Edge</td><td>Not separately reported</td><td>No Edge position is recorded on ChromeStatus; no public support evidence (Chromium engine equivalence is not a support commitment)</td></tr>
       <tr><td>Firefox</td><td>No signal</td><td>Recorded on ChromeStatus (ff_views = 5)</td></tr>
       <tr><td>Safari</td><td>No signal</td><td>Recorded on ChromeStatus (safari_views = 5)</td></tr>
@@ -164,7 +171,7 @@ form.querySelector("input").addEventListener("input", debounce(speculate, 300));
     <table class="doc-table">
       <caption>Specifications</caption>
       <thead><tr><th scope="col">Specification</th><th scope="col">Status</th></tr></thead>
-      <tr><td><a href="https://github.com/WICG/nav-speculation/pull/426" target="_blank" rel="noopener">WICG nav-speculation PR #426 — form_submission</a></td><td>Spec-previews diff of prerendering.html (spec change under review)</td></tr>
+      <tr><td><a href="https://github.com/WICG/nav-speculation/pull/426" target="_blank" rel="noopener">WICG nav-speculation PR #426 — form_submission</a></td><td>Open, unmerged proposal (verified 2026-07-25); its spec-preview diff is not published normative text</td></tr>
       <tr><td><a href="https://wicg.github.io/nav-speculation/speculation-rules.html" target="_blank" rel="noopener">Speculation Rules</a></td><td>WICG draft (incubation) — the base rules syntax this field extends</td></tr>
       <tr><td><a href="https://github.com/WICG/nav-speculation/blob/main/prerendering-form-submission.md" target="_blank" rel="noopener">WICG form_submission explainer</a></td><td>Explainer (proposal evidence, not normative text)</td></tr>
     </table>
