@@ -42,7 +42,7 @@ const t1 = performance.getEntriesByType("navigation")[0].redirectEnd;</code></pr
 
   <section>
     <h2 id="inputs">Inputs</h2>
-    <p>A read-only attribute — no page inputs. Its value follows the entry's redirect count: the getter returns 0 when the redirect count is 0, so everything that gates <code>redirectCount</code> exposure (cross-origin opt-in via <code>Timing-Allow-Origin</code>, the <code>no-referrer</code> exclusion) gates this timestamp identically.</p>
+    <p>A read-only attribute — no page inputs. Its value follows the entry's redirect count: the getter returns 0 when the redirect count is 0, so everything that gates <code>redirectCount</code> exposure (the every-hop opt-in via <code>Timing-Allow-Origin</code> once any cross-origin redirect exists, and the <code>no-referrer</code> gate that only applies to such chains) gates this timestamp identically.</p>
     <span class="citation">Source: <a href="https://w3c.github.io/navigation-timing/#performancenavigationtiming" target="_blank" rel="noopener">Navigation Timing — redirectEnd getter steps</a>; <a href="https://github.com/whatwg/html/pull/12513" target="_blank" rel="noopener">whatwg/html PR #12513</a></span>
   </section>
 
@@ -54,14 +54,14 @@ const t1 = performance.getEntriesByType("navigation")[0].redirectEnd;</code></pr
 
   <section>
     <h2 id="errors">Errors</h2>
-    <p>No exceptions. As with <code>redirectCount</code>, 0 is ambiguous — it means &ldquo;no redirects&rdquo;, or &ldquo;redirects not exposed&rdquo; (a withheld cross-origin opt-in, or a <code>no-referrer</code> navigation). Do not subtract 0-valued fields: guard on <code>redirectCount &gt; 0</code> (or on the timestamp being non-zero) before computing chain duration.</p>
+    <p>No exceptions. As with <code>redirectCount</code>, 0 is ambiguous — it means &ldquo;no redirects&rdquo;, or &ldquo;redirects not exposed&rdquo;: a chain with cross-origin redirects where some hop withheld the opt-in, or such a chain navigated <code>no-referrer</code> with a non-null client. Do not subtract 0-valued fields: guard on <code>redirectCount &gt; 0</code> (or on the timestamp being non-zero) before computing chain duration.</p>
     <span class="citation">Source: <a href="https://w3c.github.io/navigation-timing/#performancenavigationtiming" target="_blank" rel="noopener">Navigation Timing — PerformanceNavigationTiming</a>; <a href="https://github.com/whatwg/html/pull/12513" target="_blank" rel="noopener">whatwg/html PR #12513</a></span>
   </section>
 
   <section>
     <h2 id="context">Context</h2>
     <p><strong>Receiver:</strong> the document's <code>PerformanceNavigationTiming</code> entry (the <code>"navigation"</code> entry in the performance timeline), in window contexts.</p>
-    <p><strong>Availability:</strong> the cross-origin exposure is Chrome 151 per the milestone listing; runtime feature <code>NavigationTimingRedirectTimingViaTAO</code> (status <code>stable</code> at trunk). The attribute itself long predates the feature as part of Navigation Timing.</p>
+    <p><strong>Implementation:</strong> Chromium's getters in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/timing/performance_navigation_timing.cc" target="_blank" rel="noopener">performance_navigation_timing.cc</a> return 0 unless the load's cross-origin-redirect-timing exposure flag is set. <strong>Availability:</strong> the cross-origin exposure is Chrome 151 per the milestone listing; runtime feature <code>NavigationTimingRedirectTimingViaTAO</code> (status <code>stable</code> at trunk). The attribute itself long predates the feature as part of Navigation Timing.</p>
     <span class="citation">Source: <a href="https://w3c.github.io/navigation-timing/#performancenavigationtiming" target="_blank" rel="noopener">Navigation Timing — PerformanceNavigationTiming</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium runtime_enabled_features.json5</a>; <a href="https://chromestatus.com/feature/5078310347472896" target="_blank" rel="noopener">chromestatus.com/feature/5078310347472896</a></span>
   </section>
 
@@ -90,19 +90,19 @@ if (nav.redirectCount > 0) {
     <table class="doc-table compat-table">
       <caption>redirectEnd cross-origin exposure — interim, from ChromeStatus (checked 2026-07-26)</caption>
       <thead><tr><th scope="col">Engine / runtime</th><th scope="col">Support</th><th scope="col">Notes</th></tr></thead>
-      <tr><td>Chrome</td><td>151</td><td>Cross-origin exposure added per the milestone listing; runtime feature stable at trunk</td></tr>
+      <tr><td>Chrome</td><td>151</td><td>Cross-origin exposure added (desktop, Android, WebView per the feature detail); runtime feature stable at trunk; the general attribute ships since Chrome 43 per BCD (api/PerformanceResourceTiming.json)</td></tr>
       <tr><td>Edge</td><td>Not separately reported</td><td>No Edge position recorded on ChromeStatus</td></tr>
       <tr><td>Firefox</td><td>No signal</td><td>Vendor signal recorded on the ChromeStatus entry</td></tr>
       <tr><td>Safari</td><td>Recorded positive signal</td><td>A recorded signal, not an official WebKit standards position</td></tr>
     </table>
     </div>
-    <p>BCD has no separate entry for this attribute's cross-origin exposure; see the general <a href="https://github.com/mdn/browser-compat-data/blob/main/api/PerformanceNavigationTiming.json" target="_blank" rel="noopener">api/PerformanceNavigationTiming.json</a> and the <a href="https://chromestatus.com/api/v0/features/5078310347472896" target="_blank" rel="noopener">ChromeStatus API feature record</a>.</p>
-    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5078310347472896" target="_blank" rel="noopener">ChromeStatus API feature record</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/PerformanceNavigationTiming.json" target="_blank" rel="noopener">BCD api/PerformanceNavigationTiming.json</a></span>
+    <p>BCD tracks the general attribute under <a href="https://github.com/mdn/browser-compat-data/blob/main/api/PerformanceResourceTiming.json" target="_blank" rel="noopener">api/PerformanceResourceTiming.json</a> (Chrome 43, Firefox 35, Safari 11) — it has no entry for this cross-origin exposure. Feature signals: <a href="https://chromestatus.com/api/v0/features/5078310347472896" target="_blank" rel="noopener">ChromeStatus API feature record</a>.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5078310347472896" target="_blank" rel="noopener">ChromeStatus API feature record</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/PerformanceResourceTiming.json" target="_blank" rel="noopener">BCD api/PerformanceResourceTiming.json</a></span>
   </section>
 
   <section>
     <h2 id="security-privacy">Security and privacy</h2>
-    <p>The timestamp participates in the same consent boundary as <code>redirectCount</code>: cross-origin chain timing is disclosed only when every redirect operator opted the destination origin in, and never for <code>no-referrer</code> navigations with a non-null client. Timing of redirects can reveal infrastructure details (how many hops, how slow), which is why the default remains zero.</p>
+    <p>The timestamp participates in the same consent boundary as <code>redirectCount</code>: cross-origin chain timing is disclosed only when every redirect operator opted the destination origin in, and — for chains with cross-origin redirects — never for <code>no-referrer</code> navigations with a non-null client. Timing of redirects can reveal infrastructure details (how many hops, how slow), which is why the default remains zero.</p>
     <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/12513" target="_blank" rel="noopener">whatwg/html PR #12513</a>; <a href="https://github.com/whatwg/fetch/pull/1931" target="_blank" rel="noopener">whatwg/fetch PR #1931</a></span>
   </section>
 

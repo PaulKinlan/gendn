@@ -42,7 +42,7 @@ const count = performance.getEntriesByType("navigation")[0].redirectCount;</code
 
   <section>
     <h2 id="inputs">Inputs</h2>
-    <p>A read-only attribute — it takes no inputs from the page. What determines its value is the navigation itself: the request's redirect count and whether the chain qualifies for exposure (same-origin chain, or every cross-origin redirect opted the destination in and the navigation is not a <code>no-referrer</code> one with a non-null client).</p>
+    <p>A read-only attribute — it takes no inputs from the page. What determines its value is the navigation itself: the request's redirect count and whether the chain qualifies for exposure. The exact rule: a chain with no cross-origin redirects always exposes; otherwise every redirect response in the chain — same-origin hops included — must have opted the destination in, and the request's client must be null or its referrer not <code>no-referrer</code>.</p>
     <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/12513" target="_blank" rel="noopener">whatwg/html PR #12513 (the exposure conditional)</a></span>
   </section>
 
@@ -54,7 +54,7 @@ const count = performance.getEntriesByType("navigation")[0].redirectCount;</code
 
   <section>
     <h2 id="errors">Errors</h2>
-    <p>No exceptions. The failure mode is informational: <strong>0 is ambiguous</strong> — it means &ldquo;no redirects&rdquo;, or &ldquo;redirects happened but at least one cross-origin redirect did not opt in&rdquo;, or &ldquo;a <code>no-referrer</code> navigation&rdquo;. Measurement code must treat 0 as &ldquo;not exposed&rdquo;, not as proof of a direct navigation.</p>
+    <p>No exceptions. The failure mode is informational: <strong>0 is ambiguous</strong> — it means &ldquo;no redirects&rdquo;, or &ldquo;the chain has cross-origin redirects and some hop (cross-origin <em>or</em> same-origin) did not opt in&rdquo;, or &ldquo;the chain has cross-origin redirects and the navigation was <code>no-referrer</code> with a non-null client&rdquo;. Measurement code must treat 0 as &ldquo;not exposed&rdquo;, not as proof of a direct navigation.</p>
     <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/12513" target="_blank" rel="noopener">whatwg/html PR #12513</a></span>
   </section>
 
@@ -62,7 +62,7 @@ const count = performance.getEntriesByType("navigation")[0].redirectCount;</code
     <h2 id="context">Context</h2>
     <p><strong>Receiver:</strong> the <code>PerformanceNavigationTiming</code> entry for the current document — the first (and only) entry of type <code>"navigation"</code> in the performance timeline.</p>
     <p><strong>Exposure:</strong> window contexts (navigation timing is a document concept). The cross-origin exposure addition is Chrome 151 per the milestone listing; the general attribute is much older (BCD: Chrome 57, Firefox 58, Safari 15).</p>
-    <p><strong>Availability:</strong> runtime feature <code>NavigationTimingRedirectTimingViaTAO</code> (status <code>stable</code> at trunk).</p>
+    <p><strong>Implementation:</strong> Chromium's getters in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/timing/performance_navigation_timing.cc" target="_blank" rel="noopener">performance_navigation_timing.cc</a> return 0 unless the load's cross-origin-redirect-timing exposure flag is set. <strong>Availability:</strong> runtime feature <code>NavigationTimingRedirectTimingViaTAO</code> (status <code>stable</code> at trunk).</p>
     <span class="citation">Source: <a href="https://w3c.github.io/navigation-timing/#dom-performancenavigationtiming-redirectcount" target="_blank" rel="noopener">Navigation Timing — redirectCount</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium runtime_enabled_features.json5</a>; <a href="https://chromestatus.com/feature/5078310347472896" target="_blank" rel="noopener">chromestatus.com/feature/5078310347472896</a></span>
   </section>
 
@@ -93,7 +93,7 @@ switch (true) {
     <table class="doc-table compat-table">
       <caption>redirectCount cross-origin exposure — interim, from ChromeStatus (checked 2026-07-26)</caption>
       <thead><tr><th scope="col">Engine / runtime</th><th scope="col">Support</th><th scope="col">Notes</th></tr></thead>
-      <tr><td>Chrome</td><td>151</td><td>Cross-origin exposure added; the general attribute ships since Chrome 57 per BCD</td></tr>
+      <tr><td>Chrome</td><td>151</td><td>Cross-origin exposure added (desktop, Android, WebView per the feature detail); the general attribute ships since Chrome 57 per BCD</td></tr>
       <tr><td>Edge</td><td>Not separately reported</td><td>No Edge position recorded on ChromeStatus</td></tr>
       <tr><td>Firefox</td><td>No signal</td><td>General attribute since Firefox 58 per BCD; no signal on the cross-origin exposure</td></tr>
       <tr><td>Safari</td><td>Recorded positive signal</td><td>General attribute since Safari 15 per BCD; a recorded signal, not an official position</td></tr>
@@ -105,7 +105,7 @@ switch (true) {
 
   <section>
     <h2 id="security-privacy">Security and privacy</h2>
-    <p>Zero remains the privacy-preserving default: a cross-origin chain's length is disclosed only with every redirect operator's explicit opt-in, and never for <code>no-referrer</code> navigations with a non-null client. The attribute itself is read-only, same-context, and reveals nothing about redirect URLs or response contents — only how many redirects occurred and (via the sibling time fields) when.</p>
+    <p>Zero remains the privacy-preserving default: a cross-origin chain's length is disclosed only with every redirect operator's explicit opt-in (every hop, same-origin ones included), and — for chains with cross-origin redirects — never for <code>no-referrer</code> navigations with a non-null client. The attribute itself is read-only, same-context, and reveals nothing about redirect URLs or response contents — only how many redirects occurred and (via the sibling time fields) when.</p>
     <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/12513" target="_blank" rel="noopener">whatwg/html PR #12513</a>; <a href="https://github.com/whatwg/fetch/pull/1931" target="_blank" rel="noopener">whatwg/fetch PR #1931</a></span>
   </section>
 

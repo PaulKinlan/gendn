@@ -9,11 +9,11 @@
   "cpsFeature": {
     "host": "chrome-platform-showcase.paulkinlan-ea.deno.net",
     "route": "/v151/cross-origin-redirect-timing-opt-in/redirect-chain-demo/",
-    "conformanceRoute": "/v151/cross-origin-redirect-timing-opt-in/redirect-chain-demo/conformance",
+    "conformanceRoute": "/v151/cross-origin-redirect-timing-opt-in/conformance",
     "note": "Platform BEHAVIOR of the embedded demo is governed by chrome-platform-showcase's own immutable conformance contract at conformanceRoute. gendn references it and does not fork or contradict its assertions."
   },
   "immutable": true,
-  "suiteHash": "017d8cc6ceee3724efa4dec7464043d581f1b6c9d5ccfb90d4baedb48b7d56c5",
+  "suiteHash": "c3a5c06f1963858e22a6754cc2ccc7641b381ccb1609383fc0a667bb835a07ad",
   "generatedAt": "2026-07-19T00:00:00Z",
   "author": "gen-conformance/v1 (derived from page metadata)",
   "assertions": [
@@ -231,7 +231,7 @@
       "category": "content",
       "describe": "The feature overview links every inventory member route (implementation-sufficiency: overview explains the model and links every item).",
       "kind": "js-eval",
-      "test": "[\"timing-allow-origin/\",\"redirectcount/\",\"redirectstart/\",\"redirectend/\"].every(m => !!document.querySelector('a[href=\"./' + m + '\"]'))",
+      "test": "[\"timing-allow-origin/\",\"redirectcount/\",\"redirectstart/\",\"redirectend/\",\"navigation-timing-allow-values-list/\",\"navigation-tao-check/\"].every(m => !!document.querySelector('a[href=\"./' + m + '\"]'))",
       "deviceClass": "both"
     },
     {
@@ -263,6 +263,54 @@
       "describe": "Member reference pages render at 390x844 with no document-level horizontal overflow, word-boundary table wrapping, and all nine dimension sections visible — chrome-devtools-mcp matrix evidence.",
       "kind": "manual-evidenced",
       "deviceClass": "mobile"
+    },
+    {
+      "id": "no-referrer-gate-scoped-documented",
+      "category": "content",
+      "describe": "Executable doc-quality check: the tree states the exact exposure conditional — same-origin-only chains always expose; the no-referrer gate engages only when the chain has cross-origin redirects.",
+      "kind": "js-eval",
+      "test": "(async () => { for (const p of ['', 'timing-allow-origin/', 'redirectcount/']) { const t = (await (await fetch('./' + p)).text()).replace(/<[^>]+>/g,' ').replace(/\\s+/g,' '); if (!/cross-origin redirects/.test(t)) return false; if (!/always expose/.test(t) && !/only engages/.test(t)) return false; if (!/no-referrer/.test(t)) return false; } return true; })()",
+      "deviceClass": "both"
+    },
+    {
+      "id": "every-hop-rule-documented",
+      "category": "content",
+      "describe": "Executable doc-quality check: once any cross-origin redirect exists, EVERY redirect response including same-origin hops must opt in — documented on the header and internal pages.",
+      "kind": "js-eval",
+      "test": "(async () => { for (const p of ['timing-allow-origin/', 'navigation-tao-check/']) { const t = (await (await fetch('./' + p)).text()).replace(/<[^>]+>/g,' ').replace(/\\s+/g,' '); if (!/every (redirect|entry|hop)[^.;]{0,120}same-origin/i.test(t) && !/same-origin hops? included/i.test(t)) return false; } return true; })()",
+      "deviceClass": "both"
+    },
+    {
+      "id": "wildcard-semantics-documented",
+      "category": "content",
+      "describe": "Executable doc-quality check: the wildcard semantics are documented from the algorithm steps — '*' succeeds regardless of credentials and need not be the sole member.",
+      "kind": "js-eval",
+      "test": "(async () => { const t = (await (await fetch('./navigation-tao-check/')).text()).replace(/<[^>]+>/g,' ').replace(/\\s+/g,' '); return /regardless of credentials/i.test(t) && /need not be (the )?sole member/i.test(t); })()",
+      "deviceClass": "both"
+    },
+    {
+      "id": "internal-state-algorithms-documented",
+      "category": "content",
+      "describe": "Executable doc-quality check: the internal fetch state and algorithms are documented and source-linked — request/response values lists, append algorithm (decode/split; missing header → empty list), final-response clone, navigation TAO check, plus WPT redirect-tao.html and the two Chromium implementation files.",
+      "kind": "js-eval",
+      "test": "(async () => { const vl = await (await fetch('./navigation-timing-allow-values-list/')).text(); if (!/clone/i.test(vl) || !/decode/i.test(vl) || !/empty list/i.test(vl)) return false; if (!vl.includes('w3c.github.io/FileAPI') && !vl.includes('navigation-timing/redirect-tao.html')) return false; const tc = await (await fetch('./navigation-tao-check/')).text(); if (!tc.includes('performance_navigation_timing.cc') || !tc.includes('document_loader.cc')) return false; if (!tc.includes('navigation-timing/redirect-tao.html')) return false; const rc = await (await fetch('./redirectcount/')).text(); return rc.includes('performance_navigation_timing.cc'); })()",
+      "deviceClass": "both"
+    },
+    {
+      "id": "bcd-source-accuracy",
+      "category": "content",
+      "describe": "Executable doc-quality check: redirectStart/redirectEnd general-property BCD cites api/PerformanceResourceTiming.json; the feature-level interim tables cite the ChromeStatus API record; webstatus is framed as the broader Baseline Navigation timing feature, not as proof about the opt-in.",
+      "kind": "js-eval",
+      "test": "(async () => { for (const p of ['redirectstart/','redirectend/']) { const html = await (await fetch('./' + p)).text(); if (!html.includes('api/PerformanceResourceTiming.json')) return false; } const ov = await (await fetch('./')).text(); const t = ov.replace(/<[^>]+>/g,' ').replace(/\\s+/g,' '); if (!/broader Baseline/i.test(t)) return false; return !ov.includes('returns no feature for this opt-in'); })()",
+      "deviceClass": "both"
+    },
+    {
+      "id": "internal-routes-resolve",
+      "category": "structure",
+      "describe": "The two internal reference routes (navigation timing allow values list; navigation TAO check) resolve with HTTP 200 and render all nine dimension sections with substantive text.",
+      "kind": "js-eval",
+      "test": "(async () => { const dims = ['syntax','inputs','outputs','errors','context','lifecycle','examples','compatibility','security-privacy']; for (const m of [\"navigation-timing-allow-values-list/\",\"navigation-tao-check/\"]) { const r = await fetch('./' + m); if (r.status !== 200) return false; const doc = new DOMParser().parseFromString(await r.text(), 'text/html'); for (const d of dims) { const el = doc.getElementById(d); if (!el || el.parentElement.textContent.trim().length < 40) return false; } } return true; })()",
+      "deviceClass": "both"
     }
   ]
 }

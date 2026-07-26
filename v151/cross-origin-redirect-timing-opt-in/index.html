@@ -44,7 +44,7 @@
         <li class="limited">Firefox · no signal</li>
         <li class="limited">Safari · recorded positive signal</li>
       </ul>
-      <p>Not on the Baseline register (<a href="https://api.webstatus.dev/v1/features?q=redirect%20timing" target="_blank" rel="noopener">webstatus.dev query</a> returns no feature for this opt-in, checked 2026-07-26). BCD covers the <em>general</em> <code>redirectCount</code> property but has no entry for this cross-origin opt-in; the compatibility section keeps the two apart.</p>
+      <p>The broader <a href="https://api.webstatus.dev/v1/features?q=redirect%20timing" target="_blank" rel="noopener">Navigation timing</a> feature is Baseline widely available on webstatus.dev, but the opt-in addition is not a separately tracked web-feature there (checked 2026-07-26). BCD covers the <em>general</em> <code>redirectCount</code>/<code>redirectStart</code>/<code>redirectEnd</code> properties but has no entry for this cross-origin exposure; the compatibility section keeps the two apart.</p>
     </div>
 
     <p class="lede">Until now, a navigation through a cross-origin redirect chain reported <code>redirectCount</code>, <code>redirectStart</code>, and <code>redirectEnd</code> as zero — even for redirects the destination site operated itself. This feature lets each redirect response opt <em>forward</em> into measurement by the navigation's destination origin, via the <code>Timing-Allow-Origin</code> response header, so the destination page can finally see and optimize its cross-origin redirect chains.</p>
@@ -56,7 +56,7 @@
     <table class="doc-table">
       <caption>At a glance</caption>
       <tr><th scope="row">Milestone listing</th><td>Chrome 151 — Enabled by default</td></tr>
-      <tr><th scope="row">Feature detail</th><td>Desktop 151; status text &ldquo;Proposed&rdquo; (detail updated 2026-07-13); ship stage desktop_first 151</td></tr>
+      <tr><th scope="row">Feature detail</th><td>Desktop 151, Android 151, WebView 151; status text &ldquo;Proposed&rdquo; (detail updated 2026-07-13); ship stage desktop_first 151</td></tr>
       <tr><th scope="row">Surface</th><td>One protocol element (<code>Timing-Allow-Origin</code> on navigation redirect responses) and three <code>PerformanceNavigationTiming</code> attributes (<code>redirectCount</code>, <code>redirectStart</code>, <code>redirectEnd</code>)</td></tr>
       <tr><th scope="row">Runtime feature</th><td><code>NavigationTimingRedirectTimingViaTAO</code> — status <code>stable</code> at trunk</td></tr>
       <tr><th scope="row">Standards body</th><td><a href="https://fetch.spec.whatwg.org/#navigation-tao-check" target="_blank" rel="noopener">WHATWG Fetch</a> and <a href="https://html.spec.whatwg.org/#create-the-navigation-timing-entry" target="_blank" rel="noopener">WHATWG HTML</a> (both merged via PRs <a href="https://github.com/whatwg/fetch/pull/1931" target="_blank" rel="noopener">fetch #1931</a> and <a href="https://github.com/whatwg/html/pull/12513" target="_blank" rel="noopener">html #12513</a>); <a href="https://w3c.github.io/navigation-timing/" target="_blank" rel="noopener">W3C Navigation Timing</a></td></tr>
@@ -68,12 +68,14 @@
 
   <section>
     <h2>Member reference</h2>
-    <p>The developer-facing surface is one protocol element and three timing attributes. Each has a stable detailed reference page covering syntax, inputs, outputs, errors, context, lifecycle, examples, compatibility, and security/privacy:</p>
+    <p>The developer-facing surface is one protocol element and three timing attributes, plus the fetch bookkeeping and algorithms that connect them. Each has stable detailed reference covering syntax, inputs, outputs, errors, context, lifecycle, examples, compatibility, and security/privacy:</p>
     <ul>
       <li><a href="./timing-allow-origin/"><code>Timing-Allow-Origin</code> on navigation redirects</a> — the response header that opts a redirect forward into measurement by the destination origin</li>
       <li><a href="./redirectcount/"><code>PerformanceNavigationTiming.redirectCount</code></a> — the chain length, now exposed for opted-in cross-origin chains</li>
       <li><a href="./redirectstart/"><code>PerformanceNavigationTiming.redirectStart</code></a> — when the first redirect began (zero unless the chain is exposed)</li>
       <li><a href="./redirectend/"><code>PerformanceNavigationTiming.redirectEnd</code></a> — when the last redirect's response arrived (zero unless the chain is exposed)</li>
+      <li><a href="./navigation-timing-allow-values-list/">navigation timing allow values list</a> — the request/response bookkeeping: per-redirect collection (append) and the final-response clone</li>
+      <li><a href="./navigation-tao-check/">navigation TAO check</a> — the algorithm that decides, once the destination origin is known, whether every redirect allowed it</li>
     </ul>
     <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#navigation-tao-check" target="_blank" rel="noopener">Fetch Standard — navigation TAO check</a>; <a href="https://w3c.github.io/navigation-timing/#performancenavigationtiming" target="_blank" rel="noopener">Navigation Timing — PerformanceNavigationTiming</a></span>
   </section>
@@ -81,7 +83,7 @@
   <section>
     <h2>How the opt-in works</h2>
     <p>For subresources, <code>Timing-Allow-Origin</code> has always opted <em>backwards</em>: a response names the <strong>requesting</strong> origins allowed to measure it. For a navigation, the meaningful opt-in runs the other way — the page that lands (the <strong>destination</strong>) is the one that wants to measure, and each redirect in the chain must allow it. The merged Fetch change therefore records every redirect response's <code>Timing-Allow-Origin</code> values during the chain and, once the destination origin is known, runs the <em>navigation TAO check</em>: every redirect must have named either <code>*</code> or the destination's serialized origin, or the chain stays opaque.</p>
-    <p>Two more boundaries from the normative text: the exposure only applies to navigation requests, and a navigation whose referrer is <code>no-referrer</code> is excluded (unless the request's client is null) — so the destination-origin alignment can be trusted. If any redirect in the chain withholds the opt-in, the destination sees <code>redirectCount === 0</code> and zeroed redirect times, exactly as before.</p>
+    <p>Two more boundaries from the normative text. First, the exposure conditional only engages when the chain <strong>has cross-origin redirects</strong>: a purely same-origin chain always exposes its real values, regardless of referrer policy. When the chain <em>does</em> include a cross-origin redirect, exposure requires both that the request's client is null or its referrer is not <code>no-referrer</code>, <em>and</em> that the navigation TAO check succeeds. Second, that check runs over <strong>every redirect response in the chain — including same-origin hops</strong>: once any cross-origin redirect exists, a hop that sends no <code>Timing-Allow-Origin</code> (or names neither <code>*</code> nor the destination) fails the whole chain, and the destination sees <code>redirectCount === 0</code> and zeroed redirect times, exactly as before.</p>
     <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#navigation-tao-check" target="_blank" rel="noopener">Fetch Standard — navigation TAO check</a>; <a href="https://fetch.spec.whatwg.org/#request-navigation-timing-allow-values-list" target="_blank" rel="noopener">Fetch Standard — navigation timing allow values list</a>; <a href="https://github.com/whatwg/html/pull/12513" target="_blank" rel="noopener">whatwg/html PR #12513</a></span>
   </section>
 
@@ -109,12 +111,12 @@ if (nav.redirectCount > 0) {
 
   <section>
     <h2>Browser compatibility</h2>
-    <p>BCD has no entry for this opt-in (checked 2026-07-26) — its <code>redirectCount</code> entry covers the <em>general</em> property (Chrome 57, Firefox 58, Safari 15), which predates and does not imply this feature. The table below is an <strong>interim</strong> view from ChromeStatus, labelled as such.</p>
+    <p>BCD has no entry for this opt-in (checked 2026-07-26) — its <code>redirectCount</code> entry (in <code>api/PerformanceNavigationTiming.json</code>) and <code>redirectStart</code>/<code>redirectEnd</code> entries (in <code>api/PerformanceResourceTiming.json</code>) cover the <em>general</em> properties, which predate and do not imply this feature. On webstatus.dev the query resolves to the broader Baseline <strong>Navigation timing</strong> feature (widely available) — not evidence about this addition, which has no distinct entry. The table below is an <strong>interim</strong> view from ChromeStatus, labelled as such.</p>
     <div class="table-wrap">
     <table class="doc-table compat-table">
       <caption>Interim compatibility — from ChromeStatus, not BCD</caption>
       <thead><tr><th scope="col">Engine / runtime</th><th scope="col">Support</th><th scope="col">Notes</th></tr></thead>
-      <tr><td>Chrome</td><td>151</td><td>Milestone listing: Enabled by default; detail desktop 151 with status text &ldquo;Proposed&rdquo; (updated 2026-07-13); runtime feature <code>NavigationTimingRedirectTimingViaTAO</code> stable at trunk</td></tr>
+      <tr><td>Chrome</td><td>151</td><td>Milestone listing: Enabled by default; detail desktop + Android + WebView 151 with status text &ldquo;Proposed&rdquo; (updated 2026-07-13); runtime feature <code>NavigationTimingRedirectTimingViaTAO</code> stable at trunk</td></tr>
       <tr><td>Edge</td><td>Not separately reported</td><td>No Edge position is recorded on ChromeStatus; no public support evidence</td></tr>
       <tr><td>Firefox</td><td>No signal</td><td>Vendor signal recorded on the ChromeStatus entry; no BCD or public support evidence</td></tr>
       <tr><td>Safari</td><td>Recorded positive signal</td><td>The ChromeStatus entry records a Positive signal — a recorded signal, not an official WebKit standards position (a feature this small has none)</td></tr>

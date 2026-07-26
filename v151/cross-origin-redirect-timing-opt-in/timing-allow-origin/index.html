@@ -43,7 +43,7 @@ Timing-Allow-Origin: *</code></pre>
 
   <section>
     <h2 id="inputs">Inputs</h2>
-    <p>The header's value is a list of <strong>serialized origins</strong> (for example <code>https://destination.example</code>) or the single wildcard <code>*</code>. It is read from <strong>redirect responses</strong> (3xx) that occur while fetching a navigation request — each redirect in the chain is read independently, and a redirect response with no <code>Timing-Allow-Origin</code> header contributes an empty value list.</p>
+    <p>The header's value is a list of <strong>serialized origins</strong> (for example <code>https://destination.example</code>) or the single wildcard <code>*</code>, processed by fetch's &ldquo;get, decode, and split&rdquo; header parsing — so a comma-separated list is normal form. The wildcard succeeds <strong>regardless of credentials</strong> (the navigation TAO check has no credentials branch, unlike CORS) and <strong>need not be the sole member</strong> — a list containing <code>*</code> among origins still counts. It is read from <strong>redirect responses</strong> (3xx) while fetching a navigation request — each redirect in the chain is read independently, and a redirect response with no <code>Timing-Allow-Origin</code> header contributes an empty value list.</p>
     <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#append-to-a-requests-navigation-timing-allow-values-list" target="_blank" rel="noopener">Fetch Standard — append to a request's navigation timing allow values list</a></span>
   </section>
 
@@ -69,9 +69,9 @@ Timing-Allow-Origin: *</code></pre>
 
   <section>
     <h2 id="lifecycle">Lifecycle</h2>
-    <p><strong>Collection:</strong> as the navigation follows each redirect, fetch appends that redirect response's decoded <code>Timing-Allow-Origin</code> values to the request's <em>navigation timing allow values list</em> — one list entry per redirect, in chain order (missing header → empty entry).</p>
-    <p><strong>Evaluation:</strong> once the destination origin is known, the HTML navigation steps run the navigation TAO check over the collected list. The check is all-or-nothing per chain: every entry must contain <code>*</code> or the destination origin, serialized.</p>
-    <p><strong>Exclusions:</strong> the exposure is skipped when the navigation's request has a non-null client whose referrer is <code>no-referrer</code> — so a <code>Referrer-Policy: no-referrer</code> navigation cannot have its chain measured even with the header present.</p>
+    <p><strong>Collection:</strong> as the navigation follows each redirect, fetch appends that redirect response's decoded <code>Timing-Allow-Origin</code> values to the request's <em>navigation timing allow values list</em> — one list entry per redirect, in chain order (missing header → empty entry). The append runs for <strong>every</strong> redirect-status response of a navigation request, same-origin hops included; the final response then carries a clone of the collected list.</p>
+    <p><strong>Evaluation:</strong> once the destination origin is known, the HTML navigation steps run the navigation TAO check over the collected list. The check is all-or-nothing per chain: <strong>every</strong> entry — same-origin hops included, once any cross-origin redirect exists — must contain <code>*</code> or the destination origin, serialized.</p>
+    <p><strong>Exclusions, stated exactly:</strong> if the chain has no cross-origin redirects, the real values are always exposed. Otherwise exposure additionally requires that the request's client is null or its referrer is not <code>no-referrer</code> — the <code>no-referrer</code> gate applies <em>only</em> when the chain has cross-origin redirects.</p>
     <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#request-navigation-timing-allow-values-list" target="_blank" rel="noopener">Fetch Standard — navigation timing allow values list</a>; <a href="https://github.com/whatwg/html/pull/12513" target="_blank" rel="noopener">whatwg/html PR #12513 (the exposure conditional)</a></span>
   </section>
 
@@ -115,7 +115,7 @@ Timing-Allow-Origin: *
   <section>
     <h2 id="security-privacy">Security and privacy</h2>
     <p><strong>This header is the consent mechanism.</strong> Redirect timing can disclose a chain's structure and timing across origins, which is why cross-origin navigation redirects were opaque by default. Exposure happens only when every redirect operator explicitly opts the destination origin in — a destination cannot unilaterally observe a chain.</p>
-    <p><strong>Referrer alignment:</strong> <code>no-referrer</code> navigations are excluded from exposure even with the header, so the opt-in cannot be abused to measure navigations deliberately stripped of provenance.</p>
+    <p><strong>Referrer alignment:</strong> when the chain has cross-origin redirects, a <code>no-referrer</code> navigation (with a non-null client) is excluded from exposure even with the header — so the opt-in cannot be abused to measure navigations deliberately stripped of provenance. Purely same-origin chains are unaffected by that gate.</p>
     <p><strong>Scope:</strong> the header discloses only redirect count and redirect start/end times for the chain — not response bodies, headers, or redirect URLs beyond what the address bar already traverses.</p>
     <span class="citation">Source: <a href="https://github.com/whatwg/fetch/pull/1931" target="_blank" rel="noopener">whatwg/fetch PR #1931 (opt-in alignment rationale)</a>; <a href="https://github.com/whatwg/html/pull/12513" target="_blank" rel="noopener">whatwg/html PR #12513 (exposure conditional)</a></span>
   </section>
