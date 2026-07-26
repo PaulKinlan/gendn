@@ -6,7 +6,7 @@
 // `chromestatus.com/feature/<id>` link every page is required to carry (CLAUDE.md invariant #3).
 //
 // Each published page emits a normalized entry:
-//   { id, route, identity, status, demo, aliases }
+//   { id, route, identity, status, demo, aliases, referenceRoutes }
 // where
 //   id       — stable page id (`v<N>/<slug>`), append-only, never renamed.
 //   route    — the live URL path (`/v<N>/<slug>/`) served by server.ts.
@@ -18,15 +18,17 @@
 //              chrome-platform-showcase route this page links to for its own feature (or null).
 //              The contract covers this inbound-link identity as well as the article route.
 //   aliases  — old routes kept alive for this id via migrations.json (see check-routes.mjs).
+//   referenceRoutes — stable overview/member/protocol routes declared by reference-contract.json.
 //
 // Usage:
 //   deno run --allow-read --allow-run scripts/route-manifest.mjs            # working tree
 //   deno run --allow-read --allow-run scripts/route-manifest.mjs --ref origin/main   # a git ref
 //   (add `--pretty` for indented output)
 
+import { isMdnStubHtml } from "./lib/artifacts.mjs";
+
 const PAGE_RE = /^v\d+\/[^/]+\/index\.html$/;
 const FEATURE_ID_RE = /chromestatus\.com\/feature\/(\d+)/;
-const STUB_RE = /covered on mdn|documented on MDN|see MDN/i;
 const SHOWCASE_HOST = "chrome-platform-showcase.paulkinlan-ea.deno.net";
 
 function pathToIdentityFields(pagePath, html) {
@@ -40,7 +42,7 @@ function pathToIdentityFields(pagePath, html) {
   const idMatch = html.match(FEATURE_ID_RE);
   const identity = idMatch ? idMatch[1] : null;
 
-  const status = STUB_RE.test(html) ? "stub" : "built";
+  const status = isMdnStubHtml(html) ? "stub" : "built";
 
   // The embedded-demo identity: the showcase route this page links to for its OWN feature.
   // Prefer a link whose path matches this page's `/v<N>/<slug>`; fall back to null.
@@ -118,6 +120,29 @@ async function* walkPages(root) {
 
 // The responsive-support sidecar (git-tracked) carries each route's mobile+desktop support record.
 // It is merged into the manifest so the gate and any consumer see support state alongside identity.
+async function loadReferenceRoutes(ref, id) {
+  let raw;
+  try {
+    raw = ref
+      ? await runGit(["show", `${ref}:${id}/reference-contract.json`])
+      : await Deno.readTextFile(`${id}/reference-contract.json`);
+  } catch {
+    return [];
+  }
+  try {
+    const contract = JSON.parse(raw);
+    const routes = (contract.documentation ?? []).map((doc) => {
+      const path = String(doc.href ?? "").split("#")[0];
+      if (!path) return `/${id}/`;
+      const absolute = path.startsWith("/") ? path : `/${id}/${path}`;
+      return absolute.endsWith("/") || /\.[a-z0-9]+$/i.test(absolute) ? absolute : `${absolute}/`;
+    });
+    return [...new Set(routes)].sort();
+  } catch {
+    return [];
+  }
+}
+
 async function loadSupportRoutes(ref) {
   let raw = null;
   try {
@@ -137,11 +162,12 @@ async function loadSupportRoutes(ref) {
 export async function buildManifest({ ref } = {}) {
   const entries = ref ? await collectFromRef(ref) : await collectFromWorkingTree();
   const supportRoutes = await loadSupportRoutes(ref);
-  return entries.map((e) => ({
+  return await Promise.all(entries.map(async (e) => ({
     ...e,
     aliases: [],
+    referenceRoutes: await loadReferenceRoutes(ref, e.id),
     support: supportRoutes[e.route] ?? { desktop: "untested", mobile: "untested" },
-  }));
+  })));
 }
 
 if (import.meta.main) {

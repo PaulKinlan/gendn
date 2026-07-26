@@ -18,7 +18,8 @@
 //      repurposed to a different feature), and not covered by an identity-change migration;
 //   4. a baseline "stub" id (gendn's analogue of an honestly-recorded `blocked` entry — an
 //      MDN-covered redirect) was DELETED (stubs must stay recorded);
-//   5. the published count DROPPED vs baseline and the difference is not covered by migrations.
+//   5. a stable member/protocol route declared by a baseline reference contract disappeared;
+//   6. the published count DROPPED vs baseline and the difference is not covered by migrations.
 //
 // PASS for: additive new ids, honest new stubs, in-place fixes that keep the same id + identity +
 // live route, and any change explicitly listed in migrations.json.
@@ -92,6 +93,13 @@ function migrationCovers(migrations, id, action) {
   return migrations.some((m) => m.id === id && (!action || m.action === action));
 }
 
+export function referenceRouteMigration(migrations, id, route, currentReferenceRoutes) {
+  return migrations.find((m) =>
+    m.id === id && (m.action === "move" || m.action === "alias") && m.from === route &&
+    typeof m.to === "string" && m.to.startsWith(`/${id}/`) && currentReferenceRoutes.has(m.to)
+  );
+}
+
 async function main() {
   const { source, manifest: baseline } = await loadBaseline();
   const current = await buildManifest();
@@ -143,9 +151,24 @@ async function main() {
         );
       }
     }
+
+    // Condition 5: stable child reference routes are append-only once published.
+    const currentReferenceRoutes = new Set(c.referenceRoutes ?? []);
+    for (const route of b.referenceRoutes ?? []) {
+      if (!currentReferenceRoutes.has(route)) {
+        const migration = referenceRouteMigration(migrations, b.id, route, currentReferenceRoutes);
+        if (migration) {
+          migrated.push(`${b.id} (reference route alias: ${route} -> ${migration.to})`);
+        } else {
+          failures.push(
+            `${b.id}: published member/protocol route ${route} was removed or renamed without a server-backed move/alias to a current same-feature route`,
+          );
+        }
+      }
+    }
   }
 
-  // Condition 6: mobile+desktop support parity — monotonic + no broken-while-claimed-supported.
+  // Condition 7: mobile+desktop support parity — monotonic + no broken-while-claimed-supported.
   // A route recorded `ok` (validated) on a class must never silently drop back to untested/broken
   // without a migration record; and no route may be recorded `broken` on a class it claims to
   // support. Many `untested` pages are fine (that's the audit backlog).
@@ -214,6 +237,11 @@ async function main() {
   console.log(`  baseline source : ${source}`);
   console.log(`  published        : ${baseline.length} baseline -> ${current.length} current`);
   console.log(`    built/stub     : ${countByStatus(current)}`);
+  console.log(
+    `    child refs     : ${
+      current.reduce((sum, entry) => sum + (entry.referenceRoutes?.length ?? 0), 0)
+    } stable routes`,
+  );
   console.log(`  desktop support  : ${cov("desktop")}`);
   console.log(`  mobile support   : ${cov("mobile")}`);
   console.log(`  + added          : ${added.length}`);

@@ -130,6 +130,48 @@ citation label MUST link directly to the original public artifact that supports 
   unlinked citations as part of the targeted fix. The existing backlog is additive cleanup work, not
   permission to create more plain-text citations.
 
+## Implementation sufficiency — a reference must be enough to build from
+
+A non-stub page is not complete merely because an overview exists. A developer given only the
+local gendn reference MUST be able to implement or use the documented capability without guessing
+contracts from an external spec. Direct sources remain linked for verification and provenance.
+The authoring format and example are in [`docs/reference-contract.md`](../docs/reference-contract.md).
+
+- Derive and declare the exact developer-facing surface from primary evidence: interfaces, methods,
+  properties, events, dictionaries/enums, headers/directives/fields, protocol states/algorithms,
+  CSS grammar/values, elements/attributes, or migration behavior as applicable.
+- Overview pages explain the model and link every item. Substantial members/protocol elements get
+  stable child reference routes; do not compress several complex contracts into a two-column table.
+- Every inventory item covers nine dimensions: syntax, inputs, outputs, errors, context/exposure,
+  lifecycle/state transitions, complete examples, compatibility, and security/privacy. A genuinely
+  inapplicable dimension needs a sourced rationale; unknown or unfinished content is `missing`, not
+  invented and not silently omitted.
+- Record the source inventory and one-to-one documentation mapping in `reference-contract.json`.
+  `implementation-sufficient` is a gated claim: every inventory item and dimension must resolve to
+  substantive rendered documentation, examples use semantic `<pre><code>`, compatibility is
+  tabular (including explicit unknowns), and each target page directly links its cited sources.
+- Structural validation cannot prove prose correct. Independent review MUST compare the declared
+  inventory and details with current primary sources. Authored text, page length, a green route, or
+  an agent's self-attestation never establishes completeness.
+- Existing unassessed pages remain `legacy-unassessed`; partial contracts remain `partial`. New or
+  touched full references must pass `deno task validate-artifacts`, `deno task
+  test-reference-contract`, and `deno task check-conformance`, which fail unless the touched feature
+  is implementation-sufficient. MDN redirect stubs are exempt because MDN owns their detailed
+  reference.
+
+## Parallel writing and integration — lock files, not the whole repository
+
+Scale infrastructure and leaf documentation independently with git worktrees/branches:
+
+- One designated **infrastructure writer** owns shared files (schemas, validators, server/catalogue,
+  shared styles, routine rules) for a bounded change.
+- Multiple **leaf-reference writers** may concurrently own distinct `v<N>/<slug>/` trees. Each
+  returns one bounded commit and does not edit shared files.
+- An **integrator/reviewer** independently validates source fidelity, implementation sufficiency,
+  immutable conformance, routes, and browser behavior before cherry-picking/merging.
+- Pause another writer only for actual overlapping files or integration, not merely because both
+  tasks use the same repository.
+
 ## Mobile + desktop parity — every demo usable on both, or honestly unsupported with recorded evidence
 
 Every existing and future published demo MUST be a usable, polished experience on BOTH mobile and
@@ -302,8 +344,11 @@ Do NOT write from the chromestatus summary alone. Reference docs demand accuracy
 4. **Read the actual Chromium behaviour** when the spec is ambiguous: `https://source.chromium.org`,
    `https://issues.chromium.org/issues?q=<term>`, and open CLs/tests at
    `https://chromium-review.googlesource.com`.
-5. Enumerate the members/values/use-cases you'll document from that reading. Never invent a method,
-   property, parameter, or enum value — if unsure, describe in prose and link the spec.
+5. Build the exact source-derived inventory for `reference-contract.json`: every interface, method,
+   property, event, dictionary/enum, header/directive/field, protocol state/algorithm, CSS grammar/
+   value, element/attribute, or migration contract a developer must understand. Never invent an
+   item. If the source is ambiguous, preserve the ambiguity explicitly and keep the contract
+   `partial`; an omitted item cannot be recovered by polished prose.
 
 ## Step 5: Check MDN coverage
 
@@ -359,8 +404,11 @@ of the "look like MDN" goal:
    feature, giving the EXACT enable steps (chrome://flags/#id or --enable-blink-features=<Name> from
    Step 4b) — not just "experimental".
 5. `<h2>Syntax</h2>` — a formal syntax block: for CSS the value-definition grammar (verbatim from
-   the spec); for a Web API the IDL / method signatures. Then per-member reference: Parameters /
-   Values, Return value, Exceptions — each described accurately, cited. Never invent members.
+   the spec); for a Web API the IDL / method signatures. The overview links every inventoried item.
+   Give each substantial member or protocol element a stable child route with syntax, inputs,
+   outputs, errors, context/exposure, lifecycle/state transitions, complete examples,
+   compatibility, security/privacy, and direct citations. Do not compress multiple complex
+   contracts into a summary table and call the reference complete.
 6. `<h2>Examples</h2>` — **embed the live showcase demo as an iframe** plus a `<pre><code>` snippet.
    HEAD-check the showcase concept route first and embed only if it returns 200:
    ```bash
@@ -397,8 +445,11 @@ Content rules:
 - Never invent method names. Paraphrase + link to spec if unsure.
 - IDL: include verbatim if you can fetch it; describe in prose otherwise.
 - HTTP features: show header name + example request/response.
-- Length: comparable to the seed pages. Long enough to use the API, short enough to read in two
-  minutes.
+- No arbitrary length target. Keep the overview scannable, but add as many stable member/protocol
+  pages as the source-derived inventory requires. Completeness outranks a two-minute reading goal.
+- Write `reference-contract.json` and claim `implementation-sufficient` only when its exact
+  inventory-to-documentation mapping and all nine dimensions pass validation. Otherwise record
+  `partial` and do not present the work as complete.
 
 Every page (Case A or B) MUST include the `chromestatus.com/feature/<id>` link in references. This
 is how we recover from glitches.
@@ -430,7 +481,8 @@ cross-browser. Fix before committing.
 ```bash
 deno task check-routes        # durable-demo contract gate: fails on any deleted/renamed/repurposed
                               # published route or identity. All-additive waves pass automatically.
-deno task validate-artifacts  # schema + suiteHash well-formedness for all lifecycle artifacts
+deno task validate-artifacts  # schemas, suiteHash, and implementation-sufficiency mappings
+deno task test-reference-contract # fail-closed validator regression tests
 deno task check-conformance   # coverage + immutability gate: missing suite / orphan / weakened
                               # assertion / touched page left untested. Must pass.
 git add v<N>/<slug>/          # includes conformance.json + _questions.json for the page

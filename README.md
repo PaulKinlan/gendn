@@ -2,8 +2,9 @@
 
 Generated reference documentation for web platform APIs that ship in Chrome but don't yet have a
 page on MDN. Not a replacement for MDN: when MDN already covers an API, gendn just links out. The
-goal is a fast "I know enough to use this" reference for the gap between "shipped in Chrome" and
-"documented on developer.mozilla.org".
+goal is an implementation-sufficient reference for the gap between "shipped in Chrome" and
+"documented on developer.mozilla.org": a developer with only the gendn pages should not have to
+infer signatures, protocol fields, errors, lifecycle behavior, or edge cases.
 
 ## How it works (intended end state)
 
@@ -19,19 +20,23 @@ goal is a fast "I know enough to use this" reference for the gap between "shippe
 5. When MDN ships its own page, the routine notices on the next pass and the gendn entry switches to
    a "see MDN" stub.
 
-## Page shape
+## Reference shape and completeness
 
-Each generated page follows a familiar reference layout:
+A feature overview explains the model and indexes the exact developer-facing surface derived from
+primary sources. Substantial methods, properties, events, headers, directives, fields, states, and
+algorithms get stable child pages rather than one-line table entries.
 
-- Title, summary
-- Where it shipped (Chrome version, status, flag, origin trial)
-- Syntax (IDL block)
-- Methods and properties (signatures + 1-line summaries)
-- Examples drawn from the spec, explainer, or hand-written
-- Browser support (from chromestatus + standards-positions)
-- Specifications (links)
-- See also (related APIs)
-- Citations: every section says where the content came from
+Each item documents syntax, inputs, outputs, errors, context/exposure, lifecycle, complete examples,
+compatibility, and security/privacy behavior. The colocated `reference-contract.json` reconciles the
+source-derived inventory with those pages and fragments. The gate distinguishes three states:
+
+- `implementation-sufficient`: every item and dimension resolves and has passed structural checks;
+- `partial`: the inventory records explicit missing work;
+- `legacy-unassessed`: an older page exists but has not passed this contract.
+
+See [the reference-contract authoring guide](docs/reference-contract.md). Direct source links remain
+on each page so reviewers can verify the inventory and prose; structural checks cannot replace that
+independent source review.
 
 ## Layout
 
@@ -43,8 +48,13 @@ gendn/
     chromestatus.ts     JSON API wrapper (shared with chrome-platform-showcase).
     mdn.ts              Heuristics for "is this API on MDN yet?".
   public/styles.css     Shared editorial design system.
+  docs/reference-contract.md
+  schema/reference-contract.schema.json
   v149/
-    <api-slug>/index.html
+    <api-slug>/
+      index.html
+      reference-contract.json
+      <interface>/<member>/index.html
 ```
 
 ## License
