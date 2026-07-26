@@ -56,8 +56,9 @@ const stream = blob.textStream();</code></pre>
   <section>
     <h2 id="errors">Errors</h2>
     <p><strong>No synchronous exceptions in the spec steps:</strong> unlike the <code>Body</code>-mixin version, FileAPI's <code>textStream()</code> steps define no throw paths — a blob can always produce a fresh stream. (Chromium's binding still carries <code>RaisesException</code>; treat that as an implementation detail, not a spec contract.)</p>
-    <p><strong>Asynchronous stream failures:</strong> a <code>File</code>-backed blob can fail while being read — FileAPI defines a <em>failure reason</em> (for example <code>NotFound</code>, <code>UnsafeFile</code>, <code>TooManyReads</code>, snapshot-state changes on the underlying file) and such failures <strong>error the stream</strong>: pending and future <code>read()</code> promises reject. Handle rejection from the reader, not a try/catch around the call.</p>
-    <p><strong>Malformed bytes:</strong> as with the <code>Body</code> version, decoding is non-<code>fatal</code> by default, so invalid UTF-8 yields U+FFFD replacement characters rather than an error.</p>
+    <p><strong>Asynchronous stream failures:</strong> a <code>File</code>-backed blob can fail while being read. FileAPI defines exactly five <em>failure reasons</em> — <code>NotFound</code>, <code>UnsafeFile</code>, <code>TooManyReads</code>, <code>SnapshotState</code>, and <code>FileLock</code> — and a read that fails for one of these reasons <strong>errors the stream</strong> with that failure reason: pending and future <code>read()</code> promises reject. Handle rejection from the reader, not a try/catch around the call.</p>
+    <p><strong>Not to be confused with FileReader errors:</strong> the <code>NotFoundError</code>-style <code>DOMException</code> names are FileAPI's mapping for the <em>FileReader</em> read methods (thrown by synchronous reads or surfaced via <code>FileReader.error</code> for asynchronous ones). A <code>ReadableStream</code> from <code>textStream()</code> is errored with the raw failure reason itself — do not test for <code>DOMException</code> names here.</p>
+    <p><strong>Malformed bytes:</strong> as with the <code>Body</code> version, decoding is non-<code>fatal</code> by default (<a href="https://encoding.spec.whatwg.org/#dom-textdecoderoptions-fatal" target="_blank" rel="noopener"><code>TextDecoderOptions.fatal</code></a> defaults to <code>false</code>), so invalid UTF-8 yields U+FFFD replacement characters rather than an error.</p>
     <span class="citation">Source: <a href="https://w3c.github.io/FileAPI/#dom-blob-textstream" target="_blank" rel="noopener">FileAPI — Blob.textStream() steps</a>; <a href="https://w3c.github.io/FileAPI/#failureReason" target="_blank" rel="noopener">FileAPI — failure reason</a>; <a href="https://encoding.spec.whatwg.org/#interface-textdecoderstream" target="_blank" rel="noopener">Encoding Standard — TextDecoderOptions / error mode</a></span>
   </section>
 
@@ -103,15 +104,17 @@ try {
     <div class="table-wrap">
     <table class="doc-table compat-table">
       <caption>Blob.textStream() — from BCD api/Blob.json (checked 2026-07-26)</caption>
-      <thead><tr><th scope="col">Browser</th><th scope="col">Support</th><th scope="col">Notes</th></tr></thead>
-      <tr><td>Chrome</td><td>151</td><td>Matches the Chrome 151 milestone listing (Enabled by default)</td></tr>
+      <thead><tr><th scope="col">Engine / runtime</th><th scope="col">Support</th><th scope="col">Notes</th></tr></thead>
+      <tr><td>Chrome</td><td>151</td><td>Matches the Chrome 151 milestone listing (Enabled by default); Chrome for Android and WebView (Android + iOS) are BCD mirrors</td></tr>
       <tr><td>Edge</td><td>mirror</td><td>BCD mirrors Chrome's data</td></tr>
-      <tr><td>Firefox</td><td>Not supported</td><td>BCD <code>version_added: false</code>; vendor position: No signal</td></tr>
-      <tr><td>Safari</td><td>Not supported</td><td>BCD <code>version_added: false</code>; vendor position: Positive (a standards position, not shipped support)</td></tr>
+      <tr><td>Firefox</td><td>Not supported</td><td>BCD <code>version_added: false</code> (Firefox for Android mirrors); vendor signal recorded on the ChromeStatus entry: No signal</td></tr>
+      <tr><td>Safari</td><td>Not supported</td><td>BCD <code>version_added: false</code> (Safari on iOS mirrors); the ChromeStatus entry records a Positive signal — a recorded signal, not an official WebKit standards position (a feature this small has none)</td></tr>
+      <tr><td>Node.js</td><td>26.5.0</td><td>BCD records <code>version_added: 26.5.0</code></td></tr>
+      <tr><td>Deno</td><td>Unknown</td><td>No BCD entry as of 2026-07-26</td></tr>
     </table>
     </div>
-    <p>No Baseline entry: the <a href="https://api.webstatus.dev/v1/features?q=textStream" target="_blank" rel="noopener">webstatus.dev query</a> returns no feature (checked 2026-07-26). Vendor positions resolved from <a href="https://github.com/GoogleChrome/chromium-dashboard/blob/main/internals/core_enums.py" target="_blank" rel="noopener">chromium-dashboard core_enums.py</a>.</p>
-    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Blob.json" target="_blank" rel="noopener">BCD api/Blob.json</a>; <a href="https://api.webstatus.dev/v1/features?q=textStream" target="_blank" rel="noopener">webstatus.dev query</a>; <a href="https://github.com/GoogleChrome/chromium-dashboard/blob/main/internals/core_enums.py" target="_blank" rel="noopener">core_enums.py</a></span>
+    <p>Support rows are from BCD only. Separately, vendor <em>signals</em> come from the <a href="https://chromestatus.com/api/v0/features/5146752165478400" target="_blank" rel="noopener">ChromeStatus API feature record</a> (checked 2026-07-26): Firefox &ldquo;No signal&rdquo;, Safari &ldquo;Positive&rdquo;, web developers &ldquo;No signals&rdquo;. No Baseline entry: the <a href="https://api.webstatus.dev/v1/features?q=textStream" target="_blank" rel="noopener">webstatus.dev query</a> returns no feature (checked 2026-07-26).</p>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Blob.json" target="_blank" rel="noopener">BCD api/Blob.json</a>; <a href="https://chromestatus.com/api/v0/features/5146752165478400" target="_blank" rel="noopener">ChromeStatus API feature record</a>; <a href="https://api.webstatus.dev/v1/features?q=textStream" target="_blank" rel="noopener">webstatus.dev query</a></span>
   </section>
 
   <section>

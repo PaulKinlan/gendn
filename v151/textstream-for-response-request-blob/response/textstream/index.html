@@ -49,14 +49,14 @@ const stream = response.textStream();</code></pre>
   <section>
     <h2 id="outputs">Outputs</h2>
     <p>Returns a <code>ReadableStream</code> whose chunks are <strong>strings</strong> — the body's bytes run through a <code>TextDecoderStream</code> set up with UTF-8, &ldquo;regardless of the presence or the value of a <code>Content-Type</code> header and regardless of the presence or the value of a <code>charset</code> parameter&rdquo;. If the body's byte length is not a multiple of the encoding's unit size, the decoder completes any trailing sequence at end-of-stream.</p>
-    <p><strong>Null body:</strong> if the response's body is null, the method returns a new <code>ReadableStream</code> that is already closed (it yields no chunks and is not an error).</p>
+    <p><strong>Null body:</strong> if the response's body is null, the method returns a new <code>ReadableStream</code> that is already closed (it yields no chunks and is not an error). Null-body calls are <em>not</em> single-use: every call creates a <strong>distinct</strong> closed stream object, and <code>bodyUsed</code> remains <code>false</code> throughout, because the unusable/disturbed contract only exists for non-null bodies.</p>
     <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#dom-body-textstream" target="_blank" rel="noopener">Fetch Standard — textStream() method steps</a>; <a href="https://encoding.spec.whatwg.org/#interface-textdecoderstream" target="_blank" rel="noopener">Encoding Standard — TextDecoderStream</a></span>
   </section>
 
   <section>
     <h2 id="errors">Errors</h2>
     <p><strong><code>TypeError</code> — unusable receiver:</strong> if the response is <em>unusable</em> — its body is non-null and that body's stream is already disturbed or locked (for example after a prior <code>text()</code>, <code>textStream()</code>, or a locked <code>body</code> reader) — the method throws a <code>TypeError</code> synchronously. This is the only exception in the method steps, mirrored by the binding's <code>RaisesException</code>.</p>
-    <p><strong>Malformed bytes are not exceptions:</strong> the decoder runs in the Encoding Standard's default (non-<code>fatal</code>) error mode — <code>TextDecoderOptions.fatal</code> defaults to <code>false</code> — so invalid UTF-8 sequences decode to U+FFFD replacement characters in the output chunks rather than throwing or erroring the stream.</p>
+    <p><strong>Malformed bytes are not exceptions:</strong> the decoder runs in the Encoding Standard's default (non-<code>fatal</code>) error mode — <a href="https://encoding.spec.whatwg.org/#dom-textdecoderoptions-fatal" target="_blank" rel="noopener"><code>TextDecoderOptions.fatal</code></a> defaults to <code>false</code> — so invalid UTF-8 sequences decode to U+FFFD replacement characters in the output chunks rather than throwing or erroring the stream.</p>
     <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#dom-body-textstream" target="_blank" rel="noopener">Fetch Standard — textStream() method steps + unusable definition</a>; <a href="https://encoding.spec.whatwg.org/#interface-textdecoderstream" target="_blank" rel="noopener">Encoding Standard — TextDecoderOptions / error mode</a></span>
   </section>
 
@@ -70,8 +70,9 @@ const stream = response.textStream();</code></pre>
 
   <section>
     <h2 id="lifecycle">Lifecycle</h2>
-    <p><strong>Immediate consumption:</strong> calling <code>textStream()</code> starts the read at once — the WPT contract asserts <code>bodyUsed</code> becomes <code>true</code> synchronously, before any chunk is consumed.</p>
-    <p><strong>Single use:</strong> while the returned stream is being read (and after it closes), the body's stream is disturbed, so the response is unusable — any further body method (<code>text()</code>, <code>json()</code>, a second <code>textStream()</code>) throws the <code>TypeError</code> above. Clone the response first (<code>response.clone()</code>) if two consumers are needed.</p>
+    <p><strong>Immediate consumption — non-null bodies only:</strong> for a response with a body, calling <code>textStream()</code> starts the read at once — the WPT contract asserts <code>bodyUsed</code> becomes <code>true</code> synchronously, before any chunk is consumed (a non-null but empty body behaves the same way and then yields zero chunks).</p>
+    <p><strong>Single use — non-null bodies only:</strong> while the returned stream is being read (and after it closes), the body's stream is disturbed, so the response is unusable — any further body method (<code>text()</code>, <code>json()</code>, a second <code>textStream()</code>) throws the <code>TypeError</code> above. Clone the response first (<code>response.clone()</code>) if two consumers are needed.</p>
+    <p><strong>Null bodies are repeatable:</strong> with no body there is nothing to disturb — the WPT null-body test asserts <code>bodyUsed</code> stays <code>false</code> after repeated calls and that each call returns a different, independently closed stream object.</p>
     <p><strong>Stream lifetime:</strong> the returned stream is the body's stream piped through the decoder, so stream state (locked while a reader is attached, closed at end-of-body) follows ordinary pipe semantics.</p>
     <span class="citation">Source: <a href="https://github.com/web-platform-tests/wpt/blob/master/fetch/api/body/textstream.any.js" target="_blank" rel="noopener">WPT textstream.any.js — bodyUsed and single-use contracts</a>; <a href="https://fetch.spec.whatwg.org/#dom-body-textstream" target="_blank" rel="noopener">Fetch Standard — textStream() method steps</a></span>
   </section>
@@ -98,15 +99,17 @@ console.log(`read ${total} characters`);</code></pre>
     <div class="table-wrap">
     <table class="doc-table compat-table">
       <caption>Response.textStream() — from BCD api/Response.json (checked 2026-07-26)</caption>
-      <thead><tr><th scope="col">Browser</th><th scope="col">Support</th><th scope="col">Notes</th></tr></thead>
-      <tr><td>Chrome</td><td>151</td><td>Matches the Chrome 151 milestone listing (Enabled by default)</td></tr>
+      <thead><tr><th scope="col">Engine / runtime</th><th scope="col">Support</th><th scope="col">Notes</th></tr></thead>
+      <tr><td>Chrome</td><td>151</td><td>Matches the Chrome 151 milestone listing (Enabled by default); Chrome for Android and WebView (Android + iOS) are BCD mirrors</td></tr>
       <tr><td>Edge</td><td>mirror</td><td>BCD mirrors Chrome's data</td></tr>
-      <tr><td>Firefox</td><td>Not supported</td><td>BCD <code>version_added: false</code>; vendor position: No signal</td></tr>
-      <tr><td>Safari</td><td>Not supported</td><td>BCD <code>version_added: false</code>; vendor position: Positive (a standards position, not shipped support)</td></tr>
+      <tr><td>Firefox</td><td>Not supported</td><td>BCD <code>version_added: false</code> (Firefox for Android mirrors); vendor signal recorded on the ChromeStatus entry: No signal</td></tr>
+      <tr><td>Safari</td><td>Not supported</td><td>BCD <code>version_added: false</code> (Safari on iOS mirrors); the ChromeStatus entry records a Positive signal — a recorded signal, not an official WebKit standards position (a feature this small has none)</td></tr>
+      <tr><td>Node.js</td><td>26.5.0</td><td>BCD records <code>version_added: 26.5.0</code></td></tr>
+      <tr><td>Deno</td><td>Unknown</td><td>No BCD entry as of 2026-07-26</td></tr>
     </table>
     </div>
-    <p>No Baseline entry: the <a href="https://api.webstatus.dev/v1/features?q=textStream" target="_blank" rel="noopener">webstatus.dev query</a> returns no feature (checked 2026-07-26). Vendor positions resolved from <a href="https://github.com/GoogleChrome/chromium-dashboard/blob/main/internals/core_enums.py" target="_blank" rel="noopener">chromium-dashboard core_enums.py</a>.</p>
-    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Response.json" target="_blank" rel="noopener">BCD api/Response.json</a>; <a href="https://api.webstatus.dev/v1/features?q=textStream" target="_blank" rel="noopener">webstatus.dev query</a>; <a href="https://github.com/GoogleChrome/chromium-dashboard/blob/main/internals/core_enums.py" target="_blank" rel="noopener">core_enums.py</a></span>
+    <p>Support rows are from BCD only. Separately, vendor <em>signals</em> come from the <a href="https://chromestatus.com/api/v0/features/5146752165478400" target="_blank" rel="noopener">ChromeStatus API feature record</a> (checked 2026-07-26): Firefox &ldquo;No signal&rdquo;, Safari &ldquo;Positive&rdquo;, web developers &ldquo;No signals&rdquo;. No Baseline entry: the <a href="https://api.webstatus.dev/v1/features?q=textStream" target="_blank" rel="noopener">webstatus.dev query</a> returns no feature (checked 2026-07-26).</p>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Response.json" target="_blank" rel="noopener">BCD api/Response.json</a>; <a href="https://chromestatus.com/api/v0/features/5146752165478400" target="_blank" rel="noopener">ChromeStatus API feature record</a>; <a href="https://api.webstatus.dev/v1/features?q=textStream" target="_blank" rel="noopener">webstatus.dev query</a></span>
   </section>
 
   <section>

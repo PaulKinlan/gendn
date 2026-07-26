@@ -49,14 +49,14 @@ const stream = request.textStream();</code></pre>
   <section>
     <h2 id="outputs">Outputs</h2>
     <p>Returns a <code>ReadableStream</code> whose chunks are <strong>strings</strong> — the request body's bytes run through a <code>TextDecoderStream</code> set up with UTF-8, regardless of any <code>Content-Type</code> header or <code>charset</code> parameter on the request.</p>
-    <p><strong>Null body:</strong> for a bodyless request (a plain <code>GET</code>, for example), the method returns a new, already-closed empty <code>ReadableStream</code> — not an error.</p>
+    <p><strong>Null body:</strong> for a bodyless request (a plain <code>GET</code>, for example), the method returns a new, already-closed empty <code>ReadableStream</code> — not an error. Null-body calls are <em>not</em> single-use: every call creates a <strong>distinct</strong> closed stream object, and <code>bodyUsed</code> remains <code>false</code> throughout, because the unusable/disturbed contract only exists for non-null bodies.</p>
     <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#dom-body-textstream" target="_blank" rel="noopener">Fetch Standard — textStream() method steps</a>; <a href="https://encoding.spec.whatwg.org/#interface-textdecoderstream" target="_blank" rel="noopener">Encoding Standard — TextDecoderStream</a></span>
   </section>
 
   <section>
     <h2 id="errors">Errors</h2>
     <p><strong><code>TypeError</code> — unusable receiver:</strong> if the request is <em>unusable</em> — its body is non-null and already disturbed or locked — the method throws a <code>TypeError</code> synchronously. This is the only exception in the method steps, mirrored by the binding's <code>RaisesException</code>.</p>
-    <p><strong>Malformed bytes are not exceptions:</strong> the decoder runs in the default non-<code>fatal</code> error mode (<code>TextDecoderOptions.fatal</code> defaults to <code>false</code>), so invalid UTF-8 sequences appear in the output as U+FFFD replacement characters instead of throwing.</p>
+    <p><strong>Malformed bytes are not exceptions:</strong> the decoder runs in the default non-<code>fatal</code> error mode (<a href="https://encoding.spec.whatwg.org/#dom-textdecoderoptions-fatal" target="_blank" rel="noopener"><code>TextDecoderOptions.fatal</code></a> defaults to <code>false</code>), so invalid UTF-8 sequences appear in the output as U+FFFD replacement characters instead of throwing.</p>
     <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#dom-body-textstream" target="_blank" rel="noopener">Fetch Standard — textStream() method steps + unusable definition</a>; <a href="https://encoding.spec.whatwg.org/#interface-textdecoderstream" target="_blank" rel="noopener">Encoding Standard — TextDecoderOptions / error mode</a></span>
   </section>
 
@@ -70,8 +70,8 @@ const stream = request.textStream();</code></pre>
 
   <section>
     <h2 id="lifecycle">Lifecycle</h2>
-    <p><strong>Immediate consumption:</strong> calling <code>textStream()</code> starts the read at once — the WPT contract asserts <code>bodyUsed</code> becomes <code>true</code> synchronously.</p>
-    <p><strong>Reads are destructive to the request:</strong> once the body is consumed (or even just disturbed by the call), the request is unusable — passing it to <code>fetch()</code> or calling any other body method hits the same <code>TypeError</code> contract. Read a request body only when you own its remaining lifetime; clone it first if it must also be sent.</p>
+    <p><strong>Immediate consumption — non-null bodies only:</strong> for a request with a body, calling <code>textStream()</code> starts the read at once — the WPT contract asserts <code>bodyUsed</code> becomes <code>true</code> synchronously.</p>
+    <p><strong>Reads are destructive to a non-null-body request:</strong> once the body is consumed (or even just disturbed by the call), the request is unusable — passing it to <code>fetch()</code> or calling any other body method hits the same <code>TypeError</code> contract. Read a request body only when you own its remaining lifetime; clone it first if it must also be sent. Bodyless requests are exempt: nothing exists to disturb, so repeated calls simply return new closed streams.</p>
     <p><strong>Stream lifetime:</strong> the returned stream is the body stream piped through the decoder, following ordinary pipe semantics for locking and close.</p>
     <span class="citation">Source: <a href="https://github.com/web-platform-tests/wpt/blob/master/fetch/api/body/textstream.any.js" target="_blank" rel="noopener">WPT textstream.any.js — bodyUsed contract</a>; <a href="https://fetch.spec.whatwg.org/#dom-body-textstream" target="_blank" rel="noopener">Fetch Standard — textStream() method steps + unusable definition</a></span>
   </section>
@@ -103,15 +103,17 @@ await fetch(request); // original still unused — safe to send</code></pre>
     <div class="table-wrap">
     <table class="doc-table compat-table">
       <caption>Request.textStream() — from BCD api/Request.json (checked 2026-07-26)</caption>
-      <thead><tr><th scope="col">Browser</th><th scope="col">Support</th><th scope="col">Notes</th></tr></thead>
-      <tr><td>Chrome</td><td>151</td><td>Matches the Chrome 151 milestone listing (Enabled by default)</td></tr>
+      <thead><tr><th scope="col">Engine / runtime</th><th scope="col">Support</th><th scope="col">Notes</th></tr></thead>
+      <tr><td>Chrome</td><td>151</td><td>Matches the Chrome 151 milestone listing (Enabled by default); Chrome for Android and WebView (Android + iOS) are BCD mirrors</td></tr>
       <tr><td>Edge</td><td>mirror</td><td>BCD mirrors Chrome's data</td></tr>
-      <tr><td>Firefox</td><td>Not supported</td><td>BCD <code>version_added: false</code>; vendor position: No signal</td></tr>
-      <tr><td>Safari</td><td>Not supported</td><td>BCD <code>version_added: false</code>; vendor position: Positive (a standards position, not shipped support)</td></tr>
+      <tr><td>Firefox</td><td>Not supported</td><td>BCD <code>version_added: false</code> (Firefox for Android mirrors); vendor signal recorded on the ChromeStatus entry: No signal</td></tr>
+      <tr><td>Safari</td><td>Not supported</td><td>BCD <code>version_added: false</code> (Safari on iOS mirrors); the ChromeStatus entry records a Positive signal — a recorded signal, not an official WebKit standards position (a feature this small has none)</td></tr>
+      <tr><td>Node.js</td><td>26.5.0</td><td>BCD records <code>version_added: 26.5.0</code></td></tr>
+      <tr><td>Deno</td><td>Unknown</td><td>No BCD entry as of 2026-07-26</td></tr>
     </table>
     </div>
-    <p>No Baseline entry: the <a href="https://api.webstatus.dev/v1/features?q=textStream" target="_blank" rel="noopener">webstatus.dev query</a> returns no feature (checked 2026-07-26). Vendor positions resolved from <a href="https://github.com/GoogleChrome/chromium-dashboard/blob/main/internals/core_enums.py" target="_blank" rel="noopener">chromium-dashboard core_enums.py</a>.</p>
-    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Request.json" target="_blank" rel="noopener">BCD api/Request.json</a>; <a href="https://api.webstatus.dev/v1/features?q=textStream" target="_blank" rel="noopener">webstatus.dev query</a>; <a href="https://github.com/GoogleChrome/chromium-dashboard/blob/main/internals/core_enums.py" target="_blank" rel="noopener">core_enums.py</a></span>
+    <p>Support rows are from BCD only. Separately, vendor <em>signals</em> come from the <a href="https://chromestatus.com/api/v0/features/5146752165478400" target="_blank" rel="noopener">ChromeStatus API feature record</a> (checked 2026-07-26): Firefox &ldquo;No signal&rdquo;, Safari &ldquo;Positive&rdquo;, web developers &ldquo;No signals&rdquo;. No Baseline entry: the <a href="https://api.webstatus.dev/v1/features?q=textStream" target="_blank" rel="noopener">webstatus.dev query</a> returns no feature (checked 2026-07-26).</p>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Request.json" target="_blank" rel="noopener">BCD api/Request.json</a>; <a href="https://chromestatus.com/api/v0/features/5146752165478400" target="_blank" rel="noopener">ChromeStatus API feature record</a>; <a href="https://api.webstatus.dev/v1/features?q=textStream" target="_blank" rel="noopener">webstatus.dev query</a></span>
   </section>
 
   <section>
