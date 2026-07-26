@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Disable SVG filters on plugins and iFrames — Chrome 150 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .doc-table caption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); text-align: left; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    .warn-block p { font-size: 0.98rem; }
+    .warn-block ul { font-family: var(--font-serif); font-size: 0.98rem; color: var(--text-charcoal); padding-left: 1.4rem; margin: 0.4rem 0 0.2rem; }
+    .warn-block li { margin-bottom: 0.3rem; }
+    .baseline-banner { border: 2px solid var(--border-black); background: var(--bg-paper); box-shadow: var(--thin-shadow); padding: 1rem 1.2rem; margin: 0 0 var(--space-5); }
+    .baseline-banner .baseline-status { font-family: var(--font-mono); font-weight: 500; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent-amber); margin: 0 0 0.6rem; }
+    .baseline-banner .baseline-browsers { display: flex; flex-wrap: wrap; gap: var(--space-2); list-style: none; padding: 0; margin: 0 0 0.6rem; }
+    .baseline-banner .baseline-browsers li { font-family: var(--font-mono); font-size: 0.75rem; border: 1px solid var(--border-black); padding: 0.25rem 0.6rem; background: var(--bg-stone); }
+    .baseline-banner .baseline-browsers li.limited { border-style: dashed; color: var(--text-muted); }
+    .baseline-banner p { font-size: 0.9rem; margin: 0; }
+    .example-embed { margin: var(--space-4) 0; }
+    .example-embed iframe { display: block; max-width: 100%; }
+    .example-embed figcaption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); margin-top: 0.5rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v150/">&larr; Chrome 150 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v150 · enabled by default · security · svg</p>
+    <h1>Disable SVG filters on plugins and iFrames</h1>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; security behavior change</p>
+      <ul class="baseline-browsers">
+        <li>Chrome · 150 (enabled by default)</li>
+        <li class="limited">Edge · not separately reported</li>
+        <li>Safari · equivalent restriction shipped</li>
+        <li class="limited">Firefox · under consideration</li>
+      </ul>
+      <p>Not on the Baseline register &mdash; this is a security behavior <em>restriction</em>, not a new API, and has no web-features entry at webstatus.dev. Chrome 150 enables it by default. WebKit already ships an equivalent restriction (SVG filters disabled on plugins and cross-origin iframes, still allowed on same-origin iframes); Firefox currently applies SVG filters to all iframes and plugins and lists the change as under consideration.</p>
+    </div>
+
+    <p class="lede">Chrome 150 stops SVG reference filters from being applied to embedded plugins (for example, PDF viewers) and to cross-origin or restricted iframes (for example, sandboxed ones). When a plugin or such an iframe would be painted with an SVG filter effect, the effect tree is traversed to find the highest ancestor <em>without</em> SVG filters, and that ancestor&rsquo;s effect is applied instead.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Behavior change &mdash; embedded content may render differently</strong>
+    <p>This removes a capability rather than adding one. If your page applies <code>filter: url(&hellip;)</code> effects to (an ancestor of) a plugin, a cross-origin iframe, or a sandboxed iframe, those filters silently stop affecting that embedded content in Chrome 150:</p>
+    <ul>
+      <li>The change targets <strong>SVG reference filters</strong> (<code>filter</code> values that reference a <code>&lt;filter&gt;</code> element). Painting falls back to the closest ancestor effect that carries no SVG filter.</li>
+      <li>Same-origin, unrestricted iframes are not affected &mdash; WebKit&rsquo;s shipped restriction draws the same line.</li>
+      <li>There is no opt-out flag recorded on ChromeStatus; the TAG-review field notes this is &ldquo;disabling one we perhaps should not have supported&rdquo;.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5117170452398080" target="_blank" rel="noopener">chromestatus.com/feature/5117170452398080</a>; <a href="https://github.com/w3c/csswg-drafts/pull/13846" target="_blank" rel="noopener">w3c/csswg-drafts#13846</a>; <a href="https://github.com/WebKit/standards-positions/issues/654" target="_blank" rel="noopener">WebKit standards-positions#654</a></span>
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>At a glance</caption>
+      <tr><th scope="row">Milestone listing</th><td>Chrome 150 &mdash; Enabled by default</td></tr>
+      <tr><th scope="row">Kind</th><td>Security behavior change (restriction) &mdash; no new API surface</td></tr>
+      <tr><th scope="row">Affected embeds</th><td>Plugins (for example, PDF <code>&lt;embed&gt;</code>/<code>&lt;object&gt;</code>), cross-origin iframes, restricted (for example, sandboxed) iframes</td></tr>
+      <tr><th scope="row">Unaffected</th><td>Same-origin, unrestricted iframes; filters on ordinary (non-embedded) content</td></tr>
+      <tr><th scope="row">Fallback painting</th><td>The effect tree is walked to the highest ancestor without SVG filters; that effect is applied instead</td></tr>
+      <tr><th scope="row">Spec change</th><td><a href="https://github.com/w3c/csswg-drafts/pull/13846" target="_blank" rel="noopener">w3c/csswg-drafts#13846</a> &mdash; proposed &ldquo;Clickjacking Attacks&rdquo; section for Filter Effects Level 1</td></tr>
+      <tr><th scope="row">Blink component</th><td>Blink&gt;SVG</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5117170452398080" target="_blank" rel="noopener">5117170452398080 &mdash; Disable SVG filters on plugins and iFrames</a></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5117170452398080" target="_blank" rel="noopener">chromestatus.com/feature/5117170452398080</a> (accurate as of 2026-06-01, updated 2026-06-17)</span>
+  </section>
+
+  <section>
+    <h2>What changed, and why</h2>
+    <p>SVG filters can arbitrarily manipulate the pixels of whatever they are applied to. Applied to an embedded document the embedding page cannot otherwise read, that power enables two documented attack classes:</p>
+    <ul>
+      <li><strong>SVG clickjacking</strong> &mdash; dynamic SVG filters disguise cross-origin content (redrawing it as something innocuous) so users are manipulated into clicks they would not otherwise make. Described in the December 2025 &ldquo;SVG clickjacking&rdquo; write-up cited by the ChromeStatus motivation.</li>
+      <li><strong>Pixel-timing side channels</strong> &mdash; filter painting time can depend on the pixel values being filtered, letting an attacker reconstruct protected content by timing paint operations (the &ldquo;Pixel Perfect Timing Attacks with HTML5&rdquo; technique).</li>
+    </ul>
+    <p>The proposed normative rule (from the spec pull request): user agents must not apply SVG reference <code>&lt;filter&gt;</code> elements to cross-origin/restricted iframes or web plugins <em>because of their ability to arbitrarily manipulate pixels</em>. As of 2026-07-26 the pull request is not yet merged into the published Filter Effects editor&rsquo;s draft, which is why ChromeStatus records the standards status as &ldquo;Proposed&rdquo;.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5117170452398080" target="_blank" rel="noopener">ChromeStatus motivation</a>; <a href="https://lyra.horse/blog/2025/12/svg-clickjacking/" target="_blank" rel="noopener">SVG clickjacking (lyra.horse, 2025-12)</a>; <a href="https://media.blackhat.com/us-13/US-13-Stone-Pixel-Perfect-Timing-Attacks-with-HTML5-WP.pdf" target="_blank" rel="noopener">Pixel Perfect Timing Attacks with HTML5 (Black Hat US-13)</a>; <a href="https://github.com/w3c/csswg-drafts/pull/13846" target="_blank" rel="noopener">w3c/csswg-drafts#13846</a></span>
+  </section>
+
+  <section>
+    <h2>Syntax</h2>
+    <p>No new syntax is introduced. The restriction changes how one existing class of <code>filter</code> values behaves on embedded content. The <code>filter</code> property grammar from Filter Effects Module Level 1:</p>
+<pre><code>filter: none | &lt;filter-value-list&gt;
+
+&lt;filter-value-list&gt; = [ &lt;filter-function&gt; | &lt;url&gt; ]+</code></pre>
+    <p>The <code>&lt;url&gt;</code> alternative is a <em>filter reference</em> &mdash; &ldquo;a filter reference to a <code>&lt;filter&gt;</code> element. For example <code>url(commonfilters.svg#filter)</code>&rdquo;. It is this reference-filter class that Chrome 150 stops applying to plugins and cross-origin/restricted iframes. <code>&lt;filter-function&gt;</code> values (<code>blur()</code>, <code>grayscale()</code>, and friends) are fixed-function shorthands defined by the same specification and are not named by the proposed rule, which is scoped to SVG reference filters.</p>
+    <span class="citation">Source: <a href="https://drafts.csswg.org/filter-effects-1/#FilterProperty" target="_blank" rel="noopener">Filter Effects Module Level 1 &mdash; the filter property</a> (grammar and <code>&lt;url&gt;</code> definition quoted verbatim); scope of the rule from <a href="https://github.com/w3c/csswg-drafts/pull/13846" target="_blank" rel="noopener">w3c/csswg-drafts#13846</a></span>
+  </section>
+
+  <section>
+    <h2>Examples</h2>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v150/disable-svg-filters-on-plugins-and-iframes/filter-comparison/"
+        title="Live example — SVG filter comparison across embed types (Disable SVG filters on plugins and iFrames)" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase: the same SVG reference filter applied across embed types, showing where Chrome 150 stops honoring it. <span class="citation">Source: chrome-platform-showcase</span></figcaption>
+    </figure>
+
+    <p>The pattern the restriction defuses &mdash; an SVG reference filter used to disguise a cross-origin frame:</p>
+<pre><code>&lt;svg width="0" height="0" aria-hidden="true"&gt;
+  &lt;filter id="disguise"&gt;
+    &lt;!-- feColorMatrix / feComponentTransfer / feDisplacementMap ...
+         arbitrary per-pixel rewriting of whatever this filter is applied to --&gt;
+  &lt;/filter&gt;
+&lt;/svg&gt;
+
+&lt;style&gt;
+  .overlay { filter: url(#disguise); }
+&lt;/style&gt;
+
+&lt;!-- Before Chrome 150: the cross-origin frame is repainted through #disguise.
+     From Chrome 150: the reference filter is NOT applied to this iframe; painting
+     falls back to the highest ancestor effect without SVG filters. --&gt;
+&lt;iframe class="overlay" src="https://bank.example/transfer" title="example"&gt;&lt;/iframe&gt;</code></pre>
+    <span class="citation">Source: composed from the <a href="https://drafts.csswg.org/filter-effects-1/#FilterProperty" target="_blank" rel="noopener">Filter Effects reference-filter syntax</a> and the behavior described on <a href="https://chromestatus.com/feature/5117170452398080" target="_blank" rel="noopener">chromestatus.com/feature/5117170452398080</a>; attack shape from the <a href="https://lyra.horse/blog/2025/12/svg-clickjacking/" target="_blank" rel="noopener">SVG clickjacking write-up</a></span>
+  </section>
+
+  <section>
+    <h2>Browser compatibility</h2>
+    <p>There is no browser-compat-data (BCD) entry for this restriction &mdash; it is a behavior change to an existing property, not a new API. The table below is an <strong>interim</strong> view from ChromeStatus ship data and the public standards positions, not from BCD.</p>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <caption>Interim compatibility &mdash; from ChromeStatus, not BCD</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col">Status</th><th scope="col">Notes</th></tr></thead>
+      <tr><td>Chrome</td><td>150 (enabled by default)</td><td>All Blink platforms; standards status &ldquo;Proposed&rdquo; (spec PR not yet merged)</td></tr>
+      <tr><td>Edge</td><td>Not separately reported</td><td>No Edge position recorded on ChromeStatus (Chromium engine equivalence is not a support commitment)</td></tr>
+      <tr><td>Firefox</td><td>Under consideration</td><td>Currently applies SVG filters to all iframes and plugins (<a href="https://github.com/mozilla/standards-positions/issues/1395" target="_blank" rel="noopener">mozilla/standards-positions#1395</a>)</td></tr>
+      <tr><td>Safari</td><td>Equivalent restriction shipped</td><td>Already disables SVG filters on plugins and cross-origin iframes, while allowing them on same-origin iframes (<a href="https://github.com/WebKit/standards-positions/issues/654" target="_blank" rel="noopener">WebKit standards-positions#654</a>)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5117170452398080" target="_blank" rel="noopener">chromestatus.com/feature/5117170452398080</a> browser views (fetched 2026-07-26); no matching entry at <a href="https://github.com/mdn/browser-compat-data" target="_blank" rel="noopener">mdn/browser-compat-data</a> or webstatus.dev as of 2026-07-26</span>
+  </section>
+
+  <section>
+    <h2>Specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>Specifications</caption>
+      <thead><tr><th scope="col">Specification</th><th scope="col">Status</th></tr></thead>
+      <tr><td><a href="https://github.com/w3c/csswg-drafts/pull/13846" target="_blank" rel="noopener">Filter Effects Level 1 &mdash; &ldquo;Clickjacking Attacks&rdquo; section (w3c/csswg-drafts#13846)</a></td><td>Proposed spec change (pull request open as of 2026-07-26; not yet in the editor&rsquo;s draft)</td></tr>
+      <tr><td><a href="https://drafts.csswg.org/filter-effects-1/" target="_blank" rel="noopener">Filter Effects Module Level 1</a></td><td>CSSWG editor&rsquo;s draft &mdash; defines the <code>filter</code> property and reference filters this change restricts</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: spec link recorded on <a href="https://chromestatus.com/feature/5117170452398080" target="_blank" rel="noopener">chromestatus.com/feature/5117170452398080</a></span>
+  </section>
+
+  <section>
+    <h2>See also</h2>
+    <ul>
+      <li><a href="https://lyra.horse/blog/2025/12/svg-clickjacking/" target="_blank" rel="noopener">SVG clickjacking (lyra.horse)</a> &mdash; the attack that motivated the change</li>
+      <li><a href="https://media.blackhat.com/us-13/US-13-Stone-Pixel-Perfect-Timing-Attacks-with-HTML5-WP.pdf" target="_blank" rel="noopener">Pixel Perfect Timing Attacks with HTML5 (Black Hat US-13, PDF)</a></li>
+      <li><a href="https://github.com/WebKit/standards-positions/issues/654" target="_blank" rel="noopener">WebKit standards position #654</a> · <a href="https://github.com/mozilla/standards-positions/issues/1395" target="_blank" rel="noopener">Mozilla standards position #1395</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v150/disable-svg-filters-on-plugins-and-iframes/" target="_blank" rel="noopener">Chrome Platform Showcase &mdash; Disable SVG filters on plugins and iFrames</a> (also: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v150/disable-svg-filters-on-plugins-and-iframes/svg-filter-policy-tester/" target="_blank" rel="noopener">filter policy tester</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v150/disable-svg-filters-on-plugins-and-iframes/clickjacking-replay/" target="_blank" rel="noopener">clickjacking replay</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v150/disable-svg-filters-on-plugins-and-iframes/sandbox-filter-test/" target="_blank" rel="noopener">sandbox filter test</a>)</li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
