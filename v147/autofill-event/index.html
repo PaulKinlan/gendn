@@ -149,7 +149,14 @@ typedef sequence&lt;any&gt; AutofillValueEntry;
   // US addresses need a state selector this form doesn't have yet
   if (event.refill &amp;&amp; countryValue === 'US') {
     addStateSelector();        // modify the form to fit the data
-    await event.refill();      // ask the browser to fill the updated form
+    try {
+      await event.refill();    // ask the browser to fill the updated form
+    } catch (err) {
+      // InvalidStateError: refill timeout elapsed, refill disallowed, or a
+      // refill is already pending (spec &sect;4.2). The listener's returned
+      // promise is ignored by the event system, so catch it here.
+      console.warn('refill rejected:', err.name);
+    }
   }
 });</code></pre>
     <span class="citation">Source: condensed from the example in <a href="https://wicg.github.io/autofill-event/" target="_blank" rel="noopener">WICG Autofill Event &mdash; §1.2 Example</a>; Chrome&rsquo;s sample demos: <a href="https://yoavweiss.github.io/autofill_demo/autofill_event_demo.html" target="_blank" rel="noopener">autofill event demo</a>, <a href="https://yoavweiss.github.io/autofill_demo/credit_card_autofill_demo.html" target="_blank" rel="noopener">credit-card demo</a></span>
@@ -168,8 +175,8 @@ const event = new AutofillEvent('autofill', {
 });
 
 document.dispatchEvent(event);            // the UA dispatches at the Document (spec &sect;4.1)</code></pre>
-    <p>A synthetic event carries your <code>autofillValues</code> but does not make the browser fill anything &mdash; only user-agent-fired events are backed by a real fill operation, and the refill machinery (&sect;4.2) responds to the user agent&rsquo;s own dispatch.</p>
-    <span class="citation">Source: constructor and <code>AutofillEventInit</code> IDL (member defaults) from <a href="https://wicg.github.io/autofill-event/" target="_blank" rel="noopener">WICG Autofill Event &mdash; §3 The AutofillEvent Interface</a>; dispatch/bubbles behavior from &sect;4.1 (fetched 2026-07-26)</span>
+    <p id="synthetic-lifecycle">A synthetic event carries your <code>autofillValues</code> but does not make the browser fill anything &mdash; only user-agent-fired events are backed by a real fill operation, and the refill machinery (&sect;4.2) responds to the user agent&rsquo;s own dispatch.</p>
+    <span class="citation">Source: constructor and <code>AutofillEventInit</code> IDL (member defaults) from <a href="https://wicg.github.io/autofill-event/#autofill-event-interface" target="_blank" rel="noopener">WICG Autofill Event &mdash; §3 The AutofillEvent Interface</a>; dispatch/bubbles behavior from <a href="https://wicg.github.io/autofill-event/#firing-autofill-event" target="_blank" rel="noopener">§4.1 Firing the Autofill Event</a> (fetched 2026-07-26)</span>
   </section>
 
   <section>
