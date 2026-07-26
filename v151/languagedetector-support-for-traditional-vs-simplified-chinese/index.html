@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LanguageDetector support for Traditional vs. Simplified Chinese — Chrome 151 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .mdn-card {
+      border: 2px solid var(--border-black);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      background: var(--bg-stone);
+    }
+    .mdn-card a { font-weight: 600; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v151/">&larr; Chrome 151 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v151 · javascript · covered on mdn</p>
+    <h1>LanguageDetector support for Traditional vs. Simplified Chinese</h1>
+    <p class="lede">Detection results that previously reported bare <code>"zh"</code> for Chinese may now distinguish the scripts: <code>"zh-Hans"</code> (Simplified) and <code>"zh-Hant"</code> (Traditional) — chosen from the characters in the detected input text, not from any requested locale. Any code comparing <code>detectedLanguage === "zh"</code> may silently stop matching.</p>
+  </header>
+
+  <section>
+    <h2>this feature is documented on MDN</h2>
+    <div class="mdn-card">
+      <a href="https://developer.mozilla.org/en-US/docs/Web/API/LanguageDetector" target="_blank" rel="noopener">
+        MDN: LanguageDetector
+      </a>
+      <p style="margin: 0.5rem 0 0">MDN's reference covers the API in full — the interface and its members, <code>create()</code> and <code>detect()</code> with examples showing the <code>detectedLanguage</code> + <code>confidence</code> result structure, specifications, and browser compatibility. gendn doesn&#39;t duplicate that here; this page only records the Chrome 151 output-value change and its migration, which MDN does not yet cover (checked 2026-07-26; MDN page last modified 2025-10-28).</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>the Chrome 151 change</h2>
+    <table class="doc-table">
+      <tr><th scope="row">What changed</th><td>Detection results that previously returned <code>"zh"</code> for Chinese text may now return <code>"zh-Hans"</code> or <code>"zh-Hant"</code>, decided per detection from the input text's characters. <code>detect()</code> takes text — there is no requested-locale or region mapping.</td></tr>
+      <tr><th scope="row">How the script is decided</th><td>Chromium's <a href="https://chromium.googlesource.com/chromium/src/+/main/components/language_detection/core/chinese_script_classifier.cc" target="_blank" rel="noopener">ChineseScriptClassifier</a> counts characters unique to each script (two UnicodeSets, one per script); the majority wins. Ties and all-common text default to <code>zh-Hans</code>; behavior is undefined for non-Chinese input (documented in <a href="https://chromium.googlesource.com/chromium/src/+/main/components/language_detection/core/chinese_script_classifier.h" target="_blank" rel="noopener">chinese_script_classifier.h</a>). Input is truncated (first 500 bytes, whitespace removed) before counting.</td></tr>
+      <tr><th scope="row">Direct proof</th><td><a href="https://github.com/web-platform-tests/wpt/blob/1985b47aa8972a970f005957f2bfa036da1787c6/ai/language_detection/detector.optional.https.window.js" target="_blank" rel="noopener">WPT detector.optional.https.window.js (pinned at 1985b47)</a> — Simplified text (<code>这是一个例句。</code>) detects to <code>zh-Hans</code>, Traditional text (<code>這是一個例句。</code>) to <code>zh-Hant</code></td></tr>
+      <tr><th scope="row">Migration</th><td><code>result.detectedLanguage === "zh"</code> may never be true from 151 — match the language arc instead: <code>tag === "zh" || tag.startsWith("zh-")</code>. No deprecation shim; results change at 151.</td></tr>
+      <tr><th scope="row">Confidence</th><td>Remains model-defined and paired with the tag in the same result dictionary; the sources do not define it as a measure of script certainty.</td></tr>
+      <tr><th scope="row">Boundary</th><td>Chromium's <em>Translate</em> path runs the same classifier but converts its result to the legacy codes <code>zh-CN</code>/<code>zh-TW</code> for that API (<a href="https://chromium.googlesource.com/chromium/src/+/main/components/translate/core/language_detection/language_detection_util.cc" target="_blank" rel="noopener">language_detection_util.cc</a>) — that is not the LanguageDetector output. Blink's <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/on_device_translation/language_detector.cc" target="_blank" rel="noopener">supported-code list</a> recognizes <code>zh</code>, <code>zh-Hans</code>, <code>zh-Hant</code>, and <code>zh-Latn</code> as input-side codes.</td></tr>
+      <tr><th scope="row">Chrome status</th><td>Chrome 151 — Enabled by default (milestone listing); feature detail (<a href="https://chromestatus.com/api/v0/features/5138651886518272" target="_blank" rel="noopener">ChromeStatus API record</a>, updated 2026-07-09): desktop + Android + WebView 151, status text &ldquo;Proposed&rdquo;; no flag, no trial program; tracking: <a href="https://crbug.com/519251262" target="_blank" rel="noopener">crbug.com/519251262</a></td></tr>
+      <tr><th scope="row">Compatibility</th><td>Interim, from ChromeStatus (BCD's <code>api/LanguageDetector.json</code> covers the general API at Chrome 138 but has no zh-variant entries): Chrome 151; Edge not separately reported; Firefox Opposed (recorded signal); Safari No signal; web developers Strongly positive</td></tr>
+      <tr><th scope="row">MDN</th><td><a href="https://developer.mozilla.org/en-US/docs/Web/API/LanguageDetector" target="_blank" rel="noopener">LanguageDetector</a> (full API reference; no zh-variant coverage as of 2026-07-26)</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5138651886518272" target="_blank" rel="noopener">5138651886518272 — LanguageDetector support for Traditional vs. Simplified Chinese</a></td></tr>
+      <tr><th scope="row">Interactive demo</th><td><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v151/languagedetector-support-for-traditional-vs-simplified-chinese/" target="_blank" rel="noopener">Chrome Platform Showcase — LanguageDetector zh variants</a></td></tr>
+    </table>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5138651886518272" target="_blank" rel="noopener">chromestatus.com/feature/5138651886518272</a>; <a href="https://chromestatus.com/api/v0/features/5138651886518272" target="_blank" rel="noopener">ChromeStatus API record</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/language_detection/core/chinese_script_classifier.cc" target="_blank" rel="noopener">chinese_script_classifier.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/language_detection/core/chinese_script_classifier.h" target="_blank" rel="noopener">chinese_script_classifier.h</a>; <a href="https://github.com/web-platform-tests/wpt/blob/1985b47aa8972a970f005957f2bfa036da1787c6/ai/language_detection/detector.optional.https.window.js" target="_blank" rel="noopener">WPT detector.optional (pinned)</a>; <a href="https://developer.mozilla.org/en-US/docs/Web/API/LanguageDetector" target="_blank" rel="noopener">MDN</a>, checked 2026-07-26.</span>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
