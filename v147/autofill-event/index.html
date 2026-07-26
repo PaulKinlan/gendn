@@ -7,13 +7,27 @@
   <link rel="stylesheet" href="/public/styles.css">
   <style>
     .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
-    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
     .doc-table th { background: var(--bg-stone); font-weight: 600; }
     .doc-table tr:last-child td { border-bottom: none; }
     .doc-table code { background: transparent; border: none; padding: 0; }
+    .doc-table caption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); text-align: left; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .table-wrap { overflow-x: auto; }
     .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
     .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
     .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    .warn-block p { font-size: 0.98rem; }
+    .warn-block ul { font-family: var(--font-serif); font-size: 0.98rem; color: var(--text-charcoal); padding-left: 1.4rem; margin: 0.4rem 0 0.2rem; }
+    .warn-block li { margin-bottom: 0.3rem; }
+    .baseline-banner { border: 2px solid var(--border-black); background: var(--bg-paper); box-shadow: var(--thin-shadow); padding: 1rem 1.2rem; margin: 0 0 var(--space-5); }
+    .baseline-banner .baseline-status { font-family: var(--font-mono); font-weight: 500; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent-amber); margin: 0 0 0.6rem; }
+    .baseline-banner .baseline-browsers { display: flex; flex-wrap: wrap; gap: var(--space-2); list-style: none; padding: 0; margin: 0 0 0.6rem; }
+    .baseline-banner .baseline-browsers li { font-family: var(--font-mono); font-size: 0.75rem; border: 1px solid var(--border-black); padding: 0.25rem 0.6rem; background: var(--bg-stone); }
+    .baseline-banner .baseline-browsers li.limited { border-style: dashed; color: var(--text-muted); }
+    .baseline-banner p { font-size: 0.9rem; margin: 0; }
+    .example-embed { margin: var(--space-4) 0; }
+    .example-embed iframe { display: block; max-width: 100%; }
+    .example-embed figcaption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); margin-top: 0.5rem; }
   </style>
 </head>
 <body>
@@ -23,66 +37,151 @@
   <header class="lede-block">
     <p class="eyebrow">v147 · origin trial · web api</p>
     <h1>Autofill event</h1>
-    <p class="lede">A new <code>autofill</code> event fires on form controls (<code>&lt;input&gt;</code>, <code>&lt;select&gt;</code>, <code>&lt;textarea&gt;</code>) after the browser completes autofill on them. This lets pages respond to autofill — adjusting dynamic form UI, re-validating fields, or notifying the browser that the form has been updated to fit the filled data.</p>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome · origin trial (147)</li>
+        <li class="limited">Edge · not separately reported</li>
+        <li class="limited">Firefox · no signal</li>
+        <li class="limited">Safari · no signal</li>
+      </ul>
+      <p>Not on the Baseline register &mdash; no web-features entry at webstatus.dev (the register&rsquo;s <code>autofill</code> entry is the unrelated <code>:autofill</code> CSS pseudo-class). Chrome 147 listed this as an origin trial; the current feature detail (chromestatus API, updated 2026-02-28) records no ship milestone and standards status &ldquo;Proposed&rdquo;. Firefox and Safari have open position requests with no signal.</p>
+    </div>
+
+    <p class="lede">A new <code>autofill</code> event, dispatched at the <code>document</code> when the browser is about to run an autofill operation. The event carries the list of form controls and values that will be filled (<code>autofillValues</code>) and a <code>refill()</code> callback, letting pages adapt dynamic forms to the autofilled data &mdash; for example adding a state selector for a US address &mdash; and then ask the browser to run one more fill pass over the updated form.</p>
   </header>
 
   <div class="warn-block">
-    <strong>Origin trial</strong>
-    The Autofill event is in origin trial in Chrome 147. An origin trial token is required to use it in production. The API surface may change before it ships by default. Register at <a href="https://developer.chrome.com/origintrials/" target="_blank" rel="noopener">developer.chrome.com/origintrials</a>.
+    <strong>Origin trial &mdash; API surface may move</strong>
+    <p>The Autofill event is experimental. Chrome 147&rsquo;s milestone listing carries it as an origin trial; the feature detail currently records no active trial registration and no ship estimate (status &ldquo;Proposed&rdquo;, updated 2026-02-28). To use it:</p>
+    <ul>
+      <li>Check for a registerable &ldquo;Autofill event&rdquo; trial at <a href="https://developer.chrome.com/origintrials/" target="_blank" rel="noopener">developer.chrome.com/origintrials</a> (origin-trial feature name <code>AutofillEvent</code>, third-party tokens allowed).</li>
+      <li>For local development: launch Chrome with <code>--enable-blink-features=AutofillEvent</code> (runtime-enabled feature <code>AutofillEvent</code>, status &ldquo;experimental&rdquo;, so <code>chrome://flags/#enable-experimental-web-platform-features</code> also enables it).</li>
+      <li>Feature-detect with <code>typeof AutofillEvent !== "undefined"</code> before relying on it.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5137581018841088" target="_blank" rel="noopener">chromestatus.com/feature/5137581018841088</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium runtime_enabled_features.json5</a></span>
   </div>
 
   <section>
     <h2>at a glance</h2>
+    <div class="table-wrap">
     <table class="doc-table">
-      <tr><th>Event name</th><td><code>autofill</code></td></tr>
-      <tr><th>Fires on</th><td><code>&lt;input&gt;</code>, <code>&lt;select&gt;</code>, <code>&lt;textarea&gt;</code> — after the browser autofills the element</td></tr>
-      <tr><th>Interface</th><td><code>AutofillEvent</code> (extends <code>Event</code>)</td></tr>
-      <tr><th>Bubbles</th><td>Yes</td></tr>
-      <tr><th>Cancelable</th><td>No</td></tr>
-      <tr><th>Status in Chrome 147</th><td>Origin trial</td></tr>
-      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5137581018841088" target="_blank" rel="noopener">5137581018841088 — Autofill event</a></td></tr>
-      <tr><th>Spec</th><td><a href="https://html.spec.whatwg.org/multipage/form-control-infrastructure.html#autofill" target="_blank" rel="noopener">HTML Living Standard — Autofill</a></td></tr>
+      <caption>At a glance</caption>
+      <tr><th scope="row">Event name</th><td><code>autofill</code></td></tr>
+      <tr><th scope="row">Dispatched at</th><td>The <code>document</code>, immediately <em>before</em> the user agent performs the autofill operation (the spec&rsquo;s firing steps dispatch the event, then perform the fill)</td></tr>
+      <tr><th scope="row">Interface</th><td><code>AutofillEvent</code> (extends <code>Event</code>)</td></tr>
+      <tr><th scope="row">Bubbles / cancelable</th><td>Bubbles: yes · Cancelable: no (initialized in the spec&rsquo;s firing steps)</td></tr>
+      <tr><th scope="row">Payload</th><td><code>autofillValues</code> &mdash; frozen list of <code>[HTMLElement, DOMString]</code> entries (control, value to fill); <code>refill</code> &mdash; nullable callback returning <code>Promise&lt;undefined&gt;</code>, null on the second dispatch to prevent loops</td></tr>
+      <tr><th scope="row">Status in Chrome 147</th><td>Origin trial (milestone listing)</td></tr>
+      <tr><th scope="row">Spec</th><td><a href="https://wicg.github.io/autofill-event/" target="_blank" rel="noopener">WICG &mdash; Autofill Event</a></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5137581018841088" target="_blank" rel="noopener">5137581018841088 &mdash; Autofill event</a></td></tr>
     </table>
-    <span class="citation">Source: chromestatus and HTML Living Standard, May 2026.</span>
+    </div>
+    <span class="citation">Source: <a href="https://wicg.github.io/autofill-event/" target="_blank" rel="noopener">WICG Autofill Event &mdash; Processing Model §4.1</a>; <a href="https://chromestatus.com/feature/5137581018841088" target="_blank" rel="noopener">chromestatus.com/feature/5137581018841088</a></span>
   </section>
 
   <section>
     <h2>why it exists</h2>
-    <p>Autofill triggers the browser's form-filling mechanism programmatically, but previously pages had no reliable way to detect when the browser had finished autofilling a set of fields. Listening for <code>input</code> or <code>change</code> events on individual fields missed cases where autofill touched multiple fields at once and didn't clearly signal completion. The <code>autofill</code> event fires <em>after</em> the browser has finished filling a control, giving the page a reliable hook to respond — for example, to re-run validation on dynamically generated fields, update dependent UI, or signal to accessibility tools that form state has changed.</p>
-    <span class="citation">Source: chromestatus motivation, May 2026.</span>
+    <p>Getting autofill to work reliably with dynamic forms is hard: the browser matches a user&rsquo;s profile against the form as it exists at fill time, so fields the page adds in response to earlier values (a state dropdown once the country is known, a card-type field once the number prefix is known) get missed, and pages had no reliable signal that an autofill pass happened at all. The <code>autofill</code> event gives the page the full set of control/value pairs the browser is about to fill, a chance to restructure the form to fit that data, and &mdash; via <code>refill()</code> &mdash; a way to tell the browser the form changed so it can run one more pass over the updated structure.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5137581018841088" target="_blank" rel="noopener">ChromeStatus summary</a>; <a href="https://github.com/WICG/autofill-event?tab=readme-ov-file#autofill-event" target="_blank" rel="noopener">WICG explainer</a></span>
   </section>
 
   <section>
-    <h2>example</h2>
-    <pre><code>document.querySelector('form').addEventListener('autofill', (e) => {
-  // e.target is the autofilled form control
-  validateField(e.target);
-});
+    <h2>Syntax</h2>
+    <p>IDL from the WICG draft:</p>
+<pre><code>[Exposed=Window]
+interface AutofillEvent : Event {
+  constructor(DOMString type, optional AutofillEventInit eventInitDict = {});
+  readonly attribute FrozenArray&lt;AutofillValueEntry&gt; autofillValues;
+  readonly attribute RefillCallback? refill;
+};
 
-// Or on a specific field
-document.getElementById('email').addEventListener('autofill', () => {
-  checkEmailAvailability();
-});</code></pre>
-    <span class="citation">Source: HTML spec and chromestatus, May 2026.</span>
-  </section>
+callback RefillCallback = Promise&lt;undefined&gt; ();
 
-  <section>
-    <h2>browser support</h2>
+dictionary AutofillEventInit : EventInit {
+  sequence&lt;AutofillValueEntry&gt; autofillValues = [];
+  boolean allowRefill = true;
+};
+
+typedef sequence&lt;any&gt; AutofillValueEntry;
+// AutofillValueEntry is a tuple of [HTMLElement, DOMString]
+// where the first element is the form control and the second is the value to fill</code></pre>
+    <span class="citation">Source: <a href="https://wicg.github.io/autofill-event/" target="_blank" rel="noopener">WICG Autofill Event &mdash; IDL Index</a> (verbatim)</span>
+
+    <div class="table-wrap">
     <table class="doc-table">
-      <thead><tr><th>Browser</th><th>Support</th></tr></thead>
-      <tr><td>Chrome 147+</td><td>Origin trial (requires token)</td></tr>
-      <tr><td>Edge 147+</td><td>Origin trial (Chromium)</td></tr>
-      <tr><td>Firefox</td><td>No signal</td></tr>
-      <tr><td>Safari</td><td>No signal</td></tr>
+      <caption>Members</caption>
+      <thead><tr><th scope="col">Member</th><th scope="col">Contract</th></tr></thead>
+      <tr><td><code>autofillValues</code></td><td>Frozen array of <code>[HTMLElement, DOMString]</code> tuples &mdash; each form control that will receive an autofilled value, paired with the value from the user&rsquo;s autofill profile. The user agent matches controls to profile data before firing.</td></tr>
+      <tr><td><code>refill</code></td><td>Nullable callback. After modifying the form to fit the incoming data, call it to signal the form has been updated and have the user agent retry the autofill operation against the new structure; it returns a <code>Promise&lt;undefined&gt;</code>. On the second dispatch of the event (after form modifications) <code>refill</code> is null, preventing infinite refill loops.</td></tr>
+      <tr><td><code>AutofillEventInit.allowRefill</code></td><td>Constructor-dictionary flag (default <code>true</code>) controlling whether the synthesized event carries a refill callback.</td></tr>
     </table>
-    <span class="citation">Source: chromestatus.com standards positions, May 2026.</span>
+    </div>
+    <span class="citation">Source: <a href="https://wicg.github.io/autofill-event/" target="_blank" rel="noopener">WICG Autofill Event &mdash; §2 Concepts, §3 The AutofillEvent Interface, §4 Processing Model</a></span>
   </section>
 
   <section>
-    <h2>see also</h2>
+    <h2>Examples</h2>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/autofill-event/autofill-log/"
+        title="Live example — autofill event log (Autofill event)" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase: a form that logs <code>autofill</code> events and their <code>autofillValues</code> as the browser fills it. <span class="citation">Source: chrome-platform-showcase</span></figcaption>
+    </figure>
+
+    <p>The spec&rsquo;s motivating pattern &mdash; add a country-dependent field, then ask for a refill:</p>
+<pre><code>document.addEventListener('autofill', async (event) =&gt; {
+  // Find the country value among the incoming [element, value] pairs
+  let countryValue = null;
+  for (const [element, value] of event.autofillValues) {
+    if (element.autocomplete === 'country') { countryValue = value; break; }
+  }
+
+  // US addresses need a state selector this form doesn't have yet
+  if (event.refill &amp;&amp; countryValue === 'US') {
+    addStateSelector();        // modify the form to fit the data
+    await event.refill();      // ask the browser to fill the updated form
+  }
+});</code></pre>
+    <span class="citation">Source: condensed from the example in <a href="https://wicg.github.io/autofill-event/" target="_blank" rel="noopener">WICG Autofill Event &mdash; §1.2 Example</a>; Chrome&rsquo;s sample demos: <a href="https://yoavweiss.github.io/autofill_demo/autofill_event_demo.html" target="_blank" rel="noopener">autofill event demo</a>, <a href="https://yoavweiss.github.io/autofill_demo/credit_card_autofill_demo.html" target="_blank" rel="noopener">credit-card demo</a></span>
+  </section>
+
+  <section>
+    <h2>Browser compatibility</h2>
+    <p>There is no browser-compat-data (BCD) entry for <code>AutofillEvent</code> yet (<code>api/AutofillEvent.json</code> does not exist as of 2026-07-26), so the table below is an <strong>interim</strong> view from ChromeStatus data &mdash; not from BCD.</p>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <caption>Interim compatibility &mdash; from ChromeStatus, not BCD</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col">Status</th><th scope="col">Notes</th></tr></thead>
+      <tr><td>Chrome</td><td>Origin trial (147 listing)</td><td>Behind <code>--enable-blink-features=AutofillEvent</code>; feature detail records no ship milestone, status &ldquo;Proposed&rdquo; (updated 2026-02-28)</td></tr>
+      <tr><td>Edge</td><td>Not separately reported</td><td>No Edge position recorded on ChromeStatus (Chromium engine equivalence is not a support commitment)</td></tr>
+      <tr><td>Firefox</td><td>No signal</td><td>Position requested (<a href="https://github.com/mozilla/standards-positions/issues/1361" target="_blank" rel="noopener">mozilla/standards-positions#1361</a>)</td></tr>
+      <tr><td>Safari</td><td>No signal</td><td>Position requested (<a href="https://github.com/WebKit/standards-positions/issues/431" target="_blank" rel="noopener">WebKit/standards-positions#431</a>)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5137581018841088" target="_blank" rel="noopener">chromestatus.com/feature/5137581018841088</a> browser views (fetched 2026-07-26); BCD checked 2026-07-26</span>
+  </section>
+
+  <section>
+    <h2>Specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>Specifications</caption>
+      <thead><tr><th scope="col">Specification</th><th scope="col">Status</th></tr></thead>
+      <tr><td><a href="https://wicg.github.io/autofill-event/" target="_blank" rel="noopener">Autofill Event</a></td><td>WICG draft (incubation)</td></tr>
+      <tr><td><a href="https://html.spec.whatwg.org/multipage/form-control-infrastructure.html#autofill" target="_blank" rel="noopener">HTML Living Standard &mdash; Autofill</a></td><td>The autofill machinery the event integrates with (WICG draft §4.3)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: spec link recorded on <a href="https://chromestatus.com/feature/5137581018841088" target="_blank" rel="noopener">chromestatus.com/feature/5137581018841088</a></span>
+  </section>
+
+  <section>
+    <h2>See also</h2>
     <ul>
-      <li><a href="https://chromestatus.com/feature/5137581018841088" target="_blank" rel="noopener">chromestatus — Autofill event (5137581018841088)</a></li>
-      <li><a href="https://html.spec.whatwg.org/multipage/form-control-infrastructure.html#autofill" target="_blank" rel="noopener">HTML Living Standard — Autofill</a></li>
+      <li><a href="https://github.com/WICG/autofill-event?tab=readme-ov-file#autofill-event" target="_blank" rel="noopener">WICG explainer &mdash; Autofill event</a></li>
+      <li><a href="https://yoavweiss.github.io/autofill_demo/autofill_event_demo.html" target="_blank" rel="noopener">Autofill event demo</a> · <a href="https://yoavweiss.github.io/autofill_demo/credit_card_autofill_demo.html" target="_blank" rel="noopener">credit-card autofill demo</a> (ChromeStatus samples)</li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/autofill-event/" target="_blank" rel="noopener">Chrome Platform Showcase &mdash; Autofill event</a> (also: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/autofill-event/autofill-vs-input/" target="_blank" rel="noopener">autofill vs input</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/autofill-event/refill-flow/" target="_blank" rel="noopener">refill flow</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/autofill-event/compatibility-lab/" target="_blank" rel="noopener">compatibility lab</a>)</li>
     </ul>
   </section>
 
