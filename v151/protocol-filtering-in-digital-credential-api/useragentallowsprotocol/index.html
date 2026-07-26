@@ -45,7 +45,7 @@ const allowed = DigitalCredential.userAgentAllowsProtocol(protocol);
 
   <section>
     <h2 id="inputs">Inputs</h2>
-    <p>One argument: a <code>DOMString</code> protocol identifier. Presentation protocols today: <code>openid4vp-v1-unsigned</code>, <code>openid4vp-v1-signed</code>, <code>openid4vp-v1-multisigned</code>, <code>org-iso-mdoc</code>; issuance protocols: <code>openid4vci-v1</code>. The identifier set grows as user agents adopt new protocols — it is an open-ended enumeration by design.</p>
+    <p>One argument: a <code>DOMString</code> protocol identifier. The current specification defines these presentation protocols: <code>openid4vp-v1-unsigned</code>, <code>openid4vp-v1-signed</code>, <code>openid4vp-v1-multisigned</code>, and <code>org-iso-mdoc</code>; and this issuance protocol: <code>openid4vci-v1</code>. Each WebIDL enumeration is a closed set in a given specification revision, although later revisions can add values.</p>
     <span class="citation">Source: <a href="https://w3c-fedid.github.io/digital-credentials/#dom-digitalcredentialpresentationprotocol" target="_blank" rel="noopener">Digital Credentials — DigitalCredentialPresentationProtocol</a>; <a href="https://w3c-fedid.github.io/digital-credentials/#dom-digitalcredentialissuanceprotocol" target="_blank" rel="noopener">Digital Credentials — DigitalCredentialIssuanceProtocol</a></span>
   </section>
 
@@ -64,15 +64,15 @@ const allowed = DigitalCredential.userAgentAllowsProtocol(protocol);
 
   <section>
     <h2 id="context">Context</h2>
-    <p><strong>Receiver:</strong> the <code>DigitalCredential</code> interface object itself — this is a <em>static</em> method; there is no instance.</p>
-    <p><strong>Availability:</strong> Chrome 141 and Safari 26 per BCD; the unspecified-protocol deprecation it gates is a Chrome 151 developer trial behind the <code>DigitalCredentialsProtocolFilter</code> flag (status <code>experimental</code> at trunk), with removal targeted for Chrome 160.</p>
+    <p><strong>Receiver:</strong> the <code>DigitalCredential</code> interface object itself — this is a <em>static</em> method, so no credential instance is needed.</p>
+    <p><strong>Availability:</strong> Chrome 141 and Safari 26 per BCD. Chrome 151's arbitrary-protocol deprecation trial uses <code>chrome://flags/#enable-experimental-web-platform-features</code>; <code>DigitalCredentialsProtocolFilter</code> is the separate Finch/Blink runtime token (status <code>experimental</code> at trunk). Removal is targeted for Chrome 160.</p>
     <p><strong>Permissions:</strong> no permission prompt attaches to the check itself; the API family integrates with Permissions Policy and the credentials user-permission model per the draft.</p>
-    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/DigitalCredential.json" target="_blank" rel="noopener">BCD api/DigitalCredential.json</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium runtime_enabled_features.json5</a>; <a href="https://chromestatus.com/feature/6492906882990080" target="_blank" rel="noopener">chromestatus.com/feature/6492906882990080</a></span>
+    <span class="citation">Source: <a href="https://w3c-fedid.github.io/digital-credentials/#dom-digitalcredential-useragentallowsprotocol" target="_blank" rel="noopener">Digital Credentials — userAgentAllowsProtocol()</a>; <a href="https://w3c-fedid.github.io/digital-credentials/#permissions-policy" target="_blank" rel="noopener">Digital Credentials — Permissions Policy integration</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/DigitalCredential.json" target="_blank" rel="noopener">BCD api/DigitalCredential.json</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium runtime_enabled_features.json5</a>; <a href="https://chromestatus.com/feature/6492906882990080" target="_blank" rel="noopener">chromestatus.com/feature/6492906882990080</a></span>
   </section>
 
   <section>
     <h2 id="lifecycle">Lifecycle</h2>
-    <p>A pure, synchronous query — no state, no promise, no event. The allowed set can change across browser versions (identifiers are added progressively), so treat the answer as a point-in-time capability read, not a constant. Pair it with the deprecation timeline: unspecified-protocol requests are deprecated from 151 and targeted for removal at 160, so the check plus an explicit protocol is the durable pattern.</p>
+    <p>A synchronous query — no promise or event. The allowed set can change across browser major versions as specification revisions and implementations evolve, so treat the answer as a point-in-time capability read. Pair it with the deprecation timeline: arbitrary identifiers outside the normative registry are deprecated from 151 and targeted for removal at 160, so the durable pattern is a registered identifier plus this check.</p>
     <span class="citation">Source: <a href="https://w3c-fedid.github.io/digital-credentials/#protocols" target="_blank" rel="noopener">Digital Credentials — protocols</a>; <a href="https://chromestatus.com/api/v0/features/6492906882990080" target="_blank" rel="noopener">ChromeStatus API feature record</a></span>
   </section>
 
@@ -110,8 +110,8 @@ console.log(DigitalCredential.userAgentAllowsProtocol("future-protocol")); // fa
 
   <section>
     <h2 id="security-privacy">Security and privacy</h2>
-    <p>The check reveals which protocols the user agent allows — a coarse capability bit, not user data. It exists precisely so verifiers negotiate honestly instead of probing with real requests (which carry user credentials and consent flows). The draft's Security Considerations (§10) and Privacy Considerations (§11) cover the credential flows themselves, including presentation-protocol privacy topics such as selective disclosure and verifier authentication.</p>
-    <span class="citation">Source: <a href="https://w3c-fedid.github.io/digital-credentials/#protocols" target="_blank" rel="noopener">Digital Credentials — protocols, §10, §11</a></span>
+    <p>The result is deliberately a coarse browser capability bit. The user agent <strong>must not</strong> vary it based on hardware availability, installed or configured software and credential managers, stored credentials, or user configuration and preferences; doing so could fingerprint or silently reveal user behavior. The draft says it <strong>should</strong> vary only by user-agent major version and indicate whether the browser can distribute that protocol's requests to an underlying platform or provider. It does not prove that the OS, a wallet, or a credential is available.</p>
+    <span class="citation">Source: <a href="https://w3c-fedid.github.io/digital-credentials/#dom-digitalcredential-useragentallowsprotocol" target="_blank" rel="noopener">Digital Credentials — userAgentAllowsProtocol() privacy constraints</a></span>
   </section>
 
   <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>

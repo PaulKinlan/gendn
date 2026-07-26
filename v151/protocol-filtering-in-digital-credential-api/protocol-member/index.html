@@ -26,7 +26,7 @@
   <header class="lede-block">
     <p class="eyebrow">v151 · digital credentials · member reference</p>
     <h1>The protocol member <wbr>and enumerations</h1>
-    <p class="lede">The <code>protocol</code> member — required on every digital credential request, echoed on the returned credential — and the protocol identifier enumerations it draws from.</p>
+    <p class="lede">The required request <code>protocol</code> member, readonly credential attribute, <code>DigitalCredentialProtocol</code> union typedef, and the closed protocol enumerations they use.</p>
   </header>
 
   <section>
@@ -51,13 +51,22 @@ enum DigitalCredentialPresentationProtocol {
 
 enum DigitalCredentialIssuanceProtocol {
   "openid4vci-v1"
+};
+
+typedef (DigitalCredentialPresentationProtocol or
+         DigitalCredentialIssuanceProtocol) DigitalCredentialProtocol;
+
+[Exposed=Window, SecureContext]
+interface DigitalCredential : Credential {
+  readonly attribute DigitalCredentialProtocol protocol;
+  // Other members omitted here.
 };</code></pre>
-    <span class="citation">Source: <a href="https://w3c-fedid.github.io/digital-credentials/#dom-digitalcredentialgetrequest" target="_blank" rel="noopener">Digital Credentials — DigitalCredentialGetRequest</a>; <a href="https://w3c-fedid.github.io/digital-credentials/#dom-digitalcredentialpresentationprotocol" target="_blank" rel="noopener">Digital Credentials — presentation protocol enumeration</a>; <a href="https://w3c-fedid.github.io/digital-credentials/#dom-digitalcredentialissuanceprotocol" target="_blank" rel="noopener">Digital Credentials — issuance protocol enumeration</a></span>
+    <span class="citation">Source: <a href="https://w3c-fedid.github.io/digital-credentials/#dom-digitalcredentialgetrequest" target="_blank" rel="noopener">Digital Credentials — DigitalCredentialGetRequest</a>; <a href="https://w3c-fedid.github.io/digital-credentials/#dom-digitalcredentialpresentationprotocol" target="_blank" rel="noopener">Digital Credentials — presentation protocol enumeration</a>; <a href="https://w3c-fedid.github.io/digital-credentials/#dom-digitalcredentialissuanceprotocol" target="_blank" rel="noopener">Digital Credentials — issuance protocol enumeration</a>; <a href="https://w3c-fedid.github.io/digital-credentials/#dom-digitalcredentialprotocol" target="_blank" rel="noopener">Digital Credentials — DigitalCredentialProtocol typedef</a>; <a href="https://w3c-fedid.github.io/digital-credentials/#dom-digitalcredential-protocol" target="_blank" rel="noopener">Digital Credentials — readonly protocol attribute</a></span>
   </section>
 
   <section>
     <h2 id="inputs">Inputs</h2>
-    <p>On a request, <code>protocol</code> is a <strong>required</strong> <code>DOMString</code> — a presentation protocol identifier for <code>get</code> requests, an issuance protocol identifier for <code>create</code> requests — naming the protocol the request runs over. Omitting it is what the deprecation removes support for: from Chrome 151 (developer trial) through the removal target of Chrome 160, requests without an explicit protocol are phased out.</p>
+    <p>On a request, <code>protocol</code> is already a <strong>required</strong> <code>DOMString</code> — a presentation protocol identifier for <code>get</code> requests or an issuance protocol identifier for <code>create</code> requests. Chrome's deprecation does not make this member newly required: it phases out arbitrary values outside the specification's protocol registry, beginning with the Chrome 151 developer trial and targeting removal in Chrome 160.</p>
     <span class="citation">Source: <a href="https://w3c-fedid.github.io/digital-credentials/#dom-digitalcredentialgetrequest" target="_blank" rel="noopener">Digital Credentials — request dictionaries</a>; <a href="https://chromestatus.com/api/v0/features/6492906882990080" target="_blank" rel="noopener">ChromeStatus API feature record</a></span>
   </section>
 
@@ -69,20 +78,20 @@ enum DigitalCredentialIssuanceProtocol {
 
   <section>
     <h2 id="errors">Errors</h2>
-    <p>A missing <code>protocol</code> member fails the request at the dictionary level (it is <code>required</code>); an identifier the user agent doesn't allow fails at the protocol level — pre-check with <a href="../useragentallowsprotocol/"><code>userAgentAllowsProtocol()</code></a>, which returns <code>false</code> for unknown identifiers without throwing. The migration-class error is the unspecified protocol: tolerated before the deprecation, unsupported once removal lands.</p>
-    <span class="citation">Source: <a href="https://w3c-fedid.github.io/digital-credentials/#dom-digitalcredentialgetrequest" target="_blank" rel="noopener">Digital Credentials — request dictionaries</a>; <a href="https://chromestatus.com/api/v0/features/6492906882990080" target="_blank" rel="noopener">ChromeStatus API feature record</a></span>
+    <p>If a required <code>protocol</code> dictionary member is absent, WebIDL conversion throws a <code>TypeError</code> before the API operation runs. That is separate from protocol filtering. During request validation, a request is skipped when its protocol cannot be converted to a registered <code>DigitalCredentialProtocol</code> value or when the user agent does not allow that value. Pre-check with <a href="../useragentallowsprotocol/"><code>userAgentAllowsProtocol()</code></a>, which returns <code>false</code> for unknown or disallowed identifiers without throwing. The specification does not assign a protocol-specific exception to the skipped request itself.</p>
+    <span class="citation">Source: <a href="https://webidl.spec.whatwg.org/#es-dictionary" target="_blank" rel="noopener">Web IDL — dictionary conversion and required members</a>; <a href="https://w3c-fedid.github.io/digital-credentials/#validate-credential-requests" target="_blank" rel="noopener">Digital Credentials — validate credential requests</a></span>
   </section>
 
   <section>
     <h2 id="context">Context</h2>
     <p><strong>Where it lives:</strong> the request dictionaries handed to <code>navigator.credentials.get()</code>/<code>create()</code> via the <code>digital</code> option, and the <code>DigitalCredential</code> object those calls resolve to.</p>
-    <p><strong>Availability:</strong> the member and enumerations are Chrome 141 and Safari 26 per BCD; the unspecified-protocol deprecation is the Chrome 151 developer trial behind the <code>DigitalCredentialsProtocolFilter</code> flag (experimental), removal targeted for Chrome 160.</p>
+    <p><strong>Availability:</strong> the member and enumerations are Chrome 141 and Safari 26 per BCD. Chrome 151's arbitrary-protocol deprecation trial uses <code>chrome://flags/#enable-experimental-web-platform-features</code>; <code>DigitalCredentialsProtocolFilter</code> is the separate Finch/Blink runtime token (experimental). Removal is targeted for Chrome 160.</p>
     <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/DigitalCredential.json" target="_blank" rel="noopener">BCD api/DigitalCredential.json</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium runtime_enabled_features.json5</a>; <a href="https://chromestatus.com/feature/6492906882990080" target="_blank" rel="noopener">chromestatus.com/feature/6492906882990080</a></span>
   </section>
 
   <section>
     <h2 id="lifecycle">Lifecycle</h2>
-    <p>The member is fixed when the request is constructed and echoed back on the resulting credential — immutable data, no events. The identifier set itself evolves: protocols are added as user agents adopt them, so treat the enumeration as open-ended and probe with <code>userAgentAllowsProtocol()</code> rather than hard-coding a closed list.</p>
+    <p>The request member is fixed in the request dictionary, and the resulting credential exposes a <code>readonly</code> protocol attribute; neither has events. Each WebIDL enumeration is closed in the current specification revision. Later revisions may add values, so use <code>userAgentAllowsProtocol()</code> rather than assuming that today's closed set is permanent.</p>
     <span class="citation">Source: <a href="https://w3c-fedid.github.io/digital-credentials/#dom-digitalcredentialpresentationprotocol" target="_blank" rel="noopener">Digital Credentials — protocol enumerations</a>; <a href="https://w3c-fedid.github.io/digital-credentials/#protocols" target="_blank" rel="noopener">Digital Credentials — protocols</a></span>
   </section>
 
@@ -92,7 +101,7 @@ enum DigitalCredentialIssuanceProtocol {
 const cred = await navigator.credentials.get({
   digital: {
     requests: [{
-      protocol: "openid4vp-v1-signed",   // required — no longer omittable
+      protocol: "openid4vp-v1-signed",   // required and in the registry
       data: { /* protocol-specific request payload */ },
     }],
   },
@@ -109,7 +118,7 @@ console.log(cred.protocol); // "openid4vp-v1-signed"</code></pre>
     <table class="doc-table compat-table">
       <caption>protocol member — from BCD api/DigitalCredential.json (checked 2026-07-26)</caption>
       <thead><tr><th scope="col">Engine / runtime</th><th scope="col">Support</th><th scope="col">Notes</th></tr></thead>
-      <tr><td>Chrome</td><td>141</td><td>BCD entry; the unspecified-protocol deprecation is a Chrome 151 developer trial (flag) with removal targeted for 160</td></tr>
+      <tr><td>Chrome</td><td>141</td><td>BCD entry; filtering of arbitrary identifiers outside the registry is a Chrome 151 developer trial, with removal targeted for 160</td></tr>
       <tr><td>Edge</td><td>mirror</td><td>BCD mirrors Chrome's data</td></tr>
       <tr><td>Safari</td><td>26</td><td>BCD entry; ChromeStatus records &ldquo;Shipped/Shipping&rdquo;</td></tr>
       <tr><td>Firefox</td><td>Not supported</td><td>BCD <code>version_added: false</code>; ChromeStatus records No signal</td></tr>

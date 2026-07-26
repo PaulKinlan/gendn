@@ -47,15 +47,15 @@
         <li>Safari · 26 (BCD)</li>
         <li class="limited">Firefox · not supported (BCD)</li>
       </ul>
-      <p>BCD covers the protocol surface (Chrome 141, Safari 26); the deprecation of unspecified protocols begins as a flag-gated developer trial in Chrome 151 with a removal target of Chrome 160. See the compatibility section for the separated facts.</p>
+      <p>BCD covers the protocol surface (Chrome 141, Safari 26); ChromeStatus uses “unspecified protocols” for arbitrary identifiers outside the normative registry. Their deprecation begins as a flag-gated developer trial in Chrome 151, with removal targeted for Chrome 160. See the compatibility section for the separated facts.</p>
     </div>
 
-    <p class="lede">Digital credential requests must now name their protocol: the <code>protocol</code> member is required, <code>DigitalCredential<wbr>.userAgentAllowsProtocol<wbr>()</code> lets a page check support before calling, and support for <em>unspecified</em> presentation and issuance protocols is being phased out — a developer trial in Chrome 151, with removal targeted for Chrome 160.</p>
+    <p class="lede">Digital credential requests already carry a required <code>protocol</code> member. What is changing is which values are accepted: arbitrary protocol identifiers outside the specification's registry are being phased out. <code>DigitalCredential<wbr>.userAgentAllowsProtocol<wbr>()</code> lets a page check an identifier before requesting it; Chrome 151 begins the developer trial, with removal of arbitrary protocols targeted for Chrome 160.</p>
   </header>
 
   <div class="warn-block">
     <strong>Developer trial — flag required</strong>
-    <p>This feature is behind a flag in Chrome 151 (milestone listing: developer trial). Enable <code>chrome://flags</code> → <strong>Digital Credentials Protocol Filter</strong> (<code>DigitalCredentialsProtocolFilter</code>, status <code>experimental</code>) to try it. It is not enabled by default, and the feature detail targets the change for Chrome 160.</p>
+    <p>This change is behind a flag in Chrome 151 (milestone listing: developer trial). Enable <code>chrome://flags/#enable-experimental-web-platform-features</code> to try it. ChromeStatus names that flag explicitly; <code>DigitalCredentialsProtocolFilter</code> is the separate Finch/Blink runtime feature token (status <code>experimental</code>), not a dedicated <code>chrome://flags</code> entry. The feature detail targets removal for Chrome 160.</p>
     <span class="citation">Source: <a href="https://chromestatus.com/feature/6492906882990080" target="_blank" rel="noopener">chromestatus.com/feature/6492906882990080</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium runtime_enabled_features.json5</a></span>
   </div>
 
@@ -65,9 +65,9 @@
     <table class="doc-table">
       <caption>At a glance</caption>
       <tr><th scope="row">Milestone listing</th><td>Chrome 151 — developer trial (behind a flag)</td></tr>
-      <tr><th scope="row">Feature detail</th><td>Desktop 160, status text &ldquo;Proposed&rdquo; (detail updated 2026-06-18); deprecation of unspecified protocols begins 151, removal targeted for 160</td></tr>
-      <tr><th scope="row">Surface</th><td>The required <code>protocol</code> member (request and credential dictionaries), the protocol enumerations, and <code>DigitalCredential.userAgentAllowsProtocol()</code></td></tr>
-      <tr><th scope="row">Runtime feature</th><td><code>DigitalCredentialsProtocolFilter</code> — status <code>experimental</code> at trunk</td></tr>
+      <tr><th scope="row">Feature detail</th><td>Desktop 160, status text &ldquo;Proposed&rdquo; (detail updated 2026-06-18); deprecation of arbitrary protocol identifiers outside the registry begins 151, removal targeted for 160</td></tr>
+      <tr><th scope="row">Surface</th><td>The required request <code>protocol</code> member, readonly credential attribute, <code>DigitalCredentialProtocol</code> union typedef, its two enumerations, and <code>DigitalCredential.userAgentAllowsProtocol()</code></td></tr>
+      <tr><th scope="row">Trial controls</th><td><code>#enable-experimental-web-platform-features</code> is the Chrome flag; <code>DigitalCredentialsProtocolFilter</code> is the Finch/Blink runtime token, status <code>experimental</code> at trunk</td></tr>
       <tr><th scope="row">Standards body</th><td><a href="https://w3c-fedid.github.io/digital-credentials/#protocols" target="_blank" rel="noopener">Digital Credentials (FedID WG draft) — protocols</a></td></tr>
       <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/6492906882990080" target="_blank" rel="noopener">6492906882990080 — Protocol filtering in Digital Credential API</a></td></tr>
     </table>
@@ -80,14 +80,14 @@
     <p>The developer-facing surface, each item with stable detailed reference covering syntax, inputs, outputs, errors, context, lifecycle, examples, compatibility, and security/privacy:</p>
     <ul>
       <li><a href="./useragentallowsprotocol/"><code>DigitalCredential.userAgentAllowsProtocol()</code></a> — the static protocol check: unknown protocols return false (never throw), but an undefined interface throws ReferenceError</li>
-      <li><a href="./protocol-member/">the <code>protocol</code> member and enumerations</a> — required on requests, echoed on the credential, with the current protocol identifiers</li>
+      <li><a href="./protocol-member/">the <code>protocol</code> member, <code>DigitalCredentialProtocol</code> typedef, and enumerations</a> — required on requests, readonly on the credential, with the current closed set of protocol identifiers</li>
     </ul>
     <span class="citation">Source: <a href="https://w3c-fedid.github.io/digital-credentials/#protocols" target="_blank" rel="noopener">Digital Credentials — protocols</a></span>
   </section>
 
   <section>
     <h2>What changed and why it matters</h2>
-    <p>Previously a request could leave the protocol unspecified and the browser would pick. That ambiguity is being removed: requests must name a protocol, and support for unspecified protocols is deprecated from Chrome 151 with removal targeted for Chrome 160. The migration is to declare the protocol explicitly and check it first — <code>userAgentAllowsProtocol()</code> returns <code>false</code> for unknown identifiers (it never throws for them), so it doubles as a progressive-enhancement gate as new protocol identifiers appear.</p>
+    <p>The <code>protocol</code> member was already required, but implementations previously accepted arbitrary values and acted as opaque pipelines for protocols the specification did not define. The new filter aligns requests with the specification's registry: Chrome 151 begins deprecating unregistered identifiers, with their removal targeted for Chrome 160. Migrate each request to a registered identifier and check it first — <code>userAgentAllowsProtocol()</code> returns <code>false</code> for unknown or disallowed identifiers without throwing.</p>
     <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/6492906882990080" target="_blank" rel="noopener">ChromeStatus API feature record</a>; <a href="https://w3c-fedid.github.io/digital-credentials/#protocols" target="_blank" rel="noopener">Digital Credentials — protocols</a></span>
   </section>
 
@@ -119,7 +119,7 @@ if (typeof DigitalCredential !== "undefined"
     <table class="doc-table compat-table">
       <caption>Protocol surface — from BCD api/DigitalCredential.json (checked 2026-07-26)</caption>
       <thead><tr><th scope="col">Engine / runtime</th><th scope="col">Support</th><th scope="col">Notes</th></tr></thead>
-      <tr><td>Chrome</td><td>141</td><td>BCD rows for <code>protocol</code>, <code>userAgentAllowsProtocol()</code>, and <code>data</code>; the unspecified-protocol deprecation is a Chrome 151 developer trial with removal targeted for 160 (ChromeStatus, not BCD)</td></tr>
+      <tr><td>Chrome</td><td>141</td><td>BCD rows for <code>protocol</code>, <code>userAgentAllowsProtocol()</code>, and <code>data</code>; arbitrary-protocol filtering is a Chrome 151 developer trial with removal targeted for 160 (ChromeStatus, not BCD)</td></tr>
       <tr><td>Edge</td><td>mirror</td><td>BCD mirrors Chrome's data</td></tr>
       <tr><td>Safari</td><td>26</td><td>BCD rows; the ChromeStatus entry records Safari &ldquo;Shipped/Shipping&rdquo;</td></tr>
       <tr><td>Firefox</td><td>Not supported</td><td>BCD <code>version_added: false</code>; the ChromeStatus entry records No signal</td></tr>
