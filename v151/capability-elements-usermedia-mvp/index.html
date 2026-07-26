@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Capability Elements: &lt;usermedia&gt; MVP — Chrome 151 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 32%; min-width: 7.5rem; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .compat-table tr > *:nth-child(2) { min-width: 6.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .doc-table caption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); text-align: left; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .table-wrap { overflow-x: auto; }
+    .lede-block h1 { overflow-wrap: anywhere; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    .example-embed iframe { display: block; max-width: 100%; }
+    .example-embed figcaption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); margin-top: 0.5rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v151/">&larr; Chrome 151 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v151 · html · web api · shipped</p>
+    <h1>Capability Elements: &lt;usermedia&gt; MVP</h1>
+    <p class="lede">A new <code>&lt;usermedia&gt;</code> HTML element: a browser-controlled, user-activated button that brokers camera and microphone access — running the permission flow and the <code>getUserMedia()</code> call for you, then handing the resulting <code>MediaStream</code> to the page. Ships in Chrome 151 on desktop and Android, enabled by default.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Mixed stability — read before copying</strong>
+    The <code>&lt;usermedia&gt;</code> element itself is <em>enabled by default</em> in Chrome 151 (runtime feature <code>UserMediaElement</code>, status <code>stable</code>). The <a href="#legacy-syntax">legacy migration surface</a> documented below (<code>type</code> attribute, <code>isValid</code>, <code>permissionStatus</code>, prompt events) is experimental — gated by the <code>UserMediaElementLegacy</code> flag, testable via <code>chrome://flags</code> or <code>--enable-blink-features=UserMediaElementLegacy</code> — exists only to migrate origin-trial users of the earlier <code>&lt;permission&gt;</code> element, and is <a href="https://issues.chromium.org/issues/493632110" target="_blank" rel="noopener">slated for deprecation</a>. Do not build new code on it.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 151 (desktop, Android) — milestone listing: &ldquo;Enabled by default&rdquo;</td></tr>
+      <tr><th>Status</th><td>Enabled by default (runtime feature <code>UserMediaElement</code>, <code>stable</code>)</td></tr>
+      <tr><th>Origin trial ran</th><td>Chrome 144–148 (the feature was trialled earlier as the generic <code>&lt;permission&gt;</code> element)</td></tr>
+      <tr><th>Spec</th><td><a href="https://w3c.github.io/mediacapture-extensions/#media-capture-html-elements" target="_blank" rel="noopener">Media Capture and Streams Extensions — Media capture HTML elements</a></td></tr>
+      <tr><th>Explainer</th><td><a href="https://github.com/w3c/mediacapture-extensions/blob/main/media-capture-elements-explainer.md" target="_blank" rel="noopener">Media Capture Elements explainer (w3c/mediacapture-extensions)</a></td></tr>
+      <tr><th>TAG review</th><td><a href="https://github.com/w3ctag/design-reviews/issues/1218" target="_blank" rel="noopener">w3ctag/design-reviews #1218</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/4926233538330624" target="_blank" rel="noopener">4926233538330624 — Capability Elements &lt;usermedia&gt; MVP</a></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>why it exists</h2>
+    <p>The traditional camera/microphone flow is fully imperative: call <code>navigator.mediaDevices.getUserMedia()</code> from script, handle the permission prompt asynchronously, then attach the stream to a <code>&lt;video&gt;</code> element. This creates two long-standing problems:</p>
+    <ul>
+      <li>The permission prompt fires from script execution with no strong signal of user intent anchored to a visible control — browsers can block or de-emphasize it.</li>
+      <li>Users who previously denied the permission hit a &ldquo;permission hole&rdquo;: the site cannot re-prompt, and recovery means navigating browser settings.</li>
+    </ul>
+    <p><code>&lt;usermedia&gt;</code> makes the element itself the trusted control. Clicking it is an unambiguous user gesture on a browser-rendered button; the browser runs the permission UX inline, performs the <code>getUserMedia()</code> call, and delivers the <code>MediaStream</code> to the page. Because the browser controls the element's rendering, a previously-denied user gets an in-page recovery path instead of a dead end. The feature evolved out of the Page-Embedded Permission Control (PEPC) work: the generic <code>&lt;permission&gt;</code> element was origin-trialled first, then split into capability-specific elements (<code>&lt;usermedia&gt;</code> here; <code>&lt;camera&gt;</code> and <code>&lt;microphone&gt;</code> are a <a href="https://chromestatus.com/feature/5153829504024576" target="_blank" rel="noopener">separate, still-experimental feature</a>).</p>
+    <span class="citation">Source: <a href="https://github.com/w3c/mediacapture-extensions/blob/main/media-capture-elements-explainer.md" target="_blank" rel="noopener">Media Capture Elements explainer</a>; <a href="https://chromestatus.com/feature/4926233538330624" target="_blank" rel="noopener">chromestatus.com/feature/4926233538330624</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+<pre><code>&lt;!-- Declarative: no required attributes. Children are fallback content. --&gt;
+&lt;usermedia&gt;Camera and microphone access required&lt;/usermedia&gt;
+
+&lt;script&gt;
+  const el = document.querySelector("usermedia");
+  // Optional: configure the getUserMedia() call the element will make.
+  el.setConstraints({ video: { width: 1280 }, audio: {} });
+&lt;/script&gt;</code></pre>
+    <p>The element's interface is <code>HTMLUserMediaElement</code> (the tag is <code>usermedia</code>). The normative IDL from the <a href="https://w3c.github.io/mediacapture-extensions/#media-capture-html-elements" target="_blank" rel="noopener">specification</a>, matching Chromium's shipping IDL:</p>
+<pre><code>[Exposed=Window]
+interface HTMLUserMediaElement : HTMLElement {
+  [HTMLConstructor] constructor();
+
+  readonly attribute MediaStream? stream;
+  readonly attribute DOMException? error;
+  undefined setConstraints(optional HTMLMediaStreamConstraints constraints = {});
+
+  attribute EventHandler onstream;
+  attribute EventHandler onerror;
+  attribute EventHandler oncancel;
+};
+
+dictionary HTMLMediaStreamConstraints {
+  MediaTrackConstraintSet video;
+  MediaTrackConstraintSet audio;
+};</code></pre>
+    <p>Chromium implements the same surface split across <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_user_media_element.idl" target="_blank" rel="noopener">html_user_media_element.idl</a> (plus the <code>HTMLMediaCaptureElementBase</code> mixin in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_media_capture_element_base.idl" target="_blank" rel="noopener">html_media_capture_element_base.idl</a>) and two partial mixins in modules/mediastream (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/html_user_media_element_media_stream.idl" target="_blank" rel="noopener">stream</a>, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_element_constraints.idl" target="_blank" rel="noopener">setConstraints</a>), gated by <code>RuntimeEnabled=UserMediaElement</code> — <code>stable</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>.</p>
+    <p>Content model: the element belongs to the flow, phrasing, interactive, and palpable content categories; it can appear wherever phrasing content is expected, and any children serve as fallback content (rendered when the element can't operate — for example in a non-secure context). Presentation is a user-agent-controlled button whose label and icon reflect the capture state.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/mediacapture-extensions/#media-capture-html-elements" target="_blank" rel="noopener">Media Capture and Streams Extensions — The &lt;usermedia&gt; HTML element</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="inputs">Inputs</h2>
+    <p>The element takes <strong>no required content attributes</strong> — <code>&lt;usermedia&gt;&lt;/usermedia&gt;</code> alone requests both camera and microphone with default settings. Three input channels exist:</p>
+    <ul>
+      <li><strong>Constraints</strong>, set imperatively via <a href="./setconstraints/"><code>setConstraints()</code></a> — an <code>HTMLMediaStreamConstraints</code> dictionary with optional <code>video</code> and <code>audio</code> <code>MediaTrackConstraintSet</code> members. If never called, the element requests <code>{ video: {}, audio: {} }</code>. Required (<code>exact</code>-style) constraints are stripped by the user agent's constraint filter so the element cannot fail silently with an <code>OverconstrainedError</code>; the explainer additionally notes advanced constraints are ignored.</li>
+      <li><strong>Fallback content</strong>: child nodes are rendered when the element cannot operate (non-secure context; unsupported engine), so put a sentence or link there, not controls.</li>
+      <li><strong>Global HTML attributes</strong> (<code>id</code>, <code>class</code>, <code>lang</code>, …) behave as usual; there is no shipped <code>type</code> or <code>autostart</code> attribute on the MVP surface (see <a href="#superseded-draft">superseded draft design</a>).</li>
+    </ul>
+    <span class="citation">Source: <a href="https://w3c.github.io/mediacapture-extensions/#media-capture-html-elements" target="_blank" rel="noopener">Specification — constraint filter and content model</a>; <a href="https://github.com/w3c/mediacapture-extensions/blob/main/media-capture-elements-explainer.md" target="_blank" rel="noopener">Explainer — constraints configuration</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="outputs">Outputs</h2>
+    <p>Three observable outputs:</p>
+    <ul>
+      <li><strong><a href="./properties/#outputs-stream"><code>stream</code></a></strong> — a <code>MediaStream</code> (camera + microphone tracks per the constraints) assigned when acquisition succeeds; <code>null</code> before that.</li>
+      <li><strong><a href="./events/">Events</a></strong> — exactly one terminal event per acquisition attempt: <code>stream</code> (success), <code>cancel</code> (user dismissed or denied the prompt), or <code>error</code> (all other failures).</li>
+      <li><strong><a href="./properties/#outputs-error"><code>error</code></a></strong> — a <code>DOMException</code> describing the failure when the terminal event is <code>cancel</code> or <code>error</code>; <code>null</code> otherwise.</li>
+    </ul>
+    <p>The browser-rendered button itself is also an output: its label and icon track the underlying stream state (requesting, live, muted, ended) without any page code.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/mediacapture-extensions/#media-capture-html-elements" target="_blank" rel="noopener">Specification — activation and event model</a>; <a href="https://github.com/w3c/mediacapture-extensions/blob/main/media-capture-elements-explainer.md" target="_blank" rel="noopener">Explainer — user journey and interaction model</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="errors">Errors</h2>
+    <p>Failures never throw synchronously from markup or clicks; they surface through the <code>error</code> property and the <code>cancel</code>/<code>error</code> events. The exact mapping, from the specification and Chromium's implementation:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>Failure paths — what fires and what <code>error</code> holds</caption>
+      <thead><tr><th scope="col">Cause</th><th scope="col">Event</th><th scope="col"><code>error</code> value</th></tr></thead>
+      <tr><td>User dismisses or denies the permission prompt</td><td><code>cancel</code></td><td><code>NotAllowedError</code> (&ldquo;Permission dismissed&rdquo; / &ldquo;Permission denied&rdquo;)</td></tr>
+      <tr><td>Activation without a genuine user gesture (no transient activation)</td><td><code>error</code></td><td><code>InvalidStateError</code></td></tr>
+      <tr><td>Constraints missing for the requested capture kinds (e.g. neither <code>audio</code> nor <code>video</code> set)</td><td><code>error</code></td><td><code>NotSupportedError</code></td></tr>
+      <tr><td>Underlying <code>getUserMedia()</code> rejects (device busy, no device, over-constrained after filtering, …)</td><td><code>error</code></td><td>The rejection <code>DOMException</code> (e.g. <code>NotFoundError</code>, <code>NotReadableError</code>, <code>OverconstrainedError</code>)</td></tr>
+      <tr><td>Non-secure context</td><td>none</td><td>The element renders its fallback content instead (Chromium also reports a DevTools audits issue)</td></tr>
+    </table>
+    </div>
+    <p>Recovery is always the same shape: read <code>el.error</code> in the terminal event handler, show your own recovery UI, and let the user click the element again — the element re-arms after a failed attempt.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/mediacapture-extensions/#media-capture-html-elements" target="_blank" rel="noopener">Specification — activation behavior and event queueing</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_media_capture_element_base.cc" target="_blank" rel="noopener">Chromium html_media_capture_element_base.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_request_provider_impl.cc" target="_blank" rel="noopener">Chromium user_media_request_provider_impl.cc</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="context">Context</h2>
+    <p><strong>Exposure:</strong> <code>HTMLUserMediaElement</code> is <code>[Exposed=Window]</code> — no worker exposure. Like <code>getUserMedia()</code>, the element only operates in a <strong>secure context</strong>; elsewhere it shows fallback content. Feature-detect with <code>"HTMLUserMediaElement" in window</code> — on unsupported engines the tag parses as an unknown element and your fallback content renders.</p>
+    <p><strong>Activation requirements:</strong> acquisition starts only from a genuine user gesture — the click must be a trusted event with transient user activation; programmatic or synthetic clicks are rejected (an <code>error</code> event with <code>InvalidStateError</code>). The browser, not the site, mediates the camera/microphone permission, and may skip the prompt entirely when the user has already granted it.</p>
+    <p><strong>Default capture:</strong> with no configuration the element requests both camera and microphone (Chromium's <code>ApplyDefaultConstraints()</code> installs <code>VIDEO_CAPTURE</code> + <code>AUDIO_CAPTURE</code> descriptors when nothing else is set).</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/mediacapture-extensions/#media-capture-html-elements" target="_blank" rel="noopener">Specification — shared activation algorithms</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_user_media_element.cc" target="_blank" rel="noopener">Chromium html_user_media_element.cc</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">Lifecycle</h2>
+    <p>The element is a small state machine:</p>
+    <ol>
+      <li><strong>Request state</strong> — <code>stream</code> is <code>null</code>. A trusted click starts acquisition: the embedded permission flow runs first (prompt only if needed), then the browser performs the <code>getUserMedia()</code> call with the configured constraints.</li>
+      <li><strong>Terminal event</strong> — exactly one of <code>stream</code> / <code>cancel</code> / <code>error</code> fires per attempt (queued as an element task). On success <code>stream</code> is populated <em>before</em> the <code>stream</code> event fires.</li>
+      <li><strong>Active state</strong> — while the associated <code>MediaStream</code> is active, further clicks do not start a new request; unlike <code>&lt;camera&gt;</code>/<code>&lt;microphone&gt;</code>, the MVP <code>&lt;usermedia&gt;</code> deliberately does <em>not</em> become a mute/unmute toggle, because coordinating independent audio/video track states is ambiguous. Track muting stays with your own UI or <code>MediaStreamTrack.enabled</code>.</li>
+      <li><strong>Reset</strong> — the element monitors its tracks (including external <code>track.stop()</code>); once the stream ends it returns to the request state and the next click starts a fresh acquisition. A failed attempt also re-arms the element immediately.</li>
+    </ol>
+    <span class="citation">Source: <a href="https://github.com/w3c/mediacapture-extensions/blob/main/media-capture-elements-explainer.md" target="_blank" rel="noopener">Explainer — user journey and interaction model</a>; <a href="https://w3c.github.io/mediacapture-extensions/#media-capture-html-elements" target="_blank" rel="noopener">Specification — activation behavior</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_request_provider_impl.cc" target="_blank" rel="noopener">Chromium user_media_request_provider_impl.cc</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+<pre><code>&lt;usermedia id="capture"&gt;This page needs your camera and microphone.&lt;/usermedia&gt;
+&lt;video id="preview" autoplay playsinline muted&gt;&lt;/video&gt;
+
+&lt;script&gt;
+  const el = document.getElementById("capture");
+  const video = document.getElementById("preview");
+
+  // Optional configuration; call before the user interacts.
+  el.setConstraints({
+    video: { width: { ideal: 1280 } },
+    audio: { echoCancellation: true }
+  });
+
+  el.addEventListener("stream", () => {
+    // Success: el.stream is a live MediaStream.
+    video.srcObject = el.stream;
+  });
+  el.addEventListener("cancel", () => {
+    console.log("Prompt dismissed or denied:", el.error?.message);
+  });
+  el.addEventListener("error", () => {
+    console.error("Capture failed:", el.error?.name, el.error?.message);
+  });
+&lt;/script&gt;</code></pre>
+    <p>No <code>getUserMedia()</code> call, no promise handling, no permission re-prompt logic — the browser owns the entire acquisition flow.</p>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v151/capability-elements-usermedia-mvp/" width="720" height="480" loading="lazy" title="Live demo: Capability Elements &lt;usermedia&gt; MVP (chrome-platform-showcase)"></iframe>
+      <figcaption>Live demo on chrome-platform-showcase — best in Chrome 151+ with a camera/microphone. <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v151/capability-elements-usermedia-mvp/" target="_blank" rel="noopener">Open the demo full-page</a>.</figcaption>
+    </figure>
+    <span class="citation">Source: <a href="https://github.com/w3c/mediacapture-extensions/blob/main/media-capture-elements-explainer.md" target="_blank" rel="noopener">Explainer — examples</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">Compatibility</h2>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <caption>&lt;usermedia&gt; element — checked 2026-07-26</caption>
+      <thead><tr><th scope="col">Engine / runtime</th><th scope="col">Support</th><th scope="col">Notes</th></tr></thead>
+      <tr><td>Chrome / Edge (desktop)</td><td>151</td><td>Enabled by default per the milestone listing and the <code>stable</code> runtime feature</td></tr>
+      <tr><td>Chrome (Android)</td><td>151</td><td>Per the ChromeStatus feature detail (desktop + Android 151)</td></tr>
+      <tr><td>Firefox</td><td>Not supported</td><td>Vendor position &ldquo;Under consideration&rdquo; (<a href="https://github.com/mozilla/standards-positions/issues/1245" target="_blank" rel="noopener">mozilla/standards-positions #1245</a>)</td></tr>
+      <tr><td>Safari</td><td>Not supported</td><td>No signal; WebKit engagement tracked in <a href="https://github.com/WICG/PEPC/issues/62" target="_blank" rel="noopener">WICG/PEPC #62</a></td></tr>
+      <tr><td>BCD</td><td>No entry</td><td>No <code>api/HTMLUserMediaElement.json</code> in <a href="https://github.com/mdn/browser-compat-data/tree/main/api" target="_blank" rel="noopener">browser-compat-data</a> as of 2026-07-26</td></tr>
+      <tr><td>WPT</td><td>No upstream tests found</td><td>None in Chromium's external/wpt mirror; Chromium covers the element with unit tests (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_user_media_element_test.cc" target="_blank" rel="noopener">core</a>, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_element_test.cc" target="_blank" rel="noopener">modules</a>)</td></tr>
+    </table>
+    </div>
+    <p>MDN has no page for the element or <code>HTMLUserMediaElement</code> as of 2026-07-26, which is why this reference exists. Always feature-detect (<code>"HTMLUserMediaElement" in window</code>) and keep meaningful fallback content inside the tag.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/4926233538330624" target="_blank" rel="noopener">ChromeStatus API feature record (milestones + vendor positions)</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-privacy">Security and privacy</h2>
+    <ul>
+      <li><strong>Trusted UI:</strong> the element renders in a closed, UA-controlled shadow DOM; sites cannot restyle it into something deceptive, and activation is filtered to trusted gestures with transient activation — the spec requires user agents to suppress clickjacking and programmatic activation at minimum by rejecting untrusted events.</li>
+      <li><strong>Implicit hardware activation:</strong> a grant starts real capture immediately (camera LED, mic indicator). The explainer flags this as an area under active investigation — don't treat a click on the element as a low-cost operation.</li>
+      <li><strong>Constraint fingerprinting:</strong> declarative constraints expose the same device-fingerprinting surface as imperative <code>getUserMedia()</code>; the explainer requires the same mitigations (fuzzing exact values, withholding <code>deviceId</code> until grant).</li>
+      <li><strong>Permission model:</strong> the element mediates — never bypasses — the camera/microphone permissions. It also repairs the &ldquo;permission hole&rdquo;: a previously-denied user clicking the element gets a browser-explained recovery flow in-page, instead of the site silently failing.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/w3c/mediacapture-extensions/blob/main/media-capture-elements-explainer.md" target="_blank" rel="noopener">Explainer — privacy and security considerations</a>; <a href="https://w3c.github.io/mediacapture-extensions/#media-capture-html-elements" target="_blank" rel="noopener">Specification — shared algorithms (trusted events)</a>; <a href="https://github.com/w3ctag/design-reviews/issues/1218" target="_blank" rel="noopener">TAG design review #1218</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="legacy-syntax">Legacy migration surface — syntax</h2>
+    <p>For sites migrating from the origin-trial <code>&lt;permission&gt;</code> element, Chrome also ships an <strong>experimental</strong> legacy surface (runtime feature <code>UserMediaElementLegacy</code>, status <code>experimental</code>). Adding a <code>type</code> attribute switches the element into legacy mode, where it behaves like the old <code>&lt;permission&gt;</code> element:</p>
+<pre><code>// Chromium html_user_media_element.idl — every member below is
+// [RuntimeEnabled=UserMediaElementLegacy] (experimental, not for new code):
+[Reflect] attribute DOMString type;            // "camera", "microphone", or "camera microphone"
+static boolean isTypeSupported(DOMString type);
+readonly attribute boolean isValid;
+readonly attribute DOMString invalidReason;
+readonly attribute PermissionState initialPermissionStatus;
+readonly attribute PermissionState permissionStatus;
+attribute EventHandler onpromptaction;
+attribute EventHandler onpromptdismiss;
+attribute EventHandler onvalidationstatuschange;</code></pre>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_user_media_element.idl" target="_blank" rel="noopener">Chromium html_user_media_element.idl</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="legacy-inputs">Legacy migration surface — inputs</h2>
+    <p>The <code>type</code> content attribute is the only input: a space-separated list taking <code>camera</code>, <code>microphone</code>, or both (either order). It takes effect <strong>once</strong>, when first set — later changes or removal are ignored by the implementation. Any other token, or three or more tokens, makes the element invalid: Chromium reports an &ldquo;invalid type&rdquo; DevTools audits issue and the element falls back to its inert fallback rendering. <code>isTypeSupported(type)</code> lets migration code probe a type string before stamping it into markup.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_user_media_element.cc" target="_blank" rel="noopener">Chromium html_user_media_element.cc — ParseType and AttributeChanged</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="legacy-outputs">Legacy migration surface — outputs</h2>
+    <p>In legacy mode the element behaves as a permission gate, not a stream broker: it exposes the permission state machine directly through <code>isValid</code> (the element is usable), <code>invalidReason</code> (why not — for example an unsupported <code>type</code> or a policy block), <code>initialPermissionStatus</code> and <code>permissionStatus</code> (<code>PermissionState</code>: <code>"granted"</code> / <code>"denied"</code> / <code>"prompt"</code>), and the <code>promptaction</code> / <code>promptdismiss</code> / <code>validationstatuschange</code> events. It does <strong>not</strong> populate <code>stream</code> — in legacy mode the <code>error</code> getter even hard-returns <code>null</code>, and media acquisition stays with your own <code>getUserMedia()</code> call.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_user_media_element.cc" target="_blank" rel="noopener">Chromium html_user_media_element.cc — IsLegacyMode branching</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="legacy-errors">Legacy migration surface — errors</h2>
+    <p>Legacy-mode failures are reported through state, not exceptions: an invalid <code>type</code> flips <code>isValid</code> to <code>false</code> with a machine-readable <code>invalidReason</code>, and <code>validationstatuschange</code> fires when validity changes. Because the legacy branch bypasses the media-capture event model, the <code>error</code> property always reads <code>null</code> there — do not rely on it when <code>type</code> is present. Reading any legacy member without the experimental flag simply yields <code>undefined</code> (the members don't exist), which is itself a usable probe.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_user_media_element.idl" target="_blank" rel="noopener">Chromium html_user_media_element.idl</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_user_media_element.cc" target="_blank" rel="noopener">Chromium html_user_media_element.cc</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="legacy-context">Legacy migration surface — context</h2>
+    <p>The legacy members exist only under the experimental <code>UserMediaElementLegacy</code> runtime feature, which shares the origin-trial token name <code>UserMediaElement</code> so origin-trial pages keep working while they migrate. It is testable locally with <code>chrome://flags</code> or <code>--enable-blink-features=UserMediaElementLegacy</code>. The stated intent in the IDL is to deprecate and remove <code>type</code> once <code>&lt;usermedia&gt;</code> adoption is stable — tracked as <a href="https://issues.chromium.org/issues/493632110" target="_blank" rel="noopener">crbug.com/493632110</a>. Treat the entire surface as temporary migration scaffolding.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium runtime_enabled_features.json5</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_user_media_element.idl" target="_blank" rel="noopener">Chromium html_user_media_element.idl</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="legacy-lifecycle">Legacy migration surface — lifecycle</h2>
+    <p>The legacy branch is decided the moment the <code>type</code> attribute is first parsed; from then on every virtual hook (<code>AttributeChanged</code>, permission-status changes, embedded-permission decisions, activation) dispatches to the legacy <code>&lt;permission&gt;</code>-element code path instead of the media-capture path. There is no transition back: removing <code>type</code> does not restore MVP behavior, you must replace the element. <code>initialPermissionStatus</code> captures the state at setup; <code>permissionStatus</code> live-tracks grants and revocations after that.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_user_media_element.cc" target="_blank" rel="noopener">Chromium html_user_media_element.cc — AttributeChanged and IsLegacyMode</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="legacy-examples">Legacy migration surface — examples</h2>
+<pre><code>// Migration probe (requires the experimental flag to do anything):
+const el = document.querySelector("usermedia");
+if ("isTypeSupported" in HTMLUserMediaElement) {
+  // Legacy surface present (flag on). Ask before stamping markup:
+  console.log(HTMLUserMediaElement.isTypeSupported("camera microphone")); // true
+  console.log(HTMLUserMediaElement.isTypeSupported("geolocation"));       // false
+}
+
+// Legacy usage (origin-trial carry-over; do NOT use in new code):
+// &lt;usermedia type="camera microphone"&gt;&lt;/usermedia&gt;
+// el.isValid, el.permissionStatus, el.onpromptaction now behave like the
+// old &lt;permission&gt; element; el.stream is never populated for you.</code></pre>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_user_media_element.idl" target="_blank" rel="noopener">Chromium html_user_media_element.idl</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="legacy-compatibility">Legacy migration surface — compatibility</h2>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <caption>Legacy (<code>type</code>) surface — checked 2026-07-26</caption>
+      <thead><tr><th scope="col">Engine / runtime</th><th scope="col">Support</th><th scope="col">Notes</th></tr></thead>
+      <tr><td>Chrome 151 (default)</td><td>Not enabled</td><td><code>UserMediaElementLegacy</code> is <code>experimental</code>; on via flag or the <code>UserMediaElement</code> origin-trial token</td></tr>
+      <tr><td>Firefox / Safari</td><td>Not supported</td><td>No legacy <code>&lt;permission&gt;</code>-element implementation exists outside Chromium</td></tr>
+      <tr><td>Spec status</td><td>Not specified</td><td>Absent from the <a href="https://w3c.github.io/mediacapture-extensions/#media-capture-html-elements" target="_blank" rel="noopener">Media Capture HTML elements</a> spec section — Chromium-only migration aid</td></tr>
+      <tr><td>Future</td><td>Deprecating</td><td>IDL TODO: deprecate <code>type</code> once adoption stabilizes (<a href="https://issues.chromium.org/issues/493632110" target="_blank" rel="noopener">crbug.com/493632110</a>)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium runtime_enabled_features.json5</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="legacy-security-privacy">Legacy migration surface — security and privacy</h2>
+    <p>The legacy members expose fine-grained permission state (<code>initialPermissionStatus</code>, <code>permissionStatus</code>) to script — information the Permissions API already provides for camera/microphone, so no new disclosure class, but it makes permission probing marginally easier, one more reason it is flag-gated. The trust model is unchanged from the MVP surface: UA-rendered control, trusted-gesture activation, no site access to the prompt internals. Migrating off <code>type</code> removes this surface from your pages entirely.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_user_media_element.idl" target="_blank" rel="noopener">Chromium html_user_media_element.idl</a>; <a href="https://github.com/w3c/mediacapture-extensions/blob/main/media-capture-elements-explainer.md" target="_blank" rel="noopener">Explainer — security considerations</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="superseded-draft">Superseded draft design</h2>
+    <p>The original WICG/PEPC <a href="https://github.com/WICG/PEPC/blob/main/usermedia_element.md" target="_blank" rel="noopener"><code>usermedia_element.md</code> explainer</a> described a different shape: constraints as JSON inside a <code>&lt;script type="permissionconstraints"&gt;</code> child, an <code>autostart</code> attribute, a settable <code>stream</code> property, an <code>enabled</code> property with click-to-mute, and <code>streamready</code> / <code>userchangedenabled</code> events. <strong>None of that ships in Chrome 151.</strong> The implemented MVP uses <code>setConstraints()</code>, a read-only <code>stream</code>, and <code>stream</code> / <code>cancel</code> / <code>error</code> events; it has no <code>autostart</code> (the newer explainer proposes one, but it is not in the shipping IDL) and no mute-toggle behavior. If you followed early-origin-trial documentation, update your integration.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/PEPC/blob/main/usermedia_element.md" target="_blank" rel="noopener">WICG/PEPC usermedia_element.md (superseded)</a>; <a href="https://github.com/w3c/mediacapture-extensions/blob/main/media-capture-elements-explainer.md" target="_blank" rel="noopener">Media Capture Elements explainer (current)</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_user_media_element.idl" target="_blank" rel="noopener">Chromium html_user_media_element.idl (shipping IDL)</a>.</span>
+  </section>
+
+  <section>
+    <h2>member references</h2>
+    <ul>
+      <li><a href="./properties/"><code>stream</code> and <code>error</code> properties</a> — what you read after the terminal event.</li>
+      <li><a href="./setconstraints/"><code>setConstraints()</code> and <code>HTMLMediaStreamConstraints</code></a> — configuring the capture.</li>
+      <li><a href="./events/"><code>stream</code>, <code>cancel</code>, and <code>error</code> events</a> — the acquisition lifecycle signals.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://w3c.github.io/mediacapture-extensions/#media-capture-html-elements" target="_blank" rel="noopener">Specification — Media capture HTML elements</a></li>
+      <li><a href="https://github.com/w3c/mediacapture-extensions/blob/main/media-capture-elements-explainer.md" target="_blank" rel="noopener">Media Capture Elements explainer</a></li>
+      <li><a href="https://chromestatus.com/feature/4926233538330624" target="_blank" rel="noopener">chromestatus.com — Capability Elements &lt;usermedia&gt; MVP (4926233538330624)</a></li>
+      <li><a href="https://chromestatus.com/feature/5153829504024576" target="_blank" rel="noopener">chromestatus.com — &lt;camera&gt; and &lt;microphone&gt; elements (sibling feature, experimental)</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v151/capability-elements-usermedia-mvp/" target="_blank" rel="noopener">Interactive demo — chrome-platform-showcase</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia" target="_blank" rel="noopener">MDN: MediaDevices.getUserMedia()</a> (the imperative counterpart)</li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

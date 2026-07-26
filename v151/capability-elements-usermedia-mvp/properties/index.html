@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>stream and error properties — Capability Elements: &lt;usermedia&gt; MVP — Chrome 151 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 32%; min-width: 7.5rem; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .compat-table tr > *:nth-child(2) { min-width: 6.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .doc-table caption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); text-align: left; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .table-wrap { overflow-x: auto; }
+    .lede-block h1 { overflow-wrap: anywhere; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v151/capability-elements-usermedia-mvp/">&larr; Capability Elements: &lt;usermedia&gt; MVP</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v151 · html · property reference</p>
+    <h1>HTMLUserMediaElement<wbr>.stream<wbr> / <wbr>.error</h1>
+    <p class="lede">The two read-only properties you use after an acquisition attempt: <code>stream</code> holds the captured <code>MediaStream</code> on success, and <code>error</code> holds the <code>DOMException</code> that explains a failure.</p>
+  </header>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+<pre><code>// Specification IDL (Media Capture and Streams Extensions):
+readonly attribute MediaStream? stream;
+readonly attribute DOMException? error;
+
+// Read them on the element:
+const el = document.querySelector("usermedia");
+const mediaStream = el.stream;  // MediaStream or null
+const failure   = el.error;   // DOMException or null</code></pre>
+    <p>Chromium ships <code>error</code> on the <code>HTMLMediaCaptureElementBase</code> mixin (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_media_capture_element_base.idl" target="_blank" rel="noopener">html_media_capture_element_base.idl</a>) and <code>stream</code> as a partial mixin in modules/mediastream (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/html_user_media_element_media_stream.idl" target="_blank" rel="noopener">html_user_media_element_media_stream.idl</a>) — same observable surface as the <a href="https://w3c.github.io/mediacapture-extensions/#media-capture-html-elements" target="_blank" rel="noopener">specification</a>.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/mediacapture-extensions/#media-capture-html-elements" target="_blank" rel="noopener">Media Capture and Streams Extensions — The &lt;usermedia&gt; HTML element</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="inputs">Inputs</h2>
+    <p>Both properties are <strong>read-only</strong> and take no inputs. There is no setter: assigning to <code>el.stream</code> or <code>el.error</code> is ignored in sloppy mode (and a <code>TypeError</code> in strict mode) — unlike the superseded WICG/PEPC draft, you cannot hand the element an externally-obtained <code>MediaStream</code>. The only way <code>stream</code> gets populated is a successful element-brokered acquisition; the only way <code>error</code> gets populated is a failed one.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/mediacapture-extensions/#media-capture-html-elements" target="_blank" rel="noopener">Specification — internal slots and getter steps</a>; <a href="https://github.com/w3c/mediacapture-extensions/blob/main/media-capture-elements-explainer.md" target="_blank" rel="noopener">Explainer — &lt;usermedia&gt; attributes and properties</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="outputs-stream">stream — outputs</h2>
+    <p><code>el.stream</code> returns a <code>MediaStream</code> or <code>null</code>. It is <code>null</code> from construction until the first successful acquisition; on success the browser assigns the <code>getUserMedia()</code> result — one video track and/or one audio track per the effective constraints — <em>before</em> firing the <code>stream</code> event, so the property is always readable inside that event's listener. Use it exactly like any <code>getUserMedia()</code> result: <code>video.srcObject = el.stream</code>, enumerate tracks, apply constraints, stop tracks. Once the stream ends (all tracks ended, including via your own <code>track.stop()</code>), the element's UI returns to the request state; the property is not documented as being cleared, so gate usage on <code>el.stream?.active</code> rather than on the property being non-null.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/mediacapture-extensions/#media-capture-html-elements" target="_blank" rel="noopener">Specification — activation start stream steps</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_request_provider_impl.cc" target="_blank" rel="noopener">Chromium user_media_request_provider_impl.cc — OnSuccess</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="outputs-error">error — outputs</h2>
+    <p><code>el.error</code> returns a <code>DOMException</code> or <code>null</code>. It is set on every failure path: <code>NotAllowedError</code> when the user dismisses or denies the prompt (fires <code>cancel</code>), <code>InvalidStateError</code> for activation without a genuine user gesture, <code>NotSupportedError</code> when constraints don't cover the requested capture kinds, <code>OperationError</code> if stream creation itself fails, and the raw <code>getUserMedia()</code> rejection (for example <code>NotFoundError</code>, <code>NotReadableError</code>, or an <code>OverconstrainedError</code>) for device-level failures (fires <code>error</code>). Read it inside the <code>cancel</code>/<code>error</code> event listeners — <code>error.name</code> and <code>error.message</code> are the diagnostic surface. One caveat: in the element's experimental legacy mode the getter hard-returns <code>null</code>.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_media_capture_element_base.cc" target="_blank" rel="noopener">Chromium html_media_capture_element_base.cc — OnEmbeddedPermissionsDecided / OnActivationFailed</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_request_provider_impl.cc" target="_blank" rel="noopener">Chromium user_media_request_provider_impl.cc — OnError</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_user_media_element.cc" target="_blank" rel="noopener">Chromium html_user_media_element.cc — legacy-mode getter</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="errors">Errors</h2>
+    <p>The getters themselves never throw — they always return a value (<code>null</code> or the stored object). The error <em>semantics</em> live one level up: <code>error</code> is where the element reports failures, and the full cause-to-value mapping is in <a href="../#errors">the overview's errors table</a>. The one trap to avoid: don't branch on <code>el.error === null</code> as a success signal — check the terminal event first, because a previous attempt's <code>DOMException</code> can still be stored when the next attempt begins.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/mediacapture-extensions/#media-capture-html-elements" target="_blank" rel="noopener">Specification — getter steps</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="context">Context</h2>
+    <p><strong>Receiver:</strong> any <code>HTMLUserMediaElement</code> instance — the properties live on the prototype chain via the <code>HTMLMediaCaptureElementBase</code> mixin. <strong>Exposure:</strong> window only, secure context required for the element to function at all (in a non-secure context the element renders fallback content and acquisition never starts, so <code>stream</code> stays <code>null</code>). <strong>Availability:</strong> Chrome 151, enabled by default (<code>UserMediaElement</code>, <code>stable</code>); feature-detect with <code>"HTMLUserMediaElement" in window</code> before reading either property on an unknown-element fallback.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/mediacapture-extensions/#media-capture-html-elements" target="_blank" rel="noopener">Specification</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium runtime_enabled_features.json5</a>; <a href="https://chromestatus.com/feature/4926233538330624" target="_blank" rel="noopener">chromestatus.com/feature/4926233538330624</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">Lifecycle</h2>
+    <p>Construction initializes both internal slots to <code>null</code>. Per acquisition attempt the transitions are: attempt starts → on success <code>stream</code> is assigned and the <code>stream</code> event queues; on failure <code>error</code> is assigned and <code>cancel</code> or <code>error</code> queues. The <code>stream</code> assignment outlives the event: the property keeps returning the same <code>MediaStream</code> while the element monitors it, and Chromium skips new requests while that stream is still <code>active</code>. When the tracks end, the element's control state resets and the next click starts a fresh acquisition (producing a new <code>MediaStream</code>, not reviving the old one). Neither property is reset by a subsequent <em>attempt start</em> — treat the terminal event, not property reads in isolation, as the synchronization point.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/mediacapture-extensions/#media-capture-html-elements" target="_blank" rel="noopener">Specification — constructor and activation steps</a>; <a href="https://github.com/w3c/mediacapture-extensions/blob/main/media-capture-elements-explainer.md" target="_blank" rel="noopener">Explainer — interaction model and track monitoring</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+<pre><code>const el = document.querySelector("usermedia");
+const video = document.querySelector("video");
+
+el.addEventListener("stream", () => {
+  // el.stream is guaranteed populated here.
+  video.srcObject = el.stream;
+  console.log("tracks:", el.stream.getTracks().map(t => t.kind).join("+"));
+});
+
+el.addEventListener("cancel", () => {
+  // User bailed out of the prompt — not a bug, don't alarm anyone.
+  statusEl.textContent = `Access not granted (${el.error?.name}). Click to try again.`;
+});
+
+el.addEventListener("error", () => {
+  // Real failure: device busy, missing, or acquisition blew up.
+  statusEl.textContent = `Capture failed: ${el.error?.name} — ${el.error?.message}`;
+});</code></pre>
+    <span class="citation">Source: <a href="https://github.com/w3c/mediacapture-extensions/blob/main/media-capture-elements-explainer.md" target="_blank" rel="noopener">Explainer — error handling examples</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">Compatibility</h2>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <caption><code>stream</code> and <code>error</code> properties — checked 2026-07-26</caption>
+      <thead><tr><th scope="col">Engine / runtime</th><th scope="col">Support</th><th scope="col">Notes</th></tr></thead>
+      <tr><td>Chrome / Edge (desktop)</td><td>151</td><td>Enabled by default (milestone listing; <code>UserMediaElement</code> status <code>stable</code>)</td></tr>
+      <tr><td>Chrome (Android)</td><td>151</td><td>Per the ChromeStatus feature detail (desktop + Android 151)</td></tr>
+      <tr><td>Firefox</td><td>Not supported</td><td>&ldquo;Under consideration&rdquo; (<a href="https://github.com/mozilla/standards-positions/issues/1245" target="_blank" rel="noopener">mozilla/standards-positions #1245</a>)</td></tr>
+      <tr><td>Safari</td><td>Not supported</td><td>No signal (<a href="https://github.com/WICG/PEPC/issues/62" target="_blank" rel="noopener">WICG/PEPC #62</a>)</td></tr>
+      <tr><td>BCD</td><td>No entry</td><td>No <code>api/HTMLUserMediaElement.json</code> in <a href="https://github.com/mdn/browser-compat-data/tree/main/api" target="_blank" rel="noopener">browser-compat-data</a> as of 2026-07-26</td></tr>
+      <tr><td>WPT</td><td>No upstream tests found</td><td>None in Chromium's external/wpt mirror; unit-tested in Chromium (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_user_media_element_test.cc" target="_blank" rel="noopener">core</a>, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_element_test.cc" target="_blank" rel="noopener">modules</a>)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/4926233538330624" target="_blank" rel="noopener">ChromeStatus API feature record</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-privacy">Security and privacy</h2>
+    <p><code>stream</code> hands the page real camera/microphone media — the same sensitivity class as a <code>getUserMedia()</code> result — but only after browser-mediated consent anchored to a trusted click; the element cannot be tricked into handing over a stream by synthetic events. <code>error</code> exposes the failure <code>DOMException</code> (names like <code>NotAllowedError</code> reveal the user's permission decision — again, no more than <code>getUserMedia()</code> rejections already reveal). Neither property touches storage, and there is no cross-origin channel: the <code>MediaStream</code> obeys the usual same-origin capture rules.</p>
+    <span class="citation">Source: <a href="https://github.com/w3c/mediacapture-extensions/blob/main/media-capture-elements-explainer.md" target="_blank" rel="noopener">Explainer — privacy and security considerations</a>; <a href="https://w3c.github.io/mediacapture-extensions/#media-capture-html-elements" target="_blank" rel="noopener">Specification — trusted-activation filtering</a>.</span>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
