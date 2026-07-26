@@ -51,7 +51,7 @@
         <li class="limited">Firefox · no signal</li>
         <li class="limited">Safari · no signal</li>
       </ul>
-      <p>Not on the Baseline register &mdash; no web-features entry in the <a href="https://api.webstatus.dev/v1/features?q=autofill" target="_blank" rel="noopener">webstatus.dev feature query</a> (the register&rsquo;s <code>autofill</code> entry is the unrelated <code>:autofill</code> CSS pseudo-class). Chrome 147 listed this as an origin trial; the current <a href="https://chromestatus.com/api/v0/features/5137581018841088" target="_blank" rel="noopener">feature detail (chromestatus API, updated 2026-02-28)</a> records no ship milestone and standards status &ldquo;Proposed&rdquo;. Firefox (<a href="https://github.com/mozilla/standards-positions/issues/1361" target="_blank" rel="noopener">mozilla/standards-positions#1361</a>) and Safari (<a href="https://github.com/WebKit/standards-positions/issues/431" target="_blank" rel="noopener">WebKit/standards-positions#431</a>) have open position requests with no signal.</p>
+      <p>Not on the Baseline register &mdash; no web-features entry in the <a href="https://api.webstatus.dev/v1/features?q=autofill" target="_blank" rel="noopener">webstatus.dev feature query</a> (the register&rsquo;s <code>autofill</code> entry is the unrelated <code>:autofill</code> CSS pseudo-class). Chrome 147 listed this as an origin trial per the <a href="https://chromestatus.com/api/v0/features?milestone=147" target="_blank" rel="noopener">chromestatus milestone-147 listing</a>; the current <a href="https://chromestatus.com/api/v0/features/5137581018841088" target="_blank" rel="noopener">feature detail (chromestatus API, updated 2026-02-28)</a> records no ship milestone and standards status &ldquo;Proposed&rdquo;. Firefox (<a href="https://github.com/mozilla/standards-positions/issues/1361" target="_blank" rel="noopener">mozilla/standards-positions#1361</a>) and Safari (<a href="https://github.com/WebKit/standards-positions/issues/431" target="_blank" rel="noopener">WebKit/standards-positions#431</a>) have open position requests with no signal.</p>
     </div>
 
     <p class="lede">A new <code>autofill</code> event, dispatched at the <code>document</code> when the browser is about to run an autofill operation. The event carries the list of form controls and values that will be filled (<code>autofillValues</code>) and a <code>refill()</code> callback, letting pages adapt dynamic forms to the autofilled data &mdash; for example adding a state selector for a US address &mdash; and then ask the browser to run one more fill pass over the updated form.</p>
@@ -153,6 +153,23 @@ typedef sequence&lt;any&gt; AutofillValueEntry;
   }
 });</code></pre>
     <span class="citation">Source: condensed from the example in <a href="https://wicg.github.io/autofill-event/" target="_blank" rel="noopener">WICG Autofill Event &mdash; §1.2 Example</a>; Chrome&rsquo;s sample demos: <a href="https://yoavweiss.github.io/autofill_demo/autofill_event_demo.html" target="_blank" rel="noopener">autofill event demo</a>, <a href="https://yoavweiss.github.io/autofill_demo/credit_card_autofill_demo.html" target="_blank" rel="noopener">credit-card demo</a></span>
+
+    <p>Constructing the event yourself &mdash; for example to exercise an <code>autofill</code> listener in a test without a real browser fill. Both <code>AutofillEventInit</code> members and their spec defaults (<code>autofillValues = []</code>, <code>allowRefill = true</code>) come from the IDL quoted in the Syntax section; each <code>AutofillValueEntry</code> is a <code>[formControl, valueToFill]</code> pair:</p>
+<pre><code>const nameField  = document.querySelector('input[autocomplete="name"]');
+const emailField = document.querySelector('input[autocomplete="email"]');
+
+const event = new AutofillEvent('autofill', {
+  bubbles: true,                          // UA-fired autofill events bubble (spec &sect;4.1)
+  autofillValues: [                       // sequence&lt;AutofillValueEntry&gt;, default []
+    [nameField,  'Ada Lovelace'],
+    [emailField, 'ada@example.com'],
+  ],
+  allowRefill: true,                      // boolean, default true
+});
+
+document.dispatchEvent(event);            // the UA dispatches at the Document (spec &sect;4.1)</code></pre>
+    <p>A synthetic event carries your <code>autofillValues</code> but does not make the browser fill anything &mdash; only user-agent-fired events are backed by a real fill operation, and the refill machinery (&sect;4.2) responds to the user agent&rsquo;s own dispatch.</p>
+    <span class="citation">Source: constructor and <code>AutofillEventInit</code> IDL (member defaults) from <a href="https://wicg.github.io/autofill-event/" target="_blank" rel="noopener">WICG Autofill Event &mdash; §3 The AutofillEvent Interface</a>; dispatch/bubbles behavior from &sect;4.1 (fetched 2026-07-26)</span>
   </section>
 
   <section>
