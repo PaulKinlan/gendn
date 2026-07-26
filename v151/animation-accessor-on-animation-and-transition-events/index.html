@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Animation accessor on animation and transition events — Chrome 151 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 32%; min-width: 7.5rem; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .compat-table tr > *:nth-child(2) { min-width: 6.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .doc-table caption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); text-align: left; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .table-wrap { overflow-x: auto; }
+    code { overflow-wrap: anywhere; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .baseline-banner { border: 2px solid var(--border-black); background: var(--bg-paper); box-shadow: var(--thin-shadow); padding: 1rem 1.2rem; margin: 0 0 var(--space-5); }
+    .baseline-banner .baseline-status { font-family: var(--font-mono); font-weight: 500; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent-amber); margin: 0 0 0.6rem; }
+    .baseline-banner .baseline-browsers { display: flex; flex-wrap: wrap; gap: var(--space-2); list-style: none; padding: 0; margin: 0 0 0.6rem; }
+    .baseline-banner .baseline-browsers li { font-family: var(--font-mono); font-size: 0.75rem; border: 1px solid var(--border-black); padding: 0.25rem 0.6rem; background: var(--bg-stone); }
+    .baseline-banner .baseline-browsers li.limited { border-style: dashed; color: var(--text-muted); }
+    .baseline-banner p { font-size: 0.9rem; margin: 0; }
+    .example-embed { margin: var(--space-4) 0; }
+    .example-embed iframe { display: block; max-width: 100%; }
+    .example-embed figcaption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); margin-top: 0.5rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v151/">&larr; Chrome 151 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v151 · css · animations &amp; transitions</p>
+    <h1>Animation accessor on animation and transition events</h1>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Newly shipping across all engines · not yet Baseline-tracked</p>
+      <ul class="baseline-browsers">
+        <li>Chrome · 151</li>
+        <li>Edge · mirror (BCD)</li>
+        <li>Firefox · 152</li>
+        <li>Safari · 27</li>
+      </ul>
+      <p>Not a separately tracked web-feature on webstatus.dev (the <a href="https://api.webstatus.dev/v1/features?q=AnimationEvent" target="_blank" rel="noopener">AnimationEvent query</a> and the <a href="https://api.webstatus.dev/v1/features?q=animationevent" target="_blank" rel="noopener">animationevent query</a> return zero entries, checked 2026-07-26), so there is no official Baseline badge yet. Support rows per <a href="https://github.com/mdn/browser-compat-data/blob/main/api/AnimationEvent.json" target="_blank" rel="noopener">BCD api/AnimationEvent.json</a> and <a href="https://github.com/mdn/browser-compat-data/blob/main/api/TransitionEvent.json" target="_blank" rel="noopener">api/TransitionEvent.json</a>: all four engines ship the attribute, which meets the Baseline &ldquo;newly available&rdquo; support criteria once the entry is tracked.</p>
+    </div>
+
+    <p class="lede">CSS animation and transition events now carry the <a href="https://drafts.csswg.org/web-animations-1/#the-animation-interface" target="_blank" rel="noopener"><code>Animation</code></a> object that fired them: a read-only, nullable <code>animation</code> attribute on <code>AnimationEvent</code> and <code>TransitionEvent</code>, with matching <code>AnimationEventInit</code> / <code>TransitionEventInit</code> constructor members. Handlers can pause, reverse, re-time, or await <code>.finished</code> on the exact instance that fired the event — no <code>getAnimations()</code> query-and-guess round-trip.</p>
+  </header>
+
+  <section>
+    <h2>at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>At a glance</caption>
+      <tr><th scope="row">Milestone listing</th><td>Chrome 151 — Enabled by default</td></tr>
+      <tr><th scope="row">Feature detail</th><td>Desktop 151; status text &ldquo;Proposed&rdquo;; feature type &ldquo;Chromium catches up&rdquo; (Firefox and Safari already shipped)</td></tr>
+      <tr><th scope="row">Surface</th><td>Two attributes (<code>AnimationEvent.animation</code>, <code>TransitionEvent.animation</code>) and two dictionary members (<code>AnimationEventInit.animation</code>, <code>TransitionEventInit.animation</code>)</td></tr>
+      <tr><th scope="row">Runtime feature</th><td><code>AnimationEventAnimation</code> — status <code>stable</code> at trunk in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium runtime_enabled_features.json5</a> (no flag needed)</td></tr>
+      <tr><th scope="row">Standards body</th><td><a href="https://drafts.csswg.org/css-animations-2/#interface-animationevent" target="_blank" rel="noopener">CSS Animations Level 2 — The AnimationEvent Interface</a> and <a href="https://drafts.csswg.org/css-transitions-2/#interface-transitionevent" target="_blank" rel="noopener">CSS Transitions Level 2 — Interface TransitionEvent</a> (W3C Working Drafts)</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/6046278267043840" target="_blank" rel="noopener">6046278267043840 — Animation accessor on animation and transition events</a></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6046278267043840" target="_blank" rel="noopener">chromestatus.com/feature/6046278267043840</a>; <a href="https://chromestatus.com/api/v0/features/6046278267043840" target="_blank" rel="noopener">ChromeStatus API feature record</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium runtime_enabled_features.json5</a></span>
+  </section>
+
+  <section>
+    <h2>Member reference</h2>
+    <p>The developer-facing surface is exactly four items, documented on two stable member pages, each covering all nine dimensions (syntax, inputs, outputs, errors, context, lifecycle, examples, compatibility, and security/privacy):</p>
+    <ul>
+      <li><a href="./animationevent-animation/"><code>AnimationEvent.animation</code></a> — the <code>CSSAnimation</code> that fired an <code>animationstart</code>, <code>animationiteration</code>, <code>animationend</code>, or <code>animationcancel</code> event; plus <a href="./animationevent-animation/#init"><code>AnimationEventInit.animation</code></a>, the matching constructor member (defaults to <code>null</code>)</li>
+      <li><a href="./transitionevent-animation/"><code>TransitionEvent.animation</code></a> — the <code>CSSTransition</code> that fired a <code>transitionrun</code>, <code>transitionstart</code>, <code>transitionend</code>, or <code>transitioncancel</code> event; plus <a href="./transitionevent-animation/#init"><code>TransitionEventInit.animation</code></a>, the matching constructor member (defaults to <code>null</code>)</li>
+    </ul>
+    <span class="citation">Source: <a href="https://drafts.csswg.org/css-animations-2/#interface-animationevent" target="_blank" rel="noopener">CSS Animations Level 2 — AnimationEvent</a>; <a href="https://drafts.csswg.org/css-transitions-2/#interface-transitionevent" target="_blank" rel="noopener">CSS Transitions Level 2 — TransitionEvent</a></span>
+  </section>
+
+  <section>
+    <h2>Why it exists</h2>
+    <p>Before this, an <code>animationstart</code> handler received only metadata — the animation's name, elapsed time, pseudo-element — so reaching the actual <code>Animation</code> instance meant querying <code>element.getAnimations()</code> and filtering. That workaround has a real hole, called out in the <a href="https://github.com/w3c/csswg-drafts/issues/9010" target="_blank" rel="noopener">spec proposal (csswg-drafts #9010)</a>: when the same keyframes run twice on one element (<code>animation: fade 1s, fade 1s</code>), nothing in the event tells you <em>which</em> of the two matching objects fired it. The event now carries the instance itself, so the ambiguous lookup disappears.</p>
+    <p>Firefox and Safari shipped first; Chrome 151 is the catch-up (&ldquo;Chromium catches up&rdquo; per the feature detail), aligning with the CSS Animations Level 2 and CSS Transitions Level 2 drafts. The ChromeStatus entry also records a pragmatic partial polyfill for older engines — feature-detect the attribute, else fall back to a <code>getAnimations()</code> match — with the caveat that a perfect polyfill is impossible precisely in the duplicate-name case. Security and privacy reviews on the ChromeStatus entry are both &ldquo;Not applicable&rdquo;; the level-2 specifications report no new privacy or security considerations (the same objects were already reachable via <code>getAnimations()</code>).</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/6046278267043840" target="_blank" rel="noopener">ChromeStatus API feature record</a>; <a href="https://github.com/w3c/csswg-drafts/issues/9010" target="_blank" rel="noopener">csswg-drafts issue #9010 — Add animation object to animation/transition events</a>; <a href="https://drafts.csswg.org/css-animations-2/#priv" target="_blank" rel="noopener">CSS Animations Level 2 — Privacy Considerations</a>; <a href="https://drafts.csswg.org/css-transitions-2/#privacy" target="_blank" rel="noopener">CSS Transitions Level 2 — Privacy Considerations</a></span>
+  </section>
+
+  <section>
+    <h2>Examples</h2>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v151/animation-accessor-on-animation-and-transition-events/meet-the-animation-object/"
+        title="Live example — Meet the animation object" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"></iframe>
+      <figcaption>Live example from the <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v151/animation-accessor-on-animation-and-transition-events/" target="_blank" rel="noopener">Chrome Platform Showcase</a>: fire animation and transition events and inspect the <code>event.animation</code> object they carry. <span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v151/animation-accessor-on-animation-and-transition-events/" target="_blank" rel="noopener">chrome-platform-showcase</a></span></figcaption>
+    </figure>
+
+<pre tabindex="0"><code>// Pause the exact animation that fired the event — no getAnimations() lookup.
+element.addEventListener("animationstart", (event) => {
+  event.animation.pause();           // event.animation is the CSSAnimation
+  event.animation.finished.then(() =&gt; console.log("settled"));
+});
+
+element.addEventListener("transitionend", (event) => {
+  console.log(event.animation.transitionProperty, "finished"); // CSSTransition
+});
+
+// Feature-detect; fall back to the old (ambiguous) lookup on older engines.
+element.addEventListener("animationstart", (event) => {
+  const animation = ("animation" in event)
+    ? event.animation
+    : element.getAnimations().find(a =&gt; a.animationName === event.animationName);
+  animation?.pause();
+});</code></pre>
+    <p>More live angles on the showcase: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v151/animation-accessor-on-animation-and-transition-events/conduct-a-running-animation/" target="_blank" rel="noopener">Conduct a running animation</a> and <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v151/animation-accessor-on-animation-and-transition-events/transition-companion/" target="_blank" rel="noopener">Transition companion</a> (all routes HEAD-verified 200 on 2026-07-26).</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/6046278267043840" target="_blank" rel="noopener">ChromeStatus API feature record (activation_risks polyfill)</a>; <a href="https://github.com/w3c/csswg-drafts/issues/9010" target="_blank" rel="noopener">csswg-drafts issue #9010</a>; <a href="https://drafts.csswg.org/css-animations-2/#interface-animationevent" target="_blank" rel="noopener">CSS Animations Level 2 — AnimationEvent</a></span>
+  </section>
+
+  <section>
+    <h2>Browser compatibility</h2>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <caption>AnimationEvent.animation / TransitionEvent.animation — from BCD api/AnimationEvent.json + api/TransitionEvent.json (checked 2026-07-26)</caption>
+      <thead><tr><th scope="col">Engine / runtime</th><th scope="col">Support</th><th scope="col">Notes</th></tr></thead>
+      <tr><td>Chrome</td><td>151</td><td>Matches the Chrome 151 milestone listing (Enabled by default); Chrome for Android, WebView (Android + iOS), Opera, and Samsung Internet are BCD mirrors</td></tr>
+      <tr><td>Edge</td><td>mirror</td><td>BCD mirrors Chrome's data (151)</td></tr>
+      <tr><td>Firefox</td><td>152</td><td>BCD <code>version_added: "152"</code> (Firefox for Android mirrors); the ChromeStatus entry records &ldquo;Shipped/Shipping&rdquo;</td></tr>
+      <tr><td>Safari</td><td>27</td><td>BCD <code>version_added: "27"</code> (Safari on iOS mirrors); the ChromeStatus entry records &ldquo;Shipped/Shipping&rdquo;</td></tr>
+      <tr><td>Deno / Node.js</td><td>Unknown</td><td>No BCD entries as of 2026-07-26 (DOM event API; not a server-side surface)</td></tr>
+    </table>
+    </div>
+    <p>The BCD entries carry identical rows for both interfaces and link the canonical references directly — <a href="https://github.com/mdn/browser-compat-data/blob/main/api/AnimationEvent.json" target="_blank" rel="noopener">api/AnimationEvent.json</a> and <a href="https://github.com/mdn/browser-compat-data/blob/main/api/TransitionEvent.json" target="_blank" rel="noopener">api/TransitionEvent.json</a> each record an <code>mdn_url</code> (the MDN attribute page) and a <code>spec_url</code> (the css-animations-2 / css-transitions-2 definition, the latter confirming the unusually cased <code>#Events-TransitionEvent-animation</code> anchor). WPT coverage exists: <a href="https://wpt.fyi/results/css/css-animations/animationevent-types.html" target="_blank" rel="noopener">css/css-animations/animationevent-types.html</a> asserts <code>animationstart</code>/<code>animationend</code>/<code>animationiteration</code> events expose <code>animation</code> and that it is the same object found via <code>getAnimations()</code>; <a href="https://wpt.fyi/results/css/css-transitions/events-008.html" target="_blank" rel="noopener">css/css-transitions/events-008.html</a> asserts <code>transitionrun</code>/<code>transitionstart</code>/<code>transitionend</code> expose a <code>CSSTransition</code> with the correct <code>transitionProperty</code>. The Chromium implementation landed in <a href="https://chromium-review.googlesource.com/c/7914303" target="_blank" rel="noopener">CL 7914303</a> (merged), which also updated the interface expected-files (<code>animationevent-interface</code>, <code>transitionevent-interface</code>, <code>animationevent-types</code>, <code>events-008</code>).</p>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/AnimationEvent.json" target="_blank" rel="noopener">BCD api/AnimationEvent.json</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/TransitionEvent.json" target="_blank" rel="noopener">BCD api/TransitionEvent.json</a>; <a href="https://chromestatus.com/api/v0/features/6046278267043840" target="_blank" rel="noopener">ChromeStatus API feature record</a>; <a href="https://chromium-review.googlesource.com/c/7914303" target="_blank" rel="noopener">Chromium CL 7914303</a></span>
+  </section>
+
+  <section>
+    <h2>Specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>Specifications</caption>
+      <thead><tr><th scope="col">Specification</th><th scope="col">Status</th></tr></thead>
+      <tr><td><a href="https://drafts.csswg.org/css-animations-2/#interface-animationevent" target="_blank" rel="noopener">CSS Animations Level 2 — The AnimationEvent Interface</a> (attribute: <a href="https://drafts.csswg.org/css-animations-2/#dom-animationevent-animation" target="_blank" rel="noopener">#dom-animationevent-animation</a>; dictionary member: <a href="https://drafts.csswg.org/css-animations-2/#dom-animationeventinit-animation" target="_blank" rel="noopener">#dom-animationeventinit-animation</a>; dispatch: <a href="https://drafts.csswg.org/css-animations-2/#event-dispatch" target="_blank" rel="noopener">#event-dispatch</a>)</td><td>Working Draft (delta spec — adds <code>animation</code> via a partial interface / partial dictionary over <a href="https://drafts.csswg.org/css-animations-1/#interface-animationevent" target="_blank" rel="noopener">CSS Animations Level 1</a>)</td></tr>
+      <tr><td><a href="https://drafts.csswg.org/css-transitions-2/#interface-transitionevent" target="_blank" rel="noopener">CSS Transitions Level 2 — Interface TransitionEvent</a> (attribute: <a href="https://drafts.csswg.org/css-transitions-2/#Events-TransitionEvent-animation" target="_blank" rel="noopener">#Events-TransitionEvent-animation</a>; dictionary member: <a href="https://drafts.csswg.org/css-transitions-2/#dom-transitioneventinit-animation" target="_blank" rel="noopener">#dom-transitioneventinit-animation</a>; dispatch: <a href="https://drafts.csswg.org/css-transitions-2/#event-dispatch" target="_blank" rel="noopener">#event-dispatch</a>)</td><td>Working Draft (delta spec over <a href="https://drafts.csswg.org/css-transitions-1/#transition-events-" target="_blank" rel="noopener">CSS Transitions Level 1</a>)</td></tr>
+      <tr><td><a href="https://github.com/w3c/csswg-drafts/issues/9010" target="_blank" rel="noopener">csswg-drafts issue #9010 — Add animation object to animation/transition events</a></td><td>Proposal (closed as resolved; the spec text above is the outcome)</td></tr>
+    </table>
+    </div>
+    <p>Anchor caution: the transition attribute's anchor is the unusually cased <code>#Events-TransitionEvent-animation</code> (verified live 2026-07-26) — there is no <code>#dom-transitionevent-animation</code> anchor, unlike the animations spec whose attribute and dictionary anchors both follow the <code>#dom-*</code> convention.</p>
+    <span class="citation">Source: <a href="https://drafts.csswg.org/css-animations-2/" target="_blank" rel="noopener">drafts.csswg.org/css-animations-2</a>; <a href="https://drafts.csswg.org/css-transitions-2/" target="_blank" rel="noopener">drafts.csswg.org/css-transitions-2</a></span>
+  </section>
+
+  <section>
+    <h2>See also</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/AnimationEvent/animation" target="_blank" rel="noopener">MDN — AnimationEvent: animation property</a> and <a href="https://developer.mozilla.org/en-US/docs/Web/API/TransitionEvent/animation" target="_blank" rel="noopener">MDN — TransitionEvent: animation property</a> (value, specifications, and compat as of 2026-07-26; no worked examples — gendn generated this full reference instead of a redirect stub; see also the <a href="https://developer.mozilla.org/en-US/docs/Web/API/AnimationEvent" target="_blank" rel="noopener">AnimationEvent</a> and <a href="https://developer.mozilla.org/en-US/docs/Web/API/TransitionEvent" target="_blank" rel="noopener">TransitionEvent</a> interface pages)</li>
+      <li><a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/events/animation_event.idl" target="_blank" rel="noopener">Chromium animation_event.idl</a> · <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/events/transition_event.idl" target="_blank" rel="noopener">transition_event.idl</a> · <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/events/animation_event_init.idl" target="_blank" rel="noopener">animation_event_init.idl</a> · <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/events/transition_event_init.idl" target="_blank" rel="noopener">transition_event_init.idl</a></li>
+      <li><a href="https://chromium-review.googlesource.com/c/7914303" target="_blank" rel="noopener">Chromium CL 7914303 — Add animation property to AnimationEvent and TransitionEvent</a> (merged)</li>
+      <li><a href="https://wpt.fyi/results/css/css-animations/animationevent-types.html" target="_blank" rel="noopener">WPT — animationevent-types.html</a> · <a href="https://wpt.fyi/results/css/css-transitions/events-008.html" target="_blank" rel="noopener">WPT — events-008.html</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v151/animation-accessor-on-animation-and-transition-events/" target="_blank" rel="noopener">Chrome Platform Showcase — Animation accessor on animation and transition events</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
