@@ -6,7 +6,10 @@
 import { launch } from "./cdp.mjs";
 import { REQUIRED_DIMENSIONS } from "./reference-contract.mjs";
 
-const DESKTOP = { width: 1280, height: 800, mobile: false, deviceScaleFactor: 1 };
+const VIEWPORTS = [
+  ["desktop", { width: 1280, height: 800, mobile: false, deviceScaleFactor: 1 }],
+  ["mobile", { width: 390, height: 844, mobile: true, deviceScaleFactor: 3 }],
+];
 
 async function spawnServer() {
   const port = 3600 + Math.floor(Math.random() * 300);
@@ -41,7 +44,10 @@ export async function validateReferenceContractsInBrowser(records) {
   const errors = [];
   const server = await spawnServer();
   const browser = await launch();
-  const page = await browser.newPage(DESKTOP);
+  const pages = await Promise.all(VIEWPORTS.map(async ([name, viewport]) => ({
+    name,
+    page: await browser.newPage(viewport),
+  })));
   try {
     for (const { ownerId, contract } of records) {
       for (const doc of contract.documentation ?? []) {
@@ -50,66 +56,57 @@ export async function validateReferenceContractsInBrowser(records) {
           errors.push(`${ownerId}: ${doc.inventoryId}: browser check cannot resolve ${doc.href}`);
           continue;
         }
-        await page.goto(`${server.base}${route}`);
-        for (const dimension of REQUIRED_DIMENSIONS) {
-          const coverage = doc.dimensions?.[dimension];
-          if (!coverage || coverage.status === "missing" || !coverage.selector) continue;
-          const result = await page.evaluate(`(() => {
-            const element = document.querySelector(${JSON.stringify(coverage.selector)});
-            if (!element) return { ok: false, reason: "selector missing" };
-            const style = getComputedStyle(element);
-            const box = element.getBoundingClientRect();
-            const visible = typeof element.checkVisibility === "function"
-              ? element.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true, contentVisibilityAuto: true })
-              : style.display !== "none" && style.visibility !== "hidden" && Number(style.opacity) !== 0;
-            return { ok: visible && box.width > 0 && box.height > 0,
-              reason: visible ? "zero box " + box.width + "x" + box.height : "computed hidden" };
-          })()`);
-          if (!result?.ok) {
-            errors.push(
-              `${ownerId}: ${doc.inventoryId}.${dimension} ${coverage.selector} is not visibly rendered at ${route} (${
-                result?.reason ?? "unknown"
-              })`,
-            );
-          }
-        }
-
-        const sourceUrls = new Set();
-        const sourceById = new Map((contract.sources ?? []).map((source) => [source.id, source]));
-        const inventory = (contract.inventory ?? []).find((item) => item.id === doc.inventoryId);
-        for (const ref of inventory?.sourceRefs ?? []) {
-          if (sourceById.get(ref)?.url) sourceUrls.add(sourceById.get(ref).url);
-        }
-        for (const coverage of Object.values(doc.dimensions ?? {})) {
-          for (const ref of coverage.sourceRefs ?? []) {
-            if (sourceById.get(ref)?.url) sourceUrls.add(sourceById.get(ref).url);
-          }
-        }
-        for (const url of sourceUrls) {
-          const result = await page.evaluate(`(() => {
-            const links = [...document.querySelectorAll("a[href]")].filter(a => a.href === ${
-            JSON.stringify(url)
-          });
-            return links.some(link => {
-              const style = getComputedStyle(link);
-              const box = link.getBoundingClientRect();
-              const visible = typeof link.checkVisibility === "function"
-                ? link.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true, contentVisibilityAuto: true })
+        const sourceUrls = sourceUrlsForDocumentation(contract, doc);
+        for (const { name: deviceClass, page } of pages) {
+          await page.goto(`${server.base}${route}`);
+          for (const dimension of REQUIRED_DIMENSIONS) {
+            const coverage = doc.dimensions?.[dimension];
+            if (!coverage || coverage.status === "missing" || !coverage.selector) continue;
+            const result = await page.evaluate(`(() => {
+              const element = document.querySelector(${JSON.stringify(coverage.selector)});
+              if (!element) return { ok: false, reason: "selector missing" };
+              const style = getComputedStyle(element);
+              const box = element.getBoundingClientRect();
+              const visible = typeof element.checkVisibility === "function"
+                ? element.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true, contentVisibilityAuto: true })
                 : style.display !== "none" && style.visibility !== "hidden" && Number(style.opacity) !== 0;
-              return visible && box.width > 0 && box.height > 0;
+              return { ok: visible && box.width > 0 && box.height > 0,
+                reason: visible ? "zero box " + box.width + "x" + box.height : "computed hidden" };
+            })()`);
+            if (!result?.ok) {
+              errors.push(
+                `${ownerId}: ${doc.inventoryId}.${dimension} ${coverage.selector} is not visibly rendered on ${deviceClass} at ${route} (${
+                  result?.reason ?? "unknown"
+                })`,
+              );
+            }
+          }
+          for (const url of sourceUrls) {
+            const result = await page.evaluate(`(() => {
+              const links = [...document.querySelectorAll("a[href]")].filter(a => a.href === ${
+              JSON.stringify(url)
             });
-          })()`);
-          if (!result) {
-            errors.push(
-              `${ownerId}: ${doc.inventoryId}: cited source is not a visible clickable link at ${route}: ${url}`,
-            );
+              return links.some(link => {
+                const style = getComputedStyle(link);
+                const box = link.getBoundingClientRect();
+                const visible = typeof link.checkVisibility === "function"
+                  ? link.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true, contentVisibilityAuto: true })
+                  : style.display !== "none" && style.visibility !== "hidden" && Number(style.opacity) !== 0;
+                return visible && box.width > 0 && box.height > 0;
+              });
+            })()`);
+            if (!result) {
+              errors.push(
+                `${ownerId}: ${doc.inventoryId}: cited source is not a visible clickable link on ${deviceClass} at ${route}: ${url}`,
+              );
+            }
           }
         }
       }
     }
   } finally {
     try {
-      await page.close();
+      for (const { page } of pages) await page.close();
       await browser.close();
     } catch {
       // Best-effort cleanup.
@@ -126,6 +123,21 @@ export async function validateReferenceContractsInBrowser(records) {
     }
   }
   return errors;
+}
+
+function sourceUrlsForDocumentation(contract, doc) {
+  const urls = new Set();
+  const sourceById = new Map((contract.sources ?? []).map((source) => [source.id, source]));
+  const inventory = (contract.inventory ?? []).find((item) => item.id === doc.inventoryId);
+  for (const ref of inventory?.sourceRefs ?? []) {
+    if (sourceById.get(ref)?.url) urls.add(sourceById.get(ref).url);
+  }
+  for (const coverage of Object.values(doc.dimensions ?? {})) {
+    for (const ref of coverage.sourceRefs ?? []) {
+      if (sourceById.get(ref)?.url) urls.add(sourceById.get(ref).url);
+    }
+  }
+  return urls;
 }
 
 function documentationRoute(ownerId, href) {

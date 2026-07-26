@@ -90,9 +90,9 @@ silently complete.
 The structural validator proves exact inventory-to-documentation reconciliation, stable
 same-feature targets, required fragment existence, substantive section content, semantic code
 examples, compatibility tables, source-reference integrity, and real `<a href>` source links. The
-browser-backed gate then checks computed visibility and layout for every mapped fragment and source
-link, so comments, closed disclosures, hidden styles, zero opacity, and zero-size boxes cannot satisfy
-the contract. Touched non-stub features fail unless both passes accept an
+browser-backed gate then checks computed visibility and layout at desktop and mobile viewports for
+every mapped fragment and source link, so comments, closed disclosures, hidden styles, zero opacity,
+and zero-size boxes cannot satisfy the contract. Touched non-stub features fail unless both passes accept an
 `implementation-sufficient` contract.
 
 Neither pass proves that the source inventory is complete or the prose is factually correct. Those

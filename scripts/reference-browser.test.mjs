@@ -11,11 +11,13 @@ const nonce = crypto.randomUUID().slice(0, 8);
 const ids = [
   `${milestone}/reference-browser-visible-${nonce}`,
   `${milestone}/reference-browser-hidden-${nonce}`,
+  `${milestone}/reference-browser-mobile-only-${nonce}`,
 ];
 try {
   const records = [];
   for (const ownerId of ids) {
-    const hidden = ownerId.includes("-hidden-");
+    const hidden = ownerId.includes("browser-hidden");
+    const mobileOnly = ownerId.includes("browser-mobile-only");
     try {
       await Deno.stat(ownerId);
       throw new Error(`refusing to overwrite existing browser-test fixture path ${ownerId}`);
@@ -29,7 +31,9 @@ try {
     );
     await Deno.writeTextFile(
       `${ownerId}/member/index.html`,
-      `<!doctype html><title>Member</title><main><section id="contract" style="${
+      `<!doctype html><meta name="viewport" content="width=device-width"><title>Member</title>${
+        mobileOnly ? "<style>@media (max-width: 500px) { #contract { display: none } }</style>" : ""
+      }<main><section id="contract" style="${
         hidden ? "opacity: 0" : "opacity: 1"
       }"><h1>Member reference</h1><p>This visible implementation section contains enough substantive explanatory text for validation.</p><pre><code>runExample()</code></pre><table><tr><th>Browser</th><td>Test</td></tr></table><a href="${sourceUrl}">Normative source</a></section></main>`,
     );
@@ -55,6 +59,12 @@ try {
       error.includes("reference-browser-hidden") && error.includes("not visibly rendered")
     ),
     `opacity-zero documentation passed browser visibility validation:\n${errors.join("\n")}`,
+  );
+  assert(
+    errors.some((error) =>
+      error.includes("reference-browser-mobile-only") && error.includes("on mobile")
+    ),
+    `mobile-only hidden documentation passed the mobile visibility gate:\n${errors.join("\n")}`,
   );
   assert(
     !errors.some((error) => error.includes("reference-browser-visible")),
