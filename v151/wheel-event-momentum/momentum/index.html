@@ -55,7 +55,7 @@ const isInertia = event.momentum;</code></pre>
 
   <section>
     <h2 id="outputs">Outputs</h2>
-    <p>A boolean. <code>true</code> means: this event was synthesized by the platform to simulate scroll inertia after the user ended the physical scroll interaction (the spec's example: the finger has lifted from the trackpad after a fling). <code>false</code> means anything else — a physical wheel/trackpad/touch interaction still in progress, or a script-constructed event (whose init defaults to <code>false</code>).</p>
+    <p>A boolean. <code>true</code> means: this event was synthesized by the platform to simulate scroll inertia after the user ended the physical scroll interaction (the spec's example: the finger has lifted from the trackpad after a fling). <code>false</code> means <strong>otherwise</strong> — the spec's exact word. It covers a physical wheel or trackpad interaction still in progress, a script-constructed event (whose init defaults to <code>false</code>), and every event on platforms that don't emit momentum phases; it does not, by itself, establish physical input.</p>
     <span class="citation">Source: <a href="https://w3c.github.io/pointerevents/#interface-wheelevent" target="_blank" rel="noopener">Pointer Events — momentum attribute definition</a></span>
   </section>
 
@@ -102,7 +102,7 @@ const synthetic = new WheelEvent("wheel", { deltaY: 120, momentum: false });</co
     <p>The dictionary member mirrors the attribute for constructor use: <code>boolean momentum = false</code> in <code>WheelEventInit</code> (a dictionary <em>field</em>, in WebIDL terms). Three exact semantics from WebIDL, because constructor behavior is where the traps live:</p>
     <ul>
       <li><strong>Boolean conversion:</strong> the value converts via <a href="https://webidl.spec.whatwg.org/#es-boolean" target="_blank" rel="noopener">WebIDL's boolean conversion</a> — any JavaScript value is accepted and ToBoolean'd, so the string <code>"false"</code> is <em>truthy</em> and produces <code>momentum === true</code>. Only genuine falsy values (<code>false</code>, <code>0</code>, <code>""</code>, <code>null</code>, <code>undefined</code>, <code>NaN</code>) yield <code>false</code>.</li>
-      <li><strong>Default:</strong> omitted entirely, the member takes its declared default <code>false</code> — existing <code>new WheelEvent(...)</code> call sites keep their meaning.</li>
+      <li><strong>Default and <code>undefined</code>:</strong> omitted entirely — or passed explicitly as <code>undefined</code> — the member takes its declared default <code>false</code> (WebIDL applies the default whenever the value is <code>undefined</code>); existing <code>new WheelEvent(...)</code> call sites keep their meaning.</li>
       <li><strong>Unknown members:</strong> per <a href="https://webidl.spec.whatwg.org/#es-dictionary" target="_blank" rel="noopener">WebIDL dictionary semantics</a>, members the dictionary doesn't declare are ignored — a typo'd key silently does nothing.</li>
     </ul>
     <p>None of this is runtime proof of native behavior: a constructor round-trip only shows the dictionary was accepted and echoed. The spec notes the dictionary definitions are partly redundant with the attribute definitions (tracked as <a href="https://github.com/w3c/pointerevents/issues/646" target="_blank" rel="noopener">pointerevents#646</a>).</p>
@@ -117,7 +117,7 @@ const synthetic = new WheelEvent("wheel", { deltaY: 120, momentum: false });</co
 
   <section>
     <h2 id="init-errors">WheelEventInit.momentum — errors</h2>
-    <p>Constructor behavior has no exception paths for this member: WebIDL boolean conversion never throws (every JavaScript value converts), and undeclared dictionary members are ignored rather than rejected. The failure modes are silent semantic ones: passing the string <code>"false"</code> produces <code>true</code> (truthy), and a misspelled member name is dropped without a signal. Neither says anything about platform inertia.</p>
+    <p>WebIDL boolean conversion of an ordinary value never throws. But retrieving the member from the input object is a <strong>property access</strong>: if the source object defines a throwing getter for <code>momentum</code>, or is a <code>Proxy</code> with a throwing <code>get</code> trap, that exception propagates out of the constructor before any conversion runs. With ordinary data values, the failure modes are silent semantic ones: passing the string <code>"false"</code> produces <code>true</code> (truthy), and a misspelled member name is dropped without a signal. Neither says anything about platform inertia.</p>
     <span class="citation">Source: <a href="https://webidl.spec.whatwg.org/#es-boolean" target="_blank" rel="noopener">WebIDL — boolean conversion</a>; <a href="https://webidl.spec.whatwg.org/#es-dictionary" target="_blank" rel="noopener">WebIDL — dictionary semantics</a></span>
   </section>
 
@@ -140,7 +140,7 @@ const synthetic = new WheelEvent("wheel", { deltaY: 120, momentum: false });</co
       <tr><td>Deno / Node.js</td><td>Unknown</td><td>No BCD entries as of 2026-07-26</td></tr>
     </table>
     </div>
-    <p>Vendor signals per the <a href="https://chromestatus.com/api/v0/features/6631012282007552" target="_blank" rel="noopener">ChromeStatus API feature record</a>; no WPT coverage for <code>momentum</code> as of 2026-07-26 (<a href="https://github.com/web-platform-tests/wpt/tree/1985b47aa897" target="_blank" rel="noopener">WPT tree at commit 1985b47</a>, zero hits including pointerevents/ and uievents/); no separately tracked web-feature on webstatus.dev (<a href="https://api.webstatus.dev/v1/features?q=momentum" target="_blank" rel="noopener">momentum query</a> returns zero entries).</p>
+    <p>Vendor signals per the <a href="https://chromestatus.com/api/v0/features/6631012282007552" target="_blank" rel="noopener">ChromeStatus API feature record</a>; no behavioral WPT test for <code>momentum</code> as of 2026-07-26: the pinned tree at <a href="https://github.com/web-platform-tests/wpt/tree/1985b47aa897" target="_blank" rel="noopener">commit 1985b47</a> contains exactly two <code>momentum</code> declarations — the WebIDL surface itself in <a href="https://github.com/web-platform-tests/wpt/blob/1985b47aa8972a970f005957f2bfa036da1787c6/interfaces/pointerevents.idl#L90-L98" target="_blank" rel="noopener">interfaces/pointerevents.idl (lines 90 and 98)</a> — and no behavioral .html/.js test was found; no separately tracked web-feature on webstatus.dev (<a href="https://api.webstatus.dev/v1/features?q=momentum" target="_blank" rel="noopener">momentum query</a> returns zero entries).</p>
     <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WheelEvent.json" target="_blank" rel="noopener">BCD api/WheelEvent.json</a>; <a href="https://chromestatus.com/api/v0/features/6631012282007552" target="_blank" rel="noopener">ChromeStatus API feature record</a></span>
   </section>
 
