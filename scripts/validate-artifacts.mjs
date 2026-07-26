@@ -8,6 +8,9 @@
 //   - every _questions.json validates against schema/questions.schema.json, and any critique that
 //     scores frontend/responsive/a11y dimensions has a NON-EMPTY guidanceConsulted (missing guidance
 //     = INCOMPLETE critique per the modern-web-guidance mandate);
+//   - every present reference-contract.json validates against its schema and its source inventory,
+//     stable same-feature targets, required dimensions, fragment content, examples, compatibility,
+//     and direct source-link mappings reconcile structurally;
 //   - goals.json and responsive-support.json validate against their schemas.
 //
 // This is the schema+hash half of immutability enforcement. The git-baseline weakening check
@@ -19,21 +22,28 @@ import {
   collectCritiques,
   collectPublishedPages,
   collectSuites,
+  isMdnStubHtml,
   loadSchema,
   readJson,
   suiteHash,
   validate,
 } from "./lib/artifacts.mjs";
+import {
+  collectReferenceContracts,
+  validateContractOwnership,
+  validateReferenceContract,
+} from "./lib/reference-contract.mjs";
 
 const FRONTEND_DIMENSIONS = new Set(["responsive-ux", "accessibility", "examples"]);
 
 async function main() {
   const errors = [];
-  const [confSchema, qSchema, goalsSchema, supportSchema] = await Promise.all([
+  const [confSchema, qSchema, goalsSchema, supportSchema, referenceSchema] = await Promise.all([
     loadSchema("conformance.schema.json"),
     loadSchema("questions.schema.json"),
     loadSchema("goals.schema.json"),
     loadSchema("responsive-support.schema.json"),
+    loadSchema("reference-contract.schema.json"),
   ]);
 
   const pages = await collectPublishedPages(".");
@@ -84,6 +94,41 @@ async function main() {
     }
   }
 
+  // ---- implementation-sufficiency reference contracts ----
+  const pageMeta = new Map();
+  for (const pagePath of pages) {
+    const id = pagePath.replace(/\/index\.html$/, "");
+    const html = await Deno.readTextFile(pagePath);
+    pageMeta.set(id, { status: isMdnStubHtml(html) ? "stub" : "built" });
+  }
+  const builtIds = [...pageMeta.entries()].filter(([, meta]) => meta.status === "built").map((
+    [id],
+  ) => id);
+  const referenceContracts = await collectReferenceContracts(".", [...pageIds]);
+  const sufficientOwners = new Set();
+  const partialOwners = new Set();
+  for (const { ownerId, path, contract } of referenceContracts) {
+    const tag = `reference contract ${path}`;
+    const contractErrors = [];
+    for (const e of validate(referenceSchema, contract)) {
+      contractErrors.push(`${tag}: schema: ${e}`);
+    }
+    contractErrors.push(...validateContractOwnership({ ownerId, path, contract }));
+    if (pageMeta.get(ownerId)?.status === "stub") {
+      contractErrors.push(
+        `${tag}: MDN redirect stubs do not use local implementation-sufficiency contracts`,
+      );
+    }
+    contractErrors.push(...await validateReferenceContract(contract, "."));
+    errors.push(...contractErrors);
+    if (contractErrors.length === 0 && contract.completeness === "implementation-sufficient") {
+      sufficientOwners.add(ownerId);
+    }
+    if (contractErrors.length === 0 && contract.completeness === "partial") {
+      partialOwners.add(ownerId);
+    }
+  }
+
   // ---- goals.json ----
   const goals = await readJson("./goals.json");
   if (goals) {
@@ -103,6 +148,11 @@ async function main() {
   console.log("validate-artifacts");
   console.log(`  conformance suites : ${suiteCount} validated`);
   console.log(`  critiques          : ${critiqueCount} validated`);
+  console.log(
+    `  implementation refs: ${sufficientOwners.size} sufficient / ${partialOwners.size} partial / ${
+      builtIds.length - sufficientOwners.size - partialOwners.size
+    } legacy-unassessed (of ${builtIds.length} built)`,
+  );
   console.log(`  goals.json         : ${goals ? "present" : "absent"}`);
   console.log(`  responsive-support : ${support ? "present" : "absent"}`);
 

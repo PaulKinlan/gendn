@@ -171,6 +171,66 @@ Legitimate slug/milestone corrections that preserve a still-listed feature id un
 route are fixes, not contract breaks; record the move as an `alias`/`move` migration so the old
 route stays honest.
 
+## Direct primary-source links are mandatory
+
+Links are part of the reference contract, not decorative bibliography. Every visible source or
+citation label MUST link directly to the original public artifact that supports the claim.
+
+- Never leave source names as plain text when a public URL exists: this includes blink-dev intents,
+  mail-archive message numbers, specifications/sections, explainers, issues, CLs, ChromeStatus/API
+  records, MDN/BCD files, WPT results, and release posts.
+- If a citation names several sources, link EACH source separately. One nearby link does not make the
+  other named sources traceable.
+- Prefer canonical originals (for example the Google Groups blink-dev conversation rather than an
+  unlinked `msg15601` label or a search result). External links use `target="_blank" rel="noopener"`.
+- If no stable public source exists, say that explicitly; never imply that an unavailable source was
+  linked or publicly verified.
+- New pages must ship with zero unlinked source labels. When touching an existing page, resolve its
+  unlinked citations as part of the targeted fix. The existing backlog is additive cleanup work, not
+  permission to create more plain-text citations.
+
+## Implementation sufficiency — a reference must be enough to build from
+
+A non-stub page is not complete merely because an overview exists. A developer given only the
+local gendn reference MUST be able to implement or use the documented capability without guessing
+contracts from an external spec. Direct sources remain linked for verification and provenance.
+The authoring format and example are in [`docs/reference-contract.md`](docs/reference-contract.md).
+
+- Derive and declare the exact developer-facing surface from primary evidence: interfaces, methods,
+  properties, events, dictionaries/enums, headers/directives/fields, protocol states/algorithms,
+  CSS grammar/values, elements/attributes, or migration behavior as applicable.
+- Overview pages explain the model and link every item. Substantial members/protocol elements get
+  stable child reference routes; do not compress several complex contracts into a two-column table.
+- Every inventory item covers nine dimensions: syntax, inputs, outputs, errors, context/exposure,
+  lifecycle/state transitions, complete examples, compatibility, and security/privacy. A genuinely
+  inapplicable dimension needs a sourced rationale; unknown or unfinished content is `missing`, not
+  invented and not silently omitted.
+- Record the source inventory and one-to-one documentation mapping in `reference-contract.json`.
+  `implementation-sufficient` is a gated claim: every inventory item and dimension must resolve to
+  substantive rendered documentation, examples use semantic `<pre><code>`, compatibility is
+  tabular (including explicit unknowns), and each target page directly links its cited sources.
+- Structural validation cannot prove prose correct. Independent review MUST compare the declared
+  inventory and details with current primary sources. Authored text, page length, a green route, or
+  an agent's self-attestation never establishes completeness.
+- Existing unassessed pages remain `legacy-unassessed`; partial contracts remain `partial`. New or
+  touched full references must pass `deno task validate-artifacts`, `deno task
+  test-reference-contract`, and `deno task check-conformance`, which fail unless the touched feature
+  is implementation-sufficient. MDN redirect stubs are exempt because MDN owns their detailed
+  reference.
+
+## Parallel writing and integration — lock files, not the whole repository
+
+Scale infrastructure and leaf documentation independently with git worktrees/branches:
+
+- One designated **infrastructure writer** owns shared files (schemas, validators, server/catalogue,
+  shared styles, routine rules) for a bounded change.
+- Multiple **leaf-reference writers** may concurrently own distinct `v<N>/<slug>/` trees. Each
+  returns one bounded commit and does not edit shared files.
+- An **integrator/reviewer** independently validates source fidelity, implementation sufficiency,
+  immutable conformance, routes, and browser behavior before cherry-picking/merging.
+- Pause another writer only for actual overlapping files or integration, not merely because both
+  tasks use the same repository.
+
 ## Mobile + desktop parity — every demo usable on both, or honestly unsupported with recorded evidence
 
 Every existing and future published demo MUST be a usable, polished experience on BOTH mobile and
@@ -276,6 +336,10 @@ forking contradictory platform assertions.
   browser-compat/fallbacks, links validity, accessibility, responsive mobile+desktop UX, and
   relationship to the canonical showcase demo. Carries `guidanceConsulted` (empty on a frontend
   critique = INCOMPLETE) and `followUpGoals`.
+- **`v<N>/<slug>/reference-contract.json` — implementation-sufficiency contract.** Exact
+  source-derived surface inventory plus one-to-one mappings to overview or stable child docs. Every
+  item covers syntax, inputs, outputs, errors, context, lifecycle, examples, compatibility, and
+  security/privacy, or gives a sourced not-applicable rationale. Required for new/touched non-stubs.
 - **`goals.json` — additive backlog.** `deno task build-goals` rolls every critique's
   `followUpGoals` into it. The routine consumes it to pick the next ADDITIVE page or a targeted
   in-place fix — never to replace a stable page.
@@ -291,12 +355,13 @@ deno task conformance          # headless-Chrome run-all: tested/total/pass/fail
 deno task conformance --page v<N>/<slug>      # one page's suite (the routine's per-page gate — don't push red)
 deno task responsive --update-support         # mobile+desktop scan → responsive-support.json (auto = needs-review)
 deno task build-goals          # roll critique followUpGoals into goals.json
-deno task validate-artifacts   # schema + suiteHash well-formedness for all artifacts
-deno task check-conformance    # coverage + immutability gate (missing suite, orphan, weakened assertion, touched-untested)
+deno task validate-artifacts   # schemas + suiteHash + implementation-sufficiency mappings
+deno task test-reference-contract # fail-closed validator regression tests
+deno task check-conformance    # coverage + immutability + touched-page sufficiency gate
 ```
 
-**Gate before every push (in addition to `deno task check-routes`):** `deno task validate-artifacts`
-and `deno task check-conformance` must pass. `blocked` in a run is explicit (manual-evidenced or
+**Gate before every push (in addition to `deno task check-routes`):** `deno task validate-artifacts`,
+`deno task test-reference-contract`, and `deno task check-conformance` must pass. `blocked` in a run is explicit (manual-evidenced or
 genuinely unavailable) and is NEVER counted as a pass. Coverage denominators are honest and burned
 down wave by wave — never claim complete/all.
 
@@ -306,6 +371,7 @@ down wave by wave — never claim complete/all.
 deno fmt --check
 deno check server.ts
 deno task check-routes   # route regression gate — MUST pass before every push
+deno task test-reference-contract
 deno task start
 
 curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/

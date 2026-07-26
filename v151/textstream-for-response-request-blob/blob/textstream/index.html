@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Blob.textStream() — textStream() for response/request/blob — Chrome 151 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 32%; min-width: 7.5rem; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .compat-table tr > *:nth-child(2) { min-width: 6.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .doc-table caption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); text-align: left; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v151/textstream-for-response-request-blob/">&larr; textStream() for response/request/blob</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v151 · fileapi · member reference</p>
+    <h1>Blob.textStream()</h1>
+    <p class="lede">Reads a <code>Blob</code> (or <code>File</code>) as a <code>ReadableStream</code> of UTF-8-decoded <strong>strings</strong> — the streaming counterpart of <code>blob.text()</code>, defined in W3C FileAPI. Unlike the <code>Body</code>-mixin version, every call creates a fresh stream.</p>
+  </header>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+<pre><code>// W3C FileAPI — Blob (normative IDL)
+ReadableStream textStream();
+
+// Call form
+const stream = blob.textStream();</code></pre>
+    <p>Chromium's binding: <code>[RuntimeEnabled=TextStreamMethod, CallWith=ScriptState, NewObject, RaisesException] ReadableStream textStream();</code> in <code>blob.idl</code>.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/FileAPI/#dom-blob-textstream" target="_blank" rel="noopener">FileAPI — Blob.textStream()</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/fileapi/blob.idl" target="_blank" rel="noopener">Chromium blob.idl</a></span>
+  </section>
+
+  <section>
+    <h2 id="inputs">Inputs</h2>
+    <p>The method takes <strong>no parameters</strong>. Its only input is the blob's own byte sequence. Notably there is <strong>no encoding argument</strong>: FileAPI points out this differs from <code>FileReader.readAsText()</code>, which accepts an encoding label — <code>textStream()</code> always decodes UTF-8.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/FileAPI/#dom-blob-textstream" target="_blank" rel="noopener">FileAPI — Blob.textStream() steps and note</a></span>
+  </section>
+
+  <section>
+    <h2 id="outputs">Outputs</h2>
+    <p>Returns a <code>ReadableStream</code> whose chunks are <strong>strings</strong>: the result of the blob's <em>get stream</em> algorithm (a new <code>ReadableStream</code> created in the blob's relevant realm) piped through a <code>TextDecoderStream</code> set up with UTF-8.</p>
+    <p>An empty blob therefore yields an already-empty stream (no chunks), not an error.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/FileAPI/#dom-blob-textstream" target="_blank" rel="noopener">FileAPI — Blob.textStream() steps</a>; <a href="https://w3c.github.io/FileAPI/#blob-get-stream" target="_blank" rel="noopener">FileAPI — Blob get stream algorithm</a></span>
+  </section>
+
+  <section>
+    <h2 id="errors">Errors</h2>
+    <p><strong>No synchronous exceptions in the spec steps:</strong> unlike the <code>Body</code>-mixin version, FileAPI's <code>textStream()</code> steps define no throw paths — a blob can always produce a fresh stream. (Chromium's binding still carries <code>RaisesException</code>; treat that as an implementation detail, not a spec contract.)</p>
+    <p><strong>Asynchronous stream failures:</strong> a <code>File</code>-backed blob can fail while being read. FileAPI defines exactly five <em>failure reasons</em> — <code>NotFound</code>, <code>UnsafeFile</code>, <code>TooManyReads</code>, <code>SnapshotState</code>, and <code>FileLock</code> — and a read that fails for one of these reasons <strong>errors the stream</strong> with that failure reason: pending and future <code>read()</code> promises reject. Handle rejection from the reader, not a try/catch around the call.</p>
+    <p><strong>Not to be confused with FileReader errors:</strong> the <code>NotFoundError</code>-style <code>DOMException</code> names are FileAPI's mapping for the <em>FileReader</em> read methods (thrown by synchronous reads or surfaced via <code>FileReader.error</code> for asynchronous ones). A <code>ReadableStream</code> from <code>textStream()</code> is errored with the raw failure reason itself — do not test for <code>DOMException</code> names here.</p>
+    <p><strong>Malformed bytes:</strong> as with the <code>Body</code> version, decoding is non-<code>fatal</code> by default (<a href="https://encoding.spec.whatwg.org/#dom-textdecoderoptions-fatal" target="_blank" rel="noopener"><code>TextDecoderOptions.fatal</code></a> defaults to <code>false</code>), so invalid UTF-8 yields U+FFFD replacement characters rather than an error.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/FileAPI/#dom-blob-textstream" target="_blank" rel="noopener">FileAPI — Blob.textStream() steps</a>; <a href="https://w3c.github.io/FileAPI/#failureReason" target="_blank" rel="noopener">FileAPI — failure reason</a>; <a href="https://encoding.spec.whatwg.org/#interface-textdecoderstream" target="_blank" rel="noopener">Encoding Standard — TextDecoderOptions / error mode</a></span>
+  </section>
+
+  <section>
+    <h2 id="context">Context</h2>
+    <p><strong>Receiver:</strong> any <code>Blob</code>, including <code>File</code> objects from file pickers (<code>&lt;input type="file"&gt;</code>), drag-and-drop, the clipboard, or constructed blobs.</p>
+    <p><strong>Exposure:</strong> <code>Blob</code> is exposed in both <code>Window</code> and <code>Worker</code> contexts (Chromium's <code>blob.idl</code>; the WPT suite is an <code>.any.js</code> running in window and worker). No secure-context requirement and no permission prompt for same-page blobs.</p>
+    <p><strong>Availability:</strong> Chrome 151 per the milestone listing and BCD; gated at build time by the <code>TextStreamMethod</code> runtime feature (status <code>stable</code> at trunk).</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/fileapi/blob.idl" target="_blank" rel="noopener">Chromium blob.idl</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/FileAPI/blob/Blob-textStream.any.js" target="_blank" rel="noopener">WPT Blob-textStream.any.js</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium runtime_enabled_features.json5</a>; <a href="https://chromestatus.com/feature/5146752165478400" target="_blank" rel="noopener">chromestatus.com/feature/5146752165478400</a></span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">Lifecycle</h2>
+    <p><strong>Repeatable, unlike Body:</strong> every call runs the blob's <em>get stream</em> algorithm, which creates a <strong>new</strong> <code>ReadableStream</code>. There is no <code>bodyUsed</code> and no &ldquo;unusable&rdquo; state — you may call <code>textStream()</code> many times, even concurrently, and each stream is independent.</p>
+    <p><strong>Underlying mutability:</strong> a <code>Blob</code>'s bytes are immutable for the page, but a <code>File</code> on disk can change or disappear between call and completion — that is exactly when the asynchronous <em>failure reason</em> path errors the stream (see Errors).</p>
+    <p><strong>Stream lifetime:</strong> each returned stream follows ordinary pipe semantics (locked while read, closed at end).</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/FileAPI/#blob-get-stream" target="_blank" rel="noopener">FileAPI — Blob get stream algorithm</a>; <a href="https://w3c.github.io/FileAPI/#failureReason" target="_blank" rel="noopener">FileAPI — failure reason</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+<pre><code>// Stream a user-picked file as decoded text chunks.
+// (input is an &lt;input type="file"&gt; element)
+const file = input.files[0];
+const reader = file.textStream().getReader();
+
+try {
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    process(value); // value is a string, UTF-8 decoded
+  }
+} catch (err) {
+  // Asynchronous read failure — e.g. the file changed on disk
+  // (FileAPI failure reason), not a malformed-bytes error.
+  console.error("read failed:", err);
+}</code></pre>
+    <span class="citation">Source: <a href="https://github.com/web-platform-tests/wpt/blob/master/FileAPI/blob/Blob-textStream.any.js" target="_blank" rel="noopener">WPT Blob-textStream.any.js</a>; <a href="https://w3c.github.io/FileAPI/#dom-blob-textstream" target="_blank" rel="noopener">FileAPI — Blob.textStream()</a></span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">Compatibility</h2>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <caption>Blob.textStream() — from BCD api/Blob.json (checked 2026-07-26)</caption>
+      <thead><tr><th scope="col">Engine / runtime</th><th scope="col">Support</th><th scope="col">Notes</th></tr></thead>
+      <tr><td>Chrome</td><td>151</td><td>Matches the Chrome 151 milestone listing (Enabled by default); Chrome for Android and WebView (Android + iOS) are BCD mirrors</td></tr>
+      <tr><td>Edge</td><td>mirror</td><td>BCD mirrors Chrome's data</td></tr>
+      <tr><td>Firefox</td><td>Not supported</td><td>BCD <code>version_added: false</code> (Firefox for Android mirrors); vendor signal recorded on the ChromeStatus entry: No signal</td></tr>
+      <tr><td>Safari</td><td>Not supported</td><td>BCD <code>version_added: false</code> (Safari on iOS mirrors); the ChromeStatus entry records a Positive signal — a recorded signal, not an official WebKit standards position (a feature this small has none)</td></tr>
+      <tr><td>Node.js</td><td>26.5.0</td><td>BCD records <code>version_added: 26.5.0</code></td></tr>
+      <tr><td>Deno</td><td>Unknown</td><td>No BCD entry as of 2026-07-26</td></tr>
+    </table>
+    </div>
+    <p>Support rows are from BCD only. Separately, vendor <em>signals</em> come from the <a href="https://chromestatus.com/api/v0/features/5146752165478400" target="_blank" rel="noopener">ChromeStatus API feature record</a> (checked 2026-07-26): Firefox &ldquo;No signal&rdquo;, Safari &ldquo;Positive&rdquo;, web developers &ldquo;No signals&rdquo;. No Baseline entry: the <a href="https://api.webstatus.dev/v1/features?q=textStream" target="_blank" rel="noopener">webstatus.dev query</a> returns no feature (checked 2026-07-26).</p>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Blob.json" target="_blank" rel="noopener">BCD api/Blob.json</a>; <a href="https://chromestatus.com/api/v0/features/5146752165478400" target="_blank" rel="noopener">ChromeStatus API feature record</a>; <a href="https://api.webstatus.dev/v1/features?q=textStream" target="_blank" rel="noopener">webstatus.dev query</a></span>
+  </section>
+
+  <section>
+    <h2 id="security-privacy">Security and privacy</h2>
+    <p><strong>No new authority:</strong> the method needs no permission or gesture beyond whatever produced the blob (a file picker's user selection, a constructed blob, drag-and-drop). It only reads bytes the page already holds.</p>
+    <p><strong>Deterministic decoding:</strong> always UTF-8 — unlike <code>readAsText()</code>, no encoding label can be supplied or inherited, so the decoding contract cannot be renegotiated per blob; malformed bytes become U+FFFD replacement text rather than an exception channel.</p>
+    <p><strong>Disclosure/storage:</strong> reading is local; nothing is transmitted or persisted by this method, and stream lifetime is bounded by the blob's own lifetime. File-backed reads can fail asynchronously if the underlying file changes — surface that failure to the user rather than silently truncating.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/FileAPI/#dom-blob-textstream" target="_blank" rel="noopener">FileAPI — Blob.textStream() steps and note</a>; <a href="https://w3c.github.io/FileAPI/#failureReason" target="_blank" rel="noopener">FileAPI — failure reason</a></span>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

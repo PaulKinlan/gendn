@@ -14,7 +14,6 @@ export const SHOWCASE_HOST = "chrome-platform-showcase.paulkinlan-ea.deno.net";
 
 const PAGE_RE = /^v\d+\/[^/]+\/index\.html$/;
 const FEATURE_ID_RE = /chromestatus\.com\/feature\/(\d+)/;
-const STUB_RE = /covered on mdn|documented on MDN|see MDN/i;
 const EXPERIMENTAL_RE =
   /origin[ -]?trial|dev(?:eloper)? trial|behind a flag|experimental|chrome:\/\/flags|--enable-blink-features/i;
 
@@ -44,6 +43,32 @@ export async function pageMetadata(pagePath, root = ".") {
   return metadataFromHtml(pagePath, html);
 }
 
+export function renderedMarkup(html) {
+  let visible = html
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<(script|style|template|noscript)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, "");
+  const hiddenBlocks = [
+    /<details\b(?![^>]*\bopen(?:\s|=|>))[^>]*>[\s\S]*?<\/details\s*>/gi,
+    /<([a-z][a-z0-9-]*)\b[^>]*\shidden(?:\s|=|>)[^>]*>[\s\S]*?<\/\1\s*>/gi,
+    /<([a-z][a-z0-9-]*)\b[^>]*\saria-hidden=(?:["']true["']|true)(?:\s|>)[^>]*>[\s\S]*?<\/\1\s*>/gi,
+    /<([a-z][a-z0-9-]*)\b[^>]*\sstyle=(?:["'][^"']*(?:display\s*:\s*none|visibility\s*:\s*hidden|content-visibility\s*:\s*hidden)[^"']*["']|[^\s>]*(?:display\s*:\s*none|visibility\s*:\s*hidden|content-visibility\s*:\s*hidden)[^\s>]*)[^>]*>[\s\S]*?<\/\1\s*>/gi,
+  ];
+  let previous;
+  do {
+    previous = visible;
+    for (const hidden of hiddenBlocks) visible = visible.replace(hidden, "");
+  } while (visible !== previous);
+  return visible;
+}
+
+export function isMdnStubHtml(html) {
+  const visible = renderedMarkup(html);
+  return [
+    ...visible.matchAll(/<p\b[^>]*class=["'][^"']*\beyebrow\b[^"']*["'][^>]*>([\s\S]*?)<\/p>/gi),
+  ]
+    .some((match) => /covered on mdn/i.test(match[1].replace(/<[^>]+>/g, " ")));
+}
+
 export function metadataFromHtml(pagePath, html) {
   const parts = pagePath.split("/");
   const release = parts[0]; // v<N>
@@ -54,7 +79,7 @@ export function metadataFromHtml(pagePath, html) {
 
   const idMatch = html.match(FEATURE_ID_RE);
   const identity = idMatch ? idMatch[1] : null;
-  const status = STUB_RE.test(html) ? "stub" : "built";
+  const status = isMdnStubHtml(html) ? "stub" : "built";
   const experimental = status === "built" && EXPERIMENTAL_RE.test(html);
   // Removal / deprecation references don't ship an interactive example or a cross-browser support
   // table — the example/support assertions don't apply to them.

@@ -7,8 +7,9 @@
 //   2. an orphan suite id that maps to no published page;
 //   3. a WEAKENED or REMOVED assertion vs the origin/main baseline without a migration record
 //      (immutable = fix the page, never weaken/regenerate to go green). Adding assertions is fine;
-//   4. a supported device class left untested / needs-review / broken for a page the action TOUCHED
-//      (git diff vs baseline) — a touched page must be matrix-validated (ok or unsupported+evidence).
+//   4. a supported device class left untested / needs-review / broken for a feature tree the action
+//      TOUCHED (git diff vs baseline);
+//   5. a touched non-stub feature tree without an implementation-sufficient reference contract.
 //
 // REPORTS exact denominators: suites/published, critiques/published, mobile+desktop tested, and (if
 // reports/conformance/results.json exists) assertions pass/fail/blocked from the last runner pass.
@@ -21,10 +22,19 @@
 import {
   collectPublishedPages,
   collectSuites,
+  loadSchema,
   normalizeAssertions,
+  pageMetadata,
   readJson,
   supportForRoute,
+  validate,
 } from "./lib/artifacts.mjs";
+import { validateReferenceContractsInBrowser } from "./lib/reference-browser.mjs";
+import {
+  collectReferenceContracts,
+  validateContractOwnership,
+  validateReferenceContract,
+} from "./lib/reference-contract.mjs";
 
 const MIGRATIONS = "migrations.json";
 
@@ -73,12 +83,21 @@ async function main() {
     if (!pageIds.has(s.id)) failures.push(`orphan suite ${s.id} maps to no published page`);
   }
 
-  // 3. immutability vs baseline (origin/main)
-  const haveBaseline = await gitRefExists("origin/main");
+  // 3. immutability vs the remote baseline, falling back to local HEAD when offline.
+  const baselineRef = await gitRefExists("origin/main")
+    ? "origin/main"
+    : await gitRefExists("HEAD")
+    ? "HEAD"
+    : null;
   let baselineChecked = 0;
-  if (haveBaseline) {
+  if (!baselineRef) {
+    failures.push(
+      "no origin/main or HEAD baseline is available; cannot enforce immutable/touched contracts",
+    );
+  }
+  if (baselineRef) {
     for (const s of suites) {
-      const baseRaw = await git(["show", `origin/main:${s.id}/conformance.json`]);
+      const baseRaw = await git(["show", `${baselineRef}:${s.id}/conformance.json`]);
       if (!baseRaw) continue; // new suite — no baseline to weaken
       baselineChecked++;
       let base;
@@ -107,11 +126,32 @@ async function main() {
     }
   }
 
-  // 4. touched pages must be matrix-validated on both classes
+  // 4. touched feature trees must be matrix-validated and implementation-sufficient.
+  // Nested member/protocol pages map back to their feature root, so isolated leaf writers cannot
+  // bypass the gate by adding only v<N>/<slug>/<member>/index.html.
   const support = (await readJson("./responsive-support.json")) ?? { routes: {} };
-  if (haveBaseline) {
-    const diff = (await git(["diff", "--name-only", "origin/main", "--", "v*/*/index.html"])) ?? "";
-    const touched = diff.split("\n").filter(Boolean).map((p) => p.replace(/\/index\.html$/, ""));
+  const referenceContracts = await collectReferenceContracts(".", [...pageIds]);
+  const referenceById = new Map(referenceContracts.map((record) => [record.ownerId, record]));
+  const referenceSchema = await loadSchema("reference-contract.schema.json");
+  const referenceErrorsById = new Map();
+  for (const record of referenceContracts) {
+    const recordErrors = [
+      ...validate(referenceSchema, record.contract).map((error) => `schema: ${error}`),
+      ...validateContractOwnership(record),
+      ...await validateReferenceContract(record.contract, "."),
+    ];
+    referenceErrorsById.set(record.ownerId, recordErrors);
+  }
+  const browserCheckRecords = [];
+  if (baselineRef) {
+    const diff = (await git(["diff", "--name-only", baselineRef, "--", "v*"])) ?? "";
+    const untracked = (await git(["ls-files", "--others", "--exclude-standard", "--", "v*"])) ?? "";
+    const touched = [
+      ...new Set(
+        `${diff}\n${untracked}`.split("\n").map((path) => path.match(/^(v\d+\/[^/]+)\//)?.[1])
+          .filter(Boolean),
+      ),
+    ];
     for (const id of touched) {
       if (!pageIds.has(id)) continue; // deleted/moved handled by route gate
       const rec = supportForRoute(support, `/${id}/`);
@@ -124,7 +164,37 @@ async function main() {
           );
         }
       }
+      const meta = await pageMetadata(`${id}/index.html`);
+      if (meta.status === "built") {
+        const record = referenceById.get(id);
+        if (!record) {
+          failures.push(
+            `touched built reference ${id}: missing reference-contract.json (implementation sufficiency is unassessed)`,
+          );
+        } else {
+          const { contract } = record;
+          if (contract.completeness !== "implementation-sufficient") {
+            failures.push(
+              `touched built reference ${id}: contract is ${
+                JSON.stringify(contract.completeness)
+              }, not implementation-sufficient`,
+            );
+          }
+          const structuralErrors = referenceErrorsById.get(id) ?? [];
+          for (const error of structuralErrors) {
+            failures.push(`touched built reference ${id}: ${error}`);
+          }
+          if (
+            contract.completeness === "implementation-sufficient" && structuralErrors.length === 0
+          ) {
+            browserCheckRecords.push(record);
+          }
+        }
+      }
     }
+  }
+  for (const error of await validateReferenceContractsInBrowser(browserCheckRecords)) {
+    failures.push(`reference browser visibility: ${error}`);
   }
 
   // ---- denominators ----
@@ -138,7 +208,26 @@ async function main() {
 
   console.log("conformance gate");
   console.log(`  conformance suites : ${suiteById.size}/${pageIds.size} published pages`);
+  const builtPages = [];
+  for (const id of pageIds) {
+    if ((await pageMetadata(`${id}/index.html`)).status === "built") builtPages.push(id);
+  }
+  const sufficientRefs = builtPages.filter((id) => {
+    const contract = referenceById.get(id)?.contract;
+    return contract?.id === id && contract.completeness === "implementation-sufficient" &&
+      referenceErrorsById.get(id)?.length === 0;
+  }).length;
+  const partialRefs = builtPages.filter((id) => {
+    const contract = referenceById.get(id)?.contract;
+    return contract?.id === id && contract.completeness === "partial" &&
+      referenceErrorsById.get(id)?.length === 0;
+  }).length;
   console.log(`  critiques          : ${critiquePages.length}/${pageIds.size} published pages`);
+  console.log(
+    `  implementation refs: ${sufficientRefs} sufficient / ${partialRefs} partial / ${
+      builtPages.length - sufficientRefs - partialRefs
+    } legacy-unassessed (of ${builtPages.length} built)`,
+  );
   console.log(`  desktop matrix ok  : ${okCls("desktop")}/${pageIds.size}`);
   console.log(`  mobile matrix ok   : ${okCls("mobile")}/${pageIds.size}`);
   console.log(`  baseline suites    : ${baselineChecked} checked for weakening`);
@@ -156,7 +245,7 @@ async function main() {
     for (const f of failures) console.error(`  - ${f}`);
     console.error(
       "\nAdding assertions and new suites is allowed. Removing/weakening an assertion needs an " +
-        "assertion-migrate record in migrations.json; touched pages must be matrix-validated.",
+        "assertion-migrate record in migrations.json; touched pages must be matrix-validated and implementation-sufficient.",
     );
     Deno.exit(1);
   }

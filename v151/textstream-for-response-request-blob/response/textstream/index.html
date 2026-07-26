@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Response.textStream() — textStream() for response/request/blob — Chrome 151 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 32%; min-width: 7.5rem; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .compat-table tr > *:nth-child(2) { min-width: 6.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .doc-table caption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); text-align: left; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v151/textstream-for-response-request-blob/">&larr; textStream() for response/request/blob</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v151 · fetch · member reference</p>
+    <h1>Response.textStream()</h1>
+    <p class="lede">Reads a <code>Response</code> body as a <code>ReadableStream</code> of UTF-8-decoded <strong>strings</strong> — the streaming counterpart of <code>response.text()</code>, defined on the <code>Body</code> mixin in the Fetch Standard.</p>
+  </header>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+<pre><code>// WHATWG Fetch — Body mixin (normative IDL)
+ReadableStream textStream();
+
+// Call form
+const stream = response.textStream();</code></pre>
+    <p>Chromium's binding: <code>[RuntimeEnabled=TextStreamMethod, CallWith=ScriptState, RaisesException] ReadableStream textStream();</code> in <code>body.idl</code>.</p>
+    <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#dom-body-textstream" target="_blank" rel="noopener">Fetch Standard — textStream()</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/fetch/body.idl" target="_blank" rel="noopener">Chromium body.idl</a></span>
+  </section>
+
+  <section>
+    <h2 id="inputs">Inputs</h2>
+    <p>The method takes <strong>no parameters</strong>. Its only input is the receiver's own state: the <code>Response</code> object's body (null or a body with a <code>ReadableStream</code>) and whether that body is already disturbed or locked. There are no options, no encoding argument — decoding is always UTF-8.</p>
+    <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#dom-body-textstream" target="_blank" rel="noopener">Fetch Standard — textStream() method steps</a></span>
+  </section>
+
+  <section>
+    <h2 id="outputs">Outputs</h2>
+    <p>Returns a <code>ReadableStream</code> whose chunks are <strong>strings</strong> — the body's bytes run through a <code>TextDecoderStream</code> set up with UTF-8, &ldquo;regardless of the presence or the value of a <code>Content-Type</code> header and regardless of the presence or the value of a <code>charset</code> parameter&rdquo;. If the body's byte length is not a multiple of the encoding's unit size, the decoder completes any trailing sequence at end-of-stream.</p>
+    <p><strong>Null body:</strong> if the response's body is null, the method returns a new <code>ReadableStream</code> that is already closed (it yields no chunks and is not an error). Null-body calls are <em>not</em> single-use: every call creates a <strong>distinct</strong> closed stream object, and <code>bodyUsed</code> remains <code>false</code> throughout, because the unusable/disturbed contract only exists for non-null bodies.</p>
+    <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#dom-body-textstream" target="_blank" rel="noopener">Fetch Standard — textStream() method steps</a>; <a href="https://encoding.spec.whatwg.org/#interface-textdecoderstream" target="_blank" rel="noopener">Encoding Standard — TextDecoderStream</a></span>
+  </section>
+
+  <section>
+    <h2 id="errors">Errors</h2>
+    <p><strong><code>TypeError</code> — unusable receiver:</strong> if the response is <em>unusable</em> — its body is non-null and that body's stream is already disturbed or locked (for example after a prior <code>text()</code>, <code>textStream()</code>, or a locked <code>body</code> reader) — the method throws a <code>TypeError</code> synchronously. This is the only exception in the method steps, mirrored by the binding's <code>RaisesException</code>.</p>
+    <p><strong>Malformed bytes are not exceptions:</strong> the decoder runs in the Encoding Standard's default (non-<code>fatal</code>) error mode — <a href="https://encoding.spec.whatwg.org/#dom-textdecoderoptions-fatal" target="_blank" rel="noopener"><code>TextDecoderOptions.fatal</code></a> defaults to <code>false</code> — so invalid UTF-8 sequences decode to U+FFFD replacement characters in the output chunks rather than throwing or erroring the stream.</p>
+    <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#dom-body-textstream" target="_blank" rel="noopener">Fetch Standard — textStream() method steps + unusable definition</a>; <a href="https://encoding.spec.whatwg.org/#interface-textdecoderstream" target="_blank" rel="noopener">Encoding Standard — TextDecoderOptions / error mode</a></span>
+  </section>
+
+  <section>
+    <h2 id="context">Context</h2>
+    <p><strong>Receiver:</strong> any <code>Response</code> instance — one resolved from <code>fetch()</code>, synthesized with <code>new Response(...)</code>, or produced by a service worker / cache.</p>
+    <p><strong>Exposure:</strong> <code>Response</code> is exposed in both <code>Window</code> and <code>Worker</code> contexts (<code>[Exposed=(Window,Worker)]</code> in Chromium's <code>response.idl</code>; the WPT suite runs with <code>global=window,worker</code>). No secure-context requirement and no permission prompt: the binding carries no <code>[SecureContext]</code> extended attribute and the method reads bytes the page already holds.</p>
+    <p><strong>Availability:</strong> Chrome 151 per the milestone listing and BCD, gated at build time by the <code>TextStreamMethod</code> runtime feature (status <code>stable</code> at trunk).</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/fetch/response.idl" target="_blank" rel="noopener">Chromium response.idl</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/fetch/api/body/textstream.any.js" target="_blank" rel="noopener">WPT textstream.any.js</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium runtime_enabled_features.json5</a>; <a href="https://chromestatus.com/feature/5146752165478400" target="_blank" rel="noopener">chromestatus.com/feature/5146752165478400</a></span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">Lifecycle</h2>
+    <p><strong>Immediate consumption — non-null bodies only:</strong> for a response with a body, calling <code>textStream()</code> starts the read at once — the WPT contract asserts <code>bodyUsed</code> becomes <code>true</code> synchronously, before any chunk is consumed (a non-null but empty body behaves the same way and then yields zero chunks).</p>
+    <p><strong>Single use — non-null bodies only:</strong> while the returned stream is being read (and after it closes), the body's stream is disturbed, so the response is unusable — any further body method (<code>text()</code>, <code>json()</code>, a second <code>textStream()</code>) throws the <code>TypeError</code> above. Clone the response first (<code>response.clone()</code>) if two consumers are needed.</p>
+    <p><strong>Null bodies are repeatable:</strong> with no body there is nothing to disturb — the WPT null-body test asserts <code>bodyUsed</code> stays <code>false</code> after repeated calls and that each call returns a different, independently closed stream object.</p>
+    <p><strong>Stream lifetime:</strong> the returned stream is the body's stream piped through the decoder, so stream state (locked while a reader is attached, closed at end-of-body) follows ordinary pipe semantics.</p>
+    <span class="citation">Source: <a href="https://github.com/web-platform-tests/wpt/blob/master/fetch/api/body/textstream.any.js" target="_blank" rel="noopener">WPT textstream.any.js — bodyUsed and single-use contracts</a>; <a href="https://fetch.spec.whatwg.org/#dom-body-textstream" target="_blank" rel="noopener">Fetch Standard — textStream() method steps</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+<pre><code>// Stream a large text response as decoded chunks (never buffering it whole).
+const response = await fetch("/large-log.txt");
+if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+const reader = response.textStream().getReader();
+let total = 0;
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+  total += value.length; // value is a string, UTF-8 decoded
+}
+console.log(`read ${total} characters`);</code></pre>
+    <span class="citation">Source: <a href="https://github.com/web-platform-tests/wpt/blob/master/fetch/api/body/textstream.any.js" target="_blank" rel="noopener">WPT textstream.any.js — reader-loop shape</a>; <a href="https://github.com/whatwg/fetch/pull/1862" target="_blank" rel="noopener">whatwg/fetch PR #1862</a></span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">Compatibility</h2>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <caption>Response.textStream() — from BCD api/Response.json (checked 2026-07-26)</caption>
+      <thead><tr><th scope="col">Engine / runtime</th><th scope="col">Support</th><th scope="col">Notes</th></tr></thead>
+      <tr><td>Chrome</td><td>151</td><td>Matches the Chrome 151 milestone listing (Enabled by default); Chrome for Android and WebView (Android + iOS) are BCD mirrors</td></tr>
+      <tr><td>Edge</td><td>mirror</td><td>BCD mirrors Chrome's data</td></tr>
+      <tr><td>Firefox</td><td>Not supported</td><td>BCD <code>version_added: false</code> (Firefox for Android mirrors); vendor signal recorded on the ChromeStatus entry: No signal</td></tr>
+      <tr><td>Safari</td><td>Not supported</td><td>BCD <code>version_added: false</code> (Safari on iOS mirrors); the ChromeStatus entry records a Positive signal — a recorded signal, not an official WebKit standards position (a feature this small has none)</td></tr>
+      <tr><td>Node.js</td><td>26.5.0</td><td>BCD records <code>version_added: 26.5.0</code></td></tr>
+      <tr><td>Deno</td><td>Unknown</td><td>No BCD entry as of 2026-07-26</td></tr>
+    </table>
+    </div>
+    <p>Support rows are from BCD only. Separately, vendor <em>signals</em> come from the <a href="https://chromestatus.com/api/v0/features/5146752165478400" target="_blank" rel="noopener">ChromeStatus API feature record</a> (checked 2026-07-26): Firefox &ldquo;No signal&rdquo;, Safari &ldquo;Positive&rdquo;, web developers &ldquo;No signals&rdquo;. No Baseline entry: the <a href="https://api.webstatus.dev/v1/features?q=textStream" target="_blank" rel="noopener">webstatus.dev query</a> returns no feature (checked 2026-07-26).</p>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Response.json" target="_blank" rel="noopener">BCD api/Response.json</a>; <a href="https://chromestatus.com/api/v0/features/5146752165478400" target="_blank" rel="noopener">ChromeStatus API feature record</a>; <a href="https://api.webstatus.dev/v1/features?q=textStream" target="_blank" rel="noopener">webstatus.dev query</a></span>
+  </section>
+
+  <section>
+    <h2 id="security-privacy">Security and privacy</h2>
+    <p><strong>No new authority:</strong> the method needs no permission, no user gesture, and no secure context beyond what producing the <code>Response</code> already required — it only re-reads bytes the page already possesses (the same trust boundary as <code>text()</code> or <code>arrayBuffer()</code>).</p>
+    <p><strong>Deterministic decoding:</strong> the decoder ignores <code>Content-Type</code> and <code>charset</code> and always uses UTF-8, so a server cannot change the decoding contract per response; malformed input becomes U+FFFD replacement text rather than an exception channel.</p>
+    <p><strong>Disclosure/storage:</strong> nothing is persisted, transmitted, or shared across origins by this method itself; stream lifetime is bounded by the response's own lifetime.</p>
+    <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#dom-body-textstream" target="_blank" rel="noopener">Fetch Standard — textStream() method steps</a>; <a href="https://encoding.spec.whatwg.org/#interface-textdecoderstream" target="_blank" rel="noopener">Encoding Standard — TextDecoderStream error mode</a></span>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

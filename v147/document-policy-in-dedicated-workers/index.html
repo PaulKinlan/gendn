@@ -57,7 +57,7 @@
     <p class="lede">Chrome 147 adds developer-trial support for Document Policy in dedicated workers. A worker loaded over the network takes its policy from the <code>Document-Policy</code> header on the <em>worker script&rsquo;s own HTTP response</em>; workers created from local schemes (<code>blob:</code>, <code>data:</code>) clone the policy of their creator. That lets policy-gated features &mdash; the motivating case is the JS Self-Profiling API&rsquo;s <code>js-profiling</code> gate &mdash; work inside workers instead of being limited to the main document.</p>
   </header>
 
-  <div class="warn-block">
+  <div class="warn-block" id="context">
     <strong>Developer trial &mdash; API surface may move</strong>
     <p>This is behind a flag in Chrome 147 (milestone listing); the feature detail records no ship estimate (status &ldquo;Proposed&rdquo;, updated 2026-03-06). To try it:</p>
     <ul>
@@ -68,7 +68,7 @@
   </div>
 
   <section>
-    <h2>at a glance</h2>
+    <h2 id="derived-policy">at a glance</h2>
     <div class="table-wrap">
     <table class="doc-table">
       <caption>At a glance</caption>
@@ -82,18 +82,19 @@
     </table>
     </div>
     <span class="citation">Source: <a href="https://chromestatus.com/feature/6242687411945472" target="_blank" rel="noopener">chromestatus.com/feature/6242687411945472</a>; <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/DocumentPolicy/DocumentPolicyInWorkers.md" target="_blank" rel="noopener">MSEdge explainer &mdash; Document Policy in Workers</a></span>
+    <p id="errors">There is no new error surface: an absent or unparseable <code>Document-Policy</code> header on the worker script response does not throw at worker creation &mdash; each policy-gated feature simply falls back to its spec-defined default (for <code>js-profiling</code>: off), exactly as in document contexts.</p>
   </section>
 
   <section>
     <h2>why it exists</h2>
     <p>Dedicated workers are the standard way to move heavy work off the main thread, but Document Policy previously applied only to documents. Features gated behind a policy &mdash; most concretely the <a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">JS Self-Profiling API</a>, which requires a <code>Document-Policy: js-profiling</code> opt-in &mdash; were simply unavailable in workers, even when the site had opted in at the document level. That left developers with no way to attribute CPU cost to JS stacks inside a worker&rsquo;s event loop. Extending Document Policy to workers closes the gap without new API surface.</p>
-    <p>The response-driven model (rather than inheriting the creator&rsquo;s policy) is deliberate: a worker script is a standalone HTTP resource that can carry its own headers, and inheriting would let one origin&rsquo;s policy constrain another origin&rsquo;s script &mdash; the same worker would behave differently depending on which document started it. Inheritance is limited to <code>blob:</code>/<code>data:</code> workers, which have no response of their own.</p>
+    <p id="security-privacy">The response-driven model (rather than inheriting the creator&rsquo;s policy) is deliberate: a worker script is a standalone HTTP resource that can carry its own headers, and inheriting would let one origin&rsquo;s policy constrain another origin&rsquo;s script &mdash; the same worker would behave differently depending on which document started it. Inheritance is limited to <code>blob:</code>/<code>data:</code> workers, which have no response of their own.</p>
     <span class="citation">Source: <a href="https://chromestatus.com/feature/6242687411945472" target="_blank" rel="noopener">ChromeStatus motivation</a>; <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/DocumentPolicy/DocumentPolicyInWorkers.md" target="_blank" rel="noopener">explainer &mdash; &ldquo;Rationale: Why Response Headers for Network Workers?&rdquo;</a></span>
   </section>
 
   <section>
-    <h2>Syntax</h2>
-    <p>No new JavaScript API is introduced &mdash; the surface is the existing <code>Document-Policy</code> HTTP response header, now honored on dedicated-worker script responses:</p>
+    <h2 id="syntax">Syntax</h2>
+    <p id="inputs">No new JavaScript API is introduced &mdash; the surface is the existing <code>Document-Policy</code> HTTP response header, now honored on dedicated-worker script responses:</p>
 <pre><code>// HTTP response for the worker script (not the page)
 HTTP/1.1 200 OK
 Content-Type: text/javascript
@@ -108,17 +109,29 @@ console.log(JSON.stringify(trace));</code></pre>
   </section>
 
   <section>
-    <h2>Examples</h2>
+    <h2 id="examples">Examples</h2>
     <figure class="example-embed">
       <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/document-policy-in-dedicated-workers/worker-feature-probe/"
         title="Live example — worker feature probe (Document Policy in Dedicated Workers)" loading="lazy" width="100%" height="520"
         style="border:2px solid var(--border-black)"></iframe>
       <figcaption>Live example from the Chrome Platform Showcase: probing which policy-gated features are exposed inside a dedicated worker. <span class="citation">Source: chrome-platform-showcase</span></figcaption>
     </figure>
+
+<pre><code>// Main thread — nothing special at the call site: for a network-loaded
+// dedicated worker, the policy travels with the worker script's response.
+const worker = new Worker("/tasks/profiling-worker.js");
+
+// Server — the worker script response opts the WORKER into the policy:
+//   HTTP/1.1 200 OK
+//   Content-Type: text/javascript
+//   Document-Policy: js-profiling
+//
+// blob:/data: workers instead clone the creating environment's policy.</code></pre>
+    <span class="citation">Source: composed from the <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/DocumentPolicy/DocumentPolicyInWorkers.md" target="_blank" rel="noopener">explainer</a> &mdash; &ldquo;Network Worker with Document-Policy Header&rdquo; and the per-scheme semantics</span>
   </section>
 
   <section>
-    <h2>Browser compatibility</h2>
+    <h2 id="compatibility">Browser compatibility</h2>
     <p>There is no browser-compat-data (BCD) entry for the <code>Document-Policy</code> header (<code>http/headers/Document-Policy.json</code> does not exist as of 2026-07-26), so the table below is an <strong>interim</strong> view from ChromeStatus data &mdash; not from BCD.</p>
     <div class="table-wrap">
     <table class="doc-table compat-table">
