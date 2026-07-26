@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PerformanceNavigationTiming.redirectStart — Cross-origin redirect timing opt-in — Chrome 151 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 32%; min-width: 7.5rem; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .compat-table tr > *:nth-child(2) { min-width: 6.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .doc-table caption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); text-align: left; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .table-wrap { overflow-x: auto; }
+    .lede-block h1 { overflow-wrap: anywhere; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v151/cross-origin-redirect-timing-opt-in/">&larr; Cross-origin redirect timing opt-in</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v151 · navigation timing · attribute reference</p>
+    <h1>Performance<wbr>Navigation<wbr>Timing<wbr>.redirectStart</h1>
+    <p class="lede">The timestamp at which the navigation's first redirect began. It returns 0 whenever the entry's redirect count is 0 — which includes cross-origin chains whose redirects did not all opt the destination origin in via <code>Timing-Allow-Origin</code>.</p>
+  </header>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+<pre><code>// PerformanceNavigationTiming (normative IDL, Navigation Timing)
+readonly attribute DOMHighResTimeStamp redirectStart;
+
+// Read it from the navigation entry:
+const t0 = performance.getEntriesByType("navigation")[0].redirectStart;</code></pre>
+    <span class="citation">Source: <a href="https://w3c.github.io/navigation-timing/#performancenavigationtiming" target="_blank" rel="noopener">Navigation Timing — PerformanceNavigationTiming</a></span>
+  </section>
+
+  <section>
+    <h2 id="inputs">Inputs</h2>
+    <p>A read-only attribute — no page inputs. Its value follows the entry's redirect count: the getter returns 0 when the redirect count is 0, so everything that gates <code>redirectCount</code> exposure (the every-hop opt-in via <code>Timing-Allow-Origin</code> once any cross-origin redirect exists, and the <code>no-referrer</code> gate that only applies to such chains) gates this timestamp identically.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/navigation-timing/#performancenavigationtiming" target="_blank" rel="noopener">Navigation Timing — redirectStart getter steps</a>; <a href="https://github.com/whatwg/html/pull/12513" target="_blank" rel="noopener">whatwg/html PR #12513</a></span>
+  </section>
+
+  <section>
+    <h2 id="outputs">Outputs</h2>
+    <p>A <code>DOMHighResTimeStamp</code> in milliseconds, relative to the time origin. The getter steps: if the entry's redirect count is 0, return 0; otherwise return the stored redirect start time. Navigation Timing notes that unlike <code>PerformanceResourceTiming</code>, the navigation versions of <code>redirectStart</code>/<code>redirectEnd</code> return zero for navigations with (non-exposed) cross-origin redirects.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/navigation-timing/#performancenavigationtiming" target="_blank" rel="noopener">Navigation Timing — redirectStart getter steps</a></span>
+  </section>
+
+  <section>
+    <h2 id="errors">Errors</h2>
+    <p>No exceptions. As with <code>redirectCount</code>, 0 is ambiguous — it means &ldquo;no redirects&rdquo;, or &ldquo;redirects not exposed&rdquo;: a chain with cross-origin redirects where some hop withheld the opt-in, or such a chain navigated <code>no-referrer</code> with a non-null client. Do not subtract 0-valued fields: guard on <code>redirectCount &gt; 0</code> (or on the timestamp being non-zero) before computing chain duration.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/navigation-timing/#performancenavigationtiming" target="_blank" rel="noopener">Navigation Timing — PerformanceNavigationTiming</a>; <a href="https://github.com/whatwg/html/pull/12513" target="_blank" rel="noopener">whatwg/html PR #12513</a></span>
+  </section>
+
+  <section>
+    <h2 id="context">Context</h2>
+    <p><strong>Receiver:</strong> the document's <code>PerformanceNavigationTiming</code> entry (the <code>"navigation"</code> entry in the performance timeline), in window contexts.</p>
+    <p><strong>Implementation:</strong> Chromium's getters in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/timing/performance_navigation_timing.cc" target="_blank" rel="noopener">performance_navigation_timing.cc</a> return 0 unless the load's cross-origin-redirect-timing exposure flag is set. <strong>Availability:</strong> the cross-origin exposure is Chrome 151 per the milestone listing; runtime feature <code>NavigationTimingRedirectTimingViaTAO</code> (status <code>stable</code> at trunk). The attribute itself long predates the feature as part of Navigation Timing.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/navigation-timing/#performancenavigationtiming" target="_blank" rel="noopener">Navigation Timing — PerformanceNavigationTiming</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium runtime_enabled_features.json5</a>; <a href="https://chromestatus.com/feature/5078310347472896" target="_blank" rel="noopener">chromestatus.com/feature/5078310347472896</a></span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">Lifecycle</h2>
+    <p>The timestamp is captured by fetch while the redirect chain runs and fixed when the navigation timing entry is created at document commit; it never changes afterwards. It marks the beginning of the chain — pair it with <code>redirectEnd</code> for total redirect time, and with <code>fetchStart</code> for the time from chain end to the final fetch.</p>
+    <span class="citation">Source: <a href="https://html.spec.whatwg.org/#create-the-navigation-timing-entry" target="_blank" rel="noopener">WHATWG HTML — navigation timing entry creation</a>; <a href="https://w3c.github.io/navigation-timing/#performancenavigationtiming" target="_blank" rel="noopener">Navigation Timing — PerformanceNavigationTiming</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+<pre><code>const [nav] = performance.getEntriesByType("navigation");
+if (nav.redirectCount > 0) {
+  const chainMs = nav.redirectEnd - nav.redirectStart;
+  console.log(`${nav.redirectCount} redirect(s) cost ${chainMs.toFixed(1)} ms`);
+  // redirectStart is non-zero here by construction (getter guarantees it).
+} else {
+  // redirectStart is 0: no redirects, or the chain was not exposed.
+}</code></pre>
+    <span class="citation">Source: <a href="https://w3c.github.io/navigation-timing/#performancenavigationtiming" target="_blank" rel="noopener">Navigation Timing — redirectStart getter steps</a></span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">Compatibility</h2>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <caption>redirectStart cross-origin exposure — interim, from ChromeStatus (checked 2026-07-26)</caption>
+      <thead><tr><th scope="col">Engine / runtime</th><th scope="col">Support</th><th scope="col">Notes</th></tr></thead>
+      <tr><td>Chrome</td><td>151</td><td>Cross-origin exposure added (desktop, Android, WebView per the feature detail); runtime feature stable at trunk; the general attribute ships since Chrome 43 per BCD (api/PerformanceResourceTiming.json)</td></tr>
+      <tr><td>Edge</td><td>Not separately reported</td><td>No Edge position recorded on ChromeStatus</td></tr>
+      <tr><td>Firefox</td><td>No signal</td><td>Vendor signal recorded on the ChromeStatus entry</td></tr>
+      <tr><td>Safari</td><td>Recorded positive signal</td><td>A recorded signal, not an official WebKit standards position</td></tr>
+    </table>
+    </div>
+    <p>BCD tracks the general attribute under <a href="https://github.com/mdn/browser-compat-data/blob/main/api/PerformanceResourceTiming.json" target="_blank" rel="noopener">api/PerformanceResourceTiming.json</a> (Chrome 43, Firefox 35, Safari 11) — it has no entry for this cross-origin exposure. Feature signals: <a href="https://chromestatus.com/api/v0/features/5078310347472896" target="_blank" rel="noopener">ChromeStatus API feature record</a>.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5078310347472896" target="_blank" rel="noopener">ChromeStatus API feature record</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/PerformanceResourceTiming.json" target="_blank" rel="noopener">BCD api/PerformanceResourceTiming.json</a></span>
+  </section>
+
+  <section>
+    <h2 id="security-privacy">Security and privacy</h2>
+    <p>The timestamp participates in the same consent boundary as <code>redirectCount</code>: cross-origin chain timing is disclosed only when every redirect operator opted the destination origin in, and — for chains with cross-origin redirects — never for <code>no-referrer</code> navigations with a non-null client. Timing of redirects can reveal infrastructure details (how many hops, how slow), which is why the default remains zero.</p>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/12513" target="_blank" rel="noopener">whatwg/html PR #12513</a>; <a href="https://github.com/whatwg/fetch/pull/1931" target="_blank" rel="noopener">whatwg/fetch PR #1931</a></span>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

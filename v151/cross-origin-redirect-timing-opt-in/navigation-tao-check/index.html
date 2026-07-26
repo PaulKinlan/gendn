@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>navigation TAO check — Cross-origin redirect timing opt-in — Chrome 151 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 32%; min-width: 7.5rem; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .compat-table tr > *:nth-child(2) { min-width: 6.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .doc-table caption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); text-align: left; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v151/cross-origin-redirect-timing-opt-in/">&larr; Cross-origin redirect timing opt-in</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v151 · fetch · algorithm reference</p>
+    <h1>navigation TAO check</h1>
+    <p class="lede">The fetch algorithm that decides, once a navigation's destination origin is known, whether <em>every</em> redirect in the chain allowed that origin to measure it. Success lets HTML expose the chain's redirect timing; failure keeps it zero.</p>
+  </header>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+<pre><code>// Fetch Standard — perform a navigation TAO check,
+// given a response and an origin destinationOrigin:
+//
+//   For each taoValues of response's
+//       navigation timing allow values list:
+//     If taoValues contains "*", then continue.
+//     If taoValues contains destinationOrigin, serialized,
+//       then continue.
+//     Return failure.
+//   Return success.</code></pre>
+    <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#navigation-tao-check" target="_blank" rel="noopener">Fetch Standard — navigation TAO check</a></span>
+  </section>
+
+  <section>
+    <h2 id="inputs">Inputs</h2>
+    <p>The algorithm takes the navigation's final <strong>response</strong> (which carries the cloned <a href="../navigation-timing-allow-values-list/">navigation timing allow values list</a> — one entry per redirect hop) and the navigation's <strong>destination origin</strong>. Each entry is a list of strings produced by get/decode/split of one redirect response's <code>Timing-Allow-Origin</code> header.</p>
+    <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#navigation-tao-check" target="_blank" rel="noopener">Fetch Standard — navigation TAO check</a></span>
+  </section>
+
+  <section>
+    <h2 id="outputs">Outputs</h2>
+    <p><strong>Success</strong> or <strong>failure</strong>. Success requires every list entry to contain either <code>*</code> or the destination origin, serialized. Notable semantics of the wildcard, read straight from the steps: <code>*</code> succeeds <strong>regardless of credentials</strong> (there is no credentials branch, unlike CORS) and it <strong>need not be the sole member</strong> — a values list containing <code>*</code> among other origins still continues. HTML uses the result in its redirect-timing conditional: success (plus the referrer gate) sets the real redirect count and times; failure leaves them zero.</p>
+    <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#navigation-tao-check" target="_blank" rel="noopener">Fetch Standard — navigation TAO check</a>; <a href="https://github.com/whatwg/html/pull/12513" target="_blank" rel="noopener">whatwg/html PR #12513</a></span>
+  </section>
+
+  <section>
+    <h2 id="errors">Errors</h2>
+    <p>The algorithm has no exception paths — failure is a value, not a throw. The boundary cases, by construction: an <strong>empty</strong> values list (a hop that sent no header) contains neither <code>*</code> nor the destination, so it fails the chain; and the check iterates <strong>every</strong> entry — same-origin hops included whenever the chain contains any cross-origin redirect — so one unopting hop anywhere fails the whole chain.</p>
+    <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#navigation-tao-check" target="_blank" rel="noopener">Fetch Standard — navigation TAO check</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/navigation-timing/redirect-tao.html" target="_blank" rel="noopener">WPT navigation-timing/redirect-tao.html (withheld-hop and non-destination cases)</a></span>
+  </section>
+
+  <section>
+    <h2 id="context">Context</h2>
+    <p><strong>Caller:</strong> the HTML navigation steps, when creating the navigation timing entry — and only when the response's <em>has cross-origin redirects</em> flag is set (a purely same-origin chain skips the check entirely and always exposes). The HTML conditional additionally requires the request's client to be null or its referrer not <code>no-referrer</code>; that gate, like the check, engages only for cross-origin-including chains.</p>
+    <p><strong>Sibling algorithm:</strong> the older <em>TAO check</em> (§4.11) for subresources, which opts in the <em>requesting</em> origin — a different direction with a different caller. Do not conflate the two.</p>
+    <p><strong>Implementation:</strong> the exposure flag that this check feeds is plumbed through Chromium's <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/loader/document_loader.cc" target="_blank" rel="noopener">document_loader.cc</a> and read by the timing getters in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/timing/performance_navigation_timing.cc" target="_blank" rel="noopener">performance_navigation_timing.cc</a>. <strong>Availability:</strong> Chrome 151 per the milestone listing; runtime feature <code>NavigationTimingRedirectTimingViaTAO</code> (status <code>stable</code> at trunk).</p>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/12513" target="_blank" rel="noopener">whatwg/html PR #12513 (caller conditional)</a>; <a href="https://fetch.spec.whatwg.org/#navigation-tao-check" target="_blank" rel="noopener">Fetch Standard — navigation TAO check</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium runtime_enabled_features.json5</a>; <a href="https://chromestatus.com/feature/5078310347472896" target="_blank" rel="noopener">chromestatus.com/feature/5078310347472896</a></span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">Lifecycle</h2>
+    <p>The check runs once per navigation, after the final response arrives and its cloned values list is complete, and its result is fixed into the navigation timing entry created at document commit. There is no re-evaluation: later script cannot change the outcome, and the entry's <code>redirectCount</code> /<wbr><code>redirectStart</code> /<wbr><code>redirectEnd</code> reflect it for the document's lifetime.</p>
+    <span class="citation">Source: <a href="https://html.spec.whatwg.org/#create-the-navigation-timing-entry" target="_blank" rel="noopener">WHATWG HTML — navigation timing entry creation</a>; <a href="https://github.com/whatwg/html/pull/12513" target="_blank" rel="noopener">whatwg/html PR #12513</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+<pre><code>// Given destination origin "https://c.example" and the cloned list:
+
+« « "https://c.example" », « "*" » »            → success
+« « "https://c.example" », « » »               → failure (hop 2 sent no header)
+« « "https://not-c.example" » »                → failure (opted a different origin)
+« « "*", "https://other.example" » »           → success ("*" need not be sole member)
+
+// WPT executable contract (navigation-timing/redirect-tao.html):
+//   [dest]        → exposed (count 1)
+//   ["*"]         → exposed (count 1)
+//   [dest, dest]  → exposed (count 2)
+//   [non-dest]    → hidden
+//   [null, dest]  → hidden (every hop must opt in)</code></pre>
+    <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#navigation-tao-check" target="_blank" rel="noopener">Fetch Standard — navigation TAO check</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/navigation-timing/redirect-tao.html" target="_blank" rel="noopener">WPT navigation-timing/redirect-tao.html</a></span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">Compatibility</h2>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <caption>navigation TAO check — interim, from ChromeStatus (checked 2026-07-26)</caption>
+      <thead><tr><th scope="col">Engine / runtime</th><th scope="col">Support</th><th scope="col">Notes</th></tr></thead>
+      <tr><td>Chrome</td><td>151</td><td>Milestone listing: Enabled by default (desktop, Android, WebView per the feature detail); runtime feature stable at trunk</td></tr>
+      <tr><td>Edge</td><td>Not separately reported</td><td>No Edge position recorded on ChromeStatus</td></tr>
+      <tr><td>Firefox</td><td>No signal</td><td>Vendor signal recorded on the ChromeStatus entry</td></tr>
+      <tr><td>Safari</td><td>Recorded positive signal</td><td>A recorded signal, not an official WebKit standards position</td></tr>
+    </table>
+    </div>
+    <p>Internal algorithm, not BCD-tracked; feature signals per the <a href="https://chromestatus.com/api/v0/features/5078310347472896" target="_blank" rel="noopener">ChromeStatus API feature record</a>.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5078310347472896" target="_blank" rel="noopener">ChromeStatus API feature record</a></span>
+  </section>
+
+  <section>
+    <h2 id="security-privacy">Security and privacy</h2>
+    <p>This algorithm is the enforcement point of the opt-in model: it is what prevents a destination from measuring any chain whose redirects did not all consent. The all-entries rule means consent cannot be partially given — a chain that mixes opted and unopted hops discloses nothing. The algorithm reads only the declared values and the destination origin; it exposes no list contents to script.</p>
+    <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#navigation-tao-check" target="_blank" rel="noopener">Fetch Standard — navigation TAO check</a>; <a href="https://github.com/whatwg/fetch/pull/1931" target="_blank" rel="noopener">whatwg/fetch PR #1931</a></span>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

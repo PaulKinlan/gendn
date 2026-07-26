@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PerformanceNavigationTiming.redirectCount — Cross-origin redirect timing opt-in — Chrome 151 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 32%; min-width: 7.5rem; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .compat-table tr > *:nth-child(2) { min-width: 6.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .doc-table caption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); text-align: left; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .table-wrap { overflow-x: auto; }
+    .lede-block h1 { overflow-wrap: anywhere; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v151/cross-origin-redirect-timing-opt-in/">&larr; Cross-origin redirect timing opt-in</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v151 · navigation timing · attribute reference</p>
+    <h1>Performance<wbr>Navigation<wbr>Timing<wbr>.redirectCount</h1>
+    <p class="lede">The number of redirects the navigation went through. Since Chrome 151 this is also reported for <em>cross-origin</em> chains — but only when every redirect in the chain opted the destination origin in via <code>Timing-Allow-Origin</code>; otherwise it stays zero.</p>
+  </header>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+<pre><code>// W3C Navigation Timing — PerformanceNavigationTiming (normative IDL)
+readonly attribute unsigned short redirectCount;
+
+// Read it from the navigation entry:
+const count = performance.getEntriesByType("navigation")[0].redirectCount;</code></pre>
+    <span class="citation">Source: <a href="https://w3c.github.io/navigation-timing/#dom-performancenavigationtiming-redirectcount" target="_blank" rel="noopener">Navigation Timing — redirectCount</a></span>
+  </section>
+
+  <section>
+    <h2 id="inputs">Inputs</h2>
+    <p>A read-only attribute — it takes no inputs from the page. What determines its value is the navigation itself: the request's redirect count and whether the chain qualifies for exposure. The exact rule: a chain with no cross-origin redirects always exposes; otherwise every redirect response in the chain — same-origin hops included — must have opted the destination in, and the request's client must be null or its referrer not <code>no-referrer</code>.</p>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/12513" target="_blank" rel="noopener">whatwg/html PR #12513 (the exposure conditional)</a></span>
+  </section>
+
+  <section>
+    <h2 id="outputs">Outputs</h2>
+    <p>An <code>unsigned short</code>. Per the HTML navigation steps, the entry's redirect count starts at <strong>0</strong> and is set to the request's actual redirect count only when the response has no cross-origin redirects, <em>or</em> all of these hold: the request's client is null or its referrer is not <code>no-referrer</code>, and the <em>navigation TAO check</em> over the chain's collected <code>Timing-Allow-Origin</code> values returns success for the destination origin.</p>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/12513" target="_blank" rel="noopener">whatwg/html PR #12513</a>; <a href="https://fetch.spec.whatwg.org/#navigation-tao-check" target="_blank" rel="noopener">Fetch Standard — navigation TAO check</a></span>
+  </section>
+
+  <section>
+    <h2 id="errors">Errors</h2>
+    <p>No exceptions. The failure mode is informational: <strong>0 is ambiguous</strong> — it means &ldquo;no redirects&rdquo;, or &ldquo;the chain has cross-origin redirects and some hop (cross-origin <em>or</em> same-origin) did not opt in&rdquo;, or &ldquo;the chain has cross-origin redirects and the navigation was <code>no-referrer</code> with a non-null client&rdquo;. Measurement code must treat 0 as &ldquo;not exposed&rdquo;, not as proof of a direct navigation.</p>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/12513" target="_blank" rel="noopener">whatwg/html PR #12513</a></span>
+  </section>
+
+  <section>
+    <h2 id="context">Context</h2>
+    <p><strong>Receiver:</strong> the <code>PerformanceNavigationTiming</code> entry for the current document — the first (and only) entry of type <code>"navigation"</code> in the performance timeline.</p>
+    <p><strong>Exposure:</strong> window contexts (navigation timing is a document concept). The cross-origin exposure addition is Chrome 151 per the milestone listing; the general attribute is much older (BCD: Chrome 57, Firefox 58, Safari 15).</p>
+    <p><strong>Implementation:</strong> Chromium's getters in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/timing/performance_navigation_timing.cc" target="_blank" rel="noopener">performance_navigation_timing.cc</a> return 0 unless the load's cross-origin-redirect-timing exposure flag is set. <strong>Availability:</strong> runtime feature <code>NavigationTimingRedirectTimingViaTAO</code> (status <code>stable</code> at trunk).</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/navigation-timing/#dom-performancenavigationtiming-redirectcount" target="_blank" rel="noopener">Navigation Timing — redirectCount</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium runtime_enabled_features.json5</a>; <a href="https://chromestatus.com/feature/5078310347472896" target="_blank" rel="noopener">chromestatus.com/feature/5078310347472896</a></span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">Lifecycle</h2>
+    <p>The value is fixed when the navigation timing entry is created during document commit — it does not change afterwards. The redirect count itself is fetch bookkeeping: it increments per redirect followed, and the collected <code>Timing-Allow-Origin</code> values are checked once, when the destination origin is known.</p>
+    <span class="citation">Source: <a href="https://html.spec.whatwg.org/#create-the-navigation-timing-entry" target="_blank" rel="noopener">WHATWG HTML — navigation timing entry creation</a>; <a href="https://fetch.spec.whatwg.org/#request-navigation-timing-allow-values-list" target="_blank" rel="noopener">Fetch Standard — navigation timing allow values list</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+<pre><code>const [nav] = performance.getEntriesByType("navigation");
+switch (true) {
+  case nav.redirectCount > 0:
+    console.log(`chain of ${nav.redirectCount} — fully opted in`);
+    break;
+  default:
+    // 0 could mean: direct load, withheld opt-in, or no-referrer nav.
+    // Combine with document.referrer and your own redirects to disambiguate.
+    console.log("redirect count not exposed");
+}</code></pre>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/12513" target="_blank" rel="noopener">whatwg/html PR #12513</a></span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">Compatibility</h2>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <caption>redirectCount cross-origin exposure — interim, from ChromeStatus (checked 2026-07-26)</caption>
+      <thead><tr><th scope="col">Engine / runtime</th><th scope="col">Support</th><th scope="col">Notes</th></tr></thead>
+      <tr><td>Chrome</td><td>151</td><td>Cross-origin exposure added (desktop, Android, WebView per the feature detail); the general attribute ships since Chrome 57 per BCD</td></tr>
+      <tr><td>Edge</td><td>Not separately reported</td><td>No Edge position recorded on ChromeStatus</td></tr>
+      <tr><td>Firefox</td><td>No signal</td><td>General attribute since Firefox 58 per BCD; no signal on the cross-origin exposure</td></tr>
+      <tr><td>Safari</td><td>Recorded positive signal</td><td>General attribute since Safari 15 per BCD; a recorded signal, not an official position</td></tr>
+    </table>
+    </div>
+    <p>General-property BCD: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/PerformanceNavigationTiming.json" target="_blank" rel="noopener">api/PerformanceNavigationTiming.json</a>. Feature signals: <a href="https://chromestatus.com/api/v0/features/5078310347472896" target="_blank" rel="noopener">ChromeStatus API feature record</a>.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5078310347472896" target="_blank" rel="noopener">ChromeStatus API feature record</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/PerformanceNavigationTiming.json" target="_blank" rel="noopener">BCD api/PerformanceNavigationTiming.json</a></span>
+  </section>
+
+  <section>
+    <h2 id="security-privacy">Security and privacy</h2>
+    <p>Zero remains the privacy-preserving default: a cross-origin chain's length is disclosed only with every redirect operator's explicit opt-in (every hop, same-origin ones included), and — for chains with cross-origin redirects — never for <code>no-referrer</code> navigations with a non-null client. The attribute itself is read-only, same-context, and reveals nothing about redirect URLs or response contents — only how many redirects occurred and (via the sibling time fields) when.</p>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/12513" target="_blank" rel="noopener">whatwg/html PR #12513</a>; <a href="https://github.com/whatwg/fetch/pull/1931" target="_blank" rel="noopener">whatwg/fetch PR #1931</a></span>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

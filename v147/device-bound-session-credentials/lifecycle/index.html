@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Protocol lifecycle and server algorithm — DBSC — gendn</title><link rel="stylesheet" href="/public/styles.css"><style>
+    .skip-link { position:absolute; inset-inline-start:1rem; inset-block-start:1rem; transform:translateY(-200%); z-index:2; background:var(--bg-cream); padding:.55rem .75rem; border:1px solid var(--text-black); }
+    .skip-link:focus { transform:translateY(0); }
+    .local-nav { margin:1.25rem 0 2rem; border-block:1px solid var(--border-black); padding:.75rem 0; }
+    .local-nav ul { display:flex; flex-wrap:wrap; gap:.45rem 1rem; margin:0; padding:0; list-style:none; }
+    .local-nav a { text-decoration-thickness:1px; }
+    .table-wrap { max-width:100%; overflow-x:auto; overscroll-behavior-inline:contain; scrollbar-gutter:stable; margin:1rem 0 1.5rem; }
+    .doc-table { width:100%; min-width:42rem; border-collapse:collapse; font-family:var(--font-mono); font-size:.84rem; }
+    .doc-table th,.doc-table td { padding:.55rem .7rem; text-align:left; border-bottom:1px solid var(--border-black); vertical-align:top; }
+    .doc-table th { background:var(--bg-stone); font-weight:600; }
+    pre { max-width:100%; overflow:auto; overscroll-behavior:contain; scrollbar-gutter:stable; }
+    pre:focus-visible, a:focus-visible { outline:3px solid var(--accent-orange); outline-offset:3px; }
+    .notice { border-inline-start:4px solid var(--accent-orange); padding:.75rem 1rem; background:var(--bg-stone); }
+    .source-note { font-family:var(--font-mono); font-size:.78rem; color:var(--text-muted); }
+    @media (max-width: 640px) { .doc-table { min-width:34rem; font-size:.78rem; } .local-nav ul { display:block; columns:2; } .local-nav li { break-inside:avoid; margin:.25rem 0; } }
+</style></head>
+<body><a class="skip-link" href="#content">Skip to reference content</a><main id="content" tabindex="-1"><p class="crumbs"><a href="/v147/">← Chrome 147 reference</a> · <a href="/v147/device-bound-session-credentials/">Device Bound Session Credentials</a></p><nav class="local-nav" aria-label="DBSC reference sections"><ul>
+<li><a href="../">Overview</a></li><li><a href="../registration-header/">Registration header</a></li><li><a href="../challenge-header/">Challenge</a></li><li><a href="../response-header/">Proof</a></li><li><a href="../session-id-header/">Session ID</a></li><li><a href="../skipped-header/">Skipped</a></li><li><a href="../session-instructions/">Instructions</a></li><li><a href="../registration-exchange/">Registration exchange</a></li><li><a href="../refresh-exchange/">Refresh exchange</a></li><li><a href="../lifecycle/">Lifecycle</a></li><li><a href="../federated-and-well-known/">Federation</a></li></ul></nav><header class="lede-block"><p class="eyebrow">DBSC protocol reference · lifecycle</p><h1>Protocol lifecycle and server algorithm</h1><p class="lede">A state machine derived from the current Editor’s Draft, with Chromium-specific behavior kept separate. Use it to specify expiry, termination, replay, logout, and recovery instead of guessing from a happy-path diagram.</p></header><section><h2 id="syntax">State model</h2><pre tabindex="0"><code>No DBSC session
+  ├─ signed-key registration (ES256/RS256) + valid response → Registered (signing key)
+  ├─ none registration + valid response → Registered (no signing key; no device-binding guarantee)
+  └─ registration failure / invalid config / terminal status → No DBSC session
+     (terminate(null) is a no-op: nothing was created, removed, or replaced)
+Registered (key, id, scope, credentials, cached challenge?)
+  ├─ applicable credential present → request continues
+  ├─ applicable credential missing → Refresh pending → Registered / retryable failure
+  ├─ refresh continue:false, invalid replacement config, terminal 4xx → Terminated
+  │  (terminate(existing id) removes the existing DBSC session)
+  └─ expiry / Clear-Site-Data / cookie/site-data clear / key loss → No DBSC session</code></pre></section><section><h2 id="inputs">Decision inputs</h2><p>For each request, identify sessions by registrable domain, remove expired records, skip a session already deferred on this request, test scope and allowed refresh initiator, then test whether a declared cookie that would apply is missing. This is the draft’s algorithm; it means “cookie absent” is evaluated with normal cookie applicability, not merely a name lookup.</p></section><section><h2 id="outputs">Effects</h2><p>The browser defers the original request, posts a refresh, and restarts the original network operation after refresh. It excludes the refresh URL from protected scope to prevent loops. Registration instead begins asynchronously with a null session ID and creates a session only after a valid, cookie-settable configuration. It may set an implementation-chosen session expiration timestamp, recommended to align to maximum cookie lifetime.</p></section><section><h2 id="errors">Terminal versus retryable outcomes</h2><p>Every terminate call is parameterized by the session ID passed to the request algorithm. For registration that ID is null, so invalid response JSON/config, <code>continue:false</code>, and terminal statuses leave the user agent with no DBSC session: terminate is a no-op and cannot remove or replace one. For refresh the ID names an existing session, so invalid replacement JSON/config, <code>continue:false</code>, or refresh 4xx other than the 403 proof path remove that session. Network errors, 407, 429, redirects, and 5xx return without creating or removing a session; user agents may back off. Chromium’s current source adds retry budgeting/cached signatures for transient errors. Exact limits, delays, and key-store failure behavior are implementation details—servers must remain correct without relying on them.</p></section><section><h2 id="context">Scope and initiator boundary</h2><p>Origin-scoped sessions require same origin; site-scoped sessions require same site. Later scope rules override earlier ones; <code>*</code> and <code>*.example.com</code> have draft-defined host matching. Out-of-scope refresh triggers need a host pattern in <code>allowed_refresh_initiators</code>. The browser applies cookie-like policy so DBSC does not bypass blocked cookie behavior.</p></section><section><h2 id="lifecycle">Server pseudocode</h2><pre tabindex="0"><code>server_policy_for_login(response):
+  if authorization is protected:
+      emit Secure-Session-Registration with ES256 and/or RS256; never offer none
+  else if intentionally using ordinary authorization:
+      use a separate ordinary endpoint/policy; do not emit Secure-Session-Registration
+
+registration(response, key_pair):
+  session_id = null
+  if response is terminal or instructions are invalid or continue is false:
+      terminate(session_id)  # no-op: null identifies no DBSC session
+      return no_dbsc_session
+  if no declared credential can be set:
+      terminate(session_id)  # still a no-op; do not create/replace a session
+      return no_dbsc_session
+  store_new_dbsc_session(response.instructions, key_pair)
+  # The draft permits key_pair = null for a none offer. It does not automatically
+  # redirect that DBSC registration to an ordinary path; it has no signing-key guarantee.
+
+refresh(request):
+  id = parse_sf_string(request.header[&quot;Sec-Secure-Session-Id&quot;])
+  s = dbsc_sessions.find(id) or generic_failure()
+  if s.revoked or s.expired: return terminal_4xx()  # terminate(id) removes existing session
+  proof = request.header[&quot;Secure-Session-Response&quot;]
+  if not proof:
+      nonce = issue_random_nonce(id, short_ttl=True)
+      return 403, {&quot;Secure-Session-Challenge&quot;: sf_string(nonce, id=id)}
+  jwt = parse_and_verify_dbsc_jws(proof, key=s.public_jwk, allowed_algs=s.algs)
+  if jwt.typ != &quot;dbsc+jwt&quot; or jwt.has_jwk or not consume_recent_nonce(id, jwt.jti):
+      return 403, challenge_response(id)
+  rotate_short_lived_cookie_atomically(s)
+  return 200, set_cookie_headers()
+
+# For refresh, invalid instructions or continue:false likewise call terminate(id),
+# which removes s. This differs from null-ID registration above.</code></pre></section><section><h2 id="examples">Logout and recovery examples</h2><pre tabindex="0"><code># Registration failure: session_id is null, so the terminate step is a no-op.
+HTTP/1.1 400 Bad Request
+# No DBSC session was created, removed, or replaced.
+
+# Server-directed DBSC termination in a refresh response: session_id exists.
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{&quot;continue&quot;:false}
+# The existing client DBSC session is removed.
+
+# Application logout should also revoke server DBSC state and expire protected cookies.
+Set-Cookie: sid=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Lax
+
+# Key/site-data loss: no proof can be recovered. Send the user through normal login
+# and create a new server session/key binding; do not repair by accepting old cookies.</code></pre></section><section><h2 id="compatibility">Compatibility</h2><div class="table-wrap"><table class="doc-table"><caption>DBSC availability and standards position</caption><thead><tr><th scope="col">Item</th><th scope="col">Requirement / behavior</th></tr></thead><tbody><tr><th scope="row">Chrome</th><td><strong>DBSC availability, not page-layout support:</strong> <a href="https://chromestatus.com/feature/5140168270413824" target="_blank" rel="noopener">ChromeStatus</a> lists DBSC as <strong>in development</strong>, with Chrome desktop milestone 145. Its Android milestone is null/unknown; availability remains controlled by implementation and feature configuration.</td></tr><tr><th scope="row">Firefox</th><td>No signal; the <a href="https://github.com/mozilla/standards-positions/issues/912" target="_blank" rel="noopener">Mozilla standards-position issue</a> is the public evidence, not an implementation commitment.</td></tr><tr><th scope="row">Safari</th><td>No signal; the <a href="https://github.com/WebKit/standards-positions/issues/281" target="_blank" rel="noopener">WebKit standards-position issue</a> is the public evidence, not an implementation commitment.</td></tr><tr><th scope="row">Other engines</th><td>Unknown. The W3C document is an Editor’s Draft, not a final interoperable Recommendation.</td></tr></tbody></table></div></section><section><h2 id="security">Security and privacy</h2><p>Record logout/revocation server-side, rotate short-lived cookie values, and make nonce consumption race-safe. Clear-site-data and user cookie clearing must clear DBSC keys/sessions in conforming user agents, so application recovery cannot depend on client-held binding state. DBSC limits exported-cookie replay, not active on-device misuse. A <code>none</code> path has no signing key or JWK possession proof, so it has no device-binding security guarantee: do not offer it for protected authorization and keep any intentional ordinary flow separate.</p></section><p class="source-note">Primary sources: <a href="https://w3c.github.io/webappsec-dbsc/#algorithms" target="_blank" rel="noopener">algorithms</a> · <a href="https://w3c.github.io/webappsec-dbsc/#algo-url-in-scope" target="_blank" rel="noopener">URL-in-scope algorithm</a> · <a href="https://w3c.github.io/webappsec-dbsc/#algo-request-allows-refresh" target="_blank" rel="noopener">refresh-initiator algorithm</a> · <a href="https://w3c.github.io/webappsec-dbsc/#algo-identify-if-missing-session-credential" target="_blank" rel="noopener">missing-credential algorithm</a> · <a href="https://w3c.github.io/webappsec-dbsc/#algo-session-request" target="_blank" rel="noopener">session-request algorithm</a> · <a href="https://w3c.github.io/webappsec-dbsc/#security-considerations" target="_blank" rel="noopener">security</a> · <a href="https://developer.chrome.com/docs/web-platform/device-bound-session-credentials" target="_blank" rel="noopener">chrome</a> · <a href="https://source.chromium.org/chromium/chromium/src/+/main:net/device_bound_sessions/registration_fetcher.cc" target="_blank" rel="noopener">chromium</a> · <a href="https://chromium.googlesource.com/chromium/src/+/4848df7c8f96086cde35f4abfe9f501177e2d95e" target="_blank" rel="noopener">retry</a> · <a href="https://w3c.github.io/webappsec-dbsc/#format-session-instructions" target="_blank" rel="noopener">json</a>. External sources open in a new tab.</p><footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer></main></body></html>

@@ -307,7 +307,7 @@ function cpsFeatureRef(meta) {
     route: `${path}/`,
     conformanceRoute: `${path}/conformance`,
     note:
-      "Platform BEHAVIOR of the embedded demo is governed by chrome-platform-showcase's own immutable conformance contract at conformanceRoute. gendn references it and does not fork or contradict its assertions.",
+      "The chrome-platform-showcase suite at conformanceRoute governs only the assertions it explicitly lists; it does not prove unasserted native, hardware, permission, backend, or other behavior. gendn references that listed contract without forking it.",
   };
 }
 

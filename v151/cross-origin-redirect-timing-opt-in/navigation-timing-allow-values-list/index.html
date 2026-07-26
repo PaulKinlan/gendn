@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>navigation timing allow values list — Cross-origin redirect timing opt-in — Chrome 151 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 32%; min-width: 7.5rem; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .compat-table tr > *:nth-child(2) { min-width: 6.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .doc-table caption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); text-align: left; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v151/cross-origin-redirect-timing-opt-in/">&larr; Cross-origin redirect timing opt-in</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v151 · fetch · internal state</p>
+    <h1>navigation timing <wbr>allow values list</h1>
+    <p class="lede">The fetch bookkeeping that carries each redirect's <code>Timing-Allow-Origin</code> values through a navigation: a list (of lists of strings) on the request, populated per redirect by the <em>append</em> algorithm, and delivered to the final response as a clone. This page documents the request state, the response state, the append algorithm, and the cloning flow.</p>
+  </header>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+<pre><code>// Fetch Standard — request bookkeeping (normative)
+// A request has an associated
+//   navigation timing allow values list
+//   (a list of lists of strings), initially « ».
+
+// A response has an associated
+//   navigation timing allow values list
+//   (a list of lists of strings), initially « ».
+
+// Append step (runs for each redirect-status response of a
+// navigation request, inside HTTP-redirect fetch):
+//   append to a request's navigation timing allow values list
+//   given request and internalResponse</code></pre>
+    <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#request-navigation-timing-allow-values-list" target="_blank" rel="noopener">Fetch Standard — request navigation timing allow values list</a>; <a href="https://fetch.spec.whatwg.org/#append-to-a-requests-navigation-timing-allow-values-list" target="_blank" rel="noopener">Fetch Standard — append algorithm</a></span>
+  </section>
+
+  <section>
+    <h2 id="inputs">Inputs</h2>
+    <p>The append algorithm takes the navigation <strong>request</strong> and one redirect <strong>response</strong>. From that response it reads the <code>Timing-Allow-Origin</code> header using fetch's &ldquo;get, decode, and split&rdquo; header processing — producing a list of strings (serialized origins and/or <code>*</code>). A redirect response with no such header yields <code>null</code> from the header read, which the algorithm normalizes to an <strong>empty list</strong> before appending.</p>
+    <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#append-to-a-requests-navigation-timing-allow-values-list" target="_blank" rel="noopener">Fetch Standard — append algorithm</a></span>
+  </section>
+
+  <section>
+    <h2 id="outputs">Outputs</h2>
+    <p>Each item of the list holds one redirect's values, in chain order. The final <em>internal</em> response of the navigation receives <strong>a clone of the request's list</strong> (set during fetch's response handling for navigation requests), so that downstream callers — the HTML navigation steps — can evaluate the completed chain once the destination origin is known. This is state, not a page-observable value: no JavaScript API exposes it.</p>
+    <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#request-navigation-timing-allow-values-list" target="_blank" rel="noopener">Fetch Standard — request/response bookkeeping</a>; <a href="https://github.com/whatwg/fetch/pull/1931" target="_blank" rel="noopener">whatwg/fetch PR #1931 (the cloning flow)</a></span>
+  </section>
+
+  <section>
+    <h2 id="errors">Errors</h2>
+    <p>The algorithms define no exception paths. The notable edge cases are normalization rules: a missing header becomes an empty list (which will fail the later navigation TAO check unless it contains <code>*</code> or the destination origin — an empty list contains neither), and the append asserts the request is a navigation request, so subresource fetches never populate this state.</p>
+    <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#append-to-a-requests-navigation-timing-allow-values-list" target="_blank" rel="noopener">Fetch Standard — append algorithm</a></span>
+  </section>
+
+  <section>
+    <h2 id="context">Context</h2>
+    <p><strong>Where it lives:</strong> internal to the fetch machinery — request bookkeeping during the redirect chain, response bookkeeping on the final internal response. It is not web-exposed; it exists so that the <a href="../navigation-tao-check/">navigation TAO check</a> can run after the chain completes.</p>
+    <p><strong>Trigger:</strong> the append runs inside HTTP-redirect fetch for each response whose status is a redirect status, but only when the request is a navigation request.</p>
+    <p><strong>Availability:</strong> Chrome 151 per the milestone listing; runtime feature <code>NavigationTimingRedirectTimingViaTAO</code> (status <code>stable</code> at trunk).</p>
+    <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#append-to-a-requests-navigation-timing-allow-values-list" target="_blank" rel="noopener">Fetch Standard — append algorithm and its call site</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium runtime_enabled_features.json5</a>; <a href="https://chromestatus.com/feature/5078310347472896" target="_blank" rel="noopener">chromestatus.com/feature/5078310347472896</a></span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">Lifecycle</h2>
+    <p><strong>Flow, end to end:</strong> (1) navigation starts with an empty list; (2) each 3xx response appends its decoded <code>Timing-Allow-Origin</code> values (empty list if absent); (3) the final internal response is given a clone of the completed request list; (4) the HTML navigation steps read the response's clone and run the <a href="../navigation-tao-check/">navigation TAO check</a> with the destination origin. The list is per-navigation — it does not persist, and a new navigation starts empty.</p>
+    <span class="citation">Source: <a href="https://github.com/whatwg/fetch/pull/1931" target="_blank" rel="noopener">whatwg/fetch PR #1931</a>; <a href="https://fetch.spec.whatwg.org/#request-navigation-timing-allow-values-list" target="_blank" rel="noopener">Fetch Standard — request navigation timing allow values list</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+<pre><code>// Chain: A.example → B.example → C.example (destination)
+// Redirect 1 (A.example) sends:    Timing-Allow-Origin: https://c.example
+// Redirect 2 (B.example) sends:    (no header)
+//
+// Request's navigation timing allow values list after the chain:
+//   « « "https://c.example" », « » »
+//            ^ redirect 1          ^ redirect 2 (empty — no header)
+//
+// The final response carries a clone of that list; the navigation
+// TAO check over it will FAIL (redirect 2's entry contains neither
+// "*" nor the destination origin) → redirect timing stays hidden.</code></pre>
+    <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#append-to-a-requests-navigation-timing-allow-values-list" target="_blank" rel="noopener">Fetch Standard — append algorithm</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/navigation-timing/redirect-tao.html" target="_blank" rel="noopener">WPT navigation-timing/redirect-tao.html (withheld-header case)</a></span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">Compatibility</h2>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <caption>Internal fetch state — interim, from ChromeStatus (checked 2026-07-26)</caption>
+      <thead><tr><th scope="col">Engine / runtime</th><th scope="col">Support</th><th scope="col">Notes</th></tr></thead>
+      <tr><td>Chrome</td><td>151</td><td>Milestone listing: Enabled by default (desktop, Android, WebView per the feature detail); runtime feature stable at trunk</td></tr>
+      <tr><td>Edge</td><td>Not separately reported</td><td>No Edge position recorded on ChromeStatus</td></tr>
+      <tr><td>Firefox</td><td>No signal</td><td>Vendor signal recorded on the ChromeStatus entry</td></tr>
+      <tr><td>Safari</td><td>Recorded positive signal</td><td>A recorded signal, not an official WebKit standards position</td></tr>
+    </table>
+    </div>
+    <p>Internal fetch state has no BCD entry of its own; feature signals per the <a href="https://chromestatus.com/api/v0/features/5078310347472896" target="_blank" rel="noopener">ChromeStatus API feature record</a>.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5078310347472896" target="_blank" rel="noopener">ChromeStatus API feature record</a></span>
+  </section>
+
+  <section>
+    <h2 id="security-privacy">Security and privacy</h2>
+    <p>The list exists precisely to make disclosure consensual and auditable: it records what each redirect operator declared, so the browser can enforce that no redirect timing is exposed unless <em>every</em> hop allowed the destination. Because the collection is mechanical (decode/split per redirect, clone to the final response), a redirect cannot retroactively alter or revoke another hop's values, and the destination cannot read the list itself — only the boolean outcome, via the timing fields.</p>
+    <span class="citation">Source: <a href="https://github.com/whatwg/fetch/pull/1931" target="_blank" rel="noopener">whatwg/fetch PR #1931</a>; <a href="https://fetch.spec.whatwg.org/#navigation-tao-check" target="_blank" rel="noopener">Fetch Standard — navigation TAO check</a></span>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
