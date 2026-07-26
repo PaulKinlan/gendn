@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>setConstraints() and HTMLMediaStreamConstraints — Capability Elements: &lt;usermedia&gt; MVP — Chrome 151 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 32%; min-width: 7.5rem; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .compat-table tr > *:nth-child(2) { min-width: 6.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .doc-table caption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); text-align: left; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .table-wrap { overflow-x: auto; }
+    .lede-block h1 { overflow-wrap: anywhere; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v151/capability-elements-usermedia-mvp/">&larr; Capability Elements: &lt;usermedia&gt; MVP</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v151 · html · method + dictionary reference</p>
+    <h1>setConstraints()<wbr> / <wbr>HTMLMediaStreamConstraints</h1>
+    <p class="lede">The configuration channel for the <code>getUserMedia()</code> call a <code>&lt;usermedia&gt;</code> element makes: call <code>setConstraints()</code> with an <code>HTMLMediaStreamConstraints</code> dictionary (<code>video</code> and <code>audio</code> <code>MediaTrackConstraintSet</code> members) before the user interacts.</p>
+  </header>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+<pre><code>// Specification IDL (Media Capture and Streams Extensions):
+undefined setConstraints(optional HTMLMediaStreamConstraints constraints = {});
+
+dictionary HTMLMediaStreamConstraints {
+  MediaTrackConstraintSet video;
+  MediaTrackConstraintSet audio;
+};
+
+// Usage:
+const el = document.querySelector("usermedia");
+el.setConstraints({
+  video: { width: 1280, facingMode: "user" },
+  audio: { echoCancellation: true, noiseSuppression: true }
+});</code></pre>
+    <p>Chromium ships the method and dictionary in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_element_constraints.idl" target="_blank" rel="noopener">user_media_element_constraints.idl</a> (as a partial mixin on <code>HTMLMediaCaptureElementBase</code>). The <code>MediaTrackConstraintSet</code> members accept the same constraint properties as <code>getUserMedia()</code> — <code>width</code>, <code>height</code>, <code>frameRate</code>, <code>facingMode</code>, <code>echoCancellation</code>, <code>sampleRate</code>, and so on — defined by <a href="https://w3c.github.io/mediacapture-streams/#dom-mediatrackconstraintset" target="_blank" rel="noopener">Media Capture and Streams</a>.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/mediacapture-extensions/#media-capture-html-elements" target="_blank" rel="noopener">Media Capture and Streams Extensions — The &lt;usermedia&gt; HTML element</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="inputs">Inputs</h2>
+    <p>One optional parameter, an <code>HTMLMediaStreamConstraints</code> dictionary, defaulting to <code>{}</code>:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>HTMLMediaStreamConstraints members</caption>
+      <thead><tr><th scope="col">Member</th><th scope="col">Type</th><th scope="col">Meaning</th></tr></thead>
+      <tr><td><code>video</code></td><td><code>MediaTrackConstraintSet</code></td><td>Constraints for the camera track. Omitting it does <em>not</em> disable video — see the backfill rule below.</td></tr>
+      <tr><td><code>audio</code></td><td><code>MediaTrackConstraintSet</code></td><td>Constraints for the microphone track. Omitting it does <em>not</em> disable audio — see the backfill rule below.</td></tr>
+    </table>
+    </div>
+    <p>Two input rules matter, and both are defined by the shipping Chromium implementation, not the raw dictionary shape:</p>
+    <ul>
+      <li><strong>Both kinds are always requested.</strong> Chromium backfills any missing member with an empty constraint set, so <code>{ video: {} }</code> does <em>not</em> make a camera-only element — it still requests microphone access too. The upstream WPT combinations test states the contract directly: &ldquo;In standard mode, the element always requests both camera and microphone. Missing constraints default to enabled.&rdquo; Per-kind selection is not part of the shipping MVP.</li>
+      <li><strong>Only bare scalar values survive sanitization.</strong> Chromium's <code>SanitizeTrackConstraints</code> keeps a constraint only when its value is a plain scalar (<code>width: 1280</code>, <code>facingMode: "user"</code>, <code>echoCancellation: true</code>) or a string sequence. Parameterized forms — <code>{ ideal: … }</code>, <code>{ exact: … }</code>, <code>{ min: … }</code>, <code>{ max: … }</code> objects — are dropped entirely, so <code>{ width: { ideal: 1280 } }</code> silently loses <code>width</code> altogether. This is stricter than the spec's constraint filter (which only removes required <code>exact</code>-style constraints); write plain scalars.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_element_constraints.cc" target="_blank" rel="noopener">Chromium user_media_element_constraints.cc — setConstraints backfill and SanitizeTrackConstraints</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/html/semantics/permission-element/usermedia/set-constraints-combinations.tentative.https.html" target="_blank" rel="noopener">WPT set-constraints-combinations.tentative.https.html</a>; <a href="https://w3c.github.io/mediacapture-extensions/#media-capture-html-elements" target="_blank" rel="noopener">Specification — constraint filter steps</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="outputs-method">setConstraints() — outputs</h2>
+    <p>Returns <code>undefined</code>. The observable effect is stored state — but only on the <strong>first call</strong>: Chromium's implementation is first-call-wins (<code>if (did_set_constraints_) return;</code>), so every later <code>setConstraints()</code> call is a permanent no-op that silently keeps the constraints from the first call. There is no way to reset or replace them afterwards, and no getter to read the stored constraints back — keep your own copy if you need it.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_element_constraints.cc" target="_blank" rel="noopener">Chromium user_media_element_constraints.cc — setConstraints() first-call-wins</a>; <a href="https://w3c.github.io/mediacapture-extensions/#media-capture-html-elements" target="_blank" rel="noopener">Specification — setConstraints() steps</a>.</span>
+    <span class="citation">Source: <a href="https://w3c.github.io/mediacapture-extensions/#media-capture-html-elements" target="_blank" rel="noopener">Specification — setConstraints() steps</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_request_provider_impl.cc" target="_blank" rel="noopener">Chromium user_media_request_provider_impl.cc — StartRequest</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="outputs-dictionary">HTMLMediaStreamConstraints — outputs</h2>
+    <p>The dictionary is a pure input shape — it has no methods and produces no value itself. Its observable effect is the shape of the eventual <code>MediaStream</code>: on a successful acquisition, <code>el.stream</code> contains a video track when <code>video</code> was present and an audio track when <code>audio</code> was present, configured as close to the constraints as the device allows (after the user agent's filtering). Constraint keys the device can't honor as preferences are simply approximated, per the standard <a href="https://w3c.github.io/mediacapture-streams/#constrainable-interface" target="_blank" rel="noopener">Constrainable pattern</a>.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/mediacapture-extensions/#media-capture-html-elements" target="_blank" rel="noopener">Specification — activation start stream and constraint filter</a>; <a href="https://w3c.github.io/mediacapture-streams/#dom-mediatrackconstraintset" target="_blank" rel="noopener">Media Capture and Streams — MediaTrackConstraintSet</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="errors">Errors</h2>
+    <p><code>setConstraints()</code> itself does not surface exceptions for ordinary dictionary input — it sanitizes and stores what you pass. Because missing members are always backfilled (and the never-configured path substitutes the <code>{ video: {}, audio: {} }</code> default), there is no page-reachable &ldquo;no constraints set&rdquo; failure: a call like <code>el.setConstraints({})</code> simply stores the audio+video default. Per WebIDL conversion, passing <code>null</code> or <code>undefined</code> is treated as an empty dictionary (same default outcome), while a throwing getter on the input object propagates its exception out of the call before any constraints are stored.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_element_constraints.cc" target="_blank" rel="noopener">Chromium user_media_element_constraints.cc — backfill makes the empty-request branch unreachable</a>; <a href="https://w3c.github.io/mediacapture-extensions/#media-capture-html-elements" target="_blank" rel="noopener">Specification — setConstraints() steps</a>.</span>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_request_provider_impl.cc" target="_blank" rel="noopener">Chromium user_media_request_provider_impl.cc — StartRequest constraint checks</a>; <a href="https://w3c.github.io/mediacapture-extensions/#media-capture-html-elements" target="_blank" rel="noopener">Specification — setConstraints() steps</a>.</p>
+  </section>
+
+  <section>
+    <h2 id="context">Context</h2>
+    <p><strong>Receiver:</strong> any <code>HTMLUserMediaElement</code> instance (the method lives on the shared <code>HTMLMediaCaptureElementBase</code> mixin, so the same call exists on the experimental <code>&lt;camera&gt;</code>/<code>&lt;microphone&gt;</code> elements). <strong>Exposure:</strong> window only; the element operates only in secure contexts. <strong>Timing contract:</strong> call it before the user first interacts with the element — the method exists precisely because there is no declarative constraint syntax on the shipping MVP, so configuration is imperative-but-early. Feature-detect with <code>"HTMLUserMediaElement" in window</code>.</p>
+    <span class="citation">Source: <a href="https://github.com/w3c/mediacapture-extensions/blob/main/media-capture-elements-explainer.md" target="_blank" rel="noopener">Explainer — constraints configuration</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium runtime_enabled_features.json5</a>; <a href="https://chromestatus.com/feature/4926233538330624" target="_blank" rel="noopener">chromestatus.com/feature/4926233538330624</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">Lifecycle</h2>
+    <p>The constraints slot starts unset. If no <code>setConstraints()</code> call has happened when the first acquisition runs, the browser substitutes the secure default <code>{ video: {}, audio: {} }</code>. The <strong>first</strong> <code>setConstraints()</code> call stores the sanitized dictionary; <strong>every later call is ignored</strong> — there is no merge, no replace, and no reset for the life of the element. Configure exactly once, before the user can click. If you need different constraints later, replace the element node in the DOM and configure the fresh instance before its first activation.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_element_constraints.cc" target="_blank" rel="noopener">Chromium user_media_element_constraints.cc — did_set_constraints_ first-call-wins</a>; <a href="https://github.com/w3c/mediacapture-extensions/blob/main/media-capture-elements-explainer.md" target="_blank" rel="noopener">Explainer — constraints configuration</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+<pre><code>const el = document.querySelector("usermedia");
+
+// 1. Configure exactly once, early — before any click. Later calls are ignored.
+el.setConstraints({
+  video: { width: 1280, height: 720 },
+  audio: { echoCancellation: true }
+});
+
+// 2. Omitting a member does NOT disable that kind — both camera and
+//    microphone are always requested; missing members default to enabled:
+document.querySelector("#defaults").setConstraints({ video: {} }); // still asks for mic too
+
+// 3. Use bare scalars — parameterized forms are dropped entirely by
+//    Chromium's sanitizer:
+el.setConstraints({ video: { width: 1920 } });              // width kept
+// el.setConstraints({ video: { width: { ideal: 1920 } } }); // width silently dropped
+
+// 4. There is no reset: a second call is a no-op. To reconfigure, replace
+//    the element node and configure the fresh instance before first use.</code></pre>
+    <span class="citation">Source: <a href="https://github.com/web-platform-tests/wpt/blob/master/html/semantics/permission-element/usermedia/set-constraints-combinations.tentative.https.html" target="_blank" rel="noopener">WPT set-constraints-combinations.tentative.https.html</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_element_constraints.cc" target="_blank" rel="noopener">Chromium user_media_element_constraints.cc</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">Compatibility</h2>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <caption><code>setConstraints()</code> and <code>HTMLMediaStreamConstraints</code> — checked 2026-07-26</caption>
+      <thead><tr><th scope="col">Engine / runtime</th><th scope="col">Support</th><th scope="col">Notes</th></tr></thead>
+      <tr><td>Chrome / Edge (desktop)</td><td>151</td><td>Enabled by default (milestone listing; <code>UserMediaElement</code> status <code>stable</code>)</td></tr>
+      <tr><td>Chrome (Android)</td><td>151</td><td>Per the ChromeStatus feature detail (desktop + Android 151); not supported on Android WebView</td></tr>
+      <tr><td>Firefox</td><td>Not supported</td><td>&ldquo;Under consideration&rdquo; (<a href="https://github.com/mozilla/standards-positions/issues/1392" target="_blank" rel="noopener">mozilla/standards-positions #1392</a>)</td></tr>
+      <tr><td>Safari</td><td>Not supported</td><td>No signal (<a href="https://github.com/WebKit/standards-positions/issues/651" target="_blank" rel="noopener">WebKit/standards-positions #651</a>; <a href="https://github.com/WICG/PEPC/issues/62" target="_blank" rel="noopener">WICG/PEPC #62</a>)</td></tr>
+      <tr><td>BCD</td><td>No entry</td><td>No <code>api/HTMLUserMediaElement.json</code> in <a href="https://github.com/mdn/browser-compat-data/tree/main/api" target="_blank" rel="noopener">browser-compat-data</a> as of 2026-07-26</td></tr>
+      <tr><td>WPT</td><td>Upstream WPT coverage exists</td><td><a href="https://wpt.fyi/results/html/semantics/permission-element/usermedia" target="_blank" rel="noopener">html/semantics/permission-element/usermedia</a> (incl. the setConstraints combinations test); also unit-tested in Chromium (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_user_media_element_test.cc" target="_blank" rel="noopener">core</a>, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_element_test.cc" target="_blank" rel="noopener">modules</a>)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/4926233538330624" target="_blank" rel="noopener">ChromeStatus API feature record</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-privacy">Security and privacy</h2>
+    <p>Declarative-style constraints carry the same device-fingerprinting weight as an imperative <code>getUserMedia()</code> constraints object — highly specific values probe camera capabilities. The explainer holds this API to the same mitigations as <code>getUserMedia()</code> (fuzzing exact values, withholding <code>deviceId</code> until a grant), and the required-constraint stripping doubles as an abuse guard: a site cannot force an <code>OverconstrainedError</code> oracle to learn device capabilities. Constraints never widen what the user consents to — the browser's prompt text reflects the actual camera/microphone request regardless of what the dictionary asked for.</p>
+    <span class="citation">Source: <a href="https://github.com/w3c/mediacapture-extensions/blob/main/media-capture-elements-explainer.md" target="_blank" rel="noopener">Explainer — constraint fingerprinting</a>; <a href="https://w3c.github.io/mediacapture-extensions/#media-capture-html-elements" target="_blank" rel="noopener">Specification — constraint filter</a>.</span>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
