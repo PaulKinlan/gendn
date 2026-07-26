@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Timing-Allow-Origin on navigation redirects — Cross-origin redirect timing opt-in — Chrome 151 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 32%; min-width: 7.5rem; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .compat-table tr > *:nth-child(2) { min-width: 6.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .doc-table caption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); text-align: left; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v151/cross-origin-redirect-timing-opt-in/">&larr; Cross-origin redirect timing opt-in</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v151 · fetch · protocol element</p>
+    <h1>Timing-Allow-Origin <wbr>on navigation redirects</h1>
+    <p class="lede">The response header a redirect server sends to opt a navigation's redirect <em>forward</em> into measurement by the chain's destination origin. When every redirect in the chain opts in, the destination page can see the chain's redirect timing; one silent redirect keeps the whole chain opaque.</p>
+  </header>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+<pre><code>// On each redirect response in a navigation chain:
+Timing-Allow-Origin: https://destination.example
+
+// ...or a comma-separated list of serialized origins, or the wildcard:
+Timing-Allow-Origin: https://a.example, https://b.example
+Timing-Allow-Origin: *</code></pre>
+    <p>Fetch processes the header with &ldquo;getting, decoding, and splitting&rdquo; — values are serialized origins or the wildcard <code>*</code>. The same header already exists for subresource responses; what this feature adds is its role <em>on navigation redirect responses</em>, where it opts in the destination origin rather than the requesting origin.</p>
+    <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#navigation-tao-check" target="_blank" rel="noopener">Fetch Standard — navigation TAO check</a>; <a href="https://github.com/whatwg/fetch/pull/1931" target="_blank" rel="noopener">whatwg/fetch PR #1931</a></span>
+  </section>
+
+  <section>
+    <h2 id="inputs">Inputs</h2>
+    <p>The header's value is a list of <strong>serialized origins</strong> (for example <code>https://destination.example</code>) or the single wildcard <code>*</code>. It is read from <strong>redirect responses</strong> (3xx) that occur while fetching a navigation request — each redirect in the chain is read independently, and a redirect response with no <code>Timing-Allow-Origin</code> header contributes an empty value list.</p>
+    <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#append-to-a-requests-navigation-timing-allow-values-list" target="_blank" rel="noopener">Fetch Standard — append to a request's navigation timing allow values list</a></span>
+  </section>
+
+  <section>
+    <h2 id="outputs">Outputs</h2>
+    <p>The header produces no direct output. Its effect is a <strong>permission</strong>: when the navigation completes, the destination origin runs the <em>navigation TAO check</em> against the collected values. If every redirect's list contains <code>*</code> or the destination's serialized origin, the check returns success and the destination's <code>PerformanceNavigationTiming</code> entry exposes <code>redirectCount</code>, <code>redirectStart</code>, and <code>redirectEnd</code> for the chain. Otherwise the check fails and those fields report zero.</p>
+    <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#navigation-tao-check" target="_blank" rel="noopener">Fetch Standard — navigation TAO check</a></span>
+  </section>
+
+  <section>
+    <h2 id="errors">Errors</h2>
+    <p>There are no exceptions and no network errors. The failure mode is <strong>silence</strong>: a redirect that omits the header, or names neither <code>*</code> nor the destination origin, makes the navigation TAO check return failure, and the destination simply sees zeroed redirect fields — indistinguishable from a same-origin navigation with no redirects. Servers should treat a missing header as &ldquo;no opt-in&rdquo;, and origins measuring chains should treat zero values as &ldquo;unknown&rdquo;, never as &ldquo;no redirects happened&rdquo;.</p>
+    <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#navigation-tao-check" target="_blank" rel="noopener">Fetch Standard — navigation TAO check</a></span>
+  </section>
+
+  <section>
+    <h2 id="context">Context</h2>
+    <p><strong>Where it applies:</strong> only navigation requests. Fetch collects the values via the <em>append</em> algorithm, which asserts the request is a navigation request; subresource fetches are unaffected and keep the existing &ldquo;backward&rdquo; TAO check (which opts in the <em>requesting</em> origin).</p>
+    <p><strong>Who sends it:</strong> the server (or edge) issuing each 3xx response in the chain. The destination site cannot add it retroactively — it is the redirect operator's explicit choice to be measured.</p>
+    <p><strong>Availability:</strong> Chrome 151 per the milestone listing; runtime feature <code>NavigationTimingRedirectTimingViaTAO</code> (status <code>stable</code> at trunk).</p>
+    <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#append-to-a-requests-navigation-timing-allow-values-list" target="_blank" rel="noopener">Fetch Standard — append algorithm</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium runtime_enabled_features.json5</a>; <a href="https://chromestatus.com/feature/5078310347472896" target="_blank" rel="noopener">chromestatus.com/feature/5078310347472896</a></span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">Lifecycle</h2>
+    <p><strong>Collection:</strong> as the navigation follows each redirect, fetch appends that redirect response's decoded <code>Timing-Allow-Origin</code> values to the request's <em>navigation timing allow values list</em> — one list entry per redirect, in chain order (missing header → empty entry).</p>
+    <p><strong>Evaluation:</strong> once the destination origin is known, the HTML navigation steps run the navigation TAO check over the collected list. The check is all-or-nothing per chain: every entry must contain <code>*</code> or the destination origin, serialized.</p>
+    <p><strong>Exclusions:</strong> the exposure is skipped when the navigation's request has a non-null client whose referrer is <code>no-referrer</code> — so a <code>Referrer-Policy: no-referrer</code> navigation cannot have its chain measured even with the header present.</p>
+    <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#request-navigation-timing-allow-values-list" target="_blank" rel="noopener">Fetch Standard — navigation timing allow values list</a>; <a href="https://github.com/whatwg/html/pull/12513" target="_blank" rel="noopener">whatwg/html PR #12513 (the exposure conditional)</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+<pre><code># The destination (https://shop.example) runs a campaign redirector.
+# Chain: shop.example/out → t.co/abc → shop.example/landing
+
+# 1) shop.example/out 302 — opts the destination in:
+HTTP/1.1 302 Found
+Location: https://t.co/abc
+Timing-Allow-Origin: https://shop.example
+
+# 2) t.co/abc 302 — a third party; must also opt in, or the chain stays opaque:
+HTTP/1.1 302 Found
+Location: https://shop.example/landing
+Timing-Allow-Origin: *
+
+# Result on shop.example/landing:
+#   performance.getEntriesByType("navigation")[0].redirectCount === 2
+# If t.co omitted its header, redirectCount would be 0.</code></pre>
+    <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#navigation-tao-check" target="_blank" rel="noopener">Fetch Standard — navigation TAO check</a></span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">Compatibility</h2>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <caption>Timing-Allow-Origin on navigation redirects — interim, from ChromeStatus (checked 2026-07-26)</caption>
+      <thead><tr><th scope="col">Engine / runtime</th><th scope="col">Support</th><th scope="col">Notes</th></tr></thead>
+      <tr><td>Chrome</td><td>151</td><td>Milestone listing: Enabled by default; runtime feature stable at trunk</td></tr>
+      <tr><td>Edge</td><td>Not separately reported</td><td>No Edge position recorded on ChromeStatus</td></tr>
+      <tr><td>Firefox</td><td>No signal</td><td>Vendor signal recorded on the ChromeStatus entry</td></tr>
+      <tr><td>Safari</td><td>Recorded positive signal</td><td>A recorded signal, not an official WebKit standards position</td></tr>
+    </table>
+    </div>
+    <p>The header itself (for subresources) has older BCD data in <a href="https://github.com/mdn/browser-compat-data/blob/main/http/headers/Timing-Allow-Origin.json" target="_blank" rel="noopener">BCD http/headers/Timing-Allow-Origin.json</a>; the <em>navigation redirect</em> role is this feature and has no BCD entry yet. Vendor signals per the <a href="https://chromestatus.com/api/v0/features/5078310347472896" target="_blank" rel="noopener">ChromeStatus API feature record</a>.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5078310347472896" target="_blank" rel="noopener">ChromeStatus API feature record</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/http/headers/Timing-Allow-Origin.json" target="_blank" rel="noopener">BCD http/headers/Timing-Allow-Origin.json</a></span>
+  </section>
+
+  <section>
+    <h2 id="security-privacy">Security and privacy</h2>
+    <p><strong>This header is the consent mechanism.</strong> Redirect timing can disclose a chain's structure and timing across origins, which is why cross-origin navigation redirects were opaque by default. Exposure happens only when every redirect operator explicitly opts the destination origin in — a destination cannot unilaterally observe a chain.</p>
+    <p><strong>Referrer alignment:</strong> <code>no-referrer</code> navigations are excluded from exposure even with the header, so the opt-in cannot be abused to measure navigations deliberately stripped of provenance.</p>
+    <p><strong>Scope:</strong> the header discloses only redirect count and redirect start/end times for the chain — not response bodies, headers, or redirect URLs beyond what the address bar already traverses.</p>
+    <span class="citation">Source: <a href="https://github.com/whatwg/fetch/pull/1931" target="_blank" rel="noopener">whatwg/fetch PR #1931 (opt-in alignment rationale)</a>; <a href="https://github.com/whatwg/html/pull/12513" target="_blank" rel="noopener">whatwg/html PR #12513 (exposure conditional)</a></span>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
