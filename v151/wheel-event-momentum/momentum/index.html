@@ -43,12 +43,13 @@ dictionary WheelEventInit : MouseEventInit {
 
 // Read it on any wheel event:
 const isInertia = event.momentum;</code></pre>
-    <span class="citation">Source: <a href="https://w3c.github.io/pointerevents/#interface-wheelevent" target="_blank" rel="noopener">Pointer Events — WheelEvent interface</a></span>
+    <p>Chromium's bindings: <code>[RuntimeEnabled=WheelEventMomentum] readonly attribute boolean momentum;</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/events/wheel_event.idl" target="_blank" rel="noopener">wheel_event.idl</a>, and <code>[RuntimeEnabled=WheelEventMomentum] boolean momentum = false;</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/events/wheel_event_init.idl" target="_blank" rel="noopener">wheel_event_init.idl</a>.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/pointerevents/#interface-wheelevent" target="_blank" rel="noopener">Pointer Events — WheelEvent interface</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/events/wheel_event.idl" target="_blank" rel="noopener">Chromium wheel_event.idl</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/events/wheel_event_init.idl" target="_blank" rel="noopener">Chromium wheel_event_init.idl</a></span>
   </section>
 
   <section>
     <h2 id="inputs">Inputs</h2>
-    <p><strong>The attribute</strong> is read-only — it takes no inputs; the platform sets it when it synthesizes the event. <strong>The dictionary member</strong> is the constructor input: <code>new WheelEvent("wheel", { momentum: true })</code> sets the attribute's value on a script-created event; omitted, it defaults to <code>false</code>. The spec also requires the un-initialized value of the attribute to be <code>false</code>.</p>
+    <p><strong>The attribute</strong> is read-only — it takes no inputs; the platform sets it when it synthesizes the event (in Chromium, from the native event's <code>momentum_phase != kPhaseNone</code>). <strong>The dictionary member</strong> is the constructor input: <code>new WheelEvent("wheel", { momentum: true })</code> sets the attribute's value on a script-created event — an <em>authored echo</em>, which proves nothing about platform behavior. To distinguish authored from native events, use <a href="https://dom.spec.whatwg.org/#dom-event-istrusted" target="_blank" rel="noopener"><code>event.isTrusted</code></a>: script-constructed events are untrusted regardless of what their <code>momentum</code> reads. Omitted, the member defaults to <code>false</code>; the spec also requires the un-initialized value of the attribute to be <code>false</code>.</p>
     <span class="citation">Source: <a href="https://w3c.github.io/pointerevents/#interface-wheelevent" target="_blank" rel="noopener">Pointer Events — WheelEvent interface and WheelEventInit dictionary</a></span>
   </section>
 
@@ -60,7 +61,7 @@ const isInertia = event.momentum;</code></pre>
 
   <section>
     <h2 id="errors">Errors</h2>
-    <p>No exceptions and no error modes: the attribute always has a boolean value (un-initialized is <code>false</code>). The main trap is semantic, not exceptional: <code>false</code> does <strong>not</strong> prove a physical interaction on engines that don't implement the attribute — feature-detect (<code>"momentum" in WheelEvent.prototype</code>) before branching on it, and treat an absent attribute as &ldquo;unknown&rdquo;, not as &ldquo;physical&rdquo;.</p>
+    <p>No exceptions and no error modes for reading the attribute: it always has a boolean value (un-initialized is <code>false</code>). The main trap is semantic, not exceptional: <code>false</code> does <strong>not</strong> prove a physical interaction on engines that don't implement the attribute — feature-detect (<code>"momentum" in WheelEvent.prototype</code>) before branching on it, and treat an absent attribute as &ldquo;unknown&rdquo;, not as &ldquo;physical&rdquo;. And since an authored event can echo <code>true</code>, <code>true</code> alone does not prove platform inertia either — pair it with <code>isTrusted</code> when that distinction matters.</p>
     <span class="citation">Source: <a href="https://w3c.github.io/pointerevents/#interface-wheelevent" target="_blank" rel="noopener">Pointer Events — momentum attribute definition</a></span>
   </section>
 
@@ -68,13 +69,13 @@ const isInertia = event.momentum;</code></pre>
     <h2 id="context">Context</h2>
     <p><strong>Receiver:</strong> any <code>WheelEvent</code> dispatched to the page — the interface inherits <code>MouseEvent</code> → <code>UIEvent</code> → <code>Event</code>, and the attribute is on <code>WheelEvent.prototype</code> (also readable on script-constructed instances).</p>
     <p><strong>Exposure:</strong> window and worker-independent — wheel events are a document/input concept; there is no permission, gesture, or secure-context requirement.</p>
-    <p><strong>Availability:</strong> Chrome 151 per the milestone listing (desktop and Android per the feature detail); runtime feature <code>WheelEventMomentum</code> (status <code>stable</code> at trunk).</p>
+    <p><strong>Availability:</strong> Chrome 151 per the milestone listing (desktop and Android per the feature detail); runtime feature <code>WheelEventMomentum</code> (status <code>stable</code> at trunk). Runtime qualification: Chromium maps the value from <code>momentum_phase != kPhaseNone</code> (unit-tested by injecting <code>kPhaseBegan</code> /<wbr><code>kPhaseChanged</code> /<wbr><code>kPhaseNone</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/events/wheel_event_test.cc" target="_blank" rel="noopener">wheel_event_test.cc</a>), and the <a href="https://chromium-review.googlesource.com/c/chromium/src/+/7869775" target="_blank" rel="noopener">implementing CL 7869775</a> records that Linux manual testing did not surface the value — real hardware/OS coverage needs Chrome 151+ hardware evidence.</p>
     <span class="citation">Source: <a href="https://w3c.github.io/pointerevents/#interface-wheelevent" target="_blank" rel="noopener">Pointer Events — WheelEvent interface</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium runtime_enabled_features.json5</a>; <a href="https://chromestatus.com/feature/6631012282007552" target="_blank" rel="noopener">chromestatus.com/feature/6631012282007552</a></span>
   </section>
 
   <section>
     <h2 id="lifecycle">Lifecycle</h2>
-    <p>The value is fixed when the event is created (by the platform for native events, by the init dictionary for script events) and never changes for the event's lifetime. Within one fling gesture the sequence is: physical wheel events (<code>momentum === false</code>) while the finger moves, then platform-synthesized inertia events (<code>momentum === true</code>) after it lifts, until inertia decays. There is no event that flips the value mid-stream, and no separate &ldquo;momentum ended&rdquo; signal — the true-valued events simply stop.</p>
+    <p>The value is fixed when the event is created (by the platform for native events, by the init dictionary for script events) and never changes for the event's lifetime. Within one trackpad fling the expected sequence is: physical wheel events (<code>momentum === false</code>) while the finger moves, then platform-synthesized inertia events (<code>momentum === true</code>) after it lifts, until inertia decays. There is no event that flips the value mid-stream, and no separate &ldquo;momentum ended&rdquo; signal — the true-valued events simply stop. Whether a given OS/device actually emits momentum phases is platform-dependent (Chromium's own Linux manual test did not surface them); verify on your target hardware.</p>
     <span class="citation">Source: <a href="https://w3c.github.io/pointerevents/#interface-wheelevent" target="_blank" rel="noopener">Pointer Events — momentum attribute definition</a>; <a href="https://codepen.io/mustaqahmed/full/MYjGMVG" target="_blank" rel="noopener">Sample (CodePen) — observable event sequence</a></span>
   </section>
 
@@ -98,8 +99,32 @@ const synthetic = new WheelEvent("wheel", { deltaY: 120, momentum: false });</co
 
   <section>
     <h2 id="init">WheelEventInit.momentum</h2>
-    <p>The dictionary member mirrors the attribute for constructor use: <code>boolean momentum = false</code> in <code>WheelEventInit</code>. Because it defaults to <code>false</code>, existing <code>new WheelEvent(...)</code> call sites keep their current meaning without changes, and only a deliberate <code>{ momentum: true }</code> marks a script event as inertia-simulating. The spec notes the dictionary definitions are partly redundant with the attribute definitions (tracked as pointerevents/646).</p>
-    <span class="citation">Source: <a href="https://w3c.github.io/pointerevents/#interface-wheelevent" target="_blank" rel="noopener">Pointer Events — WheelEventInit dictionary</a></span>
+    <p>The dictionary member mirrors the attribute for constructor use: <code>boolean momentum = false</code> in <code>WheelEventInit</code> (a dictionary <em>field</em>, in WebIDL terms). Three exact semantics from WebIDL, because constructor behavior is where the traps live:</p>
+    <ul>
+      <li><strong>Boolean conversion:</strong> the value converts via <a href="https://webidl.spec.whatwg.org/#es-boolean" target="_blank" rel="noopener">WebIDL's boolean conversion</a> — any JavaScript value is accepted and ToBoolean'd, so the string <code>"false"</code> is <em>truthy</em> and produces <code>momentum === true</code>. Only genuine falsy values (<code>false</code>, <code>0</code>, <code>""</code>, <code>null</code>, <code>undefined</code>, <code>NaN</code>) yield <code>false</code>.</li>
+      <li><strong>Default:</strong> omitted entirely, the member takes its declared default <code>false</code> — existing <code>new WheelEvent(...)</code> call sites keep their meaning.</li>
+      <li><strong>Unknown members:</strong> per <a href="https://webidl.spec.whatwg.org/#es-dictionary" target="_blank" rel="noopener">WebIDL dictionary semantics</a>, members the dictionary doesn't declare are ignored — a typo'd key silently does nothing.</li>
+    </ul>
+    <p>None of this is runtime proof of native behavior: a constructor round-trip only shows the dictionary was accepted and echoed. The spec notes the dictionary definitions are partly redundant with the attribute definitions (tracked as <a href="https://github.com/w3c/pointerevents/issues/646" target="_blank" rel="noopener">pointerevents#646</a>).</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/pointerevents/#interface-wheelevent" target="_blank" rel="noopener">Pointer Events — WheelEventInit dictionary</a>; <a href="https://webidl.spec.whatwg.org/#es-boolean" target="_blank" rel="noopener">WebIDL — boolean conversion</a>; <a href="https://webidl.spec.whatwg.org/#es-dictionary" target="_blank" rel="noopener">WebIDL — dictionary semantics</a></span>
+  </section>
+
+  <section>
+    <h2 id="init-outputs">WheelEventInit.momentum — outputs</h2>
+    <p>The constructed event's <code>momentum</code> attribute reads back the converted value: ToBoolean of whatever the member held, or <code>false</code> when omitted. In Chromium this is a direct field copy from the initializer (<code>is_momentum_(initializer->momentum())</code> in <code>wheel_event.cc</code>) — an echo of the authored value, independent of any platform event.</p>
+    <span class="citation">Source: <a href="https://webidl.spec.whatwg.org/#es-boolean" target="_blank" rel="noopener">WebIDL — boolean conversion</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/events/wheel_event.cc" target="_blank" rel="noopener">Chromium wheel_event.cc</a></span>
+  </section>
+
+  <section>
+    <h2 id="init-errors">WheelEventInit.momentum — errors</h2>
+    <p>Constructor behavior has no exception paths for this member: WebIDL boolean conversion never throws (every JavaScript value converts), and undeclared dictionary members are ignored rather than rejected. The failure modes are silent semantic ones: passing the string <code>"false"</code> produces <code>true</code> (truthy), and a misspelled member name is dropped without a signal. Neither says anything about platform inertia.</p>
+    <span class="citation">Source: <a href="https://webidl.spec.whatwg.org/#es-boolean" target="_blank" rel="noopener">WebIDL — boolean conversion</a>; <a href="https://webidl.spec.whatwg.org/#es-dictionary" target="_blank" rel="noopener">WebIDL — dictionary semantics</a></span>
+  </section>
+
+  <section>
+    <h2 id="init-security">WheelEventInit.momentum — security and privacy</h2>
+    <p>Because an authored event can carry <code>momentum: true</code>, the attribute value alone is not evidence of platform input — the distinguishing signal is <a href="https://dom.spec.whatwg.org/#dom-event-istrusted" target="_blank" rel="noopener"><code>event.isTrusted</code></a> (<code>false</code> for every script-constructed event). Defensive handlers that branch on <code>momentum</code> should check <code>isTrusted</code> first when they care about physical-vs-scripted input. The member adds no storage, permission, or cross-origin channel; the parent feature's privacy review is still Pending, so broader assessments are open.</p>
+    <span class="citation">Source: <a href="https://dom.spec.whatwg.org/#dom-event-istrusted" target="_blank" rel="noopener">DOM Standard — Event.isTrusted</a>; <a href="https://chromestatus.com/api/v0/features/6631012282007552" target="_blank" rel="noopener">ChromeStatus API feature record (privacy review status)</a></span>
   </section>
 
   <section>
@@ -121,7 +146,7 @@ const synthetic = new WheelEvent("wheel", { deltaY: 120, momentum: false });</co
 
   <section>
     <h2 id="security-privacy">Security and privacy</h2>
-    <p>The attribute reveals one bit about the user's input hardware behavior — whether the platform is currently synthesizing inertia — which is the same information the event stream itself already exposes (inertia events are observable as continued deltas). It introduces no storage, no cross-origin channel, no permission, and no new fingerprinting surface beyond the existing wheel-event stream; script-constructed events default to <code>false</code>, so pages cannot forge physical input — only mark their own events as inertia-like.</p>
+    <p>The attribute reveals one bit about the user's input hardware behavior — whether the platform is currently synthesizing inertia — which is close to information the event stream itself already exposes (inertia events are observable as continued deltas). The ChromeStatus entry's <strong>privacy review is Pending</strong> as of 2026-07-26 (security review: Not applicable; the TAG review note says the feature is too small and non-controversial to justify one), so fingerprinting impact is not yet formally assessed — treat the one-bit disclosure as unreviewed rather than harmless. Authored events can echo <code>momentum: true</code> (see the dictionary member), so the attribute alone never proves native input.</p>
     <span class="citation">Source: <a href="https://w3c.github.io/pointerevents/#interface-wheelevent" target="_blank" rel="noopener">Pointer Events — WheelEvent interface</a></span>
   </section>
 
