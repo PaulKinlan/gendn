@@ -112,6 +112,24 @@ with `deno task manifest`; gate with `deno task check-routes`; record exceptiona
 under the corrected route is a fix, not a break — record it as an `alias`/`move` migration so the
 old route stays honest and the gate stays green.
 
+## Direct primary-source links are mandatory
+
+Links are part of the reference contract, not decorative bibliography. Every visible source or
+citation label MUST link directly to the original public artifact that supports the claim.
+
+- Never leave source names as plain text when a public URL exists: this includes blink-dev intents,
+  mail-archive message numbers, specifications/sections, explainers, issues, CLs, ChromeStatus/API
+  records, MDN/BCD files, WPT results, and release posts.
+- If a citation names several sources, link EACH source separately. One nearby link does not make the
+  other named sources traceable.
+- Prefer canonical originals (for example the Google Groups blink-dev conversation rather than an
+  unlinked `msg15601` label or a search result). External links use `target="_blank" rel="noopener"`.
+- If no stable public source exists, say that explicitly; never imply that an unavailable source was
+  linked or publicly verified.
+- New pages must ship with zero unlinked source labels. When touching an existing page, resolve its
+  unlinked citations as part of the targeted fix. The existing backlog is additive cleanup work, not
+  permission to create more plain-text citations.
+
 ## Mobile + desktop parity — every demo usable on both, or honestly unsupported with recorded evidence
 
 Every existing and future published demo MUST be a usable, polished experience on BOTH mobile and
