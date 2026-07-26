@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AutofillEvent.refill() — Autofill event — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    /* --amber-text: AA-compliant text variant of --accent-amber, derived only from design-system
+       variables (invariant #5): 65% amber + 35% black = #785000, 6.9:1 on --bg-paper. */
+    main { --amber-text: color-mix(in srgb, var(--accent-amber) 65%, var(--text-black)); }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .doc-table caption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); text-align: left; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--amber-text); display: block; margin-bottom: 0.4rem; }
+    .warn-block p { font-size: 0.98rem; }
+    .toc { border-left: 3px solid var(--border-black); padding-left: 1rem; margin: 1.5rem 0; }
+    .toc ul { columns: 2 15rem; padding-left: 1.1rem; }
+    @media (max-width: 42rem) { .toc ul { columns: 1; } }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v147/autofill-event/">&larr; Autofill event</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v147 · origin trial · member reference</p>
+    <h1>AutofillEvent.refill()</h1>
+    <p class="lede">The nullable callback carried by a user-agent-fired <code>autofill</code> event. After restructuring the form to fit the incoming <code>autofillValues</code>, calling it asks the browser to re-match the user&rsquo;s autofill data against the updated form and run one more fill pass. It returns a <code>Promise&lt;undefined&gt;</code> with three defined <code>&ldquo;InvalidStateError&rdquo;</code> rejection paths.</p>
+  </header>
+
+  <div class="warn-block" id="context">
+    <strong>Origin trial &mdash; API surface may move</strong>
+    <p>Same availability as the parent interface: Chrome 147 origin trial per the <a href="https://chromestatus.com/api/v0/features?milestone=147" target="_blank" rel="noopener">milestone-147 listing</a>, behind the <code>AutofillEvent</code> runtime flag for local development. The callback is only meaningful on user-agent-dispatched events &mdash; see <a href="#lifecycle">Lifecycle</a> for the synthetic-event caveat. Exposure: <code>Window</code>, via <code>AutofillEvent</code> (<a href="https://chromestatus.com/feature/5137581018841088" target="_blank" rel="noopener">chromestatus.com/feature/5137581018841088</a>).</p>
+  </div>
+
+  <nav class="toc" aria-label="On this page"><strong>On this page</strong>
+    <ul>
+      <li><a href="#syntax">Syntax</a></li>
+      <li><a href="#inputs">Inputs</a></li>
+      <li><a href="#outputs">Outputs</a></li>
+      <li><a href="#errors">Errors</a></li>
+      <li><a href="#lifecycle">Lifecycle</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#compatibility">Compatibility</a></li>
+      <li><a href="#security-privacy">Security and privacy</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+<pre><code>// IDL (WICG draft, verbatim)
+readonly attribute RefillCallback? refill;
+callback RefillCallback = Promise&lt;undefined&gt; ();
+
+// Usage
+if (event.refill) {
+  await event.refill();
+}</code></pre>
+    <p>The attribute is nullable: it is a function when the event&rsquo;s allow-refill flag is true and the event is the first dispatch; it is <code>null</code> on the retry dispatch (see <a href="#lifecycle">Lifecycle</a>) and on synthetic events constructed with <code>allowRefill: false</code>.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/autofill-event/#autofill-event-interface" target="_blank" rel="noopener">WICG Autofill Event &mdash; §3 The AutofillEvent Interface (IDL, verbatim)</a></span>
+  </section>
+
+  <section>
+    <h2 id="inputs">Inputs</h2>
+    <p>None. <code>RefillCallback</code> takes no arguments &mdash; the user agent already holds the event&rsquo;s associated document and re-derives the fill data itself: the processing steps compute &ldquo;the updated autofill value entries (re-matching the user&rsquo;s autofill data against the modified form)&rdquo;. The <em>effective</em> input is the current DOM state of the form at call time, which is why you restructure the form <em>before</em> calling.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/autofill-event/#processing-refill" target="_blank" rel="noopener">WICG Autofill Event &mdash; §4.2 Processing a Refill Request</a></span>
+  </section>
+
+  <section>
+    <h2 id="outputs">Outputs</h2>
+    <p>A <code>Promise&lt;undefined&gt;</code>. On success the user agent, in parallel: re-matches the autofill data, queues a task to fire a <em>second</em> <code>autofill</code> event (with <code>allowRefill</code> false, so its <code>refill</code> attribute is null), performs the fill on the updated form, and then resolves the promise with <code>undefined</code>. Resolution therefore signals that the retry dispatch and re-fill have happened &mdash; there is no fill data in the resolution value itself.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/autofill-event/#processing-refill" target="_blank" rel="noopener">WICG Autofill Event &mdash; §4.2 (return promise, parallel steps, resolve with undefined)</a></span>
+  </section>
+
+  <section>
+    <h2 id="errors">Errors</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>Rejection paths &mdash; all reject the returned promise with an &ldquo;InvalidStateError&rdquo; DOMException</caption>
+      <thead><tr><th scope="col">Condition</th><th scope="col">Spec rule (§4.2)</th></tr></thead>
+      <tr><td>Called after the refill timeout</td><td>If elapsed time since the event&rsquo;s dispatch timestamp exceeds an <em>implementation-defined</em> <code>refillTimeout</code>, reject. The timeout balances responsiveness against giving pages time to restructure; no numeric value is standardized.</td></tr>
+      <tr><td>Refill disallowed</td><td>If the event&rsquo;s allow-refill flag is false, reject. (On UA-fired retry dispatches the attribute is also null, but a captured reference still hits this rule.)</td></tr>
+      <tr><td>Refill already pending</td><td>If the event&rsquo;s refill pending flag is already true &mdash; a repeat call on the same event object, including through a captured reference &mdash; reject.</td></tr>
+    </table>
+    </div>
+    <p>Nothing throws synchronously; all three failures settle the returned promise. Because the event system ignores the promise an async listener returns, an unhandled rejection here surfaces as an <code>unhandledrejection</code> &mdash; wrap the call in <code>try</code>/<code>catch</code> (or <code>.catch()</code>).</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/autofill-event/#processing-refill" target="_blank" rel="noopener">WICG Autofill Event &mdash; §4.2 (the three reject steps and the timeout note, quoted semantics)</a></span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">Lifecycle</h2>
+    <ul>
+      <li><strong>First dispatch:</strong> the UA fires <code>autofill</code> at the document with allow-refill true; <code>refill</code> is a callable function. The clock for the refill timeout starts at the event&rsquo;s dispatch timestamp.</li>
+      <li><strong>Successful call:</strong> sets the event&rsquo;s refill pending flag (blocking repeats), re-matches data, fires the retry dispatch with allow-refill false, performs the fill, resolves the promise.</li>
+      <li><strong>Retry dispatch:</strong> the second event&rsquo;s <code>refill</code> attribute is <em>null</em>, preventing infinite refill loops.</li>
+      <li><strong>Captured references:</strong> nulling the attribute only affects the second event object. A reference captured from the first event (<code>const refill = event.refill</code>) remains invocable; a late or repeat call through it settles with one of the <a href="#errors">rejections above</a> rather than being impossible.</li>
+      <li><strong>Synthetic events:</strong> a page-constructed <code>AutofillEvent</code> carries a <code>refill</code> per its <code>allowRefill</code> init, but only user-agent-fired events are backed by a real fill operation &mdash; the refill machinery responds to the UA&rsquo;s own dispatch, not to script dispatch.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://wicg.github.io/autofill-event/#firing-autofill-event" target="_blank" rel="noopener">§4.1 Firing the Autofill Event</a>; <a href="https://wicg.github.io/autofill-event/#processing-refill" target="_blank" rel="noopener">§4.2 Processing a Refill Request</a>; <a href="https://wicg.github.io/autofill-event/#autofill-event-attributes" target="_blank" rel="noopener">§3.1 Attributes (refill pending flag, dispatch timestamp)</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+<pre><code>document.addEventListener('autofill', async (event) =&gt; {
+  const needsRestructure = adaptFormTo(event.autofillValues);
+
+  if (needsRestructure &amp;&amp; event.refill) {
+    try {
+      await event.refill();   // resolves after the retry dispatch + re-fill
+    } catch (err) {
+      // InvalidStateError: timeout elapsed, refill disallowed, or already pending.
+      console.warn('refill rejected:', err.name);
+    }
+  }
+});</code></pre>
+    <p>Restructure synchronously (or as fast as possible) before calling &mdash; the implementation-defined timeout runs from the event&rsquo;s dispatch, so long awaits before <code>refill()</code> risk the timeout rejection. The parent page&rsquo;s <a href="/v147/autofill-event/#examples">Examples section</a> shows the full country&rarr;state-selector pattern and a live embedded demo.</p>
+    <span class="citation">Source: pattern composed from <a href="https://wicg.github.io/autofill-event/#example" target="_blank" rel="noopener">WICG Autofill Event &mdash; §1.2 Example</a> and the §4.2 settlement rules</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">Browser compatibility</h2>
+    <p>Identical to the parent interface &mdash; the callback ships with <code>AutofillEvent</code> and has no separate flag or milestone. There is no BCD member record (<code>api/AutofillEvent.json</code> does not exist in <a href="https://github.com/mdn/browser-compat-data/tree/main/api" target="_blank" rel="noopener">mdn/browser-compat-data <code>api/</code></a> as of 2026-07-26); see the parent page&rsquo;s <a href="/v147/autofill-event/#compatibility">interim compatibility table</a> (Chrome 147 origin trial; Firefox/Safari position requests open with no signal).</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>Member availability &mdash; interim, from ChromeStatus (not BCD)</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col">Status</th></tr></thead>
+      <tr><td>Chrome</td><td>With <code>AutofillEvent</code>: origin trial (147 listing), runtime flag <code>AutofillEvent</code></td></tr>
+      <tr><td>Edge / Firefox / Safari</td><td>Not shipped; see the <a href="/v147/autofill-event/#compatibility">parent table</a> for the position links</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5137581018841088" target="_blank" rel="noopener">chromestatus.com/feature/5137581018841088</a>; <a href="https://github.com/mdn/browser-compat-data/tree/main/api" target="_blank" rel="noopener">BCD <code>api/</code> tree checked 2026-07-26 (no <code>AutofillEvent.json</code>)</a></span>
+  </section>
+
+  <section>
+    <h2 id="security-privacy">Security and privacy</h2>
+    <p>The callback itself adds no data exposure beyond the parent event: it returns no fill values, and the re-fill it triggers flows through the same §4.1 firing steps (a fresh event carries the re-matched <code>autofillValues</code>). The spec&rsquo;s security considerations for the interface apply unchanged &mdash; autofill values reveal stored personal data to the page, which is the parent event&rsquo;s disclosure, not a new one introduced by <code>refill()</code>. The repeat-call and timeout rejections bound how often a page can make the UA re-run matching.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/autofill-event/#security-privacy" target="_blank" rel="noopener">WICG Autofill Event &mdash; §6 Security and Privacy</a>; rejection bounds from <a href="https://wicg.github.io/autofill-event/#processing-refill" target="_blank" rel="noopener">§4.2</a></span>
+  </section>
+
+  <section>
+    <h2>Canonical sources</h2>
+    <ul>
+      <li><a href="https://wicg.github.io/autofill-event/" target="_blank" rel="noopener">WICG Autofill Event draft</a> &mdash; IDL (§3), attributes and internal state (§3.1), firing steps (§4.1), refill processing (§4.2), security (§6)</li>
+      <li><a href="https://github.com/WICG/autofill-event?tab=readme-ov-file#autofill-event" target="_blank" rel="noopener">WICG explainer</a> &mdash; the motivating dynamic-form pattern</li>
+      <li><a href="https://chromestatus.com/feature/5137581018841088" target="_blank" rel="noopener">ChromeStatus feature 5137581018841088</a> &mdash; trial status and browser views</li>
+      <li><a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium runtime_enabled_features.json5</a> &mdash; the <code>AutofillEvent</code> flag</li>
+      <li><a href="https://github.com/mozilla/standards-positions/issues/1361" target="_blank" rel="noopener">mozilla/standards-positions#1361</a> · <a href="https://github.com/WebKit/standards-positions/issues/431" target="_blank" rel="noopener">WebKit/standards-positions#431</a> &mdash; open position requests</li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
