@@ -2,6 +2,7 @@
 
 **Reviewed:** 2026-07-26
 **Scope:** `v147/web-printing-api/` local reference family.
+**Review status:** author self-critique only; independent source-fidelity review pending. The colocated contract intentionally remains `partial`.
 
 ## Corrected legacy claims
 
