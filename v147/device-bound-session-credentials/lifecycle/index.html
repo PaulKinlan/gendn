@@ -17,15 +17,28 @@
 </style></head>
 <body><a class="skip-link" href="#content">Skip to reference content</a><main id="content" tabindex="-1"><p class="crumbs"><a href="/v147/">← Chrome 147 reference</a> · <a href="/v147/device-bound-session-credentials/">Device Bound Session Credentials</a></p><nav class="local-nav" aria-label="DBSC reference sections"><ul>
 <li><a href="../">Overview</a></li><li><a href="../registration-header/">Registration header</a></li><li><a href="../challenge-header/">Challenge</a></li><li><a href="../response-header/">Proof</a></li><li><a href="../session-id-header/">Session ID</a></li><li><a href="../skipped-header/">Skipped</a></li><li><a href="../session-instructions/">Instructions</a></li><li><a href="../registration-exchange/">Registration exchange</a></li><li><a href="../refresh-exchange/">Refresh exchange</a></li><li><a href="../lifecycle/">Lifecycle</a></li><li><a href="../federated-and-well-known/">Federation</a></li></ul></nav><header class="lede-block"><p class="eyebrow">DBSC protocol reference · lifecycle</p><h1>Protocol lifecycle and server algorithm</h1><p class="lede">A state machine derived from the current Editor’s Draft, with Chromium-specific behavior kept separate. Use it to specify expiry, termination, replay, logout, and recovery instead of guessing from a happy-path diagram.</p></header><section><h2 id="syntax">State model</h2><pre tabindex="0"><code>No DBSC session
-  └─ Secure-Session-Registration + valid registration response → Registered
+  ├─ registration (session id = null) + valid response → Registered
+  └─ registration failure / invalid config / terminal status → No DBSC session
+     (terminate(null) is a no-op: nothing was created, removed, or replaced)
 Registered (key, id, scope, credentials, cached challenge?)
   ├─ applicable credential present → request continues
-  ├─ applicable credential missing → Refresh pending → Registered / Terminated / retryable failure
-  ├─ continue:false, invalid replacement config, terminal 4xx → Terminated
-  └─ expiry / Clear-Site-Data / cookie/site-data clear / key loss → No DBSC session</code></pre></section><section><h2 id="inputs">Decision inputs</h2><p>For each request, identify sessions by registrable domain, remove expired records, skip a session already deferred on this request, test scope and allowed refresh initiator, then test whether a declared cookie that would apply is missing. This is the draft’s algorithm; it means “cookie absent” is evaluated with normal cookie applicability, not merely a name lookup.</p></section><section><h2 id="outputs">Effects</h2><p>The browser defers the original request, posts a refresh, and restarts the original network operation after refresh. It excludes the refresh URL from protected scope to prevent loops. It may set an implementation-chosen session expiration timestamp, recommended to align to maximum cookie lifetime.</p></section><section><h2 id="errors">Terminal versus retryable outcomes</h2><p>Draft terminal outcomes: invalid response JSON/config, <code>continue:false</code>, or refresh 4xx other than the 403 proof path remove the DBSC session. Network errors, 407, redirects, and 5xx return without creating/replacing it; user agents may back off. Chromium’s current source adds retry budgeting/cached signatures for transient errors. Exact limits, delays, and key-store failure behavior are implementation details—servers must remain correct without relying on them.</p></section><section><h2 id="context">Scope and initiator boundary</h2><p>Origin-scoped sessions require same origin; site-scoped sessions require same site. Later scope rules override earlier ones; <code>*</code> and <code>*.example.com</code> have draft-defined host matching. Out-of-scope refresh triggers need a host pattern in <code>allowed_refresh_initiators</code>. The browser applies cookie-like policy so DBSC does not bypass blocked cookie behavior.</p></section><section><h2 id="lifecycle">Server pseudocode</h2><pre tabindex="0"><code>refresh(request):
+  ├─ applicable credential missing → Refresh pending → Registered / retryable failure
+  ├─ refresh continue:false, invalid replacement config, terminal 4xx → Terminated
+  │  (terminate(existing id) removes the existing DBSC session)
+  └─ expiry / Clear-Site-Data / cookie/site-data clear / key loss → No DBSC session</code></pre></section><section><h2 id="inputs">Decision inputs</h2><p>For each request, identify sessions by registrable domain, remove expired records, skip a session already deferred on this request, test scope and allowed refresh initiator, then test whether a declared cookie that would apply is missing. This is the draft’s algorithm; it means “cookie absent” is evaluated with normal cookie applicability, not merely a name lookup.</p></section><section><h2 id="outputs">Effects</h2><p>The browser defers the original request, posts a refresh, and restarts the original network operation after refresh. It excludes the refresh URL from protected scope to prevent loops. Registration instead begins asynchronously with a null session ID and creates a session only after a valid, cookie-settable configuration. It may set an implementation-chosen session expiration timestamp, recommended to align to maximum cookie lifetime.</p></section><section><h2 id="errors">Terminal versus retryable outcomes</h2><p>Every terminate call is parameterized by the session ID passed to the request algorithm. For registration that ID is null, so invalid response JSON/config, <code>continue:false</code>, and terminal statuses leave the user agent with no DBSC session: terminate is a no-op and cannot remove or replace one. For refresh the ID names an existing session, so invalid replacement JSON/config, <code>continue:false</code>, or refresh 4xx other than the 403 proof path remove that session. Network errors, 407, 429, redirects, and 5xx return without creating or removing a session; user agents may back off. Chromium’s current source adds retry budgeting/cached signatures for transient errors. Exact limits, delays, and key-store failure behavior are implementation details—servers must remain correct without relying on them.</p></section><section><h2 id="context">Scope and initiator boundary</h2><p>Origin-scoped sessions require same origin; site-scoped sessions require same site. Later scope rules override earlier ones; <code>*</code> and <code>*.example.com</code> have draft-defined host matching. Out-of-scope refresh triggers need a host pattern in <code>allowed_refresh_initiators</code>. The browser applies cookie-like policy so DBSC does not bypass blocked cookie behavior.</p></section><section><h2 id="lifecycle">Server pseudocode</h2><pre tabindex="0"><code>registration(response):
+  session_id = null
+  if response is terminal or instructions are invalid or continue is false:
+      terminate(session_id)  # no-op: null identifies no DBSC session
+      return no_dbsc_session
+  if no declared credential can be set:
+      terminate(session_id)  # still a no-op; do not create/replace a session
+      return no_dbsc_session
+  store_new_dbsc_session(response.instructions, new_key_pair)
+
+refresh(request):
   id = parse_sf_string(request.header[&quot;Sec-Secure-Session-Id&quot;])
   s = dbsc_sessions.find(id) or generic_failure()
-  if s.revoked or s.expired: return terminal_4xx()
+  if s.revoked or s.expired: return terminal_4xx()  # terminate(id) removes existing session
   proof = request.header[&quot;Secure-Session-Response&quot;]
   if not proof:
       nonce = issue_random_nonce(id, short_ttl=True)
@@ -34,11 +47,19 @@ Registered (key, id, scope, credentials, cached challenge?)
   if jwt.typ != &quot;dbsc+jwt&quot; or jwt.has_jwk or not consume_recent_nonce(id, jwt.jti):
       return 403, challenge_response(id)
   rotate_short_lived_cookie_atomically(s)
-  return 200, set_cookie_headers()</code></pre></section><section><h2 id="examples">Logout and recovery examples</h2><pre tabindex="0"><code># Server-directed DBSC termination in a refresh response
+  return 200, set_cookie_headers()
+
+# For refresh, invalid instructions or continue:false likewise call terminate(id),
+# which removes s. This differs from null-ID registration above.</code></pre></section><section><h2 id="examples">Logout and recovery examples</h2><pre tabindex="0"><code># Registration failure: session_id is null, so the terminate step is a no-op.
+HTTP/1.1 400 Bad Request
+# No DBSC session was created, removed, or replaced.
+
+# Server-directed DBSC termination in a refresh response: session_id exists.
 HTTP/1.1 200 OK
 Content-Type: application/json
 
 {&quot;continue&quot;:false}
+# The existing client DBSC session is removed.
 
 # Application logout should also revoke server DBSC state and expire protected cookies.
 Set-Cookie: sid=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Lax
