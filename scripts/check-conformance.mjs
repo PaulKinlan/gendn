@@ -146,12 +146,41 @@ async function main() {
   if (baselineRef) {
     const diff = (await git(["diff", "--name-only", baselineRef, "--", "v*"])) ?? "";
     const untracked = (await git(["ls-files", "--others", "--exclude-standard", "--", "v*"])) ?? "";
-    const touched = [
-      ...new Set(
-        `${diff}\n${untracked}`.split("\n").map((path) => path.match(/^(v\d+\/[^/]+)\//)?.[1])
-          .filter(Boolean),
-      ),
-    ];
+    const changedPaths = `${diff}\n${untracked}`.split("\n").filter(Boolean);
+    const pathsById = new Map();
+    for (const path of changedPaths) {
+      const id = path.match(/^(v\d+\/[^/]+)\//)?.[1];
+      if (!id) continue;
+      if (!pathsById.has(id)) pathsById.set(id, []);
+      pathsById.get(id).push(path);
+    }
+    const touched = [];
+    for (const [id, paths] of pathsById) {
+      const contentPathChanged = paths.some((path) => path !== `${id}/conformance.json`);
+      if (contentPathChanged) {
+        touched.push(id);
+        continue;
+      }
+      // A source-link/note correction in suite metadata does not touch the reference itself.
+      // Assertion changes still count and must pass the full touched-reference ratchet.
+      const currentSuite = await readJson(`${id}/conformance.json`);
+      const baselineRaw = await git(["show", `${baselineRef}:${id}/conformance.json`]);
+      if (!currentSuite || !baselineRaw) {
+        touched.push(id);
+        continue;
+      }
+      try {
+        const baselineSuite = JSON.parse(baselineRaw);
+        if (
+          normalizeAssertions(currentSuite.assertions ?? []) !==
+            normalizeAssertions(baselineSuite.assertions ?? [])
+        ) {
+          touched.push(id);
+        }
+      } catch {
+        touched.push(id);
+      }
+    }
     for (const id of touched) {
       if (!pageIds.has(id)) continue; // deleted/moved handled by route gate
       const rec = supportForRoute(support, `/${id}/`);
