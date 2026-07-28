@@ -130,7 +130,11 @@ The authoring format and example are in [`docs/reference-contract.md`](docs/refe
   touched full references must pass `deno task validate-artifacts`, `deno task
   test-reference-contract`, and `deno task check-conformance`, which fail unless the touched feature
   is implementation-sufficient. MDN redirect stubs are exempt because MDN owns their detailed
-  reference.
+  reference. A recorded migration move (`move`/`alias` in `migrations.json`) is also exempt for
+  the diff that lands it: it is a filing correction, not a reference edit — the destination page
+  must be new at the baseline and keep the source page's chromestatus identity, and it keeps its
+  existing sufficiency status (e.g. `legacy-unassessed`). After the move lands, later edits to the
+  destination page are evaluated by the ratchet normally.
 
 ## Parallel writing and integration — lock files, not the whole repository
 
@@ -243,5 +247,6 @@ contract (`cpsFeature`) rather than forking it.
 **Gates before every push (with `deno task check-routes`):** `deno task validate-artifacts`
 (schema + suiteHash + reference mappings), `deno task test-reference-contract`, and `deno task
 check-conformance` (missing suite / orphan / weakened assertion / touched-page untested or not
-implementation-sufficient). Run `deno task conformance --page <id>` for any page you touch — don't
+implementation-sufficient; fresh recorded migration moves with unchanged identity are exempt — see
+the implementation-sufficiency section). Run `deno task conformance --page <id>` for any page you touch — don't
 push a red page. `blocked` is never a pass. Report honest denominators; burn down wave by wave.
