@@ -156,6 +156,35 @@ async function main() {
     }
     const touched = [];
     for (const [id, paths] of pathsById) {
+      // A recorded migration move (migrations.json move/alias, from -> to) is a
+      // filing correction, not a reference edit: when the destination page did
+      // not exist at the baseline and keeps the source page's chromestatus
+      // identity, it is exempt from the touched-reference ratchet for this
+      // diff. After the move lands on main, later edits to the destination
+      // page are evaluated normally (it then exists at the baseline).
+      const moveMigration = migrations.find((m) =>
+        (m.action === "move" || m.action === "alias") && m.to === `/${id}/`
+      );
+      if (moveMigration) {
+        const fromId = typeof moveMigration.from === "string"
+          ? moveMigration.from.match(/^\/(v\d+\/[^/]+)\/$/)?.[1]
+          : null;
+        const destAtBaseline = await git(["show", `${baselineRef}:${id}/conformance.json`]);
+        const sourceRaw = fromId
+          ? await git(["show", `${baselineRef}:${fromId}/conformance.json`])
+          : null;
+        const currentSuite = await readJson(`${id}/conformance.json`);
+        let exempt = false;
+        if (!destAtBaseline && sourceRaw && currentSuite) {
+          try {
+            const sourceSuite = JSON.parse(sourceRaw);
+            exempt = String(sourceSuite.identity) === String(currentSuite.identity) &&
+              (!moveMigration.feature ||
+                String(moveMigration.feature) === String(currentSuite.identity));
+          } catch { /* identity unreadable — not exempt */ }
+        }
+        if (exempt) continue;
+      }
       const contentPathChanged = paths.some((path) => path !== `${id}/conformance.json`);
       if (contentPathChanged) {
         touched.push(id);

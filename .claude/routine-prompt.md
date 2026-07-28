@@ -157,7 +157,11 @@ The authoring format and example are in [`docs/reference-contract.md`](../docs/r
   touched full references must pass `deno task validate-artifacts`, `deno task
   test-reference-contract`, and `deno task check-conformance`, which fail unless the touched feature
   is implementation-sufficient. MDN redirect stubs are exempt because MDN owns their detailed
-  reference.
+  reference. A recorded migration move (`move`/`alias` in `migrations.json`) is also exempt for
+  the diff that lands it: it is a filing correction, not a reference edit — the destination page
+  must be new at the baseline and keep the source page's chromestatus identity, and it keeps its
+  existing sufficiency status (e.g. `legacy-unassessed`). After the move lands, later edits to the
+  destination page are evaluated by the ratchet normally.
 
 ## Parallel writing and integration — lock files, not the whole repository
 
