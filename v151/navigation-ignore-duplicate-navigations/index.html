@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Navigation: Ignore duplicate navigations — Chrome 151 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 32%; min-width: 7.5rem; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .compat-table tr > *:nth-child(2) { min-width: 6.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .doc-table caption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); text-align: left; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    .example-embed iframe { display: block; max-width: 100%; }
+    .example-embed figcaption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); margin-top: 0.5rem; }
+    .algo { counter-reset: step; list-style: none; padding-left: 0; }
+    .algo > li { counter-increment: step; margin: 0.6rem 0; padding-left: 2.2rem; position: relative; }
+    .algo > li::before { content: counter(step) "."; position: absolute; left: 0; font-family: var(--font-mono); font-weight: 700; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v151/">&larr; Chrome 151 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v151 · navigation · behavior change · shipped</p>
+    <h1>Navigation: Ignore duplicate navigations</h1>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome · enabled by default 151</li>
+        <li class="limited">Edge · no separate signal</li>
+        <li class="limited">Firefox · no signal</li>
+        <li class="limited">Safari · no signal</li>
+      </ul>
+      <p>This deduplication behavior is Chromium-only today: the <a href="https://github.com/mozilla/standards-positions/issues/1307" target="_blank" rel="noopener">Mozilla</a> and <a href="https://github.com/WebKit/standards-positions/issues/563" target="_blank" rel="noopener">WebKit</a> standards-position threads are both recorded as &ldquo;no signal&rdquo;, and the <a href="https://github.com/whatwg/html/pull/11765" target="_blank" rel="noopener">HTML Standard pull request</a> is still open. The <strong>Navigation API itself</strong> is separate and Baseline newly available (Chrome 102, Firefox 147, Safari 26.2 per <a href="https://webstatus.dev/features/navigation" target="_blank" rel="noopener">webstatus.dev</a>).</p>
+    </div>
+
+    <p class="lede">Prevents an ongoing navigation from being unnecessarily canceled by a new, identical navigation that is initiated in quick succession. This optimization improves performance and the user experience by not wasting resources on a duplicate request, which can be caused by accidental double-clicks.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Specification in flight</strong>
+    The normative change is <a href="https://github.com/whatwg/html/pull/11765" target="_blank" rel="noopener">whatwg/html PR #11765</a>, which is <strong>open, not merged</strong> (verified 2026-07-28) — Chrome ships the behavior ahead of the merged spec. Details on this page cite the PR text at commit <a href="https://github.com/whatwg/html/pull/11765/commits" target="_blank" rel="noopener">7aa3db5</a> (<a href="https://whatpr.org/html/11765/browsing-the-web.html" target="_blank" rel="noopener">PR preview</a>) and may shift in review; the 3-second threshold and the cookie carve-out are the two areas reviewers have explicitly probed.
+  </div>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>At a glance</caption>
+      <tr><th scope="row">What changes</th><td>A <strong>duplicate</strong> navigation — one that exactly matches an in-flight navigation on the same navigable and starts less than 3 seconds after it — is dropped instead of canceling and replacing the ongoing navigation</td></tr>
+      <tr><th scope="row">Where</th><td>The <a href="https://html.spec.whatwg.org/multipage/browsing-the-web.html#navigate" target="_blank" rel="noopener"><cite>navigate</cite> algorithm</a> in the HTML Standard (all navigation types: link clicks, <code>location.href</code> assignments, <code>window.open()</code>, <code>navigation.navigate()</code>, reloads) — history traversals use a different algorithm and are not affected</td></tr>
+      <tr><th scope="row">Window</th><td>3 seconds between navigation start times (Chromium experimented with 1 s, 2 s, and 3 s and chose 3 s for the best latency reduction)</td></tr>
+      <tr><th scope="row">Web-observable effects</th><td>Mostly silent: the first navigation simply completes. Observable via <a href="https://w3c.github.io/webdriver-bidi/#webdriver-bidi-navigation-failed" target="_blank" rel="noopener">WebDriver BiDi <code>navigation failed</code></a> (status <code>"canceled"</code>) for automation, and via navigation timing showing the <em>first</em> attempt's start time</td></tr>
+      <tr><th scope="row">Chrome status</th><td>Enabled by default in Chrome 151 (the <a href="https://chromestatus.com/api/v0/features?milestone=151" target="_blank" rel="noopener">milestone listing</a> is authoritative, verified 2026-07-28)</td></tr>
+      <tr><th scope="row">Chromium gate</th><td><a href="https://source.chromium.org/chromium/chromium/src/+/main:content/public/common/content_features.cc" target="_blank" rel="noopener"><code>kIgnoreDuplicateNavs</code></a> — <code>FEATURE_ENABLED_BY_DEFAULT</code>, with feature params (threshold, initiator-type skips, origin allowlist)</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5137490012930048" target="_blank" rel="noopener">5137490012930048 — Navigation: Ignore duplicate navigations</a></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5137490012930048" target="_blank" rel="noopener">chromestatus.com/feature/5137490012930048</a>; <a href="https://github.com/whatwg/html/pull/11765" target="_blank" rel="noopener">whatwg/html PR #11765</a>; <a href="https://github.com/whatwg/html/issues/11743" target="_blank" rel="noopener">whatwg/html issue #11743</a>, July 2026.</span>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>Users sometimes navigate to the same URL in quick succession — typically an accidental double-click on a link, or clicking a link again because the page appears not to respond. Because a new navigation takes precedence over an older one, the second navigation cancels the in-flight one: any response already on the wire is wasted, and the user's wait restarts from zero even though the first request may have been nearly complete. Chromium experimented with this optimization alongside a partner and saw significant latency improvements; ignoring the duplicate lets the first navigation finish undisturbed.</p>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/issues/11743" target="_blank" rel="noopener">whatwg/html issue #11743 — proposal</a>; <a href="https://chromestatus.com/feature/5137490012930048" target="_blank" rel="noopener">ChromeStatus motivation</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">the deduplication decision (syntax / algorithm entry point)</h2>
+    <p>The change inserts a deduplication step into the <cite>navigate</cite> algorithm, <strong>after</strong> the point where navigations that are downloads or that return a <code>404</code>-style early exit are handled and <strong>before</strong> the new navigation is recorded as the navigable's ongoing navigation:</p>
+    <ol class="algo">
+      <li>Capture <var>navigationStartTime</var> at the top of <cite>navigate</cite> (the <a href="https://html.spec.whatwg.org/multipage/interaction.html#unsafe-shared-current-time" target="_blank" rel="noopener">unsafe shared current time</a>).</li>
+      <li>If the navigable's <a href="https://html.spec.whatwg.org/multipage/document-sequences.html#ongoing-navigation" target="_blank" rel="noopener">ongoing navigation</a> is non-null, compare the new navigation against the stored <a href="#snapshot">navigation initiation snapshot params</a> (the match conditions below).</li>
+      <li>If <strong>all</strong> match conditions hold, the new navigation is a duplicate: invoke <a href="https://w3c.github.io/webdriver-bidi/#webdriver-bidi-navigation-failed" target="_blank" rel="noopener">WebDriver BiDi navigation failed</a> for it with status <code>"canceled"</code> and <strong>return early</strong> — the ongoing navigation is left untouched and proceeds to completion.</li>
+      <li>Otherwise, store a fresh snapshot from the new navigation's parameters, reset <a href="#cookie-carveout">navigation conditions potentially changed</a> to false, and continue the navigation as normal.</li>
+    </ol>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/11765/files" target="_blank" rel="noopener">whatwg/html PR #11765 diff</a> (<a href="https://whatpr.org/html/11765/browsing-the-web.html" target="_blank" rel="noopener">rendered PR preview, browsing-the-web.html</a>), July 2026.</span>
+
+    <h3 id="match-conditions">match conditions (inputs compared)</h3>
+    <p>A new navigation is a duplicate of the ongoing navigation only when <strong>every</strong> one of these is true (comparison is against the snapshot captured when the ongoing navigation started):</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>Duplicate-match conditions (all must hold)</caption>
+      <thead><tr><th>Condition</th><th>Meaning / consequence</th></tr></thead>
+      <tr><td>URLs equal</td><td>The new navigation's URL <a href="https://url.spec.whatwg.org/#concept-url-equals" target="_blank" rel="noopener">equals</a> the snapshot's URL</td></tr>
+      <tr><td>Initiator origins same origin</td><td>The new navigation's initiator origin snapshot is <a href="https://html.spec.whatwg.org/multipage/browsers.html#same-origin" target="_blank" rel="noopener">same origin</a> with the snapshot's initiator origin (null initiators and cross-origin re-triggers never deduplicate)</td></tr>
+      <tr><td>Both document resources null</td><td>Neither navigation carries a <a href="https://html.spec.whatwg.org/multipage/browsing-the-web.html#document-resource" target="_blank" rel="noopener">document resource</a> (excludes e.g. <code>srcdoc</code>-style supplied content)</td></tr>
+      <tr><td>Same history handling behavior</td><td>Identical <a href="https://html.spec.whatwg.org/multipage/nav-history-apis.html#navigationhistorybehavior" target="_blank" rel="noopener"><code>NavigationHistoryBehavior</code></a> (<code>"push"</code> vs <code>"replace"</code> never deduplicate)</td></tr>
+      <tr><td>Both form data entry lists null</td><td>Form submissions are never deduplicated (a form POST/GET carries an entry list)</td></tr>
+      <tr><td>Same referrer policy</td><td>Identical <a href="https://w3c.github.io/webappsec-referrer-policy/#referrer-policy" target="_blank" rel="noopener">referrer policy</a></td></tr>
+      <tr><td>Same user navigation involvement</td><td>Identical <a href="https://html.spec.whatwg.org/multipage/browsing-the-web.html#user-navigation-involvement" target="_blank" rel="noopener">user navigation involvement</a> (e.g. browser-UI vs activation-behavior vs none)</td></tr>
+      <tr><td>Start-time delta &lt; 3 s</td><td>The new navigation's start time minus the snapshot's start time is less than 3 seconds</td></tr>
+      <tr><td>Conditions unchanged</td><td>The navigable's <a href="#cookie-carveout">navigation conditions potentially changed</a> boolean is false (see the cookie carve-out)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/11765/files" target="_blank" rel="noopener">whatwg/html PR #11765 diff</a> — deduplication step in <cite>navigate</cite>.</span>
+  </section>
+
+  <section>
+    <h2 id="snapshot">navigation initiation snapshot params (the stored state)</h2>
+    <p>To make the comparison possible, the PR adds a <dfn>navigation initiation snapshot params</dfn> struct to each <a href="https://html.spec.whatwg.org/multipage/document-sequences.html#navigable" target="_blank" rel="noopener">navigable</a>, captured at the start of every non-duplicated navigation. Its items:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>navigation initiation snapshot params — struct items</caption>
+      <thead><tr><th>Item</th><th>Type</th><th>Captured from</th></tr></thead>
+      <tr><td><strong>URL</strong></td><td>a URL</td><td>the navigation's URL</td></tr>
+      <tr><td><strong>initiator origin</strong></td><td>an origin or null</td><td>the navigation's initiator origin snapshot</td></tr>
+      <tr><td><strong>document resource</strong></td><td>a string or null</td><td>the navigation's document resource</td></tr>
+      <tr><td><strong>history handling behavior</strong></td><td>a <code>NavigationHistoryBehavior</code></td><td>the navigation's history handling</td></tr>
+      <tr><td><strong>entry list</strong></td><td>an entry list or null</td><td>the navigation's form data entry list</td></tr>
+      <tr><td><strong>referrer policy</strong></td><td>a referrer policy</td><td>the navigation's referrer policy</td></tr>
+      <tr><td><strong>user navigation involvement</strong></td><td>a user navigation involvement</td><td>the navigation's user involvement</td></tr>
+      <tr><td><strong>navigation start time</strong></td><td>a number</td><td>the unsafe shared current time at navigation start</td></tr>
+    </table>
+    </div>
+    <p>The snapshot is stored per navigable (top-level traversables and child navigables such as iframes deduplicate independently) and is overwritten on every navigation that is not itself dropped as a duplicate — so a <em>third</em> identical navigation within the window is still compared against the surviving first navigation's snapshot.</p>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/11765/files" target="_blank" rel="noopener">whatwg/html PR #11765 diff</a> — struct definition and snapshot-update step.</span>
+  </section>
+
+  <section>
+    <h2 id="cookie-carveout">the cookie carve-out: navigation conditions potentially changed</h2>
+    <p>Comparing request headers — including cookies — between the two navigations was considered and rejected during design: headers are only assembled deep inside <a href="https://fetch.spec.whatwg.org/" target="_blank" rel="noopener">Fetch</a>, and comparing cookie values could disclose whether an <code>HttpOnly</code> cookie changed between the two attempts. Instead, the PR adds a per-navigable boolean, <dfn>navigation conditions potentially changed</dfn> (initially false):</p>
+    <ul>
+      <li>Setting <a href="https://html.spec.whatwg.org/multipage/dom.html#dom-document-cookie" target="_blank" rel="noopener"><code>document.cookie</code></a> sets it to <strong>true</strong> (the PR's cookie-setter step does this explicitly; a note records that the <a href="https://cookiestore.spec.whatwg.org/" target="_blank" rel="noopener">Cookie Store API</a> does the same).</li>
+      <li>While true, deduplication is disabled — a navigation that would otherwise match is allowed to proceed, because a server that renders from cookies could legitimately return different content.</li>
+      <li>Starting any non-duplicate navigation resets it to false (the fresh snapshot marks the new baseline).</li>
+    </ul>
+    <p>The residual risk the design accepts: state changes that are <em>not</em> visible to these setters (a cookie written by an unrelated fetch's <code>Set-Cookie</code> response, or a server-side change between the two attempts) do not block deduplication — the 3-second window bounds how stale the reused navigation can be.</p>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/11765/files" target="_blank" rel="noopener">whatwg/html PR #11765 diff</a> (cookie setter + boolean); design discussion in <a href="https://github.com/whatwg/html/issues/11743" target="_blank" rel="noopener">issue #11743</a> (annevk / noamr / rakina thread, October 2025); Chromium follow-ups <a href="https://chromium-review.googlesource.com/c/chromium/src/+/7082102" target="_blank" rel="noopener">CL 7082102</a> and <a href="https://chromium-review.googlesource.com/c/chromium/src/+/7787900" target="_blank" rel="noopener">CL 7787900</a> (don't ignore when cookies changed).</span>
+  </section>
+
+  <section>
+    <h2 id="observable-effects">what a developer can observe</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>Observable effects of a deduplicated navigation</caption>
+      <tr><th scope="row">Page behavior</th><td>The duplicate navigation is a silent no-op: no second fetch, no second <code>Document</code>, no second <code>navigate</code> event. The surviving (first) navigation completes and its document loads</td></tr>
+      <tr><th scope="row">Navigation timing</th><td>The loaded document's <a href="https://w3c.github.io/navigation-timing/" target="_blank" rel="noopener">Navigation Timing</a> start time reflects the <strong>first</strong> attempt — user-perceived latency is measured from the initial click, not the accidental second one (called out in the proposal as the intended observable difference)</td></tr>
+      <tr><th scope="row">WebDriver BiDi</th><td><a href="https://w3c.github.io/webdriver-bidi/#webdriver-bidi-navigation-failed" target="_blank" rel="noopener"><code>browsingContext.navigationFailed</code></a> fires for the dropped navigation with status <code>"canceled"</code>, so automation does not hang waiting for a navigation that was silently dropped</td></tr>
+      <tr><th scope="row"><code>navigation.navigate()</code> promises</th><td><strong>Open spec question.</strong> The <a href="https://github.com/whatwg/html/issues/11743" target="_blank" rel="noopener">proposal</a> says an ignored duplicate made via the Navigation API should reject its promise, but PR #11765 as written contains no Navigation-API promise steps (the author <a href="https://github.com/whatwg/html/issues/11743" target="_blank" rel="noopener">noted</a> a need to inform the Navigation API about an aborted navigation not yet owned by the navigable). Treat promise behavior for deduplicated <code>navigate()</code> calls as unspecified until the PR resolves it</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/issues/11743" target="_blank" rel="noopener">whatwg/html issue #11743</a>; <a href="https://github.com/whatwg/html/pull/11765/files" target="_blank" rel="noopener">PR #11765 diff</a> (BiDi step).</span>
+  </section>
+
+  <section>
+    <h2 id="errors">edge cases and exclusions (error / non-dedup paths)</h2>
+    <ul>
+      <li><strong>Form submissions never deduplicate</strong> — a submission carries a form data entry list, failing the both-null condition (both GET and POST forms proceed).</li>
+      <li><strong>History traversals are unaffected</strong> — back/forward and <code>navigation.traverseTo()</code> run the traverse algorithm, not <cite>navigate</cite>.</li>
+      <li><strong>Cross-origin or differently-initiated duplicates proceed</strong> — the initiator-origin and user-involvement conditions scope deduplication to genuinely identical triggers.</li>
+      <li><strong>After the window</strong> — a matching navigation 3 seconds or more later proceeds normally (and becomes the new snapshot baseline).</li>
+      <li><strong>After a cookie write</strong> — the conditions-changed boolean forces the next navigation through (see the carve-out).</li>
+      <li><strong>No page-visible error</strong> — dropping the duplicate is silent by design; the only error-path signal is the WebDriver BiDi <code>"canceled"</code> status for automation.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/11765/files" target="_blank" rel="noopener">whatwg/html PR #11765 diff</a> — match conditions and early return.</span>
+  </section>
+
+  <section>
+    <h2 id="context">context and exposure</h2>
+    <p>This is a browser-engine behavior change with <strong>no new web-facing API surface</strong>: no interfaces, methods, properties, or flags for developers to call or feature-detect. It applies to every navigable (top-level and child) and every navigation type routed through <cite>navigate</cite>, independent of secure context, permissions policy, or document state, subject only to the match conditions. Chromium gates it with the <a href="https://source.chromium.org/chromium/chromium/src/+/main:content/public/common/content_features.cc" target="_blank" rel="noopener"><code>kIgnoreDuplicateNavs</code></a> base feature (enabled by default), which exposes Finch/feature params: <code>duplicate_nav_threshold</code> (default 3000&nbsp;ms), <code>skip_ignore_browser_initiated_navs</code> (default false), <code>skip_ignore_renderer_initiated_navs</code> (default false), and an origin allowlist; a separate modifier <code>kIgnoreDuplicateNavsOnlyWithUserGesture</code> (restricting dedup to user-gesture initiations) exists but is <strong>disabled</strong> by default.</p>
+    <span class="citation">Source: <a href="https://source.chromium.org/chromium/chromium/src/+/main:content/public/common/content_features.cc" target="_blank" rel="noopener">Chromium content_features.cc</a> (fetched 2026-07-28); <a href="https://chromium-review.googlesource.com/c/chromium/src/+/5856811" target="_blank" rel="noopener">CL 5856811 — browser-side expansion (merged)</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">lifecycle and timing</h2>
+    <p>Ordering within a navigable: (1) a navigation starts and records its snapshot; (2) for the next 3 seconds, identical new navigations are dropped; (3) the first navigation that is not dropped — different parameters, window expired, or conditions changed — overwrites the snapshot and resets the boolean, starting a fresh dedup epoch. There is no queue, retry, or cancellation callback for the dropped navigation; idempotency is the design goal (repeating an identical navigation is defined to be redundant). Chromium's 1 s / 2 s / 3 s experiments chose 3 s for latency wins, and a <a href="https://github.com/whatwg/html/issues/11743" target="_blank" rel="noopener">reviewer note (zcorpan)</a> flags that divergent per-browser thresholds would be an interop hazard — one reason the threshold is written into the spec PR rather than left implementation-defined.</p>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/issues/11743" target="_blank" rel="noopener">issue #11743 discussion</a>; <a href="https://github.com/whatwg/html/pull/11765/files" target="_blank" rel="noopener">PR #11765 diff</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v151/navigation-ignore-duplicate-navigations/duplicate-nav-demo/"
+        title="Live example — duplicate navigation demo" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase — rapidly click the same navigation link and watch the duplicate get ignored while a PerformanceObserver tracks navigation counts (also: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v151/navigation-ignore-duplicate-navigations/timing-comparison/" target="_blank" rel="noopener">timing comparison</a>). <span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v151/navigation-ignore-duplicate-navigations/" target="_blank" rel="noopener">chrome-platform-showcase</a> (both routes HEAD-checked 200, 2026-07-28)</span></figcaption>
+    </figure>
+    <p>Observing the behavior from a page — the loaded document's timing starts at the first attempt:</p>
+    <pre><code>// After a double-click navigation to this page, the deduplicated
+// second attempt does not restart the clock:
+const [nav] = performance.getEntriesByType("navigation");
+console.log(nav.startTime, nav.type); // first attempt's start, "navigate"
+
+// There is no web-platform signal that a duplicate was dropped;
+// automation sees it via WebDriver BiDi:
+// browsingContext.navigationFailed → status: "canceled"</code></pre>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/issues/11743" target="_blank" rel="noopener">issue #11743</a> (timing observability); <a href="https://w3c.github.io/webdriver-bidi/#webdriver-bidi-navigation-failed" target="_blank" rel="noopener">WebDriver BiDi — navigation failed</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">browser compatibility</h2>
+    <p>There is no BCD entry or webstatus feature for this deduplication change (checked 2026-07-28) — the table below uses the ChromeStatus ship data for the change itself (interim, labelled), and cites <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Navigation.json" target="_blank" rel="noopener">BCD api/Navigation.json</a> for the surrounding Navigation API baseline.</p>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <caption>Compatibility — deduplication behavior (ChromeStatus interim data)</caption>
+      <thead><tr><th>Browser</th><th>Dedup behavior</th><th>Evidence</th></tr></thead>
+      <tr><td>Chrome</td><td>151+ — Enabled by default</td><td><a href="https://chromestatus.com/api/v0/features?milestone=151" target="_blank" rel="noopener">Milestone 151 listing</a> (verified 2026-07-28); <code>kIgnoreDuplicateNavs</code> enabled by default in <a href="https://source.chromium.org/chromium/chromium/src/+/main:content/public/common/content_features.cc" target="_blank" rel="noopener">content_features.cc</a></td></tr>
+      <tr><td>Edge</td><td>No separate signal (Chromium-based)</td><td>No public statement recorded on the <a href="https://chromestatus.com/feature/5137490012930048" target="_blank" rel="noopener">ChromeStatus entry</a></td></tr>
+      <tr><td>Firefox</td><td>No signal</td><td><a href="https://github.com/mozilla/standards-positions/issues/1307" target="_blank" rel="noopener">mozilla/standards-positions #1307</a></td></tr>
+      <tr><td>Safari</td><td>No signal</td><td><a href="https://github.com/WebKit/standards-positions/issues/563" target="_blank" rel="noopener">WebKit/standards-positions #563</a>; an Apple reviewer raised a network-topology concern in <a href="https://github.com/whatwg/html/issues/11743" target="_blank" rel="noopener">the proposal thread</a></td></tr>
+    </table>
+    </div>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <caption>For reference — Navigation API baseline (BCD api/Navigation.json)</caption>
+      <thead><tr><th>Browser</th><th>Navigation API</th></tr></thead>
+      <tr><td>Chrome</td><td>102+</td></tr>
+      <tr><td>Edge</td><td>mirrors Chrome</td></tr>
+      <tr><td>Firefox</td><td>147+</td></tr>
+      <tr><td>Safari</td><td>26.2+</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Navigation.json" target="_blank" rel="noopener">BCD api/Navigation.json</a>; <a href="https://webstatus.dev/features/navigation" target="_blank" rel="noopener">webstatus.dev — navigation (Baseline newly available)</a>; vendor threads linked in-table.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <ul>
+      <li><strong>Deliberately no cookie comparison</strong> — comparing cookie state between the two navigations could disclose whether an <code>HttpOnly</code> cookie changed (an information channel scripts cannot otherwise read), so the design compares no header values at all (<a href="https://github.com/whatwg/html/issues/11743" target="_blank" rel="noopener">annevk, issue #11743</a>).</li>
+      <li><strong>Stale-content risk is bounded, not zero</strong> — a same-URL navigation within 3 s reuses the in-flight response even if server-side state changed; the cookie carve-out covers the common client-triggered case, and the time window bounds the rest.</li>
+      <li><strong>Network-topology concern</strong> — an Apple reviewer noted the first request may be on a degraded path (e.g. poor cell data just before a wifi reconnect); the design accepts this rather than racing both requests (<a href="https://github.com/whatwg/html/issues/11743" target="_blank" rel="noopener">achristensen07, issue #11743</a>).</li>
+      <li><strong>Automation integrity</strong> — the BiDi <code>"canceled"</code> signal exists so tooling does not misread a dropped navigation as a hang.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/issues/11743" target="_blank" rel="noopener">whatwg/html issue #11743</a> — full design discussion.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Specification</th><th>Status</th></tr></thead>
+      <tr><td><a href="https://github.com/whatwg/html/pull/11765" target="_blank" rel="noopener">whatwg/html PR #11765 — Navigation: Add optimization to ignore duplicate navigations</a> (<a href="https://whatpr.org/html/11765/browsing-the-web.html" target="_blank" rel="noopener">preview</a>)</td><td><strong>Open</strong> (verified 2026-07-28); one-implementer interest so far</td></tr>
+      <tr><td><a href="https://html.spec.whatwg.org/multipage/browsing-the-web.html#navigate" target="_blank" rel="noopener">HTML Standard — navigate</a></td><td>Living Standard (the algorithm the PR modifies)</td></tr>
+      <tr><td><a href="https://w3c.github.io/webdriver-bidi/#webdriver-bidi-navigation-failed" target="_blank" rel="noopener">WebDriver BiDi — navigation failed</a></td><td>W3C draft (signal reused by the PR)</td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/5137490012930048" target="_blank" rel="noopener">Chrome Platform Status — Navigation: Ignore duplicate navigations</a></li>
+      <li><a href="https://github.com/whatwg/html/issues/11743" target="_blank" rel="noopener">whatwg/html issue #11743 — original proposal and design discussion</a></li>
+      <li><a href="https://github.com/w3ctag/design-reviews/issues/1240" target="_blank" rel="noopener">W3C TAG design review #1240</a> (open)</li>
+      <li><a href="https://crbug.com/366060351" target="_blank" rel="noopener">Chromium tracking bug 366060351</a></li>
+      <li><a href="https://github.com/mozilla/standards-positions/issues/1307" target="_blank" rel="noopener">Mozilla standards position #1307</a> · <a href="https://github.com/WebKit/standards-positions/issues/563" target="_blank" rel="noopener">WebKit standards position #563</a> (both no signal)</li>
+      <li><a href="https://chromium-review.googlesource.com/c/chromium/src/+/5856811" target="_blank" rel="noopener">Chromium CL 5856811</a> (browser-side handling; content browser tests in <code>navigation_controller_impl_browsertest.cc</code> — no upstream WPT files exist for this change as of 2026-07-28)</li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v151/navigation-ignore-duplicate-navigations/" target="_blank" rel="noopener">Chrome Platform Showcase — interactive demos for this feature</a> (<a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v151/navigation-ignore-duplicate-navigations/duplicate-nav-demo/" target="_blank" rel="noopener">duplicate-nav-demo</a> · <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v151/navigation-ignore-duplicate-navigations/timing-comparison/" target="_blank" rel="noopener">timing-comparison</a>)</li>
+      <li>No public blink-dev intent thread is recorded on the ChromeStatus entry's stage records (checked 2026-07-28)</li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
