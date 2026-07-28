@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>setConstraints() and HTMLMediaStreamConstraints — Capability elements: &lt;camera&gt; and &lt;microphone&gt; — Chrome 153 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 32%; min-width: 7.5rem; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .compat-table tr > *:nth-child(2) { min-width: 6.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .doc-table caption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); text-align: left; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .table-wrap { overflow-x: auto; }
+    .table-wrap .doc-table { min-width: 36rem; table-layout: fixed; }
+    .lede-block h1 { overflow-wrap: anywhere; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v153/capability-elements-camera-and-microphone/">&larr; Capability elements: &lt;camera&gt; and &lt;microphone&gt;</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v153 · html · method + dictionary reference</p>
+    <h1>setConstraints()<wbr> / <wbr>HTMLMediaStreamConstraints</h1>
+    <p class="lede">The configuration channel for the capture request a <code>&lt;camera&gt;</code> or <code>&lt;microphone&gt;</code> element makes: call <code>setConstraints()</code> with an <code>HTMLMediaStreamConstraints</code> dictionary (<code>video</code> and <code>audio</code> <code>MediaTrackConstraintSet</code> members) before the user interacts. The shipping contract has three non-obvious rules — first-call-wins, member backfill, and a bare-scalar sanitizer — all derived from the implementation below.</p>
+  </header>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+<pre><code>// Shipping Chromium IDL (partial mixin applying to all three capability elements):
+undefined setConstraints(optional HTMLMediaStreamConstraints constraints = {});
+
+dictionary HTMLMediaStreamConstraints {
+  MediaTrackConstraintSet video;
+  MediaTrackConstraintSet audio;
+};
+
+// Usage on the single-capability elements (use YOUR element's member):
+document.querySelector("camera").setConstraints({
+  video: { width: 1280, facingMode: "environment" }
+});
+document.querySelector("microphone").setConstraints({
+  audio: { echoCancellation: true, noiseSuppression: true }
+});
+
+// Draft spec IDL (diverges — see overview "spec vs shipping"):
+//   undefined setConstraints(optional MediaTrackConstraintSet constraints = {});</code></pre>
+    <p>Chromium ships the method and dictionary in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_element_constraints.idl" target="_blank" rel="noopener">user_media_element_constraints.idl</a> as a partial on the shared <code>HTMLMediaCaptureElementBase</code> mixin — so <code>&lt;camera&gt;</code> and <code>&lt;microphone&gt;</code> take the same two-member dictionary as <code>&lt;usermedia&gt;</code>, not the draft's bare <code>MediaTrackConstraintSet</code>. The <code>MediaTrackConstraintSet</code> members accept the same constraint properties as <code>getUserMedia()</code>, defined by <a href="https://w3c.github.io/mediacapture-streams/#dom-mediatrackconstraintset" target="_blank" rel="noopener">Media Capture and Streams</a>.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_element_constraints.idl" target="_blank" rel="noopener">Chromium user_media_element_constraints.idl</a>; <a href="https://w3c.github.io/mediacapture-extensions/#media-capture-html-elements" target="_blank" rel="noopener">Specification — setConstraints (draft signature)</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="inputs">Inputs</h2>
+    <p>One optional dictionary parameter (default <code>{}</code>) with two optional <code>MediaTrackConstraintSet</code> members. Three implementation rules from <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_element_constraints.cc" target="_blank" rel="noopener">user_media_element_constraints.cc</a>:</p>
+    <ol>
+      <li><strong>First call wins.</strong> A <code>did_set_constraints_</code> flag makes every call after the first a silent no-op — there is no error and no way to reconfigure; put all configuration in one call, before the user interacts.</li>
+      <li><strong>Member backfill.</strong> Whichever of <code>video</code>/<code>audio</code> you omit is stored as an <em>empty</em> <code>MediaTrackConstraints</code> rather than left absent. Consequence: the provider's &ldquo;No video/audio constraints set&rdquo; <code>NotSupportedError</code> branches are not reachable through the JS surface, and passing the &ldquo;wrong&rdquo; member (e.g. <code>audio</code> on a <code>&lt;camera&gt;</code>) does not throw — the element still requests its own kind with the (backfilled, empty) constraints.</li>
+      <li><strong>Bare-scalar sanitizer.</strong> Each member is filtered to plain scalar values only — <code>exact</code>/<code>min</code>/<code>max</code>/<code>ideal</code> object forms are dropped property-by-property (see the table below). A property present only in object form disappears entirely, so the element cannot hard-fail on an <code>OverconstrainedError</code> from your configuration.</li>
+    </ol>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>Sanitizer — what survives <code>SanitizeTrackConstraints()</code></caption>
+      <thead><tr><th scope="col">Group</th><th scope="col">Properties kept (bare form only)</th></tr></thead>
+      <tr><td>Video</td><td><code>width</code>, <code>height</code> (long) · <code>aspectRatio</code>, <code>frameRate</code> (double) · <code>facingMode</code>, <code>resizeMode</code> (string or string[])</td></tr>
+      <tr><td>Audio</td><td><code>channelCount</code>, <code>sampleSize</code>, <code>sampleRate</code> (long) · <code>latency</code> (double) · <code>autoGainControl</code>, <code>echoCancellation</code>, <code>noiseSuppression</code>, <code>voiceIsolation</code> (boolean)</td></tr>
+      <tr><td>Shared</td><td><code>deviceId</code>, <code>groupId</code> (string or string[])</td></tr>
+      <tr><td>Dropped</td><td>Any property in <code>{exact}</code>/<code>{min}</code>/<code>{max}</code>/<code>{ideal}</code> object form; any property not listed above</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_element_constraints.cc" target="_blank" rel="noopener">Chromium user_media_element_constraints.cc — setConstraints (first-call-wins, backfill) and SanitizeTrackConstraints</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="outputs">Outputs</h2>
+    <p>No return value (<code>undefined</code>) and no observable effect on first call other than storing the sanitized constraints for the next activation. The stored constraints shape the capture request built at click time: the provider constructs a kind-scoped request — video-only for <code>&lt;camera&gt;</code> (using the <code>video</code> member), audio-only for <code>&lt;microphone&gt;</code> (using the <code>audio</code> member) — regardless of what the other member holds.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_request_provider_impl.cc" target="_blank" rel="noopener">Chromium user_media_request_provider_impl.cc — kind-scoped request construction</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="errors">Errors</h2>
+    <p>The method itself never throws for constraint content: malformed member values are dropped by the sanitizer, and repeat calls are silently ignored. Capture-time failures surface later through the element's <code>error</code> event, not from this call. Calling <code>setConstraints()</code> on an element whose runtime feature is off is impossible (the interface doesn't exist); calling it on a fallback-rendered unknown element in an unsupported engine is a <code>TypeError</code> (no such function) — feature-detect first.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_element_constraints.cc" target="_blank" rel="noopener">Chromium user_media_element_constraints.cc</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="context">Context</h2>
+    <p>Available on <code>&lt;camera&gt;</code> and <code>&lt;microphone&gt;</code> element instances in a Window context. Call it any time before activation; because the first call wins, the practical contract is &ldquo;configure once, immediately after obtaining the element&rdquo;. The method exists on the same shared mixin partial as <code>stream</code>, so its presence tracks the <code>CameraAndMicrophoneElements</code> feature.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_element_constraints.idl" target="_blank" rel="noopener">Chromium user_media_element_constraints.idl</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">Lifecycle</h2>
+    <ol>
+      <li><strong>Before first call:</strong> no stored constraints; an activation requests with empty default constraints for the element's kind.</li>
+      <li><strong>First call:</strong> members sanitized and backfilled, stored, <code>did_set_constraints_</code> set.</li>
+      <li><strong>Later calls:</strong> no-ops.</li>
+      <li><strong>At activation:</strong> the stored (or default) constraints build the kind-scoped capture request; they persist across attempts — a failed attempt does not clear them.</li>
+    </ol>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_element_constraints.cc" target="_blank" rel="noopener">Chromium user_media_element_constraints.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_request_provider_impl.cc" target="_blank" rel="noopener">Chromium user_media_request_provider_impl.cc</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+<pre><code>const cam = document.querySelector("camera");
+const mic = document.querySelector("microphone");
+
+// Configure once, before the user clicks:
+cam.setConstraints({ video: { width: 1280, height: 720, facingMode: "environment" } });
+mic.setConstraints({ audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 48000 } });
+
+// WRONG — silently ignored (first call already won):
+// cam.setConstraints({ video: { width: 640 } });
+
+// WRONG expectation — object-form constraints are dropped property-by-property:
+// cam.setConstraints({ video: { width: { exact: 1280 } } });
+//   → stored as video: {} (width removed; no OverconstrainedError possible)
+
+// Harmless but pointless — wrong member is stored then ignored for the request:
+// mic.setConstraints({ video: { width: 1280 } });
+//   → microphone still requests audio with empty constraints</code></pre>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_element_constraints.cc" target="_blank" rel="noopener">Chromium user_media_element_constraints.cc</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">Compatibility</h2>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <thead><tr><th scope="col">Engine / runtime</th><th scope="col">Support</th><th scope="col">Notes</th></tr></thead>
+      <tr><td>Chrome / Edge (desktop)</td><td>153 (listing)</td><td>Same availability as the elements; trunk flag status caveat in the <a href="/v153/capability-elements-camera-and-microphone/#compatibility">overview table</a>. Behavior above is the shared modules/mediastream implementation also used by <code>&lt;usermedia&gt;</code> (151+)</td></tr>
+      <tr><td>Chrome (Android)</td><td>153 (listing)</td><td>WebView: explicit unknown (see overview)</td></tr>
+      <tr><td>Firefox / Safari</td><td>Not supported</td><td>No signal on the <a href="https://chromestatus.com/feature/5153829504024576" target="_blank" rel="noopener">ChromeStatus record</a></td></tr>
+      <tr><td>BCD / MDN</td><td>No entries</td><td>No BCD files; both MDN interface pages 404 (2026-07-28)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5153829504024576" target="_blank" rel="noopener">ChromeStatus API feature record</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-privacy">Security and privacy</h2>
+    <p>The sanitizer is also a privacy control: by dropping <code>exact</code>/<code>min</code>/<code>max</code>/<code>ideal</code> forms, the elements cannot be used to hard-probe device capabilities (a failed exact constraint would reveal device characteristics) — the same anti-fingerprinting stance as <code>getUserMedia()</code>'s permission-gated device information. <code>deviceId</code>/<code>groupId</code> survive in bare form but remain subject to the permission-mediated capture flow: the browser still runs its own prompt/recovery UX before any capture starts.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_element_constraints.cc" target="_blank" rel="noopener">Chromium user_media_element_constraints.cc — SanitizeTrackConstraints</a>; <a href="https://github.com/w3c/mediacapture-extensions/blob/main/media-capture-elements-explainer.md" target="_blank" rel="noopener">Explainer — privacy considerations</a>.</span>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>stream and error properties — Capability elements: &lt;camera&gt; and &lt;microphone&gt; — Chrome 153 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 32%; min-width: 7.5rem; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .compat-table tr > *:nth-child(2) { min-width: 6.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .doc-table caption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); text-align: left; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .table-wrap { overflow-x: auto; }
+    .table-wrap .doc-table { min-width: 36rem; table-layout: fixed; }
+    .lede-block h1 { overflow-wrap: anywhere; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v153/capability-elements-camera-and-microphone/">&larr; Capability elements: &lt;camera&gt; and &lt;microphone&gt;</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v153 · html · property reference</p>
+    <h1>stream<wbr> / <wbr>error</h1>
+    <p class="lede">The two read-only properties you use after a <code>&lt;camera&gt;</code> or <code>&lt;microphone&gt;</code> element's terminal event: <code>stream</code> holds the captured <code>MediaStream</code> on success; <code>error</code> holds the failure <code>DOMException</code> otherwise. Both are <code>null</code> until the corresponding outcome.</p>
+  </header>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+<pre><code>// Shipping Chromium IDL (both interfaces, via the shared mixin + partial):
+readonly attribute MediaStream? stream;    // partial mixin HTMLMediaCaptureElementBase
+readonly attribute DOMException? error;    // interface mixin HTMLMediaCaptureElementBase
+
+// Draft spec IDL (diverges — see overview "spec vs shipping"):
+//   readonly attribute MediaStreamTrack? track;
+//   readonly attribute DOMException? error;</code></pre>
+    <p>In Chromium both properties live on the shared <code>HTMLMediaCaptureElementBase</code> mixin that <code>HTMLCameraElement</code> and <code>HTMLMicrophoneElement</code> include: <code>error</code> in the <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_media_capture_element_base.idl" target="_blank" rel="noopener">base mixin IDL</a>, <code>stream</code> in the <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/html_user_media_element_media_stream.idl" target="_blank" rel="noopener">modules/mediastream partial</a> (supplement-implemented, shared with <code>&lt;usermedia&gt;</code>). The draft specification instead defines a <code>track</code> attribute of type <code>MediaStreamTrack?</code> — there is no <code>track</code> property in the shipping implementation.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_media_capture_element_base.idl" target="_blank" rel="noopener">Chromium html_media_capture_element_base.idl</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/html_user_media_element_media_stream.idl" target="_blank" rel="noopener">Chromium html_user_media_element_media_stream.idl</a>; <a href="https://w3c.github.io/mediacapture-extensions/#media-capture-html-elements" target="_blank" rel="noopener">Specification — element IDL</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="inputs">Inputs</h2>
+    <p>Both are parameterless getters — no inputs. What you read depends on the element's state: before any activation attempt both return <code>null</code>; after a successful acquisition <code>stream</code> is non-null; after a failed or cancelled attempt <code>error</code> is non-null.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/html_user_media_element_media_stream.cc" target="_blank" rel="noopener">Chromium html_user_media_element_media_stream.cc — stream getter</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_media_capture_element_base.h" target="_blank" rel="noopener">Chromium html_media_capture_element_base.h — error getter</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="outputs">Outputs</h2>
+    <p id="outputs-stream"><strong><code>stream</code></strong> returns a <code>MediaStream</code> whose track set contains the single captured track — kind <code>video</code> for <code>&lt;camera&gt;</code>, kind <code>audio</code> for <code>&lt;microphone&gt;</code> — or <code>null</code>. The provider assigns it via the supplement <em>before</em> dispatching the <code>stream</code> event, so reading it inside the <code>stream</code> handler is always safe. Attach it straight to a media element (<code>video.srcObject = el.stream</code>) or read its tracks (<code>el.stream.getVideoTracks()</code> / <code>getAudioTracks()</code>).</p>
+    <p id="outputs-error"><strong><code>error</code></strong> returns a <code>DOMException</code> describing the terminal failure — see the exact name/message mapping in the <a href="/v153/capability-elements-camera-and-microphone/#errors">overview errors table</a> — or <code>null</code>. It is set before the <code>cancel</code>/<code>error</code> event is queued.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_request_provider_impl.cc" target="_blank" rel="noopener">Chromium user_media_request_provider_impl.cc — SetMediaStream then kStream; SetError then kCancel/kError</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="errors">Errors</h2>
+    <p>The getters themselves never throw. All failure information flows <em>through</em> <code>error</code> as a value: <code>NotAllowedError</code> (dismissed/denied), <code>InvalidStateError</code> (activation without a user gesture), <code>OperationError</code> (&ldquo;Stream creation failed&rdquo;), <code>NotSupportedError</code> (defensive missing-constraints branch — see the overview table for why it is not reachable via the JS surface), or the capture request's own rejection <code>DOMException</code>.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_media_capture_element_base.cc" target="_blank" rel="noopener">Chromium html_media_capture_element_base.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_request_provider_impl.cc" target="_blank" rel="noopener">Chromium user_media_request_provider_impl.cc</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="context">Context</h2>
+    <p>Readable on any <code>&lt;camera&gt;</code>/<code>&lt;microphone&gt;</code> element instance in a Window context (the interfaces are <code>[Exposed=Window]</code>). Both getters exist whenever the <code>CameraAndMicrophoneElements</code> runtime feature created the element — reading them on a fallback-rendered unknown element in an unsupported engine simply yields <code>undefined</code> (the interface doesn't exist there), which doubles as a feature probe alongside <code>"HTMLCameraElement" in window</code>.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_camera_element.idl" target="_blank" rel="noopener">Chromium html_camera_element.idl</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_microphone_element.idl" target="_blank" rel="noopener">Chromium html_microphone_element.idl</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">Lifecycle</h2>
+    <ol>
+      <li><strong>Initial:</strong> <code>stream === null</code>, <code>error === null</code> (slots initialized empty at construction).</li>
+      <li><strong>Success:</strong> provider calls <code>SetMediaStream(stream)</code> then queues the <code>stream</code> event — <code>stream</code> is non-null from that point until the stream ends (the supplement holds the reference; track stop/inactivity transitions the element back to the request state, and the next acquisition replaces it).</li>
+      <li><strong>Failure:</strong> <code>SetError(domException)</code> runs before the <code>cancel</code>/<code>error</code> event is queued — <code>error</code> is readable inside the handler.</li>
+      <li><strong>Re-arm:</strong> a new attempt resets the request bookkeeping (<code>ResetMediaStreamRequestTime</code>); a later success overwrites the supplement's stream reference.</li>
+    </ol>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_request_provider_impl.cc" target="_blank" rel="noopener">Chromium user_media_request_provider_impl.cc — OnSuccess/OnError ordering</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/html_user_media_element_media_stream.cc" target="_blank" rel="noopener">Chromium html_user_media_element_media_stream.cc</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+<pre><code>const cam = document.querySelector("camera");
+
+cam.addEventListener("stream", () => {
+  const stream = cam.stream;            // MediaStream, never null here
+  const [track] = stream.getVideoTracks();
+  console.log("captured:", track.kind, track.label, track.readyState);
+  document.querySelector("video").srcObject = stream;
+});
+
+cam.addEventListener("error", () => {
+  const err = cam.error;                // DOMException, never null here
+  if (err.name === "NotAllowedError") showPermissionHelp();
+  else showRetry(err.message);
+});
+
+// Feature probe fallback:
+if (!("HTMLCameraElement" in window)) {
+  // element parsed as unknown; its fallback children are already visible
+}</code></pre>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_request_provider_impl.cc" target="_blank" rel="noopener">Chromium user_media_request_provider_impl.cc</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">Compatibility</h2>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <caption>stream / error getters — checked 2026-07-28</caption>
+      <thead><tr><th scope="col">Engine / runtime</th><th scope="col">Support</th><th scope="col">Notes</th></tr></thead>
+      <tr><td>Chrome / Edge (desktop)</td><td>153 (listing)</td><td>Same availability as the elements themselves; trunk flag status caveat in the <a href="/v153/capability-elements-camera-and-microphone/#compatibility">overview table</a></td></tr>
+      <tr><td>Chrome (Android)</td><td>153 (listing)</td><td>WebView: explicit unknown (see overview)</td></tr>
+      <tr><td>Firefox / Safari</td><td>Not supported</td><td>No signal on the <a href="https://chromestatus.com/feature/5153829504024576" target="_blank" rel="noopener">ChromeStatus record</a></td></tr>
+      <tr><td>BCD / MDN</td><td>No entries</td><td>No BCD files; both MDN interface pages 404 (2026-07-28)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5153829504024576" target="_blank" rel="noopener">ChromeStatus API feature record</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-privacy">Security and privacy</h2>
+    <p><code>stream</code> hands the page a live capture stream: treat the click-to-grant as instant hardware activation (LED/indicators on). The stream is only ever delivered after the browser's own permission mediation — the property cannot be set from script (read-only, supplement-assigned). <code>error</code> exposes standard <code>getUserMedia()</code>-class failure reasons (device presence, busy state) — the same disclosure class as the imperative API, no new fingerprint surface.</p>
+    <span class="citation">Source: <a href="https://github.com/w3c/mediacapture-extensions/blob/main/media-capture-elements-explainer.md" target="_blank" rel="noopener">Explainer — security and privacy considerations</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/html_user_media_element_media_stream.idl" target="_blank" rel="noopener">stream IDL (readonly)</a>.</span>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
