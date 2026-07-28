@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>report-to — Document Policy in Dedicated Workers — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    /* --amber-text: AA-compliant text variant of --accent-amber, derived only from design-system
+       variables (invariant #5): 65% amber + 35% black = #785000, 6.9:1 on --bg-paper. */
+    main { --amber-text: color-mix(in srgb, var(--accent-amber) 65%, var(--text-black)); }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .doc-table caption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); text-align: left; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--amber-text); display: block; margin-bottom: 0.4rem; }
+    .warn-block p { font-size: 0.98rem; }
+    .toc { border-left: 3px solid var(--border-black); padding-left: 1rem; margin: 1.5rem 0; }
+    .toc ul { columns: 2 15rem; padding-left: 1.1rem; }
+    @media (max-width: 42rem) { .toc ul { columns: 1; } }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v147/document-policy-in-dedicated-workers/">&larr; Document Policy in Dedicated Workers</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v147 · developer trial · directive parameter reference</p>
+    <h1>The <code>report-to</code> parameter</h1>
+    <p class="lede">The violation-reporting parameter any <code>Document-Policy</code> directive may carry. It names a reporting endpoint &mdash; registered with the Reporting API&rsquo;s <code>Reporting-Endpoints</code> header &mdash; to which <code>"document-policy-violation"</code> reports for that feature are delivered, with a <code>*</code>-token default, a <code>none</code> off switch, and a report-only delivery mode via <code>Document-Policy-Report-Only</code>.</p>
+  </header>
+
+  <div class="warn-block" id="context">
+    <strong>Developer trial &mdash; worker-scope reporting unspecified</strong>
+    <p>Same availability as the parent feature: behind the <code>DocumentPolicyInDedicatedWorker</code> flag in Chrome 147 per the <a href="https://chromestatus.com/api/v0/features?milestone=147" target="_blank" rel="noopener">milestone-147 listing</a> (<a href="https://chromestatus.com/feature/6242687411945472" target="_blank" rel="noopener">chromestatus.com/feature/6242687411945472</a>). The reporting model below is the draft&rsquo;s <em>document</em>-policy model; how violation reports are delivered from a <em>worker-scope</em> policy is not yet specified anywhere &mdash; see <a href="#lifecycle">Lifecycle</a>.</p>
+  </div>
+
+  <nav class="toc" aria-label="On this page"><strong>On this page</strong>
+    <ul>
+      <li><a href="#syntax">Syntax</a></li>
+      <li><a href="#inputs">Inputs</a></li>
+      <li><a href="#outputs">Outputs</a></li>
+      <li><a href="#errors">Errors</a></li>
+      <li><a href="#lifecycle">Lifecycle</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#compatibility">Compatibility</a></li>
+      <li><a href="#security-privacy">Security and privacy</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>A Structured Field parameter on a document policy directive (or on the wildcard <code>*</code> token). The shapes below are quoted from the draft&rsquo;s own reporting examples &mdash; <code>something</code>/<code>something-else</code> are the draft&rsquo;s placeholder directive names:</p>
+<pre><code>// Per-feature endpoint(s)
+Document-Policy: something=1.0;report-to=endpoint1, something-else=?0;report-to=endpoint2
+
+// Default endpoint for all features, via the * token
+Document-Policy: something=1.0, something-else=?0, *;report-to=endpoint
+
+// Disable reporting for one feature while a default is set
+Document-Policy: something=1.0;report-to=none, something-else=?0, *;report-to=endpoint
+
+// Report-only delivery (no enforcement)
+Document-Policy-Report-Only: something=1.0;report-to=endpoint</code></pre>
+    <span class="citation">Source: <a href="https://wicg.github.io/document-policy/#report-to-parameter" target="_blank" rel="noopener">Document Policy draft &sect;6.1.1 &mdash; the report-to parameter</a>; <a href="https://wicg.github.io/document-policy/#reporting-default" target="_blank" rel="noopener">&sect;6.1.2 &mdash; default endpoint (*)</a>; <a href="https://wicg.github.io/document-policy/#reporting-disable" target="_blank" rel="noopener">&sect;6.1.3 &mdash; report-to=none</a>; <a href="https://wicg.github.io/document-policy/#report-only" target="_blank" rel="noopener">&sect;6.2 &mdash; report-only mode</a> (examples quoted from the draft)</span>
+  </section>
+
+  <section>
+    <h2 id="inputs">Inputs</h2>
+    <p>The parameter value is an endpoint <em>name</em> (a string), or the keyword <code>none</code>. For delivery to work the name must be registered on the same response with the Reporting API&rsquo;s <a href="https://w3c.github.io/reporting/#header" target="_blank" rel="noopener"><code>Reporting-Endpoints</code> response header</a> &mdash; a Structured Field dictionary whose entry values are collector URL strings. The Document Policy draft names the endpoint; registration itself is entirely the Reporting API&rsquo;s contract.</p>
+<pre><code>// Register the name, then reference it:
+HTTP/1.1 200 OK
+Reporting-Endpoints: endpoint1="https://reports.example.com/collect"
+Document-Policy: something=1.0;report-to=endpoint1</code></pre>
+    <span class="citation">Source: <a href="https://w3c.github.io/reporting/#header" target="_blank" rel="noopener">Reporting API &mdash; the Reporting-Endpoints header</a>; <a href="https://wicg.github.io/document-policy/#report-to-parameter" target="_blank" rel="noopener">Document Policy draft &sect;6.1.1</a></span>
+  </section>
+
+  <section>
+    <h2 id="outputs">Outputs</h2>
+    <p>When a supported, enforced directive is violated, the browser generates a report of type <code>"document-policy-violation"</code> (per the draft&rsquo;s violation-report algorithm) and the Reporting API <a href="https://w3c.github.io/reporting/#try-delivery" target="_blank" rel="noopener">POSTs</a> a JSON array to the registered collector URL with <code>Content-Type: application/reports+json</code>. Each report carries <code>type</code>, <code>url</code> (the reporting document, stripped of credentials/fragments), <code>age</code>, <code>user_agent</code>, and a type-specific <code>body</code>:</p>
+<pre><code>POST /collect HTTP/1.1
+Content-Type: application/reports+json
+
+[{
+  "type": "document-policy-violation",
+  "url": "https://site.example/page",
+  "age": 27,
+  "body": { /* violated feature and disposition */ }
+}]</code></pre>
+    <span class="citation">Source: <a href="https://wicg.github.io/document-policy/#reporting" target="_blank" rel="noopener">Document Policy draft &sect;9.10 violation-report algorithm (report type)</a>; <a href="https://w3c.github.io/reporting/#try-delivery" target="_blank" rel="noopener">Reporting API &mdash; report delivery (POST format, media type, report fields)</a></span>
+  </section>
+
+  <section>
+    <h2 id="errors">Errors</h2>
+    <p>The parameter defines no throwing or rejecting surface. The failure modes are silent by design:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>Failure modes &mdash; nothing throws</caption>
+      <thead><tr><th scope="col">Condition</th><th scope="col">Behavior</th></tr></thead>
+      <tr><td>Endpoint name not registered via <code>Reporting-Endpoints</code></td><td>Reports queue against a name with no destination and are never delivered &mdash; the Reporting API delivers only to registered endpoints; no console error is mandated by either spec.</td></tr>
+      <tr><td><code>report-to=none</code></td><td>The defined off switch: reporting for that feature is disabled (<a href="https://wicg.github.io/document-policy/#reporting-disable" target="_blank" rel="noopener">&sect;6.1.3</a>).</td></tr>
+      <tr><td>Directive without <code>report-to</code> in <code>Document-Policy-Report-Only</code></td><td>Has no effect at all in that header (<a href="https://wicg.github.io/document-policy/#report-only" target="_blank" rel="noopener">&sect;6.2</a>).</td></tr>
+      <tr><td>Delivery failure (collector unreachable)</td><td>The Reporting API&rsquo;s <a href="https://w3c.github.io/reporting/#try-delivery" target="_blank" rel="noopener">delivery attempts</a> back off and eventually drop the reports; the page is not notified.</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://wicg.github.io/document-policy/#configure-reporting" target="_blank" rel="noopener">Document Policy draft &sect;6.1</a>; <a href="https://w3c.github.io/reporting/#try-delivery" target="_blank" rel="noopener">Reporting API &mdash; delivery</a></span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">Lifecycle</h2>
+    <ul>
+      <li><strong>Configuration:</strong> the policy (and any <code>report-to</code> parameters) is parsed from the response headers when the document loads; endpoint names resolve against the same response&rsquo;s <code>Reporting-Endpoints</code> dictionary.</li>
+      <li><strong>Endpoint precedence:</strong> a feature&rsquo;s own <code>report-to</code> overrides the <code>*</code> default &mdash; reports go to one endpoint, never both (<a href="https://wicg.github.io/document-policy/#reporting-default" target="_blank" rel="noopener">&sect;6.1.2</a>); <code>none</code> disables that feature&rsquo;s reporting outright.</li>
+      <li><strong>Violation &rarr; report:</strong> an enforced violation runs the draft&rsquo;s <a href="https://wicg.github.io/document-policy/#reporting" target="_blank" rel="noopener">&sect;9.10 algorithm</a>, generating a <code>"document-policy-violation"</code> report; under <code>Document-Policy-Report-Only</code> the report is generated with no enforcement (<a href="https://wicg.github.io/document-policy/#report-only" target="_blank" rel="noopener">&sect;6.2</a>).</li>
+      <li><strong>Queued delivery:</strong> reports are queued and delivered out-of-band by the Reporting API&rsquo;s <a href="https://w3c.github.io/reporting/#try-delivery" target="_blank" rel="noopener">delivery machinery</a> (batched POSTs, retries with backoff) &mdash; not synchronously at violation time.</li>
+      <li><strong>Scope boundary:</strong> reporting is only possible from the page which configures the policy; a nested page violating a required policy does not report to the embedder (<a href="https://wicg.github.io/document-policy/#configure-reporting" target="_blank" rel="noopener">&sect;6.1</a>).</li>
+      <li><strong>Worker scope &mdash; unspecified:</strong> stated honestly, neither the draft (whose &sect;6 covers <em>document</em> policies) nor the <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/DocumentPolicy/DocumentPolicyInWorkers.md" target="_blank" rel="noopener">workers explainer</a> specifies which reporting configuration a dedicated worker consults or how worker-scope violations are delivered. Treat worker-scope reporting as unspecified rather than assuming the document model transfers.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://wicg.github.io/document-policy/#configure-reporting" target="_blank" rel="noopener">Document Policy draft &sect;6.1</a>; <a href="https://wicg.github.io/document-policy/#reporting" target="_blank" rel="noopener">&sect;9.10</a>; <a href="https://w3c.github.io/reporting/#try-delivery" target="_blank" rel="noopener">Reporting API &mdash; delivery</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+    <p><strong>Syntax-only</strong>, using the draft&rsquo;s placeholder directive: <code>something</code> is not a real configuration point, and unsupported directive names are ignored, so this exact header configures no enforceable policy and never produces a report when copied verbatim. Substitute a configuration point the browser supports; on the parent feature that is <code>js-profiling</code> &mdash; though as a pure opt-in gate it defines no violation to report. No normatively-sourced &ldquo;violating operation &rarr; report&rdquo; walkthrough exists yet: the draft&rsquo;s <a href="https://wicg.github.io/document-policy/#examples" target="_blank" rel="noopener">&sect;2 Examples</a> is an explicit TODO.</p>
+<pre><code>// Response headers — register, reference, deliver report-only:
+HTTP/1.1 200 OK
+Reporting-Endpoints: endpoint1="https://reports.example.com/collect"
+Document-Policy-Report-Only: something=1.0;report-to=endpoint1</code></pre>
+    <p>The parent page&rsquo;s <a href="/v147/document-policy-in-dedicated-workers/#reporting">Reporting section</a> shows the full grammar context alongside the header&rsquo;s directive value shapes.</p>
+    <span class="citation">Source: examples composed from <a href="https://wicg.github.io/document-policy/#report-to-parameter" target="_blank" rel="noopener">Document Policy draft &sect;6.1.1</a> and the <a href="https://w3c.github.io/reporting/#header" target="_blank" rel="noopener">Reporting API&rsquo;s Reporting-Endpoints header</a></span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">Browser compatibility</h2>
+    <p>The parameter ships with the parent feature and has no separate flag or milestone; see the parent page&rsquo;s <a href="/v147/document-policy-in-dedicated-workers/#compatibility">interim compatibility table</a>.</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>Parameter availability &mdash; interim, from ChromeStatus (not BCD)</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col">Status</th></tr></thead>
+      <tr><td>Chrome</td><td>With <code>DocumentPolicyInDedicatedWorker</code>: developer trial (<a href="https://chromestatus.com/api/v0/features?milestone=147" target="_blank" rel="noopener">147 listing</a>); document-context Document Policy reporting per the draft. Worker-scope delivery unspecified upstream (see <a href="#lifecycle">Lifecycle</a>).</td></tr>
+      <tr><td>Edge</td><td>Not separately reported (no Edge view recorded on ChromeStatus)</td></tr>
+      <tr><td>Firefox / Safari</td><td>No signal &mdash; no positions recorded on the feature (<a href="https://chromestatus.com/feature/6242687411945472" target="_blank" rel="noopener">ChromeStatus record</a>)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6242687411945472" target="_blank" rel="noopener">chromestatus.com/feature/6242687411945472</a>; <a href="https://chromestatus.com/api/v0/features?milestone=147" target="_blank" rel="noopener">milestone-147 listing</a></span>
+  </section>
+
+  <section>
+    <h2 id="security-privacy">Security and privacy</h2>
+    <p>Violation reports disclose page activity to the named collector: the report&rsquo;s <code>url</code> identifies the reporting document (stripped per the Reporting API&rsquo;s serialization rules) and its <code>body</code> identifies the violated feature. The draft&rsquo;s scope rule bounds the disclosure: only the page which configures the policy can receive its reports &mdash; a cross-origin embedder cannot use a required policy to harvest violation reports from a nested page (<a href="https://wicg.github.io/document-policy/#configure-reporting" target="_blank" rel="noopener">&sect;6.1</a>). Delivery security (endpoint URL requirements, batching, credentials) is governed by the <a href="https://w3c.github.io/reporting/" target="_blank" rel="noopener">Reporting API</a>.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/document-policy/#configure-reporting" target="_blank" rel="noopener">Document Policy draft &sect;6.1 (scope rule)</a>; <a href="https://w3c.github.io/reporting/#try-delivery" target="_blank" rel="noopener">Reporting API &mdash; delivery</a></span>
+  </section>
+
+  <section>
+    <h2>Canonical sources</h2>
+    <ul>
+      <li><a href="https://wicg.github.io/document-policy/" target="_blank" rel="noopener">WICG Document Policy draft</a> &mdash; configuring reporting (<a href="https://wicg.github.io/document-policy/#configure-reporting" target="_blank" rel="noopener">&sect;6.1</a>), the parameter (<a href="https://wicg.github.io/document-policy/#report-to-parameter" target="_blank" rel="noopener">&sect;6.1.1</a>), default endpoint (<a href="https://wicg.github.io/document-policy/#reporting-default" target="_blank" rel="noopener">&sect;6.1.2</a>), none (<a href="https://wicg.github.io/document-policy/#reporting-disable" target="_blank" rel="noopener">&sect;6.1.3</a>), report-only (<a href="https://wicg.github.io/document-policy/#report-only" target="_blank" rel="noopener">&sect;6.2</a>), violation reports (<a href="https://wicg.github.io/document-policy/#reporting" target="_blank" rel="noopener">&sect;9.10</a>)</li>
+      <li><a href="https://w3c.github.io/reporting/" target="_blank" rel="noopener">Reporting API</a> &mdash; endpoint registration (<a href="https://w3c.github.io/reporting/#header" target="_blank" rel="noopener">Reporting-Endpoints header</a>) and delivery (<a href="https://w3c.github.io/reporting/#try-delivery" target="_blank" rel="noopener">try-delivery</a>)</li>
+      <li><a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/DocumentPolicy/DocumentPolicyInWorkers.md" target="_blank" rel="noopener">MSEdge explainer &mdash; Document Policy in Workers</a> &mdash; the worker extension whose reporting story is not yet written</li>
+      <li><a href="https://chromestatus.com/feature/6242687411945472" target="_blank" rel="noopener">ChromeStatus feature 6242687411945472</a> &mdash; trial status</li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
