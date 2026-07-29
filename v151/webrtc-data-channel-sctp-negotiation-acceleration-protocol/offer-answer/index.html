@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SNAP offer/answer procedures — Chrome 151 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .table-wrap .doc-table { min-width: 36rem; table-layout: fixed; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v151/webrtc-data-channel-sctp-negotiation-acceleration-protocol/">&larr; WebRTC Data Channel: SCTP Negotiation Acceleration Protocol</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v151 · origin trial · sdp · protocol procedures</p>
+    <h1>SNAP offer/answer procedures</h1>
+    <p class="lede">How the <a href="/v151/webrtc-data-channel-sctp-negotiation-acceleration-protocol/sctp-init/"><code>a=sctp-init</code> attribute</a> is generated, validated, and acted on by the offering and answering endpoints — including the renegotiation rules and the SCTP state shortcut that makes the association usable as soon as DTLS finishes. Normative text: <a href="https://datatracker.ietf.org/doc/draft-hancke-tsvwg-snap/" target="_blank" rel="noopener">draft-hancke-tsvwg-snap</a> §5&ndash;§6.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Origin trial — wire format may move</strong>
+    These procedures come from an <strong>expired, unadopted individual Internet-Draft</strong> (revision -00, expired 2026-07-03 — verified via the <a href="https://datatracker.ietf.org/doc/draft-hancke-tsvwg-snap/" target="_blank" rel="noopener">datatracker</a> on 2026-07-28). Chrome&rsquo;s origin trial (151&ndash;156) is gated until the IETF adopts the draft into a working group; the procedures below may change in review.
+  </div>
+
+  <section>
+    <h2 id="offerer">offerer procedure</h2>
+    <p><strong>Generating the initial offer (§5.2)</strong></p>
+    <p>If the offering endpoint has created a WebRTC data channel, it <strong>MUST</strong> let its SCTP implementation generate the serialized INIT chunk it would normally send over the network, base64-encode the bytes, and add them to the data <code>m=</code> section as an <code>a=sctp-init</code> line.</p>
+    <p><strong>Processing the answer (§5.5)</strong></p>
+    <ol>
+      <li>If the answer negotiated a data <code>m=</code> section, the offerer parses the <code>a=sctp-init</code> line, if present.</li>
+      <li>Improperly base64-encoded data <strong>results in an error</strong>.</li>
+      <li>The offerer passes the decoded bytes to its SCTP implementation, which validates the INIT chunk format; bytes that are not a valid SCTP INIT chunk <strong>result in an error</strong>.</li>
+      <li>If the answer carries no <code>a=sctp-init</code>, the peer does not support (or declined) SNAP — the classic SCTP four-way handshake proceeds once DTLS is up.</li>
+    </ol>
+    <span class="citation">Source: <a href="https://www.ietf.org/archive/id/draft-hancke-tsvwg-snap-00.txt" target="_blank" rel="noopener">draft-hancke-tsvwg-snap-00 §5.2, §5.5</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="answerer">answerer procedure</h2>
+    <p><strong>Processing the offer (§5.3)</strong></p>
+    <ol>
+      <li>If the answering endpoint negotiates a data <code>m=</code> section, it parses the <code>a=sctp-init</code> line from the offer, if present.</li>
+      <li>Improperly base64-encoded data <strong>results in an error</strong>.</li>
+      <li>The answerer informs its SCTP implementation of the byte string; the SCTP implementation validates the INIT chunk format, and a byte string that is not a valid SCTP INIT chunk <strong>results in an error</strong>.</li>
+    </ol>
+    <p><strong>Generating the answer (§5.4)</strong></p>
+    <ul>
+      <li>An endpoint <strong>not supporting</strong> the extension <strong>MUST NOT</strong> include an <code>a=sctp-init</code> attribute in its answer.</li>
+      <li>If the answerer negotiated a data <code>m=</code> section and detected a <em>valid</em> <code>a=sctp-init</code> in the offer, it <strong>MUST</strong> let its SCTP implementation generate the serialized INIT chunk it would normally send, base64-encode it, and add it to the answer&rsquo;s data <code>m=</code> section.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://www.ietf.org/archive/id/draft-hancke-tsvwg-snap-00.txt" target="_blank" rel="noopener">draft-hancke-tsvwg-snap-00 §5.3, §5.4</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="renegotiation">modifying the session (§5.6)</h2>
+    <ul>
+      <li>Subsequent offers and answers <strong>MUST</strong> include the <code>a=sctp-init</code> line with the <strong>same value</strong> as in the initial negotiation.</li>
+      <li>A remote offer <strong>MAY</strong> negotiate a <em>new</em> <code>a=sctp-init</code> value only in conjunction with:
+        <ul>
+          <li>a new SCTP association, as described in <a href="https://www.rfc-editor.org/rfc/rfc8841#section-9.3" target="_blank" rel="noopener">RFC 8841 §9.3</a>, <em>or</em></li>
+          <li>a new DTLS association, as described in <a href="https://www.rfc-editor.org/rfc/rfc8842#section-5.5" target="_blank" rel="noopener">RFC 8842 §5.5</a>.</li>
+        </ul>
+      </li>
+      <li>Attempting to add an <code>sctp-init</code> attribute to an <strong>existing</strong> SCTP association <strong>results in an error</strong>.</li>
+    </ul>
+    <p>Illustrative re-offer sketch (gendn-derived from the §5.6 rules, not a verbatim draft example — the draft's only worked example, §7, covers the initial negotiation):</p>
+    <pre><code># Subsequent re-offer: the attribute line repeats unchanged
+m=application 9 UDP/DTLS/SCTP webrtc-datachannel
+a=sctp-init:&lt;same base64 value as in the initial offer&gt;</code></pre>
+    <span class="citation">Source: <a href="https://www.ietf.org/archive/id/draft-hancke-tsvwg-snap-00.txt" target="_blank" rel="noopener">draft-hancke-tsvwg-snap-00 §5.6</a>; <a href="https://www.rfc-editor.org/rfc/rfc8841" target="_blank" rel="noopener">RFC 8841</a>; <a href="https://www.rfc-editor.org/rfc/rfc8842" target="_blank" rel="noopener">RFC 8842</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="sctp-shortcut">the SCTP state shortcut (§6)</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Step</th><th>Rule</th></tr></thead>
+      <tr><td>Creating the local attribute</td><td><strong>SHOULD NOT</strong> move the SCTP association into <code>COOKIE-WAIT</code> (<a href="https://www.rfc-editor.org/rfc/rfc9260#section-5.1" target="_blank" rel="noopener">RFC 9260 §5.1</a>) and <strong>SHOULD NOT</strong> start the <code>T1-init</code> timer</td></tr>
+      <tr><td>Processing the remote attribute</td><td><strong>SHOULD NOT</strong> change the state of the SCTP association and <strong>SHOULD NOT</strong> start any timer</td></tr>
+      <tr><td>Once negotiated</td><td>Both endpoints <strong>SHOULD</strong> consider the association <code>ESTABLISHED</code> (<a href="https://www.rfc-editor.org/rfc/rfc9260#section-4" target="_blank" rel="noopener">RFC 9260 §4</a>) as soon as the DTLS handshake finishes; steps A&ndash;E of <a href="https://www.rfc-editor.org/rfc/rfc9260#section-5.1" target="_blank" rel="noopener">RFC 9260 §5.1</a> (INIT/INIT-ACK/COOKIE exchange) can be skipped</td></tr>
+    </table>
+    </div>
+    <p>This is where the time saving comes from: DCEP channel-open messages can flow immediately after DTLS, instead of after two more round trips of SCTP handshake. Because SCTP runs inside DTLS (<a href="https://www.rfc-editor.org/rfc/rfc8261" target="_blank" rel="noopener">RFC 8261</a>), skipping the anti-half-open handshake adds no new amplification exposure (draft §8; see the <a href="/v151/webrtc-data-channel-sctp-negotiation-acceleration-protocol/#security">overview security section</a>).</p>
+    <span class="citation">Source: <a href="https://www.ietf.org/archive/id/draft-hancke-tsvwg-snap-00.txt" target="_blank" rel="noopener">draft-hancke-tsvwg-snap-00 §6</a>; <a href="https://www.rfc-editor.org/rfc/rfc9260" target="_blank" rel="noopener">RFC 9260</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="example">example negotiation (§7)</h2>
+    <p>The offering client generates its INIT chunk (Initiate Tag <code>0x896cdd1d</code>, a_rwnd <code>0x00500000</code>, 65535 outbound/inbound streams, Initial TSN <code>0xe079651d</code>, Forward-TSN + RECONFIG extensions — field-by-field decode on the <a href="/v151/webrtc-data-channel-sctp-negotiation-acceleration-protocol/sctp-init/#decode">attribute page</a>) and offers:</p>
+    <pre><code>v=0
+o=- 8389853828849686268 2 IN IP4 127.0.0.1
+s=-
+t=0 0
+a=group:BUNDLE 0
+m=application 9 UDP/DTLS/SCTP webrtc-datachannel
+c=IN IP4 0.0.0.0
+a=ice-ufrag:UgEn
+a=ice-pwd:f/+ugRILrIUlAkSmkStnZb/h
+a=ice-options:trickle
+a=fingerprint:sha-256
+          6A:15:F0:08:9C:55:51:CD:55:27:BD:0D:FB:14:DD:41:
+          F6:8C:82:9F:CA:AD:DA:E7:04:61:6F:A9:FF:99:2D:7A
+a=setup:actpass
+a=mid:0
+a=sctp-port:5000
+a=max-message-size:262144
+a=sctp-init:AQAAHols3R0AUAAA/////+B5ZR3AAAAEgAgABoLA</code></pre>
+    <p>The answering client generates its own INIT chunk (Initiate Tag <code>0x5fb37474</code>, Initial TSN <code>0xa1aadc74</code>, same window/stream/extension parameters) and answers:</p>
+    <pre><code>v=0
+o=- 6156433258406980035 2 IN IP4 127.0.0.1
+s=-
+t=0 0
+a=group:BUNDLE 0
+m=application 9 UDP/DTLS/SCTP webrtc-datachannel
+c=IN IP4 0.0.0.0
+a=ice-ufrag:thzM
+a=ice-pwd:YT278C3KYFmsedR5+OzE9OQY
+a=ice-options:trickle
+a=fingerprint:sha-256
+          AC:48:A1:C4:78:6D:6D:46:63:BB:7D:70:E4:B8:5D:C4:
+          E8:6E:66:40:8C:81:31:D3:9C:34:32:9A:C3:6B:BB:AE
+a=setup:active
+a=mid:0
+a=sctp-port:5000
+a=max-message-size:262144
+a=sctp-init:AQAAHl+zdHQAUAAA/////6Gq3HTAAAAEgAgABoLA</code></pre>
+    <span class="citation">Source: <a href="https://www.ietf.org/archive/id/draft-hancke-tsvwg-snap-00.txt" target="_blank" rel="noopener">draft-hancke-tsvwg-snap-00 §7</a> (verbatim SDP).</span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">negotiation lifecycle at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Stage</th><th>SNAP behavior</th></tr></thead>
+      <tr><td>Data channel created</td><td>Prerequisite for the offerer to include <code>a=sctp-init</code> (§5.2)</td></tr>
+      <tr><td>Offer generated</td><td>Local SCTP INIT serialized + base64 + added to data <code>m=</code> section; no COOKIE-WAIT, no T1-init (§6)</td></tr>
+      <tr><td>Offer processed</td><td>Base64 + INIT-chunk validation (§5.3); errors abort per the draft&rsquo;s error results</td></tr>
+      <tr><td>Answer generated</td><td>Supported+valid &rarr; own INIT included (§5.4); unsupported &rarr; attribute omitted (classic path)</td></tr>
+      <tr><td>Answer processed</td><td>Same validation on the offerer side (§5.5)</td></tr>
+      <tr><td>DTLS finished</td><td>Association treated as ESTABLISHED; DCEP can flow immediately (§6)</td></tr>
+      <tr><td>Renegotiation</td><td>Same value MUST be repeated (§5.6); new value only with a new SCTP or DTLS association; adding to an existing association is an error</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://www.ietf.org/archive/id/draft-hancke-tsvwg-snap-00.txt" target="_blank" rel="noopener">draft-hancke-tsvwg-snap-00 §5–§6</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">compatibility</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Endpoint</th><th>Behavior</th></tr></thead>
+      <tr><td>Chrome 151&ndash;156 with origin-trial token</td><td>Runs these procedures per draft §5&ndash;§6</td></tr>
+      <tr><td>Non-SNAP peer (any)</td><td>Omits the attribute in its answer (§5.4 MUST NOT); classic SCTP handshake — fully backwards-compatible</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/U4uet_kov9c/m/M56NWP2EAQAJ" target="_blank" rel="noopener">blink-dev Intent to Experiment</a>; <a href="https://www.ietf.org/archive/id/draft-hancke-tsvwg-snap-00.txt" target="_blank" rel="noopener">draft-hancke-tsvwg-snap-00 §5.4</a>.</span>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="/v151/webrtc-data-channel-sctp-negotiation-acceleration-protocol/">Feature overview — WebRTC Data Channel: SCTP Negotiation Acceleration Protocol</a></li>
+      <li><a href="/v151/webrtc-data-channel-sctp-negotiation-acceleration-protocol/sctp-init/">The <code>a=sctp-init</code> SDP attribute</a></li>
+      <li><a href="https://datatracker.ietf.org/doc/draft-hancke-tsvwg-snap/" target="_blank" rel="noopener">IETF datatracker — draft-hancke-tsvwg-snap</a> (<a href="https://github.com/fippo/warp-snap-sped" target="_blank" rel="noopener">source + issue tracker</a>)</li>
+      <li><a href="https://www.rfc-editor.org/rfc/rfc9260#section-5.1" target="_blank" rel="noopener">RFC 9260 §5.1 — normal association setup (the steps being skipped)</a></li>
+      <li><a href="https://chromestatus.com/feature/5137946677215232" target="_blank" rel="noopener">ChromeStatus — 5137946677215232</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
