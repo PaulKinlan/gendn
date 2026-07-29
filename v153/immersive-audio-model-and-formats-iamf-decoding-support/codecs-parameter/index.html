@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>the iamf.* codecs parameter — IAMF decoding support — Chrome 153 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code { overflow-wrap: anywhere; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .table-wrap .doc-table { min-width: 34rem; table-layout: fixed; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .warn-block > strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v153/immersive-audio-model-and-formats-iamf-decoding-support/">&larr; Immersive Audio Model and Formats (IAMF) decoding support</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v153 · media · audio · shipped</p>
+    <h1>the <code>iamf.*</code> codecs parameter</h1>
+    <p class="lede">The <code>codecs</code> string that tells MSE an MP4 source contains an IAMF immersive-audio track — its grammar, profile fields, sub-codec elements, and exactly how Chromium's parser accepts or rejects it. Defined by <a href="https://aomediacodec.github.io/iamf/latest-approved.html#codecsparameter" target="_blank" rel="noopener">IAMF §6.4</a> on top of <a href="https://www.rfc-editor.org/rfc/rfc6381" target="_blank" rel="noopener">RFC 6381</a>; parsed in Chromium by <a href="https://chromium.googlesource.com/chromium/src/+/main/media/base/audio_codecs.cc" target="_blank" rel="noopener"><code>ParseIamfCodecId</code></a>. Identity: <a href="https://chromestatus.com/feature/5113656292540416" target="_blank" rel="noopener">chromestatus.com/feature/5113656292540416</a>.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Support gating applies</strong>
+    <p>This string only reports supported where the IAMF build and the <code>kIamfAudioDecoding</code> runtime feature allow it — see the <a href="/v153/immersive-audio-model-and-formats-iamf-decoding-support/#status-caveats">overview warn-block</a> for the current flag state and the v152/v153 dual listing.</p>
+  </div>
+
+  <section>
+    <h2 id="grammar">grammar</h2>
+    <p>Per <a href="https://aomediacodec.github.io/iamf/latest-approved.html#codecsparameter" target="_blank" rel="noopener">IAMF §6.4</a>, the codecs parameter string for an IAMF track SHALL be:</p>
+    <pre><code>iamf.&lt;primary_profile&gt;.&lt;additional_profile&gt;.&lt;sub-codec codecs elements&gt;</code></pre>
+    <ol>
+      <li>The first element is the fourcc <code>iamf</code>.</li>
+      <li>The second element indicates the <code>primary_profile</code> — three digits in the range 0 to 255.</li>
+      <li>The third element indicates the <code>additional_profile</code> — three digits in the range 0 to 255.</li>
+      <li>The fourth element (and any additional elements) SHALL be the elements of the codecs parameter string the stream would carry in its own track, unencapsulated.</li>
+    </ol>
+    <p>The spec's own examples: <code>iamf.xxx.yyy.Opus</code>, <code>iamf.xxx.yyy.mp4a.40.2</code>, <code>iamf.xxx.yyy.fLaC</code>, <code>iamf.xxx.yyy.ipcm</code>, where <code>xxx</code>/<code>yyy</code> are the three-digit profile fields.</p>
+    <span class="citation">Source: <a href="https://aomediacodec.github.io/iamf/latest-approved.html#codecsparameter" target="_blank" rel="noopener">IAMF §6.4 Codecs Parameter String</a> (quoted); <a href="https://www.rfc-editor.org/rfc/rfc6381" target="_blank" rel="noopener">RFC 6381</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="fields">field reference</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Field</th><th>Contract</th></tr></thead>
+      <tr><td><code>primary_profile</code></td><td>Three decimal digits, 0–255. Values: <code>0</code> = IA Simple Profile, <code>1</code> = IA Base Profile, <code>2</code> = IA Base-Enhanced Profile (added in IAMF v1.1.0), 3–255 reserved for future profiles. Simple and Base comply with IAMF v1.0.0-errata.</td></tr>
+      <tr><td><code>additional_profile</code></td><td>Same three-digit mapping. An additional profile the IA Sequence complies with; if the sequence only complies with the primary profile, this field SHALL be set to the same value as <code>primary_profile</code> (hence e.g. <code>iamf.000.000.opus</code>).</td></tr>
+      <tr><td>sub-codec element(s)</td><td>The codecs string of the audio stream as if carried in its own track: <code>opus</code> (Opus), <code>mp4a.40.2</code> (AAC-LC — object type indication <code>40</code>, audio object type <code>2</code>), <code>fLaC</code> (FLAC), <code>ipcm</code> (LPCM).</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://aomediacodec.github.io/iamf/latest-approved.html#codecsparameter" target="_blank" rel="noopener">IAMF §6.4</a>; profile values per <a href="https://aomediacodec.github.io/iamf/latest-approved.html#profiles" target="_blank" rel="noopener">IAMF §4 Profiles</a> and the Codec Config OBU profile semantics.</span>
+  </section>
+
+  <section>
+    <h2 id="chromium-parser">chromium parser behavior</h2>
+    <p>Chromium's <a href="https://chromium.googlesource.com/chromium/src/+/main/media/base/audio_codecs.cc" target="_blank" rel="noopener"><code>ParseIamfCodecId</code></a> (compiled when IAMF audio is enabled) accepts a string as IAMF when:</p>
+    <ul>
+      <li>it starts with <code>iamf</code> — and, &ldquo;for test purposes only&rdquo;, the bare string <code>iamf</code> with no further elements is accepted;</li>
+      <li>otherwise it must split into at least four period-delimited elements: <code>iamf</code>, a three-digit primary profile &le; 255, a three-digit additional profile &le; 255, and a sub-codec element;</li>
+      <li>the sub-codec element (lower-cased) must be exactly <code>opus</code>, <code>mp4a</code>, <code>flac</code>, or <code>ipcm</code>; for <code>mp4a</code> two further elements are required — object type indication hex <code>40</code> and audio object type hex <code>2</code> (i.e. AAC-LC);</li>
+      <li>the whole string is length-capped (fourcc + two profile fields + one sub-codec element at most).</li>
+    </ul>
+    <p>Strings that fail parsing are simply not recognized as IAMF (support queries fall through to &ldquo;unrecognized codec id&rdquo;). A code comment (<a href="https://crbug.com/438106645" target="_blank" rel="noopener">crbug.com/438106645</a>) records that profile <em>handling</em> after parsing is still to be completed, &ldquo;especially if [IAMF streams] end up containing xHE-AAC audio&rdquo; — so profile fields currently identify the family rather than gate fine-grained capability.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/media/base/audio_codecs.cc" target="_blank" rel="noopener">audio_codecs.cc — ParseIamfCodecId</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/media/base/mime_util_internal.cc" target="_blank" rel="noopener">mime_util_internal.cc</a> — fetched 2026-07-29.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>String</th><th>Reading</th></tr></thead>
+      <tr><td><code>iamf.000.000.opus</code></td><td>Simple profile only, Opus substream — the minimal modern spelling</td></tr>
+      <tr><td><code>iamf.001.001.mp4a.40.2</code></td><td>Base profile, AAC-LC substream</td></tr>
+      <tr><td><code>iamf.000.000.fLaC</code></td><td>Simple profile, FLAC substream (case per the spec's example)</td></tr>
+      <tr><td><code>iamf.000.000.ipcm</code></td><td>Simple profile, LPCM (uncompressed) substream</td></tr>
+      <tr><td><code>iamf.002.002.opus</code></td><td>Base-Enhanced profile (IAMF v1.1.0), Opus substream</td></tr>
+    </table>
+    </div>
+    <p>Rejected by the Chromium parser (non-exhaustive): <code>iamf.0.0.opus</code> (profile fields must be three digits), <code>iamf.256.000.opus</code> (profile &gt; 255), <code>iamf.000.000.vorbis</code> (sub-codec not in the accepted set), <code>iamf.000.000.mp4a</code> (mp4a requires the <code>40.2</code> fields), and any string with extra elements beyond the length cap.</p>
+    <pre><code>// Feature-detect a specific packaging before fetching media:
+const candidates = [
+  'audio/mp4; codecs="iamf.000.000.opus"',
+  'audio/mp4; codecs="iamf.001.001.mp4a.40.2"',
+];
+const supported = candidates.find((m) =&gt; MediaSource.isTypeSupported(m));
+if (!supported) throw new Error('no supported IAMF packaging');
+const sourceBuffer = mediaSource.addSourceBuffer(supported);</code></pre>
+    <span class="citation">Source: grammar per <a href="https://aomediacodec.github.io/iamf/latest-approved.html#codecsparameter" target="_blank" rel="noopener">IAMF §6.4</a>; acceptance/rejection behavior per <a href="https://chromium.googlesource.com/chromium/src/+/main/media/base/audio_codecs.cc" target="_blank" rel="noopener">ParseIamfCodecId</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="usage">usage context</h2>
+    <p>The parameter appears wherever an MP4 MIME type is declared for MSE: <code>MediaSource.isTypeSupported(mime)</code> support queries and <code>MediaSource.addSourceBuffer(mime)</code>. Chromium registers the <code>iamf</code> and <code>iamf.*</code> codec patterns for both <code>audio/mp4</code> and <code>video/mp4</code> containers (<a href="https://chromium.googlesource.com/chromium/src/+/main/media/filters/stream_parser_factory.cc" target="_blank" rel="noopener">stream_parser_factory.cc</a>), so an IAMF audio track can ride alongside video in the same MP4 or be delivered audio-only. It has no meaning for direct file playback (<code>&lt;audio src&gt;</code>), which does not route through the IAMF-capable parser in the sources read — delivery is MSE-only, matching the <a href="https://github.com/SyedAbuTalib/iamf-explainer/blob/main/explainer.md" target="_blank" rel="noopener">explainer</a>&rsquo;s framing (&ldquo;zero changes to existing MSE workflows&rdquo;).</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/media/filters/stream_parser_factory.cc" target="_blank" rel="noopener">stream_parser_factory.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/media/base/mime_util_internal.cc" target="_blank" rel="noopener">mime_util_internal.cc</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">compatibility</h2>
+    <p><em>Interim table.</em> No <a href="https://github.com/mdn/browser-compat-data" target="_blank" rel="noopener">BCD</a> or <a href="https://api.webstatus.dev/v1/features?q=iamf" target="_blank" rel="noopener">web-features</a> entry exists for the <code>iamf</code> codecs string (2026-07-29); rows are compiled from the linked primary sources.</p>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <thead><tr><th>Browser</th><th>Support</th><th>Evidence</th></tr></thead>
+      <tr><td>Chrome</td><td>153 (desktop, Android, WebView) per listing; flag-state caveat applies</td><td><a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">milestone=153 listing</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/media/base/media_switches.cc" target="_blank" rel="noopener">flag state</a></td></tr>
+      <tr><td>Edge</td><td>Not separately reported</td><td>Chromium-based; no separate position on the record</td></tr>
+      <tr><td>Firefox</td><td>No signal</td><td><a href="https://chromestatus.com/api/v0/features/5113656292540416" target="_blank" rel="noopener">ChromeStatus API record</a></td></tr>
+      <tr><td>Safari</td><td>No signal</td><td><a href="https://chromestatus.com/api/v0/features/5113656292540416" target="_blank" rel="noopener">ChromeStatus API record</a></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: links above, fetched 2026-07-29.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <ul>
+      <li>The string is declarative metadata: it describes the bitstream a page intends to append and reveals nothing about the user beyond the same codec-support bit every MSE codec exposes.</li>
+      <li>Parser robustness for malformed strings is bounded — unknown or malformed values fail closed (treated as unsupported) rather than producing partial matches.</li>
+      <li>The bitstream-level security considerations (software decoding of remote media) are covered on the <a href="/v153/immersive-audio-model-and-formats-iamf-decoding-support/#security-and-privacy">overview</a>.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/media/base/audio_codecs.cc" target="_blank" rel="noopener">audio_codecs.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/media/base/mime_util_internal.cc" target="_blank" rel="noopener">mime_util_internal.cc</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="/v153/immersive-audio-model-and-formats-iamf-decoding-support/">IAMF decoding support — overview</a></li>
+      <li><a href="https://aomediacodec.github.io/iamf/latest-approved.html" target="_blank" rel="noopener">AOM IAMF specification (v1.1.0)</a> · <a href="https://aomediacodec.github.io/iamf/v1.0.0.html" target="_blank" rel="noopener">v1.0.0</a></li>
+      <li><a href="https://chromestatus.com/feature/5113656292540416" target="_blank" rel="noopener">Chrome Platform Status — feature 5113656292540416</a></li>
+      <li><a href="https://www.rfc-editor.org/rfc/rfc6381" target="_blank" rel="noopener">RFC 6381 — 'Codecs' and 'Profiles' parameters</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
