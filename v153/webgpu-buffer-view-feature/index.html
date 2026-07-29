@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebGPU: buffer_view feature — Chrome 153 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code { overflow-wrap: anywhere; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .doc-table tr > td:first-child { width: 24%; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .baseline-banner { border: 2px solid var(--border-black); padding: 1rem 1.2rem; margin: 1.5rem 0; background: var(--bg-paper); box-shadow: var(--thin-shadow); }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    .route-cards { display: grid; gap: 0.8rem; margin: 1rem 0; }
+    .route-card { display: block; border: 2px solid var(--border-black); padding: 0.8rem 1rem; background: var(--bg-paper); box-shadow: var(--thin-shadow); text-decoration: none; color: inherit; }
+    .route-card strong { font-family: var(--font-mono); }
+    .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .warn-block > strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v153/">&larr; Chrome 153 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v153 · enabled by default · webgpu · wgsl</p>
+    <h1>WebGPU: <code>buffer_view</code> feature</h1>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome · enabled by default 153 (desktop, Android, WebView)</li>
+        <li class="limited">Edge · not separately reported (Chromium-based)</li>
+        <li class="limited">Firefox · no signal</li>
+        <li class="limited">Safari · closed without a position</li>
+      </ul>
+      <p>The parent <a href="https://webstatus.dev/features/webgpu" target="_blank" rel="noopener">webgpu web-feature</a> is Baseline <strong>limited</strong> (queried 2026-07-29); <code>buffer_view</code> itself has no web-features entry and no BCD key of its own (a <a href="https://api.webstatus.dev/v1/features?q=buffer_view" target="_blank" rel="noopener">webstatus.dev query</a> returns zero matches). The <a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">milestone=153 listing</a> files this feature as &ldquo;Enabled by default&rdquo; (verified 2026-07-29; the listing is authoritative per gendn invariant #2).</p>
+    </div>
+
+    <p class="lede">A WGSL language feature that lets a shader reinterpret the bytes of a single uniform, storage, or workgroup variable as several different types — dividing one buffer variable into multiple logical variables, or type-punning its contents — through a new opaque <code>buffer</code> type and three new built-in functions (<a href="bufferview/"><code>bufferView</code></a>, <a href="bufferarrayview/"><code>bufferArrayView</code></a>, <a href="bufferlength/"><code>bufferLength</code></a>). It adds no JavaScript API surface of its own.</p>
+  </header>
+
+  <div class="warn-block" id="implementation-maturity">
+    <strong>Implementation maturity &mdash; read before relying on this</strong>
+    <p>The <code>buffer_view</code> language extension is tagged <code>["dawn"]</code> in <a href="https://dawn.googlesource.com/dawn/+/main/src/dawn/dawn.json" target="_blank" rel="noopener">dawn.json</a> — it is a Dawn-track extension, and the <code>wgslLanguageFeatures</code> detection string could in principle change before broader standardization. Vendor positions on the record are &ldquo;No signal&rdquo; (Firefox) and &ldquo;Closed Without a Position&rdquo; (Safari), so treat this as Chromium-only for now and always feature-detect via <code>navigator.gpu.wgslLanguageFeatures</code> (see <a href="#detection">detection</a>). The JS-side validation contract for buffer-typed bindings (<code>minBindingSize</code> interaction) is still a spec TODO with no normative text — this page documents the shader-side rules only (see <a href="#specifications">specifications</a>).</p>
+  </div>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">What it is</th><td>The <code>buffer_view</code> WGSL language extension: opaque <code>buffer&lt;N&gt;</code> / <code>buffer</code> types plus built-ins that reinterpret buffer memory as another host-shareable type at a byte offset</td></tr>
+      <tr><th scope="row">Milestone listing</th><td>Chrome 153 — Enabled by default (<a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">listing</a>, verified 2026-07-29)</td></tr>
+      <tr><th scope="row">Applies to</th><td>WGSL shader source compiled through WebGPU (<code>GPUDevice.createShaderModule</code>); no new JS interfaces, methods, or dictionaries — the <a href="https://gpuweb.github.io/gpuweb/" target="_blank" rel="noopener">WebGPU specification</a> contains no <code>buffer_view</code> text (checked 2026-07-29)</td></tr>
+      <tr><th scope="row">Feature detection</th><td><code>navigator.gpu.wgslLanguageFeatures</code> contains <code>"buffer_view"</code> when supported (see <a href="#detection">feature detection</a>)</td></tr>
+      <tr><th scope="row">Opt-in</th><td>None required — language extensions are automatically available when the implementation supports them; a <code>requires buffer_view;</code> directive documents the dependency and makes unsupported implementations fail with a shader-creation error (see <a href="#extension">the extension mechanics</a>)</td></tr>
+      <tr><th scope="row">Spec status</th><td>Merged into the WGSL specification via <a href="https://github.com/gpuweb/gpuweb/pull/6291" target="_blank" rel="noopener">gpuweb/gpuweb PR #6291</a> on 2026-07-14: <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-types" target="_blank" rel="noopener">§6.3 Buffer Types</a> and <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-view-builtin-functions" target="_blank" rel="noopener">§17.14 Buffer View Built-in Functions</a></td></tr>
+      <tr><th scope="row">Implementation</th><td>Dawn/Tint: WGSL language extension <code>buffer_view</code> in <a href="https://dawn.googlesource.com/dawn/+/main/src/dawn/dawn.json" target="_blank" rel="noopener">dawn.json</a> (value 9, Dawn-tagged); tracking bug <a href="https://crbug.com/tint/506523198" target="_blank" rel="noopener">crbug.com/tint/506523198</a></td></tr>
+      <tr><th scope="row">Tests</th><td>WebGPU CTS execution + validation suites for all three built-ins (see <a href="#tests">test coverage</a>); no upstream WPT directory tests</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5094091886034944" target="_blank" rel="noopener">5094091886034944 — WebGPU: buffer_view feature</a> (blink component <code>Blink&gt;WebGPU</code>, owner alanbaker@google.com)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5094091886034944" target="_blank" rel="noopener">chromestatus.com/feature/5094091886034944</a>; <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-types" target="_blank" rel="noopener">WGSL §6.3</a>; <a href="https://dawn.googlesource.com/dawn/+/main/src/dawn/dawn.json" target="_blank" rel="noopener">dawn.json</a></span>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>WGSL variables have a single static type: the value stored in a variable cannot be reinterpreted as another type before a memory access occurs. Two practical problems follow, both from the <a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/buffer-view.md" target="_blank" rel="noopener">proposal</a> (created 2025-10-20, <a href="https://github.com/gpuweb/gpuweb/issues/5338" target="_blank" rel="noopener">issue #5338</a>):</p>
+    <ul>
+      <li><strong>Type punning.</strong> The data of a uniform, storage, or workgroup variable sometimes needs to be read as more than one type within a program (for example a buffer whose first word is a <code>u32</code> count and whose tail is an array of <code>f32</code>).</li>
+      <li><strong>Sub-division.</strong> WGSL allows only <em>one</em> runtime-sized array in a storage buffer interface, so heterogeneous data (say <code>indices : array&lt;u32&gt;</code> and <code>vertices : array&lt;f32&gt;</code>) needs either two <code>GPUBuffer</code> bindings or one buffer split at an offset aligned to <code>minStorageBufferOffsetAlignment</code> (typically 256 bytes) — wasting memory and complicating bind groups. With <code>buffer_view</code> the two logical arrays can live tightly packed in a single binding and be viewed separately in the shader.</li>
+    </ul>
+    <p>For safety and implementation simplicity the type is <strong>opaque</strong>: it cannot be read, written, or assigned directly — only the new built-in functions can reinterpret its contents (see the <a href="https://chromestatus.com/api/v0/features/5094091886034944" target="_blank" rel="noopener">ChromeStatus record</a> motivation).</p>
+    <span class="citation">Source: <a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/buffer-view.md" target="_blank" rel="noopener">buffer-view proposal — motivation</a>; <a href="https://chromestatus.com/api/v0/features/5094091886034944" target="_blank" rel="noopener">ChromeStatus API record</a>; <a href="https://github.com/webgpu/webgpu-samples/pull/568" target="_blank" rel="noopener">webgpu-samples PR #568</a> (the wireframe scenario the example derives from)</span>
+  </section>
+
+  <section>
+    <h2 id="buffer-types">the buffer types</h2>
+    <p>The feature adds two related opaque types (WGSL <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-types" target="_blank" rel="noopener">§6.3</a>). A buffer value denotes memory whose contents can be interpreted as another host-shareable type; buffer values are otherwise opaque and are <strong>not constructible</strong> — they cannot appear in assignments, and an expression must not evaluate to a buffer type. The only way to interact with them is through the <a href="#builtins">built-in functions</a> (possibly via pointers).</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Type</th><th>Meaning</th><th>Instantiation rules</th></tr></thead>
+      <tr><td><code>buffer&lt;N&gt;</code></td><td>Fixed-size buffer with <code>N</code> bytes of storage. <code>N</code> must be an override-expression</td><td>Only as the store type of a variable in the <code>storage</code>, <code>uniform</code>, or <code>workgroup</code> address spaces; in <code>storage</code> and <code>uniform</code> the size must further be a const-expression</td></tr>
+      <tr><td><code>buffer</code></td><td>Runtime-sized buffer; its byte size comes from the bound <code>GPUBuffer</code> (see <a href="bufferlength/"><code>bufferLength</code></a>)</td><td>Only as the store type of a variable in the <code>storage</code> address space</td></tr>
+    </table>
+    </div>
+    <p>Validation of the size parameter <code>N</code>:</p>
+    <ul>
+      <li>If <code>N</code> is not greater than 0: a shader-creation error when <code>N</code> is a const-expression, otherwise a pipeline-creation error.</li>
+      <li>If the <code>f16</code> extension is enabled and <code>N</code> is not evenly divisible by 2: shader-creation error (const-expression) / pipeline-creation error (otherwise).</li>
+      <li>If <code>f16</code> is <em>not</em> enabled and <code>N</code> is not evenly divisible by 4: shader-creation error (const-expression) / pipeline-creation error (otherwise).</li>
+    </ul>
+    <p>Two buffer types are the same type if and only if: both are runtime-sized; or both are fixed-size with a creation-fixed footprint and equal-valued sizes (signed and unsigned sizes compare equal here because sizes are always positive); or both are fixed-size with sizes specified as identifiers resolving to the same pipeline-overridable constant declaration.</p>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-types" target="_blank" rel="noopener">WGSL §6.3 Buffer Types</a> (rules quoted and paraphrased from the merged text, fetched 2026-07-29)</span>
+  </section>
+
+  <section>
+    <h2 id="extension">the language extension mechanics</h2>
+    <p><code>buffer_view</code> is a WGSL <strong>language extension</strong> (<a href="https://gpuweb.github.io/gpuweb/wgsl/#language-extensions-sec" target="_blank" rel="noopener">WGSL §4.1.2</a>): it is automatically available whenever the implementation supports it — the program does not request it with an <code>enable</code> directive, and there is no <code>chrome://flags</code> entry or Blink runtime flag (the flag is <code>false</code> on the <a href="https://chromestatus.com/api/v0/features/5094091886034944" target="_blank" rel="noopener">ChromeStatus record</a>; the feature lives in Dawn/Tint, not Blink). The extension index describes it as: &ldquo;Enables the use of buffer types and the buffer_view built-in functions.&rdquo;</p>
+    <p>A <code>requires</code> directive documents the program's use of the extension and turns absence into a hard failure:</p>
+    <pre><code>requires buffer_view;
+
+@group(0) @binding(0) var&lt;storage&gt; data : buffer;</code></pre>
+    <p>If the implementation does not support a required extension, shader creation fails with a shader-creation error — so <code>requires buffer_view;</code> both signals non-portability to tooling and guarantees a clean diagnostic instead of a parse error on the <code>buffer</code> type.</p>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/wgsl/#language-extensions-sec" target="_blank" rel="noopener">WGSL §4.1.2 Language Extensions</a>; <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-types" target="_blank" rel="noopener">WGSL §6.3</a></span>
+  </section>
+
+  <section>
+    <h2 id="detection">feature detection (the JavaScript side)</h2>
+    <p>There is no new JavaScript API: the only JS-observable surface is the pre-existing <a href="https://developer.mozilla.org/en-US/docs/Web/API/GPU/wgslLanguageFeatures" target="_blank" rel="noopener"><code>GPU.wgslLanguageFeatures</code></a> set-like object, which lists the WGSL language extensions the implementation supports. In Dawn the extension is registered as <code>'buffer_view'</code> (<a href="https://dawn.googlesource.com/dawn/+/main/src/dawn/dawn.json" target="_blank" rel="noopener">dawn.json</a>, WGSL language-extension value 9):</p>
+    <pre><code>const supported = navigator.gpu.wgslLanguageFeatures.has("buffer_view");
+if (!supported) {
+  // Fall back to multiple bindings or statically-typed buffers.
+}</code></pre>
+    <p>Pair the detection with a <code>requires buffer_view;</code> directive in shaders that use the feature: detection tells you whether to <em>select</em> such a shader; the directive makes an unsupported implementation reject it deterministically.</p>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/#dom-gpu-wgsllanguagefeatures" target="_blank" rel="noopener">WebGPU spec — GPU.wgslLanguageFeatures</a>; <a href="https://developer.mozilla.org/en-US/docs/Web/API/GPU/wgslLanguageFeatures" target="_blank" rel="noopener">MDN — GPU.wgslLanguageFeatures</a> (covers the detection API only — zero <code>buffer_view</code> coverage, verified 2026-07-29); <a href="https://dawn.googlesource.com/dawn/+/main/src/dawn/dawn.json" target="_blank" rel="noopener">dawn.json</a></span>
+  </section>
+
+  <section>
+    <h2 id="builtins">the built-in functions</h2>
+    <p>All three functions operate on a <em>pointer</em> to a buffer and are annotated <code>@must_use</code>. Two helper definitions drive their validation (WGSL <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-view-builtin-functions" target="_blank" rel="noopener">§17.14</a>):</p>
+    <ul>
+      <li><code>ArrayOffset(T)</code> = <code>OffsetOfMember(T, lastMemberIndex)</code> when <code>T</code> is a structure whose last member is a runtime-sized array; <code>0</code> otherwise.</li>
+      <li><code>MinTypeSize(T)</code> = <code>SizeOf(T)</code> when <code>T</code> has a fixed footprint; <code>StrideOf(T)</code> when <code>T</code> is a runtime-sized array; <code>ArrayOffset(T) + StrideOf(array&lt;E&gt;)</code> when <code>T</code> is a structure ending in a runtime-sized array.</li>
+    </ul>
+    <div class="route-cards">
+      <a class="route-card" href="bufferview/"><strong>bufferView&lt;T&gt;(p, offset)</strong> — reinterpret the memory view <code>offset</code> bytes into <code>p</code> as type <code>T</code> (fixed or runtime-sized); the result pointer covers <code>[offset, bufferLength(p))</code></a>
+      <a class="route-card" href="bufferarrayview/"><strong>bufferArrayView&lt;T&gt;(p, offset, size)</strong> — the same, but with an explicit byte size; <code>T</code> must <em>not</em> have a fixed footprint (must contain a runtime-sized array); the result covers <code>[offset, offset+size)</code></a>
+      <a class="route-card" href="bufferlength/"><strong>bufferLength(p)</strong> — the buffer's byte size: the minimum size encountered through the call stack (interprocedural analysis), <code>N</code> for sized buffers, or the GPUBuffer size</a>
+    </div>
+    <p>Common validation contract (details on each member page): <code>AS</code> ∈ {storage, uniform, workgroup}; <code>AM</code> must be a valid access mode for <code>AS</code>; <code>T</code> must be host-shareable, must not be or contain an atomic or buffer type (MSL cannot cast non-atomic to atomic), and must satisfy the address-space layout constraints for <code>AS</code>. Out-of-contract offsets produce an <strong>invalid memory reference / invalid pointer</strong> at runtime, a shader-creation error for const-expressions, or a pipeline-creation error for override-expressions.</p>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-view-builtin-functions" target="_blank" rel="noopener">WGSL §17.14 Buffer View Built-in Functions</a>; <a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/buffer-view.md" target="_blank" rel="noopener">proposal — function contracts</a></span>
+  </section>
+
+  <section>
+    <h2 id="conversions">buffer pointers as function parameters</h2>
+    <p>Buffer <em>values</em> cannot be passed to functions (they are not constructible and no expression may evaluate to one), but buffer <em>pointers</em> can. Because the parameter address spaces involved exceed the default pointer-parameter rules, this requires the <code>unrestricted_pointer_parameters</code> extension as well as <code>buffer_view</code>. Two feasible automatic conversions then relax type matching (<a href="https://gpuweb.github.io/gpuweb/wgsl/#conversion-rank" target="_blank" rel="noopener">WGSL conversion-rank table</a>):</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Argument (source)</th><th>Parameter (destination)</th><th>Rank</th><th>Effect</th></tr></thead>
+      <tr><td><code>ptr&lt;AS, buffer&lt;N1&gt;, AM&gt;</code></td><td><code>ptr&lt;AS, buffer&lt;N2&gt;, AM&gt;</code> (both const-expressions)</td><td>1 if <code>N2 &lt; N1</code>, infinity otherwise</td><td>A fixed-size buffer pointer argument converts to a <em>smaller</em> fixed-size pointer parameter</td></tr>
+      <tr><td><code>ptr&lt;AS, buffer&lt;N&gt;, AM&gt;</code></td><td><code>ptr&lt;AS, buffer, AM&gt;</code></td><td>1</td><td>A fixed-size buffer pointer argument converts to a runtime-sized buffer pointer parameter</td></tr>
+    </table>
+    </div>
+    <p>No other automatic conversions apply. Buffer sizes cannot be <em>grown</em> through a call: the buffer size any built-in sees is the minimum of the originating variable's size and the smallest fixed-size formal parameter on the call stack — implementations use interprocedural analysis for both validation and <a href="bufferlength/"><code>bufferLength</code></a>. When <code>unrestricted_pointer_parameters</code> is not supported, the root identifier of a built-in's argument must be the originating variable.</p>
+    <pre><code>requires buffer_view;
+requires unrestricted_pointer_parameters;
+
+@group(0) @binding(0) var&lt;storage&gt; big : buffer&lt;2048&gt;;
+
+// Accepts any storage buffer pointer: buffer&lt;2048&gt; converts to buffer (rank 1).
+fn helper(p : ptr&lt;storage, buffer&gt;) -&gt; u32 {
+  return bufferLength(p);  // sees the minimum size on the call stack
+}
+
+fn caller() -&gt; u32 {
+  return helper(&amp;big);
+}</code></pre>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/wgsl/#conversion-rank" target="_blank" rel="noopener">WGSL — feasible automatic conversions</a>; <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-view-builtin-functions" target="_blank" rel="noopener">WGSL §17.14 introductory rules</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <p>Sub-dividing one storage binding into two logical arrays (derived from the <a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/buffer-view.md" target="_blank" rel="noopener">proposal</a>'s wireframe scenario — buffer layout <code>| indices size | indices | vertices |</code>, tightly packed in a single <code>GPUBuffer</code>):</p>
+    <pre><code>requires buffer_view;
+
+@group(0) @binding(0) var&lt;storage&gt; indices_and_vertices : buffer;
+
+fn foo() {
+  let indices_size = *bufferView&lt;u32&gt;(&amp;indices_and_vertices, 0);
+
+  let indices_ptr = bufferArrayView&lt;array&lt;u32&gt;&gt;(&amp;indices_and_vertices, 4, indices_size);
+  let vertices_ptr = bufferView&lt;array&lt;f32&gt;&gt;(&amp;indices_and_vertices, indices_size + 4);
+
+  // Use indices_ptr and vertices_ptr like separate indices/vertices variables.
+}</code></pre>
+    <p>The matching JavaScript side binds one tightly-packed buffer — no 256-byte alignment gap between the two regions (contrast the <a href="#why">two-binding layout</a> that <code>minStorageBufferOffsetAlignment</code> forces without this feature):</p>
+    <pre><code>const total = 4 + indices_size + vertices_size;
+const buffer = device.createBuffer({ size: total, usage: GPUBufferUsage.STORAGE });
+
+const bg = device.createBindGroup({
+  layout: pipeline.getBindGroupLayout(0),
+  entries: [{ binding: 0, resource: buffer }],
+});</code></pre>
+    <p>The Chrome Platform Showcase has no route for this feature yet (both slug spellings 404, checked 2026-07-29); the upstream sample is the open <a href="https://github.com/webgpu/webgpu-samples/pull/568" target="_blank" rel="noopener">webgpu-samples PR #568</a> (&ldquo;Add a buffer_view variant option to wireframe sample&rdquo;, open at fetch time).</p>
+    <span class="citation">Source: <a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/buffer-view.md" target="_blank" rel="noopener">proposal — motivating example</a>; <a href="https://github.com/webgpu/webgpu-samples/pull/568" target="_blank" rel="noopener">webgpu-samples PR #568</a></span>
+  </section>
+
+  <section>
+    <h2 id="errors">error and edge behavior</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Situation</th><th>Behavior</th></tr></thead>
+      <tr><td>Implementation lacks the extension and shader uses <code>buffer</code> types</td><td>Parse/validation failure; with <code>requires buffer_view;</code> it is a defined shader-creation error</td></tr>
+      <tr><td><code>N</code> ≤ 0, or <code>N</code> not divisible by 4 (by 2 when <code>f16</code> is enabled)</td><td>Shader-creation error if <code>N</code> is a const-expression; pipeline-creation error otherwise</td></tr>
+      <tr><td><code>bufferView</code>/<code>bufferArrayView</code> with <code>T</code> atomic, containing an atomic, or a buffer type</td><td>Validation error (precondition failure) — reinterpretation is single-shot and non-atomic only</td></tr>
+      <tr><td>Negative <code>offset</code>/<code>size</code> (<code>i32</code> overloads)</td><td>Shader-creation error (const-expression &lt; 0); pipeline-creation error (override-expression &lt; 0); otherwise an indeterminate value may be used</td></tr>
+      <tr><td>Out-of-range reinterpretation (<code>MinTypeSize(T) + offset &gt; bufferLength(p)</code>, or <code>offset + size &gt; bufferLength(p)</code>, or <code>MinTypeSize(T) &gt; size</code>)</td><td>An invalid memory reference / invalid pointer is returned at runtime; statically-known cases are shader-creation or pipeline-creation errors</td></tr>
+      <tr><td>Misaligned offset (<code>offset % RequiredAlignOf(T, AS) != 0</code>)</td><td>Shader-creation error (const-expression) / pipeline-creation error (override-expression); otherwise the implementation rounds down to <code>offset &amp; ~(RequiredAlignOf(T, AS) - 1)</code></td></tr>
+      <tr><td>Structuring a declaration of buffer type outside storage/uniform/workgroup, or assigning a buffer value</td><td>Validation error — the type is opaque and not constructible</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-types" target="_blank" rel="noopener">WGSL §6.3</a>; <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-view-builtin-functions" target="_blank" rel="noopener">WGSL §17.14</a></span>
+  </section>
+
+  <section>
+    <h2 id="tests">test coverage</h2>
+    <p>The WebGPU Conformance Test Suite (CTS) covers all three built-ins with execution <em>and</em> validation suites:</p>
+    <ul>
+      <li><a href="https://github.com/gpuweb/cts/blob/main/src/webgpu/shader/execution/expression/call/builtin/bufferView.spec.ts" target="_blank" rel="noopener">execution/…/bufferView.spec.ts</a> · <a href="https://github.com/gpuweb/cts/blob/main/src/webgpu/shader/validation/expression/call/builtin/bufferView.spec.ts" target="_blank" rel="noopener">validation/…/bufferView.spec.ts</a></li>
+      <li><a href="https://github.com/gpuweb/cts/blob/main/src/webgpu/shader/execution/expression/call/builtin/bufferArrayView.spec.ts" target="_blank" rel="noopener">execution/…/bufferArrayView.spec.ts</a> · <a href="https://github.com/gpuweb/cts/blob/main/src/webgpu/shader/validation/expression/call/builtin/bufferArrayView.spec.ts" target="_blank" rel="noopener">validation/…/bufferArrayView.spec.ts</a></li>
+      <li><a href="https://github.com/gpuweb/cts/blob/main/src/webgpu/shader/execution/expression/call/builtin/bufferLength.spec.ts" target="_blank" rel="noopener">execution/…/bufferLength.spec.ts</a> · <a href="https://github.com/gpuweb/cts/blob/main/src/webgpu/shader/validation/expression/call/builtin/bufferLength.spec.ts" target="_blank" rel="noopener">validation/…/bufferLength.spec.ts</a></li>
+    </ul>
+    <p>There are no upstream <a href="https://github.com/web-platform-tests/wpt/tree/master/webgpu" target="_blank" rel="noopener">WPT webgpu</a> directory tests for this feature (the directory holds only metadata files, checked 2026-07-29); the <a href="https://chromestatus.com/api/v0/features/5094091886034944" target="_blank" rel="noopener">ChromeStatus record</a> marks <code>wpt: true</code> — the CTS is the executable conformance story for WebGPU. Per-run pass counts are not inventoried here.</p>
+    <span class="citation">Source: <a href="https://github.com/gpuweb/cts/tree/main/src/webgpu/shader/execution/expression/call/builtin" target="_blank" rel="noopener">gpuweb/cts builtin test directory</a> (fetched 2026-07-29); <a href="https://github.com/web-platform-tests/wpt/tree/master/webgpu" target="_blank" rel="noopener">WPT webgpu directory</a></span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">browser compatibility</h2>
+    <p><em>Interim table.</em> BCD has no <code>buffer_view</code> key (the feature is a WGSL extension, not JS API surface; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/GPU.json" target="_blank" rel="noopener">BCD api/GPU.json</a> checked 2026-07-29) and webstatus.dev has no entry, so rows are compiled from the linked primary sources. The detection mechanism (<code>GPU.wgslLanguageFeatures</code>) does have BCD data, shown in the second table.</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th><code>buffer_view</code> support</th><th>Evidence</th></tr></thead>
+      <tr><td>Chrome</td><td>Enabled by default 153 (desktop, Android, WebView)</td><td><a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">milestone=153 listing</a>; <a href="https://chromestatus.com/api/v0/features/5094091886034944" target="_blank" rel="noopener">record</a> (desktop/android/webview 153, flag: false)</td></tr>
+      <tr><td>Edge</td><td>Not separately reported</td><td>Chromium-based; no separate position on the record</td></tr>
+      <tr><td>Firefox</td><td>No signal</td><td><a href="https://github.com/mozilla/standards-positions/issues/1205#issuecomment-3312534193" target="_blank" rel="noopener">mozilla/standards-positions #1205</a> (per the record's views link)</td></tr>
+      <tr><td>Safari</td><td>Closed without a position</td><td><a href="https://github.com/WebKit/standards-positions/issues/294#issuecomment-1877411933" target="_blank" rel="noopener">WebKit/standards-positions #294</a> (per the record's views link)</td></tr>
+    </table>
+    </div>
+    <p>Detection API support (<a href="https://github.com/mdn/browser-compat-data/blob/main/api/GPU.json" target="_blank" rel="noopener">BCD <code>api.GPU.wgslLanguageFeatures</code></a>):</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th><code>GPU.wgslLanguageFeatures</code></th></tr></thead>
+      <tr><td>Chrome</td><td>144 (full; ChromeOS, macOS, Windows, Linux Intel Gen12+); 115&ndash;143 partial (ChromeOS, macOS, Windows)</td></tr>
+      <tr><td>Chrome Android</td><td>121</td></tr>
+      <tr><td>Edge</td><td>Mirrors Chrome</td></tr>
+      <tr><td>Firefox</td><td>141 (partial — all contexts except service workers, <a href="https://bugzil.la/1942431" target="_blank" rel="noopener">bug 1942431</a>)</td></tr>
+      <tr><td>Safari</td><td>26</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5094091886034944" target="_blank" rel="noopener">chromestatus.com/feature/5094091886034944</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/GPU.json" target="_blank" rel="noopener">BCD api/GPU.json</a> (fetched 2026-07-29)</span>
+  </section>
+
+  <section>
+    <h2 id="security">security and privacy</h2>
+    <ul>
+      <li><strong>Memory safety is preserved by construction.</strong> The buffer type is opaque and not constructible; the only access path is the three built-ins, whose out-of-contract reinterpretations yield an invalid memory reference (WebGPU's standard out-of-bounds behavior) rather than raw memory access. Type-punning stays inside the shader's own binding.</li>
+      <li><strong>Single-shot reinterpretation.</strong> <code>T</code> cannot be or contain a buffer type, so views cannot be chained; <code>T</code> cannot be or contain an atomic type (MSL cannot cast non-atomic to atomic), keeping atomicity guarantees intact.</li>
+      <li><strong>Static checking where possible.</strong> Const-expression violations are shader-creation errors and override-expression violations are pipeline-creation errors; only genuinely runtime-dependent bounds fall through to invalid-reference behavior.</li>
+      <li><strong>No new JS surface or data flow.</strong> The WebGPU API is unchanged (no <code>buffer_view</code> text in the WebGPU spec); the feature exposes no new storage, network, or fingerprinting surface beyond the <code>wgslLanguageFeatures</code> string that all WGSL extensions already share.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-types" target="_blank" rel="noopener">WGSL §6.3</a>; <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-view-builtin-functions" target="_blank" rel="noopener">WGSL §17.14</a>; <a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/buffer-view.md" target="_blank" rel="noopener">proposal — design constraints</a></span>
+  </section>
+
+  <section>
+    <h2 id="specifications">specifications</h2>
+    <p>Documents fetched 2026-07-29; each row links the artifact directly.</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Document</th><th>Status</th></tr></thead>
+      <tr><td><a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-types" target="_blank" rel="noopener">WGSL — §6.3 Buffer Types</a> and <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-view-builtin-functions" target="_blank" rel="noopener">§17.14 Buffer View Built-in Functions</a></td><td>Editor's Draft text merged via <a href="https://github.com/gpuweb/gpuweb/pull/6291" target="_blank" rel="noopener">PR #6291</a> (merged 2026-07-14)</td></tr>
+      <tr><td><a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/buffer-view.md" target="_blank" rel="noopener">buffer-view proposal</a></td><td>Status &ldquo;Merged&rdquo;; created 2025-10-20; tracks <a href="https://github.com/gpuweb/gpuweb/issues/5338" target="_blank" rel="noopener">issue #5338</a> (closed)</td></tr>
+      <tr><td><a href="https://gpuweb.github.io/gpuweb/" target="_blank" rel="noopener">WebGPU API specification</a></td><td>Unchanged by this feature (no <code>buffer_view</code> content, checked 2026-07-29) — detection rides the existing <a href="https://gpuweb.github.io/gpuweb/#dom-gpu-wgsllanguagefeatures" target="_blank" rel="noopener">wgslLanguageFeatures</a> member</td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/5094091886034944" target="_blank" rel="noopener">Chrome Platform Status — WebGPU: buffer_view feature</a> (<a href="https://chromestatus.com/api/v0/features/5094091886034944" target="_blank" rel="noopener">API record</a>)</li>
+      <li><a href="https://crbug.com/tint/506523198" target="_blank" rel="noopener">Tint tracking bug 506523198</a></li>
+      <li><a href="https://dawn.googlesource.com/dawn/+/main/src/dawn/dawn.json" target="_blank" rel="noopener">dawn.json — WGSL language extensions</a> (<code>buffer_view</code>, value 9)</li>
+      <li><a href="https://github.com/webgpu/webgpu-samples/pull/568" target="_blank" rel="noopener">webgpu-samples PR #568 — wireframe buffer_view variant</a> (open)</li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/GPU/wgslLanguageFeatures" target="_blank" rel="noopener">MDN — GPU.wgslLanguageFeatures</a> (the detection API; MDN does not cover the <code>buffer_view</code> feature itself — search and page grep returned no coverage, 2026-07-29)</li>
+      <li><a href="https://webstatus.dev/features/webgpu" target="_blank" rel="noopener">webstatus.dev — webgpu feature</a> (Baseline limited)</li>
+      <li><a href="https://github.com/gpuweb/cts/tree/main/src/webgpu/shader/execution/expression/call/builtin" target="_blank" rel="noopener">WebGPU CTS — built-in execution tests</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

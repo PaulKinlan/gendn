@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>bufferArrayView — WebGPU: buffer_view feature — Chrome 153 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code { overflow-wrap: anywhere; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .doc-table tr > td:first-child { width: 24%; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .baseline-banner { border: 2px solid var(--border-black); padding: 1rem 1.2rem; margin: 1.5rem 0; background: var(--bg-paper); box-shadow: var(--thin-shadow); }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v153/webgpu-buffer-view-feature/">&larr; WebGPU: buffer_view feature</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v153 · enabled by default · wgsl built-in function</p>
+    <h1><code>bufferArrayView</code></h1>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome · enabled by default 153</li>
+        <li class="limited">Edge · not separately reported</li>
+        <li class="limited">Firefox · no signal</li>
+        <li class="limited">Safari · closed without a position</li>
+      </ul>
+      <p>Requires the <code>buffer_view</code> WGSL language extension — see the <a href="/v153/webgpu-buffer-view-feature/">feature overview</a>.</p>
+    </div>
+
+    <p class="lede">The <code>bufferView</code> variant for types <em>without</em> a fixed footprint: it additionally takes an explicit byte <code>size</code>, letting a shader split one large buffer into several regions that each carry their own dynamically-sized array tail. The result pointer covers <code>[offset, offset + size)</code>.</p>
+  </header>
+
+  <section>
+    <h2 id="syntax">syntax</h2>
+    <p>Two overloads (verbatim from <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-view-builtin-functions" target="_blank" rel="noopener">WGSL §17.14.2</a>); both are <code>@must_use</code>:</p>
+    <pre><code>@must_use fn bufferArrayView&lt;T&gt;(p : ptr&lt;AS, buffer, AM&gt;, offset : OI, size : SI) -&gt; ptr&lt;AS, T, AM&gt;
+
+@must_use fn bufferArrayView&lt;T&gt;(p : ptr&lt;AS, buffer&lt;N&gt;, AM&gt;, offset : OI, size : SI) -&gt; ptr&lt;AS, T, AM&gt;</code></pre>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-view-builtin-functions" target="_blank" rel="noopener">WGSL §17.14.2</a> (fetched 2026-07-29)</span>
+  </section>
+
+  <section>
+    <h2 id="parameters">inputs</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Parameter</th><th>Type</th><th>Contract</th></tr></thead>
+      <tr><td><code>T</code> (template)</td><td>type</td><td>Host-shareable type <strong>without a fixed footprint</strong> — it must be (or contain) a runtime-sized array; must not be nor contain an atomic or buffer type; must satisfy the address-space layout constraints for <code>AS</code></td></tr>
+      <tr><td><code>p</code></td><td><code>ptr&lt;AS, buffer&gt;</code> or <code>ptr&lt;AS, buffer&lt;N&gt;&gt;</code></td><td><code>AS</code> ∈ {storage, uniform, workgroup}; <code>AM</code> a valid access mode for <code>AS</code></td></tr>
+      <tr><td><code>offset</code></td><td><code>OI</code> — <code>u32</code> or <code>i32</code></td><td>Byte offset; <code>i32</code> negatives error as with <a href="/v153/webgpu-buffer-view-feature/bufferview/#exceptions"><code>bufferView</code></a>; alignment rules below</td></tr>
+      <tr><td><code>size</code></td><td><code>SI</code> — <code>u32</code> or <code>i32</code></td><td>Byte size of the view; <code>i32</code> negatives error the same way. Lets the implementation return correct <code>arrayLength</code> values for the resulting runtime-sized array</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-view-builtin-functions" target="_blank" rel="noopener">WGSL §17.14.2 preconditions</a></span>
+  </section>
+
+  <section>
+    <h2 id="return-value">outputs</h2>
+    <p>A <code>ptr&lt;AS, T, AM&gt;</code>: if the memory locations of <code>p</code> are <code>[0, bufferLength(p))</code>, the result's memory locations are <code>[offset, offset + size)</code> with store type <code>T</code>. The runtime element count of the array inside <code>T</code> is derived from the view size (and the effective buffer binding) per <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-binding-determines-runtime-sized-array-element-count" target="_blank" rel="noopener">WGSL §13.3.4</a>; implementations track <code>size</code> so subsequent <code>arrayLength</code> calls return valid values. The size rules are designed so the resulting runtime-sized array always has at least one element.</p>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-view-builtin-functions" target="_blank" rel="noopener">WGSL §17.14.2 description</a>; <a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/buffer-view.md" target="_blank" rel="noopener">proposal — bufferArrayView</a></span>
+  </section>
+
+  <section>
+    <h2 id="exceptions">errors</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Condition</th><th>Behavior</th></tr></thead>
+      <tr><td><code>MinTypeSize(T) &gt; size</code></td><td>Invalid memory reference at runtime; shader-creation error if <code>size</code> is a const-expression (using 0 for <code>offset</code> when it is not); pipeline-creation error if <code>size</code> is an override-expression</td></tr>
+      <tr><td><code>offset + size &gt; bufferLength(p)</code></td><td>Invalid memory reference at runtime; for fixed-size buffers, shader-creation error when the offending value is a const-expression and pipeline-creation error when it is an override-expression (use <code>0</code> for the parameter that is neither)</td></tr>
+      <tr><td><code>MinTypeSize(T) + offset &gt; bufferLength(p)</code></td><td>Invalid memory reference; shader-creation error if <code>offset</code> is a const-expression; pipeline-creation error if an override-expression</td></tr>
+      <tr><td><code>offset % RequiredAlignOf(T, AS) != 0</code></td><td>Shader-creation error (const) / pipeline-creation error (override); otherwise the implementation rounds down: <code>offset &amp; ~(RequiredAlignOf(T, AS) - 1)</code></td></tr>
+      <tr><td><code>(size - ArrayOffset(T)) % StrideOf(array&lt;E&gt;) != 0</code></td><td>Shader-creation error (const <code>size</code>) / pipeline-creation error (override <code>size</code>); otherwise the implementation uses <code>roundDown(StrideOf(array&lt;E&gt;), size - ArrayOffset(T)) + ArrayOffset(T)</code></td></tr>
+      <tr><td>Negative <code>offset</code> or <code>size</code> (<code>i32</code>)</td><td>Shader-creation error (const-expression) / pipeline-creation error (override-expression) / indeterminate value may be used (otherwise)</td></tr>
+      <tr><td><code>T</code> has a fixed footprint, is/contains an atomic or buffer type, or violates <code>AS</code> layout constraints</td><td>Validation error (precondition failure)</td></tr>
+    </table>
+    </div>
+    <p>As with <code>bufferView</code>, checks are interprocedural so size reductions through the call stack are respected; the alignment rule interacts with <code>uniform_buffer_standard_layout</code>.</p>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-view-builtin-functions" target="_blank" rel="noopener">WGSL §17.14.2</a></span>
+  </section>
+
+  <section>
+    <h2 id="context">context and exposure</h2>
+    <ul>
+      <li>Available in any shader stage with the <code>buffer_view</code> extension; same address-space and <code>unrestricted_pointer_parameters</code> rules as <a href="/v153/webgpu-buffer-view-feature/bufferview/#context"><code>bufferView</code></a>.</li>
+      <li>Use it (rather than <code>bufferView</code>) whenever the view's type carries a runtime-sized array <em>and</em> the buffer holds further data after the view — the explicit <code>size</code> is what bounds the array so a single buffer can be split into multiple dynamically-sized regions.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-view-builtin-functions" target="_blank" rel="noopener">WGSL §17.14.2</a>; <a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/buffer-view.md" target="_blank" rel="noopener">proposal — bufferArrayView</a></span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">lifecycle</h2>
+    <ol>
+      <li><strong>Declaration</strong> — buffer variable per the <a href="/v153/webgpu-buffer-view-feature/#buffer-types">type rules</a>.</li>
+      <li><strong>Reinterpretation</strong> — <code>offset</code> and <code>size</code> are validated (shader-creation / pipeline-creation / runtime invalid-reference paths).</li>
+      <li><strong>Use</strong> — the implementation tracks <code>size</code> alongside the pointer so <code>arrayLength</code> reports the view-bounded element count; indexing beyond the view is invalid memory-reference behavior.</li>
+      <li>Pure pointer operation, <code>@must_use</code>, no state or cleanup.</li>
+    </ol>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-view-builtin-functions" target="_blank" rel="noopener">WGSL §17.14.2</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <p>Splitting one buffer into a counted <code>u32</code> region and an <code>f32</code> tail (the <a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/buffer-view.md" target="_blank" rel="noopener">proposal</a>'s wireframe pattern):</p>
+    <pre><code>requires buffer_view;
+
+@group(0) @binding(0) var&lt;storage&gt; indices_and_vertices : buffer;
+
+fn foo() {
+  // The first word stores the byte size of the indices region.
+  let indices_size = *bufferView&lt;u32&gt;(&amp;indices_and_vertices, 0);
+
+  // Bounded view: the indices array occupies [4, 4 + indices_size).
+  let indices_ptr = bufferArrayView&lt;array&lt;u32&gt;&gt;(&amp;indices_and_vertices, 4, indices_size);
+
+  // The vertices tail runs to the end of the buffer.
+  let vertices_ptr = bufferView&lt;array&lt;f32&gt;&gt;(&amp;indices_and_vertices, indices_size + 4);
+
+  let index_count = arrayLength(&amp;*indices_ptr);  // derived from `size`
+  let vertex_count = arrayLength(&amp;*vertices_ptr); // derived from the binding
+}</code></pre>
+    <span class="citation">Source: <a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/buffer-view.md" target="_blank" rel="noopener">proposal — motivating example</a>; <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-view-builtin-functions" target="_blank" rel="noopener">WGSL §17.14.2</a></span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">browser compatibility</h2>
+    <p><em>Interim table</em> (no BCD key; compiled from primary sources, 2026-07-29):</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Support</th><th>Evidence</th></tr></thead>
+      <tr><td>Chrome</td><td>Enabled by default 153 (desktop, Android, WebView)</td><td><a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">milestone=153 listing</a></td></tr>
+      <tr><td>Edge</td><td>Not separately reported</td><td>Chromium-based</td></tr>
+      <tr><td>Firefox</td><td>No signal</td><td><a href="https://github.com/mozilla/standards-positions/issues/1205#issuecomment-3312534193" target="_blank" rel="noopener">mozilla/standards-positions #1205</a></td></tr>
+      <tr><td>Safari</td><td>Closed without a position</td><td><a href="https://github.com/WebKit/standards-positions/issues/294#issuecomment-1877411933" target="_blank" rel="noopener">WebKit/standards-positions #294</a></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5094091886034944" target="_blank" rel="noopener">chromestatus.com/feature/5094091886034944</a></span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <ul>
+      <li>The explicit <code>size</code> bounds the view; out-of-range configurations produce invalid memory references (or static errors), never raw out-of-binding access.</li>
+      <li>Stride and alignment are enforced, with conservative round-down behavior at runtime — the shader cannot construct a misaligned typed access.</li>
+      <li>No new JS/storage/network/fingerprinting surface (see <a href="/v153/webgpu-buffer-view-feature/#security">overview security</a>).</li>
+    </ul>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-view-builtin-functions" target="_blank" rel="noopener">WGSL §17.14.2</a></span>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="/v153/webgpu-buffer-view-feature/">WebGPU: buffer_view feature — overview</a></li>
+      <li><a href="/v153/webgpu-buffer-view-feature/bufferview/"><code>bufferView</code></a> · <a href="/v153/webgpu-buffer-view-feature/bufferlength/"><code>bufferLength</code></a></li>
+      <li><a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-view-builtin-functions" target="_blank" rel="noopener">WGSL §17.14 Buffer View Built-in Functions</a></li>
+      <li><a href="https://github.com/gpuweb/cts/blob/main/src/webgpu/shader/execution/expression/call/builtin/bufferArrayView.spec.ts" target="_blank" rel="noopener">CTS execution tests</a> · <a href="https://github.com/gpuweb/cts/blob/main/src/webgpu/shader/validation/expression/call/builtin/bufferArrayView.spec.ts" target="_blank" rel="noopener">CTS validation tests</a></li>
+      <li><a href="https://chromestatus.com/feature/5094091886034944" target="_blank" rel="noopener">Chrome Platform Status — WebGPU: buffer_view feature</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

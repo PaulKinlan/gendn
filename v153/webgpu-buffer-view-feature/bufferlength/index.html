@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>bufferLength — WebGPU: buffer_view feature — Chrome 153 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code { overflow-wrap: anywhere; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .doc-table tr > td:first-child { width: 24%; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .baseline-banner { border: 2px solid var(--border-black); padding: 1rem 1.2rem; margin: 1.5rem 0; background: var(--bg-paper); box-shadow: var(--thin-shadow); }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v153/webgpu-buffer-view-feature/">&larr; WebGPU: buffer_view feature</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v153 · enabled by default · wgsl built-in function</p>
+    <h1><code>bufferLength</code></h1>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome · enabled by default 153</li>
+        <li class="limited">Edge · not separately reported</li>
+        <li class="limited">Firefox · no signal</li>
+        <li class="limited">Safari · closed without a position</li>
+      </ul>
+      <p>Requires the <code>buffer_view</code> WGSL language extension — see the <a href="/v153/webgpu-buffer-view-feature/">feature overview</a>.</p>
+    </div>
+
+    <p class="lede">Returns the byte size of a buffer pointer — but &ldquo;the size&rdquo; is the <em>minimum</em> size encountered for the originating variable across the call stack, so a helper that takes a <code>buffer&lt;256&gt;</code> parameter sees 256 even when the caller's variable is larger.</p>
+  </header>
+
+  <section>
+    <h2 id="syntax">syntax</h2>
+    <p>Two overloads (verbatim from <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-view-builtin-functions" target="_blank" rel="noopener">WGSL §17.14.3</a>); both are <code>@must_use</code>:</p>
+    <pre><code>@must_use fn bufferLength(p : ptr&lt;AS, buffer, AM&gt;) -&gt; u32
+
+@must_use fn bufferLength(p : ptr&lt;AS, buffer&lt;N&gt;, AM&gt;) -&gt; u32</code></pre>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-view-builtin-functions" target="_blank" rel="noopener">WGSL §17.14.3</a> (fetched 2026-07-29)</span>
+  </section>
+
+  <section>
+    <h2 id="parameters">inputs</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Parameter</th><th>Type</th><th>Contract</th></tr></thead>
+      <tr><td><code>p</code></td><td><code>ptr&lt;AS, buffer&gt;</code> or <code>ptr&lt;AS, buffer&lt;N&gt;&gt;</code></td><td><code>AS</code> ∈ {storage, uniform, workgroup}; <code>AM</code> a valid access mode for <code>AS</code></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-view-builtin-functions" target="_blank" rel="noopener">WGSL §17.14.3 preconditions</a></span>
+  </section>
+
+  <section>
+    <h2 id="return-value">outputs</h2>
+    <p>A <code>u32</code> byte size, defined as the <strong>minimum</strong> of:</p>
+    <ul>
+      <li>the size of the originating variable (<code>N</code> for a fixed-size variable; the size of the bound WebGPU <code>GPUBuffer</code> for a runtime-sized variable), and</li>
+      <li>the minimum fixed-size buffer encountered as a formal parameter anywhere in the call stack that the argument travelled through.</li>
+    </ul>
+    <p>So if <code>N</code> is specified the function returns <code>N</code>; buffer sizes cannot be <em>grown</em> through function calls. The value is produced by interprocedural analysis, and the same minimum is the size used when validating <a href="/v153/webgpu-buffer-view-feature/bufferview/"><code>bufferView</code></a> and <a href="/v153/webgpu-buffer-view-feature/bufferarrayview/"><code>bufferArrayView</code></a> calls on the same buffer.</p>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-view-builtin-functions" target="_blank" rel="noopener">WGSL §17.14 introductory rules and §17.14.3 description</a></span>
+  </section>
+
+  <section>
+    <h2 id="exceptions">errors</h2>
+    <p>The function has no author-reachable error surface beyond its preconditions: passing a pointer whose <code>AS</code> is not storage/uniform/workgroup, or whose access mode is invalid for the address space, is a validation error. It performs no memory access itself, so there is no bounds behavior of its own — the value it returns is what <em>other</em> built-ins validate against.</p>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-view-builtin-functions" target="_blank" rel="noopener">WGSL §17.14.3</a></span>
+  </section>
+
+  <section>
+    <h2 id="context">context and exposure</h2>
+    <ul>
+      <li>Available in any shader stage with the <code>buffer_view</code> extension; same pointer-parameter rules as the other built-ins (<code>unrestricted_pointer_parameters</code> needed to pass buffer pointers through user functions — see <a href="/v153/webgpu-buffer-view-feature/#conversions">conversions</a>).</li>
+      <li>Without <code>unrestricted_pointer_parameters</code> support, the root identifier of the argument must be the originating variable.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-view-builtin-functions" target="_blank" rel="noopener">WGSL §17.14</a></span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">lifecycle</h2>
+    <p>Pure query, <code>@must_use</code>, no state transitions: it reports the statically-tracked minimum size for the argument's provenance chain. Typical usage is defensive — computing how much room remains before constructing a view, or sizing a loop over a runtime-sized buffer.</p>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-view-builtin-functions" target="_blank" rel="noopener">WGSL §17.14</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <p>The specification's own example (<a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-view-builtin-functions" target="_blank" rel="noopener">WGSL §17.14.3</a>, &ldquo;bufferLength values&rdquo;), showing how the formal parameter's size wins through the call stack:</p>
+    <pre><code>requires buffer_view;
+requires unrestricted_pointer_parameters;
+
+@group(0) @binding(0) var&lt;storage&gt; b1 : buffer&lt;2048&gt;;
+@group(0) @binding(1) var&lt;storage&gt; b2 : buffer&lt;4096&gt;;
+
+fn foobar(p : ptr&lt;storage, buffer&gt;) -&gt; u32 {
+  return bufferLength(p);
+}
+
+fn bar(p : ptr&lt;storage, buffer&lt;1024&gt;&gt;) -&gt; u32 {
+  return foobar(p);
+}
+
+fn foo(p : ptr&lt;storage, buffer&lt;256&gt;&gt;) -&gt; u32 {
+  return bufferLength(p);
+}
+
+@compute @workgroup_size(1)
+fn main() {
+  let len1 = bufferLength(&amp;b1);  // 2048
+  let len2 = bufferLength(&amp;b2);  // 4096
+  let len3 = foo(&amp;b1);           // 256  — the formal parameter is smaller
+  let len4 = bar(&amp;b2);           // 1024 — smallest size on the call stack
+}</code></pre>
+    <p class="citation" style="margin-top:0.4rem">Note: the spec example declares both variables at <code>@binding(0)</code>; the second is shown here at <code>@binding(1)</code> because two bindings at the same address in one bind group would be a bind-group validation error. The semantics illustrated are unchanged.</p>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-view-builtin-functions" target="_blank" rel="noopener">WGSL §17.14.3 EXAMPLE</a>; the formal-parameter conversion behavior per the <a href="https://gpuweb.github.io/gpuweb/wgsl/#conversion-rank" target="_blank" rel="noopener">WGSL conversion-rank table</a></span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">browser compatibility</h2>
+    <p><em>Interim table</em> (no BCD key; compiled from primary sources, 2026-07-29):</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Support</th><th>Evidence</th></tr></thead>
+      <tr><td>Chrome</td><td>Enabled by default 153 (desktop, Android, WebView)</td><td><a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">milestone=153 listing</a></td></tr>
+      <tr><td>Edge</td><td>Not separately reported</td><td>Chromium-based</td></tr>
+      <tr><td>Firefox</td><td>No signal</td><td><a href="https://github.com/mozilla/standards-positions/issues/1205#issuecomment-3312534193" target="_blank" rel="noopener">mozilla/standards-positions #1205</a></td></tr>
+      <tr><td>Safari</td><td>Closed without a position</td><td><a href="https://github.com/WebKit/standards-positions/issues/294#issuecomment-1877411933" target="_blank" rel="noopener">WebKit/standards-positions #294</a></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5094091886034944" target="_blank" rel="noopener">chromestatus.com/feature/5094091886034944</a></span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <ul>
+      <li>Read-only query with no memory access of its own; it exists precisely so shaders can stay within validated bounds.</li>
+      <li>The minimum-size rule prevents a callee from observing or exploiting a larger buffer than its parameter types declare.</li>
+      <li>No new JS/storage/network/fingerprinting surface (see <a href="/v153/webgpu-buffer-view-feature/#security">overview security</a>).</li>
+    </ul>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-view-builtin-functions" target="_blank" rel="noopener">WGSL §17.14</a></span>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="/v153/webgpu-buffer-view-feature/">WebGPU: buffer_view feature — overview</a></li>
+      <li><a href="/v153/webgpu-buffer-view-feature/bufferview/"><code>bufferView</code></a> · <a href="/v153/webgpu-buffer-view-feature/bufferarrayview/"><code>bufferArrayView</code></a></li>
+      <li><a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-view-builtin-functions" target="_blank" rel="noopener">WGSL §17.14 Buffer View Built-in Functions</a></li>
+      <li><a href="https://github.com/gpuweb/cts/blob/main/src/webgpu/shader/execution/expression/call/builtin/bufferLength.spec.ts" target="_blank" rel="noopener">CTS execution tests</a> · <a href="https://github.com/gpuweb/cts/blob/main/src/webgpu/shader/validation/expression/call/builtin/bufferLength.spec.ts" target="_blank" rel="noopener">CTS validation tests</a></li>
+      <li><a href="https://chromestatus.com/feature/5094091886034944" target="_blank" rel="noopener">Chrome Platform Status — WebGPU: buffer_view feature</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
