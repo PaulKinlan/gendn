@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Interoperable dispatch timing for transitionrun and media query events — Chrome 153 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; overflow-wrap: normal; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .compat-table tr > *:nth-child(2) { min-width: 6.5rem; }
+    .compat-table { min-width: 34rem; }
+    .wide-table { min-width: 38rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .doc-table caption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); text-align: left; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .table-wrap { overflow-x: auto; }
+    .lede-block h1, .lede { overflow-wrap: anywhere; }
+    p code, li code { overflow-wrap: anywhere; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .baseline-banner { border: 2px solid var(--border-black); padding: 1rem 1.2rem; margin: 1.5rem 0; background: var(--bg-paper); box-shadow: var(--thin-shadow); }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .warn-block > strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v153/">&larr; Chrome 153 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v153 &middot; enabled by default &middot; css &middot; events</p>
+    <h1>Interoperable dispatch timing for transitionrun and media query events</h1>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability (behavior alignment)</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; behavior change from 153</li>
+        <li class="limited">Edge &middot; follows Chromium</li>
+        <li class="limited">Firefox &middot; already conformant (per listing)</li>
+        <li class="limited">Safari &middot; already conformant (per listing)</li>
+      </ul>
+      <p>This is a <strong>behavior-alignment</strong> change, not a new API: the <code>transitionrun</code> and media-query <code>change</code> events themselves are long-established (BCD records <code>transitionrun_event</code> since Chrome 74 / Firefox 53 / Safari 13.1, and <code>MediaQueryList</code> <code>change_event</code> since Chrome 39 / Firefox 55 / Safari 14). Chrome 153 changes <em>when</em> they fire inside the rendering steps, aligning Blink with the <a href="https://html.spec.whatwg.org/multipage/webappapis.html#event-loop-processing-model" target="_blank" rel="noopener">HTML event loop processing model</a> and — per the <a href="https://chromestatus.com/api/v0/features/6312504658624512" target="_blank" rel="noopener">ChromeStatus API record</a> — &ldquo;making the timing interoperable with Gecko and WebKit&rdquo;. No <a href="https://api.webstatus.dev/v1/features?q=transitionrun" target="_blank" rel="noopener">webstatus.dev entry</a> exists for the timing change itself (zero matches, 2026-07-29); BCD does not record dispatch-timing behavior.</p>
+    </div>
+
+    <p class="lede">A conformance fix that moves two event dispatches to their spec-defined points in the rendering steps: media-query <code>change</code> events now fire at the media-query evaluation step (<a href="https://drafts.csswg.org/cssom-view/#evaluate-media-queries-and-report-changes" target="_blank" rel="noopener">CSSOM View &mdash; evaluate media queries and report changes</a>), before any pending animation events; and <code>transitionrun</code> events fire at the animation-events step (<a href="https://drafts.csswg.org/web-animations-1/#update-animations-and-send-events" target="_blank" rel="noopener">Web Animations &mdash; update animations and send events</a>) <strong>in the same rendering iteration</strong> even for transitions created earlier in that iteration &mdash; instead of a frame late.</p>
+  </header>
+
+  <div class="warn-block" id="behavior-change">
+    <strong>Behavior change &mdash; event ordering observable by scripts</strong>
+    <p>Scripts that implicitly depended on the old Blink timing &mdash; for example asserting that <code>transitionrun</code> arrives <em>one frame after</em> a style change that creates a transition, or observing media-query <code>change</code> listeners interleaved with <code>transitionrun</code>/<code>animationstart</code> listeners in a single callback batch &mdash; will observe a different, now spec-conformant order from Chrome 153. Review tests that snapshot event order. There is no new API surface to feature-detect; the events, their interfaces, and their targets are unchanged.</p>
+    <p><strong>Flag state.</strong> The <a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">milestone=153 listing</a> files this feature under &ldquo;Enabled by default&rdquo; (verified 2026-07-29; the listing is authoritative for identity). The Blink runtime feature that gates the change is <code>EventTimingMatchingHTML</code>, recorded with status <code>experimental</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a> at trunk (fetched 2026-07-29) and <em>not</em> marked <code>public: true</code> &mdash; so there is no <code>chrome://flags</code> entry. For local testing of the aligned behavior outside the rollout, launch Chrome with <code>--enable-blink-features=EventTimingMatchingHTML</code>. The two implementation CLs (<a href="https://chromium-review.googlesource.com/c/chromium/src/+/8044688" target="_blank" rel="noopener">8044688</a>, <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8045604" target="_blank" rel="noopener">8045604</a>) both landed behind this flag.</p>
+  </div>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">What it is</th><td>A Blink conformance change to <em>when</em> two existing events dispatch during the event loop's rendering steps &mdash; media-query <code>change</code> (<a href="https://developer.mozilla.org/en-US/docs/Web/API/MediaQueryList/change_event" target="_blank" rel="noopener">MDN</a>) and <code>transitionrun</code> (<a href="https://developer.mozilla.org/en-US/docs/Web/API/Element/transitionrun_event" target="_blank" rel="noopener">MDN</a>) &mdash; aligning Chrome with the HTML event loop specification and with Gecko/WebKit</td></tr>
+      <tr><th scope="row">Milestone listing</th><td>Chrome 153 &mdash; Enabled by default (<a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">listing</a>, verified 2026-07-29)</td></tr>
+      <tr><th scope="row">New API surface</th><td>None &mdash; no new interfaces, members, values, or flags for authors</td></tr>
+      <tr><th scope="row">What changes</th><td>(1) <code>transitionrun</code> fires in the same rendering iteration that creates the transition (previously delayed to a later iteration); (2) media-query <code>change</code> fires at the media-query step, before pending animation events (previously intermixed with them)</td></tr>
+      <tr><th scope="row">Runtime feature</th><td><code>EventTimingMatchingHTML</code> (status <code>experimental</code>, not public) in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a></td></tr>
+      <tr><th scope="row">Implementation</th><td><a href="https://chromium-review.googlesource.com/c/chromium/src/+/8044688" target="_blank" rel="noopener">CL 8044688</a> (merged 2026-07-08) + <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8045604" target="_blank" rel="noopener">CL 8045604</a> (merged 2026-07-14), both in <code>page_animator.cc</code>; tracking bug <a href="https://crbug.com/397737222" target="_blank" rel="noopener">crbug.com/397737222</a></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/6312504658624512" target="_blank" rel="noopener">6312504658624512 &mdash; Interoperable dispatch timing for transitionrun and media query events</a> (Blink component <code>Blink&gt;Animation</code>)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6312504658624512" target="_blank" rel="noopener">chromestatus.com/feature/6312504658624512</a>; <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8044688" target="_blank" rel="noopener">CL 8044688</a>; <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8045604" target="_blank" rel="noopener">CL 8045604</a></span>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>The ChromeStatus record states the motivation verbatim:</p>
+    <blockquote>
+      <p>&ldquo;Aligns Blink's dispatch timing for animation &ldquo;transitionrun&rdquo; event and media query &ldquo;change&rdquo; event with the spec, making the timing interoperable with Gecko and WebKit. More precisely, as per HTML window event loop specification, &ldquo;transitionrun&rdquo; events will be fired at Step 3.11 even for animations created earlier in the same iteration (instead of delaying them for a later iteration), and the media query &ldquo;change&rdquo; event will be fired at Step 3.10 before firing any pending animation events (instead of intermixing them with animation events at Step 3.11).&rdquo;</p>
+    </blockquote>
+    <p>Two long-standing Blink deviations are being removed:</p>
+    <ul>
+      <li><strong>Frame-late <code>transitionrun</code>.</strong> When a style change created a transition during a rendering iteration, Blink queued its <code>transitionrun</code> for a <em>later</em> iteration. The spec model queues the event as part of that same iteration's animation-event dispatch, so a listener can observe (and mutate) the transition one frame earlier.</li>
+      <li><strong>Interleaved media-query events.</strong> Blink dispatched media-query <code>change</code> events intermixed with animation events in the animation-events step. The spec gives media-query evaluation its own, earlier step &mdash; so a <code>change</code> listener that starts or cancels an animation now reliably runs <em>before</em> that iteration's animation events, and the animation events it causes are still picked up in the same iteration.</li>
+    </ul>
+    <p>Both deviations made cross-browser test assertions and framework scheduling code order-dependent in ways that differed per engine; the listing frames the fix as an interoperability change. (The listing&rsquo;s &ldquo;Step 3.10/3.11&rdquo; numbering refers to the <em>update the rendering</em> sub-steps of the <a href="https://html.spec.whatwg.org/multipage/webappapis.html#event-loop-processing-model" target="_blank" rel="noopener">event loop processing model</a>; the step <em>names</em> are quoted below because numbering shifts as steps are added.)</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/6312504658624512" target="_blank" rel="noopener">ChromeStatus API record</a> (summary quoted verbatim); <a href="https://html.spec.whatwg.org/multipage/webappapis.html#event-loop-processing-model" target="_blank" rel="noopener">HTML &mdash; event loop processing model</a></span>
+  </section>
+
+  <section>
+    <h2 id="event-loop-order">the spec order: where each event belongs</h2>
+    <p>The <em>update the rendering</em> steps of the HTML event loop run, in order (relevant steps quoted verbatim from the <a href="https://html.spec.whatwg.org/multipage/webappapis.html#event-loop-processing-model" target="_blank" rel="noopener">processing model</a>, fetched 2026-07-29):</p>
+    <ol>
+      <li>&hellip; run the <strong>resize</strong> steps for <code>doc</code> [CSSOM View]</li>
+      <li>&hellip; run the <strong>scroll</strong> steps for <code>doc</code> [CSSOM View]</li>
+      <li>&hellip; <strong>evaluate media queries and report changes</strong> for <code>doc</code> [CSSOM View] &mdash; <em>the media-query step (listing &ldquo;3.10&rdquo;)</em></li>
+      <li>&hellip; <strong>update animations and send events</strong> for <code>doc</code> [Web Animations] &mdash; <em>the animation-events step (listing &ldquo;3.11&rdquo;)</em></li>
+      <li>&hellip; run the fullscreen steps, canvas context-lost steps, and then the <strong>animation frame callbacks</strong> (<code>requestAnimationFrame</code>)</li>
+    </ol>
+    <p>Two consequences follow from the spec text itself:</p>
+    <ul>
+      <li>Media-query events belong to an <em>earlier</em> step than animation events &mdash; <a href="https://drafts.csswg.org/cssom-view/#evaluate-media-queries-and-report-changes" target="_blank" rel="noopener">CSSOM View's algorithm</a> fires a <code>change</code> event (a <a href="https://drafts.csswg.org/cssom-view/#mediaquerylistevent" target="_blank" rel="noopener">MediaQueryListEvent</a>) at each <a href="https://drafts.csswg.org/cssom-view/#mediaquerylist" target="_blank" rel="noopener">MediaQueryList</a> &ldquo;in the order they were created, oldest first&rdquo; whenever its <code>matches</code> state changed since the last run.</li>
+      <li><a href="https://drafts.csswg.org/web-animations-1/#update-animations-and-send-events" target="_blank" rel="noopener">Web Animations' algorithm</a> updates timeline current times and then dispatches the resulting animation events in the same step &mdash; nothing in the spec defers events for animations created <em>earlier in the same iteration</em> to a later one.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://html.spec.whatwg.org/multipage/webappapis.html#event-loop-processing-model" target="_blank" rel="noopener">HTML &mdash; event loop processing model</a>; <a href="https://drafts.csswg.org/cssom-view/#evaluate-media-queries-and-report-changes" target="_blank" rel="noopener">CSSOM View &mdash; evaluate media queries and report changes</a>; <a href="https://drafts.csswg.org/web-animations-1/#update-animations-and-send-events" target="_blank" rel="noopener">Web Animations &mdash; update animations and send events</a></span>
+  </section>
+
+  <section>
+    <h2 id="transitionrun-timing">behavior contract 1: <code>transitionrun</code> in the creating iteration</h2>
+    <p><a href="https://drafts.csswg.org/css-transitions-2/#event-dispatch" target="_blank" rel="noopener">CSS Transitions 2 &sect;5.1</a> dispatches transition events by comparing the transition&rsquo;s phase &ldquo;in the previous animation frame to its current state&rdquo;; the phase table maps <em>idle &rarr; pending or before</em> to <code>transitionrun</code> (elapsed time = interval start), with the target being &ldquo;the transition&rsquo;s owning element&rdquo;. The event marks the moment a transition first leaves the idle phase &mdash; before any <code>transition-delay</code> has begun.</p>
+    <div class="table-wrap">
+    <table class="doc-table wide-table">
+      <thead><tr><th>Situation</th><th>Before Chrome 153 (Blink)</th><th>From Chrome 153 (spec-aligned)</th></tr></thead>
+      <tr><td>Transition created by a style change during iteration N</td><td><code>transitionrun</code> dispatched in a <strong>later</strong> rendering iteration (frame late)</td><td><code>transitionrun</code> dispatched in iteration N&rsquo;s animation-events step (&ldquo;update animations and send events&rdquo;)</td></tr>
+      <tr><td>Listener mutates the animation it just observed</td><td>Mutation lands one frame later than the event queue implies</td><td>Listener runs in the same frame; its mutations apply to the current iteration&rsquo;s rendering</td></tr>
+      <tr><td>Animations removed during the update</td><td>Remove-generated events could miss the frame</td><td>Events generated during the update (e.g. animation remove events) &ldquo;fire within the same frame&rdquo; (<a href="https://chromium-review.googlesource.com/c/chromium/src/+/8045604" target="_blank" rel="noopener">CL 8045604</a>)</td></tr>
+    </table>
+    </div>
+    <p>Implementation: <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8045604" target="_blank" rel="noopener">CL 8045604</a> (merged 2026-07-14) moved document animation updates and scroll-animation servicing into the Step&nbsp;11 position for all <strong>non-throttled</strong> documents, and dispatches each non-throttled controller&rsquo;s animation events immediately after updating its animations &mdash; so events produced by the update are delivered in the same frame. Throttled (e.g. hidden) documents are not serviced on this cadence, as before.</p>
+    <span class="citation">Source: <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8045604" target="_blank" rel="noopener">CL 8045604 commit message</a>; <a href="https://drafts.csswg.org/css-transitions-2/#event-dispatch" target="_blank" rel="noopener">CSS Transitions 2 &sect;5.1 event dispatch</a>; <a href="https://drafts.csswg.org/web-animations-1/#update-animations-and-send-events" target="_blank" rel="noopener">Web Animations &mdash; update animations and send events</a></span>
+  </section>
+
+  <section>
+    <h2 id="media-query-change-timing">behavior contract 2: media-query <code>change</code> before animation events</h2>
+    <p><a href="https://drafts.csswg.org/cssom-view/#evaluate-media-queries-and-report-changes" target="_blank" rel="noopener">CSSOM View&rsquo;s algorithm</a>: for each <code>MediaQueryList</code> whose document is being rendered, &ldquo;in the order they were created, oldest first&rdquo;, if the list&rsquo;s <code>matches</code> state changed since the last run, &ldquo;fire an event named <code>change</code> at target using <code>MediaQueryListEvent</code>, with its <code>isTrusted</code> attribute initialized to true, its <code>media</code> attribute initialized to target&rsquo;s media, and its <code>matches</code> attribute initialized to target&rsquo;s matches state.&rdquo;</p>
+    <div class="table-wrap">
+    <table class="doc-table wide-table">
+      <thead><tr><th>Situation</th><th>Before Chrome 153 (Blink)</th><th>From Chrome 153 (spec-aligned)</th></tr></thead>
+      <tr><td>Viewport/class change flips a media query during iteration N</td><td><code>change</code> dispatched <strong>intermixed with animation events</strong> at the animation-events step</td><td><code>change</code> dispatched at the earlier media-query step, <strong>before</strong> pending animation events</td></tr>
+      <tr><td><code>change</code> listener starts/cancels an animation</td><td>Resulting animation events raced in the same mixed batch</td><td>Listener runs first; animation events it causes are still collected and dispatched in the same iteration&rsquo;s animation step</td></tr>
+      <tr><td>Legacy <code>mql.addListener(cb)</code> callbacks</td><td>Separate dispatch path from standard <code>change</code> events</td><td>Standard <code>MediaQueryListEvent</code> &ldquo;dispatched immediately in Step 10 alongside legacy <code>mql.addListener()</code> callbacks&rdquo; (<a href="https://chromium-review.googlesource.com/c/chromium/src/+/8044688" target="_blank" rel="noopener">CL 8044688</a>) &mdash; both paths observe the same step</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8044688" target="_blank" rel="noopener">CL 8044688 commit message</a>; <a href="https://drafts.csswg.org/cssom-view/#evaluate-media-queries-and-report-changes" target="_blank" rel="noopener">CSSOM View &mdash; evaluate media queries and report changes</a></span>
+  </section>
+
+  <section>
+    <h2 id="compat-flush">behavior contract 3: the compat flush after animation events</h2>
+    <p>Blink historically used the animation-events step as an <em>unfiltered</em> flush for queued events beyond animation events. <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8044688" target="_blank" rel="noopener">CL 8044688</a> splits this in two, in its own words:</p>
+    <blockquote>
+      <p>&ldquo;While HTML spec for Step 11 is only about animation updates, Blink has been dispatching all events without any filtering here. &hellip; We are splitting this dispatch in two: first dispatch the animation events as per Step 11, then dispatch all events not covered to maintain backward compatibility. We are avoiding unfiltered dispatch in the last step to prevent premature dispatch of any events covered by the previous steps in case any such event is queued after their dispatch before in the same loop.&rdquo;</p>
+    </blockquote>
+    <p>Net effect for authors: events that belong to the named rendering steps (resize, scroll, media-query, animation) are no longer at risk of being flushed early by the catch-all in <code>page_animator.cc</code>; events the spec doesn&rsquo;t assign to a step keep their historical delivery point. This is the piece that keeps the alignment web-compatible &mdash; the CL frames the second dispatch explicitly as backward compatibility, not a new contract.</p>
+    <span class="citation">Source: <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8044688" target="_blank" rel="noopener">CL 8044688 commit message (quoted verbatim)</a></span>
+  </section>
+
+  <section>
+    <h2 id="observable">observing the new order (examples)</h2>
+    <p>Nothing to feature-detect &mdash; the events and interfaces are unchanged &mdash; but the ordering is observable. These gendn-derived snippets (not from a spec; labelled as such) log the relative order so you can compare engines or pre/post-153 Chrome:</p>
+    <pre><code>// Order probe: media-query change vs animation events in one iteration
+const log = [];
+const mql = matchMedia("(max-width: 600px)");
+mql.addEventListener("change", () =&gt; log.push("mq-change"));
+
+document.documentElement.style.transition = "margin-left 100s";
+document.documentElement.addEventListener("transitionrun",
+  () =&gt; log.push("transitionrun"), { once: true });
+
+// Force both in one iteration: shrink the viewport and flip the property.
+// Spec order (Chrome 153+): "mq-change" before "transitionrun".
+// Old Blink: the two could appear in either relative order.</code></pre>
+    <pre><code>// Same-iteration transitionrun: listener observes the transition
+// in the frame it was created (Chrome 153+), not a frame later.
+el.addEventListener("transitionrun", (e) =&gt; {
+  // e.elapsedTime === 0 at interval start (negative delay = -delay)
+  console.log("running:", e.propertyName, e.elapsedTime);
+});
+el.style.transition = "opacity 1s";
+el.style.opacity = "0";  // creates + queues in one style change</code></pre>
+    <p>The Chrome Platform Showcase has no demo route for this feature (<a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v153/interoperable-dispatch-timing-for-transitionrun-and-media-query-events/" target="_blank" rel="noopener">route HEAD-checked 404, 2026-07-29</a>), so no live iframe is embedded; the snippets above are the canonical probes.</p>
+    <span class="citation">Source: ordering asserted by the <a href="https://chromestatus.com/api/v0/features/6312504658624512" target="_blank" rel="noopener">ChromeStatus summary</a> and <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8044688" target="_blank" rel="noopener">CL 8044688</a>; snippets are gendn-derived illustrations</span>
+  </section>
+
+  <section>
+    <h2 id="wpt">web platform tests</h2>
+    <p>The timing change rides on <strong>existing</strong> WPT suites &mdash; neither implementation CL adds new WPT files (their file lists touch only <code>page_animator.cc</code>, the runtime-flag record, and Chromium unit tests &mdash; verified in the CL file lists, 2026-07-29):</p>
+    <ul>
+      <li><a href="https://github.com/web-platform-tests/wpt/blob/master/css/css-transitions/event-dispatch.tentative.html" target="_blank" rel="noopener"><code>css/css-transitions/event-dispatch.tentative.html</code></a> &mdash; 30 <code>promise_test</code>s over the transition-event phase machine; its harness treats events as late only if two animation frames pass without them, and asserts per-phase <code>elapsedTime</code> values.</li>
+      <li><a href="https://github.com/web-platform-tests/wpt/blob/master/css/cssom-view/MediaQueryList-change-event-matches-value.html" target="_blank" rel="noopener"><code>css/cssom-view/MediaQueryList-change-event-matches-value.html</code></a> and <a href="https://github.com/web-platform-tests/wpt/blob/master/css/cssom-view/MediaQueryListEvent.html" target="_blank" rel="noopener"><code>MediaQueryListEvent.html</code></a> &mdash; the media-query change-event value/interface contracts.</li>
+      <li>Chromium unit tests updated by the CLs themselves: <code>core/input/event_handler_test.cc</code>, <code>core/annotation/annotation_agent_impl_test.cc</code> (<a href="https://chromium-review.googlesource.com/c/chromium/src/+/8045604" target="_blank" rel="noopener">CL 8045604</a> file list).</li>
+    </ul>
+    <p>The ChromeStatus record links a <em>sibling</em> event-loop alignment test &mdash; <a href="https://wpt.fyi/results/html/webappapis/scripting/event-loops/new-scroll-event-dispatched-at-next-updating-rendering-time.html?label=master&amp;label=experimental&amp;aligned&amp;view=interop" target="_blank" rel="noopener">new-scroll-event-dispatched-at-next-updating-rendering-time.html</a> (scroll events at the scroll step) &mdash; viewed with the <code>interop</code> filter; it documents the same rendering-steps program rather than these two events directly.</p>
+    <span class="citation">Source: CL file lists (<a href="https://chromium-review.googlesource.com/c/chromium/src/+/8044688" target="_blank" rel="noopener">8044688</a>, <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8045604" target="_blank" rel="noopener">8045604</a>); WPT repository fetched 2026-07-29</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">browser compatibility</h2>
+    <p><em>Interim tables.</em> BCD records support for the <strong>events</strong> but not for <strong>dispatch timing</strong> (no BCD key exists for the alignment behavior; a <a href="https://api.webstatus.dev/v1/features?q=transitionrun" target="_blank" rel="noopener">webstatus.dev query</a> returns zero matches, 2026-07-29). The alignment rows below come from the authoritative milestone listing, not BCD.</p>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <caption>The alignment change (not from BCD)</caption>
+      <thead><tr><th>Engine</th><th>Aligned timing</th><th>Evidence</th></tr></thead>
+      <tr><td>Chrome / Edge (Chromium)</td><td>From Chrome 153</td><td><a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">milestone=153 listing</a> (&ldquo;Enabled by default&rdquo;); gated by <code>EventTimingMatchingHTML</code> (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">flag record</a>)</td></tr>
+      <tr><td>Firefox (Gecko)</td><td>Already conformant (per listing)</td><td><a href="https://chromestatus.com/api/v0/features/6312504658624512" target="_blank" rel="noopener">ChromeStatus record</a>: the change makes Blink &ldquo;interoperable with Gecko and WebKit&rdquo;; vendor-position field records no objection (no notes)</td></tr>
+      <tr><td>Safari (WebKit)</td><td>Already conformant (per listing)</td><td>Same record; no WebKit standards-position link on record</td></tr>
+    </table>
+    </div>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <caption>The events themselves (BCD)</caption>
+      <thead><tr><th>Event</th><th>Chrome</th><th>Firefox</th><th>Safari</th></tr></thead>
+      <tr><td><code>transitionrun</code> (<code>api.Element.transitionrun_event</code>)</td><td>74</td><td>53</td><td>13.1</td></tr>
+      <tr><td>Media-query <code>change</code> (<code>api.MediaQueryList.change_event</code>)</td><td>39</td><td>55</td><td>14</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Element.json" target="_blank" rel="noopener">BCD api/Element.json</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/MediaQueryList.json" target="_blank" rel="noopener">BCD api/MediaQueryList.json</a> (both fetched 2026-07-29)</span>
+  </section>
+
+  <section>
+    <h2 id="security-privacy">security and privacy</h2>
+    <ul>
+      <li><strong>No new API surface</strong> &mdash; no new interfaces, members, permissions, or storage; the change moves existing events between spec-named steps.</li>
+      <li><strong>No new information exposure</strong> &mdash; the same events carry the same payloads to the same targets; only their relative dispatch order and frame alignment change.</li>
+      <li><strong>Timing-observability unchanged in kind</strong> &mdash; scripts could always observe event order; the aligned order is now cross-engine consistent, which reduces engine-fingerprinting variance rather than adding a signal.</li>
+      <li>No security or privacy section of the cited specs introduces additional considerations for these dispatch steps beyond the event definitions themselves.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://drafts.csswg.org/cssom-view/#evaluate-media-queries-and-report-changes" target="_blank" rel="noopener">CSSOM View algorithm</a>; <a href="https://drafts.csswg.org/web-animations-1/#update-animations-and-send-events" target="_blank" rel="noopener">Web Animations algorithm</a>; <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8044688" target="_blank" rel="noopener">CL 8044688</a></span>
+  </section>
+
+  <section>
+    <h2 id="specifications">specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Document</th><th>Relevance</th></tr></thead>
+      <tr><td><a href="https://html.spec.whatwg.org/multipage/webappapis.html#event-loop-processing-model" target="_blank" rel="noopener">HTML Standard &mdash; event loop processing model</a></td><td>The normative rendering-steps order (media-query evaluation before animation events); the listing&rsquo;s &ldquo;Step 3.10/3.11&rdquo; refers to these sub-steps</td></tr>
+      <tr><td><a href="https://drafts.csswg.org/cssom-view/#evaluate-media-queries-and-report-changes" target="_blank" rel="noopener">CSSOM View &mdash; evaluate media queries and report changes</a></td><td>The <code>change</code>-event dispatch algorithm (oldest-first, on <code>matches</code> state change, <code>MediaQueryListEvent</code> payload)</td></tr>
+      <tr><td><a href="https://drafts.csswg.org/web-animations-1/#update-animations-and-send-events" target="_blank" rel="noopener">Web Animations &mdash; update animations and send events</a></td><td>The animation-update-then-dispatch algorithm run at the animation-events step</td></tr>
+      <tr><td><a href="https://drafts.csswg.org/css-transitions-2/#event-dispatch" target="_blank" rel="noopener">CSS Transitions Level 2 &sect;5.1 &mdash; event dispatch</a></td><td>The transition phase machine and the <code>transitionrun</code> mapping (idle &rarr; pending-or-before; target = owning element)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: specifications fetched 2026-07-29; maturity per the <a href="https://chromestatus.com/api/v0/features/6312504658624512" target="_blank" rel="noopener">ChromeStatus record</a>: &ldquo;Final published standard&rdquo;</span>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/6312504658624512" target="_blank" rel="noopener">Chrome Platform Status &mdash; this feature</a> (<a href="https://chromestatus.com/api/v0/features/6312504658624512" target="_blank" rel="noopener">API record</a>)</li>
+      <li><a href="https://chromium-review.googlesource.com/c/chromium/src/+/8044688" target="_blank" rel="noopener">CL 8044688 &mdash; Align PageAnimator with HTML spec for MQ and animation events</a> (merged 2026-07-08) &middot; <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8045604" target="_blank" rel="noopener">CL 8045604 &mdash; Align PageAnimator with HTML spec for Step 11 animation updates</a> (merged 2026-07-14)</li>
+      <li><a href="https://crbug.com/397737222" target="_blank" rel="noopener">Tracking bug &mdash; crbug.com/397737222</a> (requires Google sign-in to view details)</li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Element/transitionrun_event" target="_blank" rel="noopener">MDN &mdash; transitionrun event</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/MediaQueryList/change_event" target="_blank" rel="noopener">MDN &mdash; MediaQueryList: change event</a> (both cover the events&rsquo; syntax/type, <em>not</em> the dispatch-timing contract &mdash; verified 2026-07-29)</li>
+      <li><a href="https://wpt.fyi/results/css/css-transitions/event-dispatch.tentative.html" target="_blank" rel="noopener">wpt.fyi &mdash; transition event-dispatch results</a> &middot; <a href="https://wpt.fyi/results/css/cssom-view" target="_blank" rel="noopener">wpt.fyi &mdash; cssom-view results</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
