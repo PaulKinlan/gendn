@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>stream, cancel, and error events — Capability elements: &lt;camera&gt; and &lt;microphone&gt; — Chrome 153 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 32%; min-width: 7.5rem; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .compat-table tr > *:nth-child(2) { min-width: 6.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .doc-table caption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); text-align: left; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .table-wrap { overflow-x: auto; }
+    .table-wrap .doc-table { min-width: 36rem; table-layout: fixed; }
+    .lede-block h1 { overflow-wrap: anywhere; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v153/capability-elements-camera-and-microphone/">&larr; Capability elements: &lt;camera&gt; and &lt;microphone&gt;</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v153 · html · event reference</p>
+    <h1>stream<wbr> / <wbr>cancel<wbr> / <wbr>error events</h1>
+    <p class="lede">The acquisition lifecycle signals for <code>&lt;camera&gt;</code> and <code>&lt;microphone&gt;</code>: exactly one terminal event fires per activation attempt — <code>stream</code> on success, <code>cancel</code> when the user declines, <code>error</code> for every other failure. All three are plain <code>Event</code>s; the payload lives on the element's <a href="../properties/"><code>stream</code> and <code>error</code> properties</a>.</p>
+  </header>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+<pre><code>// Shipping Chromium IDL (shared mixin — note "onstream", not the draft's "ontrack"):
+interface mixin HTMLMediaCaptureElementBase {
+  readonly attribute DOMException? error;
+  attribute EventHandler onstream;
+  attribute EventHandler oncancel;
+  attribute EventHandler onerror;
+};
+
+// Listener form (equivalent):
+el.addEventListener("stream", (event) => { /* el.stream is set */ });
+el.addEventListener("cancel", (event) => { /* el.error: NotAllowedError */ });
+el.addEventListener("error",  (event) => { /* el.error: failure DOMException */ });</code></pre>
+    <p>All three events are created with <code>Event::Create(...)</code> and queued on the element as DOM-manipulation tasks — they are not cancelable and carry no custom payload. The event-handler content attributes (<code>onstream</code>, <code>oncancel</code>, <code>onerror</code>) work as usual for HTMLElement event handlers. The draft specification names the success event <code>track</code>/<code>ontrack</code> — in the shipping implementation it is <code>stream</code>/<code>onstream</code> (see the overview's <a href="../#divergences">spec vs shipping</a> table).</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_media_capture_element_base.idl" target="_blank" rel="noopener">Chromium html_media_capture_element_base.idl</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_media_capture_element_base.h" target="_blank" rel="noopener">Chromium html_media_capture_element_base.h — DEFINE_ATTRIBUTE_EVENT_LISTENER(stream/cancel/error)</a>; <a href="https://w3c.github.io/mediacapture-extensions/#media-capture-html-elements" target="_blank" rel="noopener">Specification — event handlers (draft)</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="inputs">Inputs</h2>
+    <p>Events take no inputs. The handler receives a single plain <code>Event</code> argument whose <code>type</code> is <code>stream</code>, <code>cancel</code>, or <code>error</code> and whose <code>target</code> is the element. Read the element's properties for the outcome.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_media_capture_element_base.cc" target="_blank" rel="noopener">Chromium html_media_capture_element_base.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_request_provider_impl.cc" target="_blank" rel="noopener">Chromium user_media_request_provider_impl.cc</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="outputs">Outputs</h2>
+    <p>Each event marks the terminal state of one attempt, with the paired property set <em>before</em> dispatch:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Event</th><th scope="col">Meaning</th><th scope="col">State guaranteed at dispatch</th></tr></thead>
+      <tr><td><code>stream</code></td><td>Acquisition succeeded</td><td><code>el.stream</code> is a live <code>MediaStream</code> (single track of the element's kind)</td></tr>
+      <tr><td><code>cancel</code></td><td>User dismissed or denied the permission prompt</td><td><code>el.error</code> is <code>NotAllowedError</code> (&ldquo;Permission dismissed&rdquo; / &ldquo;Permission denied&rdquo;)</td></tr>
+      <tr><td><code>error</code></td><td>Any other failure</td><td><code>el.error</code> is the failure <code>DOMException</code> (<a href="../#errors">full mapping</a>)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_request_provider_impl.cc" target="_blank" rel="noopener">Chromium user_media_request_provider_impl.cc — SetMediaStream/SetError before EnqueueEvent</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_media_capture_element_base.cc" target="_blank" rel="noopener">Chromium html_media_capture_element_base.cc — OnEmbeddedPermissionsDecided</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="errors">Errors</h2>
+    <p>The events themselves cannot fail, but two outcomes have <em>no</em> event: a click in a non-secure context (fallback content + DevTools audits issue instead) and a click while an acquired stream is still active (silently ignored — no new request, no event). Missing a terminal event for those two cases is the common integration bug; gate your UI on state, not only on events.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_media_capture_element_base.cc" target="_blank" rel="noopener">Chromium html_media_capture_element_base.cc — DefaultEventHandler</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_request_provider_impl.cc" target="_blank" rel="noopener">Chromium user_media_request_provider_impl.cc — active-stream early return</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="context">Context</h2>
+    <p>Events fire only on element instances created under the <code>CameraAndMicrophoneElements</code> feature, in a Window context, and (for acquisition) in a secure context with a trusted, transient-activation gesture. Because dispatch is task-queued, handlers always run asynchronously after the initiating click — never synchronously inside it.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_media_capture_element_base.cc" target="_blank" rel="noopener">Chromium html_media_capture_element_base.cc</a>; <a href="https://w3c.github.io/mediacapture-extensions/#media-capture-html-elements" target="_blank" rel="noopener">Specification — activation filtering</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">Lifecycle</h2>
+    <ol>
+      <li><strong>Per attempt:</strong> trusted click → permission flow (may be instant if already granted) → capture request → exactly one terminal event.</li>
+      <li><strong>Ordering:</strong> the paired property (<code>stream</code> or <code>error</code>) is assigned first, the event queued second — handlers can read state immediately.</li>
+      <li><strong>Re-arm:</strong> after <code>cancel</code>/<code>error</code> the element is immediately clickable again; after <code>stream</code>, clicks are ignored until the stream is no longer active (including external <code>track.stop()</code>), at which point a new attempt fires a fresh terminal event.</li>
+      <li><strong>No repeats:</strong> one attempt never fires two terminal events, and a dismissed prompt fires <code>cancel</code>, never <code>error</code>.</li>
+    </ol>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_request_provider_impl.cc" target="_blank" rel="noopener">Chromium user_media_request_provider_impl.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_media_capture_element_base.cc" target="_blank" rel="noopener">Chromium html_media_capture_element_base.cc</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+<pre><code>const mic = document.querySelector("microphone");
+
+mic.addEventListener("stream", () => {
+  // el.stream was assigned before this handler runs:
+  startRecording(mic.stream);
+});
+mic.addEventListener("cancel", () => {
+  // User declined — distinguish dismiss vs deny via the message:
+  console.log(mic.error.name, mic.error.message); // NotAllowedError "Permission dismissed" | "Permission denied"
+  showInlineExplainer();
+});
+mic.addEventListener("error", () => {
+  switch (mic.error.name) {
+    case "InvalidStateError": break;         // untrusted/no-gesture activation
+    case "NotFoundError":    showNoMicUI(); break;
+    case "NotReadableError": showDeviceBusyUI(); break;
+    default:                 showGenericRetry(mic.error);
+  }
+});
+
+// Attribute form also works:
+// &lt;microphone onstream="onMic(this)" oncancel="onCancel(this)" onerror="onErr(this)"&gt;</code></pre>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_media_capture_element_base.cc" target="_blank" rel="noopener">Chromium html_media_capture_element_base.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_request_provider_impl.cc" target="_blank" rel="noopener">Chromium user_media_request_provider_impl.cc</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">Compatibility</h2>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <thead><tr><th scope="col">Engine / runtime</th><th scope="col">Support</th><th scope="col">Notes</th></tr></thead>
+      <tr><td>Chrome / Edge (desktop)</td><td>153 (listing)</td><td>Same availability as the elements; trunk flag status caveat in the <a href="../#compatibility">overview table</a>. <code>stream</code>-named success event is Chromium's shipping contract (draft says <code>track</code>)</td></tr>
+      <tr><td>Chrome (Android)</td><td>153 (listing)</td><td>WebView: explicit unknown (see overview)</td></tr>
+      <tr><td>Firefox / Safari</td><td>Not supported</td><td>No signal on the <a href="https://chromestatus.com/feature/5153829504024576" target="_blank" rel="noopener">ChromeStatus record</a></td></tr>
+      <tr><td>BCD / MDN</td><td>No entries</td><td>No BCD files; both MDN interface pages 404 (2026-07-28)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5153829504024576" target="_blank" rel="noopener">ChromeStatus API feature record</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-privacy">Security and privacy</h2>
+    <p>The events disclose nothing beyond what the triggering gesture already allowed: <code>stream</code> only ever follows the browser's own permission mediation, and <code>cancel</code>/<code>error</code> expose the standard <code>getUserMedia()</code> failure classes. The gesture/trust gating lives upstream of dispatch (untrusted activation is rejected before any of these events can fire), so listeners cannot be triggered programmatically by the page — <code>dispatchEvent(new Event("stream"))</code> would be an untrusted synthetic event that does not run the acquisition path and carries no media.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_media_capture_element_base.cc" target="_blank" rel="noopener">Chromium html_media_capture_element_base.cc — DefaultEventHandler gating</a>; <a href="https://github.com/w3c/mediacapture-extensions/blob/main/media-capture-elements-explainer.md" target="_blank" rel="noopener">Explainer — security considerations</a>.</span>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

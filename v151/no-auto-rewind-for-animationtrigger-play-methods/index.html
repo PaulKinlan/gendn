@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>No Auto-Rewind for AnimationTrigger Play Methods — Chrome 151 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede, code { overflow-wrap: anywhere; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7rem; }
+    .doc-table.compat-cols tr > th:first-child { width: auto; min-width: 0; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .dims { margin: 0.75rem 0 1.5rem; }
+    .dims dt { font-family: var(--font-mono); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.9rem; color: var(--text-muted); }
+    .dims dd { margin: 0.25rem 0 0; }
+    .example-embed { margin: 1.5rem 0; }
+    .example-embed figcaption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); margin-top: 0.4rem; }
+    .baseline-banner { border: 2px solid var(--border-black); background: var(--bg-stone); padding: 1rem 1.2rem; margin: 1.2rem 0; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    .baseline-status { font-weight: 700; margin: 0 0 0.5rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    .note-block { border: 2px solid var(--border-black); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .note-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v151/">&larr; Chrome 151 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v151 · css · web animations · behavior change</p>
+    <h1>No Auto-Rewind for AnimationTrigger Play Methods</h1>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome · 151 (behavior change; AnimationTrigger itself 146)</li>
+        <li class="limited">Edge · mirrors Chrome</li>
+        <li class="limited">Firefox · not shipped, no signal</li>
+        <li class="limited">Safari · not shipped, no signal</li>
+      </ul>
+      <p>Not on the Baseline register: a <a href="https://api.webstatus.dev/v1/features?q=animation-trigger" target="_blank" rel="noopener">webstatus.dev query for animation-trigger</a> (2026-07-28) returns no web-feature entry. Vendor positions on the <a href="https://chromestatus.com/api/v0/features/5071640598806528" target="_blank" rel="noopener">ChromeStatus API record</a> are both &ldquo;No signal&rdquo; (Firefox, Safari); <a href="https://github.com/mdn/browser-compat-data/blob/main/api/AnimationTrigger.json" target="_blank" rel="noopener">BCD</a> records the API as Chromium-only, and the ChromeStatus record's own compat-risk note is that only Chromium ships AnimationTrigger.</p>
+    </div>
+
+    <p class="lede">The <code>play</code>, <code>play-forwards</code>, and <code>play-backwards</code> actions of an <a href="https://drafts.csswg.org/animation-triggers-1/" target="_blank" rel="noopener">AnimationTrigger</a> no longer auto-rewind: when the trigger fires and its animation has already run to completion, the animation is not restarted. Re-running a finished animation from the start now requires an explicit rewinding action such as <code>replay</code>.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Experimental — API surface may move</strong>
+    AnimationTrigger is a Chromium-only feature with no Firefox or Safari support (see the Baseline banner). Its runtime flag <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener"><code>AnimationTrigger</code></a> is <code>stable</code> at trunk; on versions where it is not enabled, it sits behind <code>chrome://flags/#enable-experimental-web-platform-features</code>. The governing CSSWG resolution (<a href="https://github.com/w3c/csswg-drafts/issues/13643" target="_blank" rel="noopener">#13643</a>, 2026-06-03) is newer than the <a href="https://drafts.csswg.org/animation-triggers-1/" target="_blank" rel="noopener">animation-triggers-1 Editor's Draft</a> — the draft still shows the old finished-state semantics — and the same resolution also adds <code>play-always</code> and removes <code>play-once</code>, which Chrome 151 does <strong>not</strong> implement (Chromium's IDL still lists <code>play-once</code>). Do not assume cross-browser behavior; test before relying on this in production.
+  </div>
+
+  <section>
+    <h2>at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">The change</th><td>The trigger actions <code>play</code>, <code>play-forwards</code>, and <code>play-backwards</code> invoke Web Animations' <a href="https://drafts.csswg.org/web-animations-1/#playing-an-animation" target="_blank" rel="noopener">&ldquo;play an animation&rdquo; procedure</a> with its <code>auto-rewind</code> flag effectively <strong>false</strong>: a finished animation stays finished when the trigger refires. Script-called <code>animation.play()</code> is unchanged — it still passes <code>auto-rewind</code> = true and still restarts a finished animation</td></tr>
+      <tr><th scope="row">Chrome status</th><td>Enabled by default in Chrome 151 — desktop, Android, WebView (the <a href="https://chromestatus.com/api/v0/features?milestone=151" target="_blank" rel="noopener">milestone listing</a> is authoritative, verified 2026-07-28; <a href="https://chromestatus.com/api/v0/features/5071640598806528" target="_blank" rel="noopener">feature record</a>, <code>accurate_as_of</code> 2026-07-13)</td></tr>
+      <tr><th scope="row">CSSWG decision</th><td><a href="https://github.com/w3c/csswg-drafts/issues/13643" target="_blank" rel="noopener">w3c/csswg-drafts #13643</a> — RESOLVED 2026-06-03: &ldquo;play, play-f, play-b do not auto-rewind at the end; we add <code>play-always</code> which does; we remove <code>play-once</code> since that's now <code>play</code> behavior&rdquo;. <strong>Scope boundary:</strong> this Chrome 151 change implements only the no-auto-rewind part; <code>play-always</code> and the <code>play-once</code> removal are not part of it (Chromium's <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/animation/animation_trigger.idl" target="_blank" rel="noopener">animation_trigger.idl</a> at trunk still lists <code>play-once</code> and has no <code>play-always</code>)</td></tr>
+      <tr><th scope="row">Spec state</th><td>The <a href="https://drafts.csswg.org/animation-triggers-1/#valdef-animation-action-play" target="_blank" rel="noopener">animation-triggers-1 editor's draft</a> action table (fetched 2026-07-28) still shows the OLD finished-column semantics (<code>play()</code> on finished); the spec edit implementing the resolution has not landed. This page documents the shipping Chrome 151 behavior, which follows the resolution</td></tr>
+      <tr><th scope="row">Runtime flag</th><td><code>AnimationTrigger</code> — status <code>stable</code> at trunk, <code>implied_by</code> <code>EventTrigger</code> and <code>TimelineTrigger</code> (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>)</td></tr>
+      <tr><th scope="row">WPT</th><td><a href="https://wpt.fyi/results/scroll-animations/animation-trigger/animation-trigger-play-forwards-backwards.tentative.html?label=experimental&amp;label=master&amp;aligned" target="_blank" rel="noopener">animation-trigger-play-forwards-backwards.tentative.html</a> and <a href="https://wpt.fyi/results/scroll-animations/animation-trigger/animation-trigger-play.tentative.html?label=experimental&amp;label=master&amp;aligned" target="_blank" rel="noopener">animation-trigger-play.tentative.html</a> assert the new semantics (&ldquo;does not restart it once finished&rdquo;, &ldquo;does not restart a finished animation&rdquo;)</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5071640598806528" target="_blank" rel="noopener">5071640598806528 — No Auto-Rewind for AnimationTrigger Play Methods</a></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5071640598806528" target="_blank" rel="noopener">chromestatus.com/feature/5071640598806528</a>; <a href="https://github.com/w3c/csswg-drafts/issues/13643" target="_blank" rel="noopener">csswg-drafts #13643</a>; <a href="https://drafts.csswg.org/animation-triggers-1/" target="_blank" rel="noopener">animation-triggers-1 ED</a>, fetched 2026-07-28.</span>
+  </section>
+
+  <section>
+    <h2>why the change</h2>
+    <p><code>play-forwards</code> and <code>play-backwards</code> exist so that &ldquo;opposite&rdquo; events can drive opposite visual effects — for example <code>pointerdown</code> swelling a button and <code>pointerup</code> shrinking it back. Under the old table, refiring the trigger when the animation had finished invoked <code>play()</code>, which (per Web Animations' auto-rewind) seeks back and <em>restarts</em> the animation — so a second <code>pointerdown</code> would replay the swell from the start instead of leaving the button swelled. The <a href="https://github.com/w3c/csswg-drafts/issues/13643" target="_blank" rel="noopener">CSSWG discussion</a> concluded developers do not expect a finished animation to restart, and resolved that the play actions do not auto-rewind; the resolution was applied to <code>play</code> as well &ldquo;for consistency&rdquo; (<a href="https://chromestatus.com/api/v0/features/5071640598806528" target="_blank" rel="noopener">feature motivation</a>).</p>
+    <span class="citation">Source: <a href="https://github.com/w3c/csswg-drafts/issues/13643" target="_blank" rel="noopener">w3c/csswg-drafts issue #13643 — problem statement and 2026-06-03 resolution</a>; <a href="https://chromestatus.com/api/v0/features/5071640598806528" target="_blank" rel="noopener">ChromeStatus API record (motivation)</a>.</span>
+  </section>
+
+  <section id="syntax">
+    <h2>syntax</h2>
+    <p>The actions are values of <code>&lt;animation-action&gt;</code>, used in the <code>animation-trigger</code> shorthand (and, in Chromium's JS API, as <code>AnimationTriggerBehavior</code> enum values):</p>
+    <pre><code>/* animation-triggers-1 grammar */
+animation-trigger: [ none | [ &lt;dashed-ident&gt; &lt;animation-action&gt;+ ]+ ]#
+event-trigger-source: [ none | &lt;event-trigger-event&gt;+ [ / &lt;event-trigger-event&gt;+ ]? ]#
+
+&lt;animation-action&gt; = none | play | play-once | play-forwards | play-backwards | pause | reset | replay</code></pre>
+    <pre><code>// Chromium IDL — animation_trigger.idl (trunk)
+// https://drafts.csswg.org/web-animations-2/#the-animationtrigger-interface
+// https://github.com/w3c/csswg-drafts/issues/12611#issue-3326243729
+enum AnimationTriggerBehavior {
+  "play",
+  "pause",
+  "reset",
+  "play-once",
+  "play-forwards",
+  "play-backwards",
+  "replay",
+  "none",
+};
+
+[
+    Exposed=Window,
+    RuntimeEnabled=AnimationTrigger
+] interface AnimationTrigger {
+  [RaisesException] void addAnimation(Animation animation,
+                                      AnimationTriggerBehavior activateBehavior,
+                                      optional AnimationTriggerBehavior deactivateBehavior = "none");
+  void removeAnimation(Animation animation);
+  sequence&lt;Animation&gt; getAnimations();
+};</code></pre>
+    <p>Concrete trigger subclasses (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/animation/timeline_trigger.idl" target="_blank" rel="noopener">timeline_trigger.idl</a>, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/animation/event_trigger.idl" target="_blank" rel="noopener">event_trigger.idl</a>): <code>TimelineTrigger</code> is constructed with a sequence of options and exposes a <code>ranges</code> list; <code>EventTrigger</code> takes <code>EventTriggerOptions</code> and exposes <code>eventType</code>/<code>eventTarget</code>.</p>
+    <span class="citation">Source: <a href="https://drafts.csswg.org/animation-triggers-1/#propdef-animation-trigger" target="_blank" rel="noopener">animation-triggers-1 — animation-trigger property</a> (grammar verbatim); <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/animation/animation_trigger.idl" target="_blank" rel="noopener">Chromium animation_trigger.idl</a> (IDL verbatim).</span>
+  </section>
+
+  <section>
+    <h2>before and after</h2>
+    <p>The animation-triggers-1 editor's draft (fetched 2026-07-28) still publishes the OLD table. The &ldquo;after&rdquo; column is the CSSWG resolution as implemented in Chrome 151 and asserted by WPT:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Keyword</th><th>Extra effect</th><th>Trigger fires, animation is finished — BEFORE (current draft)</th><th>AFTER (Chrome 151 / CSSWG resolution)</th></tr></thead>
+      <tr><td><code>play</code></td><td>—</td><td><code>play()</code> — restarts the finished animation (auto-rewind)</td><td><strong>no effect</strong> — the animation stays finished</td></tr>
+      <tr><td><code>play-forwards</code></td><td>set playback rate to positive</td><td><code>play()</code> — restarts</td><td><strong>no restart</strong> — but see the direction nuance below</td></tr>
+      <tr><td><code>play-backwards</code></td><td>set playback rate to negative</td><td><code>play()</code> — restarts</td><td><strong>no restart</strong> — mirror of <code>play-forwards</code></td></tr>
+      <tr><td><code>replay</code></td><td>set progress to 0</td><td><code>play()</code></td><td>unchanged — this is the explicit-rewind action</td></tr>
+      <tr><td><code>pause</code> / <code>reset</code> / <code>play-once</code> / <code>none</code></td><td colspan="3">unchanged by this feature (<code>play-once</code> already did nothing when finished; note the CSSWG separately resolved to remove <code>play-once</code> and add <code>play-always</code> — not part of Chrome 151)</td></tr>
+    </table>
+    </div>
+    <p><strong>The direction nuance (from WPT, not prose):</strong> <code>play-forwards</code> sets the playback rate positive <em>before</em> the state-specific step. If the animation finished playing <em>backwards</em> (playback rate −1, current time 0), a <code>play-forwards</code> trigger flips the rate to +1 and the animation plays forwards from time 0 — that is a direction reversal, not an auto-rewind, and it still happens. What no longer happens is replaying an animation that finished <em>in the same direction</em>: rate already +1, current time at the end &rarr; refiring does nothing. <code>play-backwards</code> mirrors this exactly.</p>
+    <span class="citation">Source: <a href="https://drafts.csswg.org/animation-triggers-1/#valdef-animation-action-play" target="_blank" rel="noopener">animation-triggers-1 ED action table (before)</a>; <a href="https://github.com/w3c/csswg-drafts/issues/13643" target="_blank" rel="noopener">csswg-drafts #13643 resolution (after)</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/scroll-animations/animation-trigger/animation-trigger-play-forwards-backwards.tentative.html" target="_blank" rel="noopener">WPT play-forwards-backwards test — &ldquo;plays a finished animation if reversing direction, and does not restart it once finished&rdquo;</a>.</span>
+  </section>
+
+  <div class="note-block" id="spec-divergence">
+    <strong>Spec-vs-implementation divergence (read before citing)</strong>
+    Three layers are currently out of sync, and this page labels each claim with its layer:
+    <ul>
+      <li><strong>animation-triggers-1 ED</strong> (fetched 2026-07-28): action table still shows the pre-resolution finished-column semantics.</li>
+      <li><strong>web-animations-2 ED §4.16–4.18</strong> (fetched 2026-07-28): its <code>AnimationTrigger</code> IDL is the OLD trigger model (<code>behavior</code> attribute with <code>once</code>/<code>repeat</code>/<code>alternate</code>/<code>state</code>, range attributes). Chromium does not implement that shape; it implements the <a href="https://github.com/w3c/csswg-drafts/issues/12611" target="_blank" rel="noopener">#12611 action-set model</a> (<code>addAnimation(animation, activateBehavior, deactivateBehavior)</code>).</li>
+      <li><strong>Chromium 151</strong>: ships the #12611 model + the #13643 no-auto-rewind behavior, without <code>play-always</code> and still with <code>play-once</code>.</li>
+    </ul>
+  </div>
+
+  <section id="action-play">
+    <h2>action: play</h2>
+    <p>Plays the associated animation when the trigger activates. After Chrome 151, a finished animation is left finished; a paused animation resumes from its current time (WPT: &ldquo;play behavior resumes a paused animation&rdquo;, &ldquo;play behavior does not restart a finished animation&rdquo;).</p>
+    <dl class="dims">
+      <dt>Syntax</dt><dd id="action-play-syntax"><code>&lt;animation-action&gt; = play</code> — used as <code>animation-trigger: --name play</code>, or <code>trigger.addAnimation(anim, "play")</code> (<a href="https://drafts.csswg.org/animation-triggers-1/#typedef-animation-action" target="_blank" rel="noopener">animation-triggers-1 &lt;animation-action&gt;</a>).</dd>
+      <dt>Inputs</dt><dd id="action-play-inputs">No parameters. The action applies to the animation(s) associated with the trigger name (CSS) or passed to <code>addAnimation</code> (JS); the number of actions a trigger accepts depends on its type (event triggers one, optionally a second for stateful; timeline triggers one, optionally a second — <a href="https://drafts.csswg.org/animation-triggers-1/#animation-trigger-shorthand" target="_blank" rel="noopener">animation-triggers-1</a>).</dd>
+      <dt>Outputs</dt><dd id="action-play-outputs">Observable play states per WPT: idle/initial &rarr; running; paused &rarr; resumes (current time continues from where it paused); playing &rarr; no effect; finished &rarr; <strong>stays finished</strong> (no restart) — <a href="https://github.com/web-platform-tests/wpt/blob/master/scroll-animations/animation-trigger/animation-trigger-play.tentative.html" target="_blank" rel="noopener">WPT animation-trigger-play.tentative.html</a>.</dd>
+      <dt>Errors</dt><dd id="action-play-errors">As a CSS value, an unknown keyword makes the declaration invalid at computed-value time (standard CSS error handling). No exception path exists for the CSS form. For the JS enum form, see the <a href="#behavior-enum">AnimationTriggerBehavior section</a>.</dd>
+      <dt>Context</dt><dd id="action-play-context">Applies to animations associated with a trigger via <code>animation-trigger</code> (CSS) or <code>AnimationTrigger.addAnimation</code> (JS, Window-exposed, <code>RuntimeEnabled=AnimationTrigger</code>, stable at trunk — <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>). No permission or secure-context requirement is recorded in the sources consulted.</dd>
+      <dt>Lifecycle</dt><dd id="action-play-lifecycle">Fires on trigger activation (stateless: every activation; stateful: only on the inactive&rarr;active transition). If the same trigger name is specified multiple times, all but the last have no effect; simultaneous triggers take effect in specified order (<a href="https://drafts.csswg.org/animation-triggers-1/#animation-trigger-shorthand" target="_blank" rel="noopener">animation-triggers-1</a>). The no-rewind state test is the animation's play state at invocation time: finished (same-direction) &rarr; nothing happens.</dd>
+      <dt>Examples</dt><dd id="action-play-examples"><pre><code>.target {
+  animation: expand linear 10s both;
+  /* play once when --t activates; if it already finished, stay finished */
+  animation-trigger: --t play;
+}
+/* Explicit rewind instead: animation-trigger: --t replay; */</code></pre></dd>
+      <dt>Compatibility</dt><dd id="action-play-compatibility">Behavior change: Chrome 151+ (desktop, Android, WebView — <a href="https://chromestatus.com/api/v0/features/5071640598806528" target="_blank" rel="noopener">ChromeStatus record</a>; no BCD entry yet — interim). The underlying action exists since Chrome 146 (<a href="https://github.com/mdn/browser-compat-data/blob/main/css/properties/animation-trigger.json" target="_blank" rel="noopener">BCD</a>). Firefox/Safari: no AnimationTrigger support and no signal.
+      <table class="doc-table">
+        <thead><tr><th>Surface</th><th>Chrome</th><th>Firefox</th><th>Safari</th></tr></thead>
+        <tr><td><code>play</code> action (no-rewind semantics)</td><td>151+</td><td>n/a — API unsupported</td><td>n/a — API unsupported</td></tr>
+        <tr><td><code>play</code> action (original semantics)</td><td>146–150</td><td>n/a</td><td>n/a</td></tr>
+      </table>
+      <p>Behavior-change row is interim from the <a href="https://chromestatus.com/api/v0/features/5071640598806528" target="_blank" rel="noopener">ChromeStatus record</a> (no BCD entry yet); the keyword itself dates to Chrome 146 per <a href="https://github.com/mdn/browser-compat-data/blob/main/css/properties/animation-trigger.json" target="_blank" rel="noopener">BCD</a>. Firefox/Safari: no AnimationTrigger support and no signal.</p>
+    </dd>
+      <dt>Security / privacy</dt><dd id="action-play-security">animation-triggers-1 records no known privacy or security impacts for the triggers feature (<a href="https://drafts.csswg.org/animation-triggers-1/#privacy-considerations" target="_blank" rel="noopener">§3</a>, <a href="https://drafts.csswg.org/animation-triggers-1/#security-considerations" target="_blank" rel="noopener">§4</a>); this behavior change alters no trust boundary.</dd>
+    </dl>
+  </section>
+
+  <section id="action-play-forwards">
+    <h2>action: play-forwards</h2>
+    <p>Sets the animation's playback rate to positive, then plays. The motivating use case is paired opposite effects (e.g. <code>pointerdown</code>/<code>pointerup</code>). After Chrome 151 it does not restart an animation that already finished in the forwards direction — but it still reverses an animation that finished playing backwards.</p>
+    <dl class="dims">
+      <dt>Syntax</dt><dd id="action-play-forwards-syntax"><code>&lt;animation-action&gt; = play-forwards</code> — <code>animation-trigger: --press play-forwards</code>, or <code>trigger.addAnimation(anim, "play-forwards", "play-backwards")</code> (<a href="https://drafts.csswg.org/animation-triggers-1/#valdef-animation-action-play-forwards" target="_blank" rel="noopener">animation-triggers-1 value definition</a>).</dd>
+      <dt>Inputs</dt><dd id="action-play-forwards-inputs">No parameters. The extra effect (set playback rate positive) happens regardless of the animation's current state, before the state-specific action (<a href="https://drafts.csswg.org/animation-triggers-1/#typedef-animation-action" target="_blank" rel="noopener">action table caption</a>).</dd>
+      <dt>Outputs</dt><dd id="action-play-forwards-outputs">Per WPT: finished-at-start with playback rate −1 &rarr; rate flips to +1, animation runs forwards (direction reversal, still supported); finished-at-end with rate +1 &rarr; exit + re-enter leaves it finished at the end, rate +1 (<a href="https://github.com/web-platform-tests/wpt/blob/master/scroll-animations/animation-trigger/animation-trigger-play-forwards-backwards.tentative.html" target="_blank" rel="noopener">WPT play-forwards-backwards test</a>: &ldquo;plays a finished animation if reversing direction, and does not restart it once finished&rdquo;).</dd>
+      <dt>Errors</dt><dd id="action-play-forwards-errors">Unknown CSS keywords invalidate the declaration; no runtime exception path. JS enum form: see <a href="#behavior-enum">AnimationTriggerBehavior</a>.</dd>
+      <dt>Context</dt><dd id="action-play-forwards-context">Same association paths as <code>play</code>. Works with both timeline triggers (e.g. <code>timeline-trigger: --t view() 150px 200px</code>) and event triggers (<a href="https://drafts.csswg.org/animation-triggers-1/#triggers" target="_blank" rel="noopener">animation-triggers-1 §2</a>).</dd>
+      <dt>Lifecycle</dt><dd id="action-play-forwards-lifecycle">Rate is set positive first, then the finished-state test applies: if the animation's play state is finished at the positive-rate end, nothing further happens; if it finished at the opposite boundary (rate negative, time 0), the rate flip makes it runnable and it plays forwards from 0 (<a href="https://github.com/web-platform-tests/wpt/blob/master/scroll-animations/animation-trigger/animation-trigger-play-forwards-backwards.tentative.html" target="_blank" rel="noopener">WPT</a>).</dd>
+      <dt>Examples</dt><dd id="action-play-forwards-examples"><pre><code>@keyframes press-animation {
+  to { transform: translate(-5px, 5px); }
+}
+button {
+  animation: press-animation forwards;
+  event-trigger: --press pointerdown / pointerup;   /* stateful: enter/exit */
+  animation-trigger: --press play-forwards play-backwards;
+}
+/* Repeated pointerdowns no longer restart the swell;
+   pointerup plays it back once. */</code></pre></dd>
+      <dt>Compatibility</dt><dd id="action-play-forwards-compatibility">Behavior change: Chrome 151+ (interim — no BCD entry yet); keyword itself since Chrome 146 (<a href="https://github.com/mdn/browser-compat-data/blob/main/css/properties/animation-trigger.json" target="_blank" rel="noopener">BCD</a>). Firefox/Safari: unsupported, no signal.
+      <table class="doc-table">
+        <thead><tr><th>Surface</th><th>Chrome</th><th>Firefox</th><th>Safari</th></tr></thead>
+        <tr><td><code>play-forwards</code> (no-rewind semantics)</td><td>151+</td><td>n/a — API unsupported</td><td>n/a — API unsupported</td></tr>
+        <tr><td><code>play-forwards</code> (original semantics)</td><td>146–150</td><td>n/a</td><td>n/a</td></tr>
+      </table>
+      <p>Interim data as above (<a href="https://chromestatus.com/api/v0/features/5071640598806528" target="_blank" rel="noopener">ChromeStatus record</a>, <a href="https://github.com/mdn/browser-compat-data/blob/main/css/properties/animation-trigger.json" target="_blank" rel="noopener">BCD</a>).</p>
+    </dd>
+      <dt>Security / privacy</dt><dd id="action-play-forwards-security">No known privacy or security impact per <a href="https://drafts.csswg.org/animation-triggers-1/#privacy-considerations" target="_blank" rel="noopener">animation-triggers-1 §3</a>/<a href="https://drafts.csswg.org/animation-triggers-1/#security-considerations" target="_blank" rel="noopener">§4</a>.</dd>
+    </dl>
+  </section>
+
+  <section id="action-play-backwards">
+    <h2>action: play-backwards</h2>
+    <p>The exact mirror of <code>play-forwards</code>: sets the playback rate negative, then plays. After Chrome 151 it does not restart an animation that already finished in the backwards direction, but still reverses one that finished playing forwards.</p>
+    <dl class="dims">
+      <dt>Syntax</dt><dd id="action-play-backwards-syntax"><code>&lt;animation-action&gt; = play-backwards</code> — <code>animation-trigger: --depress play-backwards</code>, or as the deactivate behavior <code>trigger.addAnimation(anim, "play-forwards", "play-backwards")</code> (<a href="https://drafts.csswg.org/animation-triggers-1/#valdef-animation-action-play-backwards" target="_blank" rel="noopener">animation-triggers-1 value definition</a>).</dd>
+      <dt>Inputs</dt><dd id="action-play-backwards-inputs">No parameters. Extra effect: set playback rate to negative, applied before the state-specific action, regardless of state (<a href="https://drafts.csswg.org/animation-triggers-1/#typedef-animation-action" target="_blank" rel="noopener">action table caption</a>).</dd>
+      <dt>Outputs</dt><dd id="action-play-backwards-outputs">Per WPT: finished-at-end with rate +1 &rarr; rate flips to −1, animation runs backwards from the end; finished-at-start with rate −1 &rarr; exit + re-enter leaves it finished at time 0, rate −1 (<a href="https://github.com/web-platform-tests/wpt/blob/master/scroll-animations/animation-trigger/animation-trigger-play-forwards-backwards.tentative.html" target="_blank" rel="noopener">WPT play-forwards-backwards test</a>).</dd>
+      <dt>Errors</dt><dd id="action-play-backwards-errors">Unknown CSS keywords invalidate the declaration; no runtime exception path. JS enum form: see <a href="#behavior-enum">AnimationTriggerBehavior</a>.</dd>
+      <dt>Context</dt><dd id="action-play-backwards-context">Same association paths as <code>play-forwards</code>; commonly the second (deactivate/exit) action of a stateful trigger pair (<a href="https://drafts.csswg.org/animation-triggers-1/#event-triggers" target="_blank" rel="noopener">animation-triggers-1 event triggers</a>).</dd>
+      <dt>Lifecycle</dt><dd id="action-play-backwards-lifecycle">Mirror of <code>play-forwards</code>: rate set negative first; finished at the negative-rate boundary (time 0) &rarr; no effect; finished at the positive boundary &rarr; plays backwards from the end (<a href="https://github.com/web-platform-tests/wpt/blob/master/scroll-animations/animation-trigger/animation-trigger-play-forwards-backwards.tentative.html" target="_blank" rel="noopener">WPT</a>).</dd>
+      <dt>Examples</dt><dd id="action-play-backwards-examples"><pre><code>.target {
+  animation: slide 1s both;
+  /* two stateless triggers: each plays one direction, never restarts */
+  animation-trigger: --c1 play-forwards, --c2 play-backwards;
+}</code></pre></dd>
+      <dt>Compatibility</dt><dd id="action-play-backwards-compatibility">Behavior change: Chrome 151+ (interim — no BCD entry yet); keyword itself since Chrome 146 (<a href="https://github.com/mdn/browser-compat-data/blob/main/css/properties/animation-trigger.json" target="_blank" rel="noopener">BCD</a>). Firefox/Safari: unsupported, no signal.
+      <table class="doc-table">
+        <thead><tr><th>Surface</th><th>Chrome</th><th>Firefox</th><th>Safari</th></tr></thead>
+        <tr><td><code>play-backwards</code> (no-rewind semantics)</td><td>151+</td><td>n/a — API unsupported</td><td>n/a — API unsupported</td></tr>
+        <tr><td><code>play-backwards</code> (original semantics)</td><td>146–150</td><td>n/a</td><td>n/a</td></tr>
+      </table>
+      <p>Interim data as above (<a href="https://chromestatus.com/api/v0/features/5071640598806528" target="_blank" rel="noopener">ChromeStatus record</a>, <a href="https://github.com/mdn/browser-compat-data/blob/main/css/properties/animation-trigger.json" target="_blank" rel="noopener">BCD</a>).</p>
+    </dd>
+      <dt>Security / privacy</dt><dd id="action-play-backwards-security">No known privacy or security impact per <a href="https://drafts.csswg.org/animation-triggers-1/#privacy-considerations" target="_blank" rel="noopener">animation-triggers-1 §3</a>/<a href="https://drafts.csswg.org/animation-triggers-1/#security-considerations" target="_blank" rel="noopener">§4</a>.</dd>
+    </dl>
+  </section>
+
+  <section id="behavior-enum">
+    <h2>JS enum: AnimationTriggerBehavior play values</h2>
+    <p>In Chromium's JS API, the same three actions are the <code>"play"</code>, <code>"play-forwards"</code>, and <code>"play-backwards"</code> values of <code>AnimationTriggerBehavior</code>, passed to <code>AnimationTrigger.addAnimation()</code>. The no-auto-rewind change applies identically through this path — the WPT play-forwards/backwards test drives the CSS path, while the addAnimation test exercises the same behaviors through the API.</p>
+    <dl class="dims">
+      <dt>Syntax</dt><dd id="behavior-enum-syntax"><code>[RaisesException] undefined addAnimation(Animation animation, AnimationTriggerBehavior activateBehavior, optional AnimationTriggerBehavior deactivateBehavior = "none")</code> — <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/animation/animation_trigger.idl" target="_blank" rel="noopener">animation_trigger.idl</a> (verbatim in the <a href="#syntax">Syntax section</a>).</dd>
+      <dt>Inputs</dt><dd id="behavior-enum-inputs"><code>activateBehavior</code>: action on trigger activation (e.g. <code>"play-forwards"</code>); <code>deactivateBehavior</code>: action on deactivation, default <code>"none"</code> (e.g. <code>"play-backwards"</code>). Valid values: <code>play</code>, <code>pause</code>, <code>reset</code>, <code>play-once</code>, <code>play-forwards</code>, <code>play-backwards</code>, <code>replay</code>, <code>none</code> (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/animation/animation_trigger.idl" target="_blank" rel="noopener">IDL</a>).</dd>
+      <dt>Outputs</dt><dd id="behavior-enum-outputs">Returns <code>undefined</code>; the association is observable via <code>trigger.getAnimations()</code> and the animation's subsequent play state. WPT: an animation added to an already-tripped (default) trigger with <code>"play-forwards"</code> plays to finish immediately; <code>getAnimations()</code> then contains it (<a href="https://github.com/web-platform-tests/wpt/blob/master/scroll-animations/animation-trigger/animation-trigger-addAnimation.tentative.html" target="_blank" rel="noopener">WPT addAnimation test</a>).</dd>
+      <dt>Errors</dt><dd id="behavior-enum-errors">Per standard WebIDL enum conversion, a string outside the eight enumerated values throws a <code>TypeError</code> (<a href="https://webidl.spec.whatwg.org/#es-enumeration" target="_blank" rel="noopener">WebIDL § enumeration conversion</a>). The IDL marks <code>addAnimation</code> <code>[RaisesException]</code> but the sources consulted (IDL file, WPT, linked specs) do not enumerate further exception conditions — none are documented here rather than invented.</dd>
+      <dt>Context</dt><dd id="behavior-enum-context"><code>Exposed=Window</code>, <code>RuntimeEnabled=AnimationTrigger</code> (stable at trunk, implied by the <code>EventTrigger</code>/<code>TimelineTrigger</code> flags — <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>). Note the <a href="#spec-divergence">divergence</a>: web-animations-2's ED shows a different (older) interface shape; Chromium implements the <a href="https://github.com/w3c/csswg-drafts/issues/12611" target="_blank" rel="noopener">#12611</a> model.</dd>
+      <dt>Lifecycle</dt><dd id="behavior-enum-lifecycle">Association persists until <code>removeAnimation(animation)</code>. Activation runs the activate behavior; deactivation (for stateful/timeline triggers) runs the deactivate behavior. The no-rewind test applies at each invocation exactly as on the CSS path.</dd>
+      <dt>Examples</dt><dd id="behavior-enum-examples"><pre><code>const trigger = new TimelineTrigger([{
+  source: new ViewTimeline({ subject }),
+  /* activation/active ranges per TimelineTriggerOptions */
+}]);
+trigger.addAnimation(animation, "play-forwards", "play-backwards");
+// Refiring after finish: stays finished (Chrome 151+).
+// trigger.addAnimation(animation, "replay"); // explicit rewind instead</code></pre></dd>
+      <dt>Compatibility</dt><dd id="behavior-enum-compatibility">API root: Chrome 146+ per <a href="https://github.com/mdn/browser-compat-data/blob/main/api/AnimationTrigger.json" target="_blank" rel="noopener">BCD api/AnimationTrigger.json</a> (root entry only — BCD has no member sub-entries and MDN has no AnimationTrigger page, both checked 2026-07-28); behavior change Chrome 151+ (interim, no BCD entry). Firefox/Safari: unsupported, no signal.
+      <table class="doc-table compat-cols">
+        <thead><tr><th>Surface</th><th>Chrome</th><th>Edge</th><th>Firefox</th><th>Safari</th></tr></thead>
+        <tr><td><code>AnimationTrigger</code> / <code>AnimationTriggerBehavior</code> (API root)</td><td>146+</td><td>146 (mirror)</td><td>not supported</td><td>not supported</td></tr>
+        <tr><td>Play values with no-rewind semantics</td><td>151+</td><td>151 (mirror)</td><td>n/a — API unsupported</td><td>n/a — API unsupported</td></tr>
+      </table>
+      <p>API row from <a href="https://github.com/mdn/browser-compat-data/blob/main/api/AnimationTrigger.json" target="_blank" rel="noopener">BCD api/AnimationTrigger.json</a> (root-only entry); behavior-change row interim from the <a href="https://chromestatus.com/api/v0/features/5071640598806528" target="_blank" rel="noopener">ChromeStatus record</a>.</p>
+    </dd>
+      <dt>Security / privacy</dt><dd id="behavior-enum-security">No known privacy or security impact per <a href="https://drafts.csswg.org/animation-triggers-1/#privacy-considerations" target="_blank" rel="noopener">animation-triggers-1 §3</a>/<a href="https://drafts.csswg.org/animation-triggers-1/#security-considerations" target="_blank" rel="noopener">§4</a>; the API exposes no new capability beyond animation playback control.</dd>
+    </dl>
+  </section>
+
+  <section id="replay-migration">
+    <h2>getting the old behavior back: replay</h2>
+    <p><code>replay</code> is the explicit-rewind action: its extra effect sets progress to 0, then plays — in every state including finished. Authors who relied on a play action restarting a finished animation migrate by renaming the action to <code>replay</code>.</p>
+    <dl class="dims">
+      <dt>Syntax</dt><dd id="replay-migration-syntax"><code>&lt;animation-action&gt; = replay</code> — <code>animation-trigger: --t replay</code>, or <code>trigger.addAnimation(anim, "replay")</code> (<a href="https://drafts.csswg.org/animation-triggers-1/#valdef-animation-action-replay" target="_blank" rel="noopener">animation-triggers-1 value definition</a>).</dd>
+      <dt>Inputs</dt><dd id="replay-migration-inputs">No parameters. Extra effect: set progress to 0, applied regardless of state before playing (<a href="https://drafts.csswg.org/animation-triggers-1/#typedef-animation-action" target="_blank" rel="noopener">action table caption</a>).</dd>
+      <dt>Outputs</dt><dd id="replay-migration-outputs">The associated animation restarts from the beginning on every activation, including from finished — the pre-151 behavior of the play* actions (<a href="https://drafts.csswg.org/animation-triggers-1/#typedef-animation-action" target="_blank" rel="noopener">animation-triggers-1 action table</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/scroll-animations/animation-trigger/animation-trigger-replay.tentative.html" target="_blank" rel="noopener">WPT replay test</a>).</dd>
+      <dt>Errors</dt><dd id="replay-migration-errors">Unknown CSS keywords invalidate the declaration; JS enum form follows the <a href="#behavior-enum">same WebIDL TypeError contract</a>.</dd>
+      <dt>Context</dt><dd id="replay-migration-context">Same association paths and exposure as the play actions; available since Chrome 146 (<a href="https://github.com/mdn/browser-compat-data/blob/main/css/properties/animation-trigger.json" target="_blank" rel="noopener">BCD</a>). The CSSWG resolution also promises a future <code>play-always</code> keyword for restarting plays — not implemented in Chrome 151 (<a href="https://github.com/w3c/csswg-drafts/issues/13643" target="_blank" rel="noopener">#13643 resolution</a>).</dd>
+      <dt>Lifecycle</dt><dd id="replay-migration-lifecycle">Progress is zeroed on every activation before the play step, so the animation always runs from the start; on deactivation of a stateful trigger the paired action runs instead.</dd>
+      <dt>Examples</dt><dd id="replay-migration-examples"><pre><code>/* Before 151 this restarted on every activation:
+   animation-trigger: --t play;                                    */
+/* After 151, use replay to keep restart-on-activation: */
+.target {
+  animation: expand linear 10s both;
+  animation-trigger: --t replay;
+}</code></pre></dd>
+      <dt>Compatibility</dt><dd id="replay-migration-compatibility">Unchanged by this feature — Chrome 146+ (<a href="https://github.com/mdn/browser-compat-data/blob/main/css/properties/animation-trigger.json" target="_blank" rel="noopener">BCD</a>). Firefox/Safari: unsupported, no signal.
+      <table class="doc-table">
+        <thead><tr><th>Surface</th><th>Chrome</th><th>Firefox</th><th>Safari</th></tr></thead>
+        <tr><td><code>replay</code> action</td><td>146+ (unchanged by this feature)</td><td>n/a — API unsupported</td><td>n/a — API unsupported</td></tr>
+      </table>
+      <p>Per <a href="https://github.com/mdn/browser-compat-data/blob/main/css/properties/animation-trigger.json" target="_blank" rel="noopener">BCD</a>; Firefox/Safari have no AnimationTrigger support and no signal.</p>
+    </dd>
+      <dt>Security / privacy</dt><dd id="replay-migration-security">No known privacy or security impact per <a href="https://drafts.csswg.org/animation-triggers-1/#privacy-considerations" target="_blank" rel="noopener">animation-triggers-1 §3</a>/<a href="https://drafts.csswg.org/animation-triggers-1/#security-considerations" target="_blank" rel="noopener">§4</a>.</dd>
+    </dl>
+  </section>
+
+  <section id="examples">
+    <h2>examples</h2>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v151/no-auto-rewind-for-animationtrigger-play-methods/play-vs-replay/"
+        title="Live example — play vs replay" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase — the <code>play</code>-vs-<code>replay</code> contrast (HEAD-checked 200, 2026-07-28). <span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v151/no-auto-rewind-for-animationtrigger-play-methods/play-vs-replay/" target="_blank" rel="noopener">chrome-platform-showcase — play-vs-replay</a></span></figcaption>
+    </figure>
+    <p>More interactive demos for this feature: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v151/no-auto-rewind-for-animationtrigger-play-methods/scroll-reentry-lab/" target="_blank" rel="noopener">scroll-reentry-lab</a> and <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v151/no-auto-rewind-for-animationtrigger-play-methods/trigger-playground/" target="_blank" rel="noopener">trigger-playground</a> (both HEAD-checked 200, 2026-07-28).</p>
+  </section>
+
+  <section id="compatibility">
+    <h2>browser compatibility</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Surface</th><th>Chrome</th><th>Edge</th><th>Firefox</th><th>Safari</th></tr></thead>
+      <tr><td><code>AnimationTrigger</code> API (root)</td><td>146</td><td>146 (mirror)</td><td>not supported</td><td>not supported</td></tr>
+      <tr><td><code>animation-trigger</code> CSS property</td><td>146</td><td>146 (mirror)</td><td>not supported</td><td>not supported</td></tr>
+      <tr><td>No-auto-rewind for play actions (this feature)</td><td>151 (desktop, Android, WebView)</td><td>151 (mirror)</td><td>n/a — API unsupported</td><td>n/a — API unsupported</td></tr>
+    </table>
+    </div>
+    <p>The first two rows are from BCD (<a href="https://github.com/mdn/browser-compat-data/blob/main/api/AnimationTrigger.json" target="_blank" rel="noopener">api/AnimationTrigger.json</a>, <a href="https://github.com/mdn/browser-compat-data/blob/main/css/properties/animation-trigger.json" target="_blank" rel="noopener">css/properties/animation-trigger.json</a> — both root-only entries, no member sub-entries). The behavior-change row has no BCD entry yet and is labelled interim from the <a href="https://chromestatus.com/api/v0/features/5071640598806528" target="_blank" rel="noopener">ChromeStatus record</a> and WPT assertions. Vendor positions on the record: Firefox and Safari both &ldquo;No signal&rdquo;; the record's compat-risk note states only Chromium ships AnimationTrigger.</p>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/AnimationTrigger.json" target="_blank" rel="noopener">BCD api/AnimationTrigger.json</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/css/properties/animation-trigger.json" target="_blank" rel="noopener">BCD css/properties/animation-trigger.json</a>; <a href="https://chromestatus.com/api/v0/features/5071640598806528" target="_blank" rel="noopener">ChromeStatus API record</a>.</span>
+  </section>
+
+  <section id="specifications">
+    <h2>specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Specification</th><th>Relevance</th></tr></thead>
+      <tr><td><a href="https://drafts.csswg.org/animation-triggers-1/" target="_blank" rel="noopener">CSS Animation Triggers Module Level 1 (editor's draft)</a></td><td><code>animation-trigger</code> property and the <code>&lt;animation-action&gt;</code> table. ED table predates the resolution (see <a href="#spec-divergence">divergence note</a>)</td></tr>
+      <tr><td><a href="https://drafts.csswg.org/web-animations-2/#triggers" target="_blank" rel="noopener">Web Animations Level 2 (editor's draft) — Animation Triggers</a></td><td>Trigger model; its IDL sections show the older interface shape Chromium has moved past (<a href="https://github.com/w3c/csswg-drafts/issues/12611" target="_blank" rel="noopener">#12611</a>)</td></tr>
+      <tr><td><a href="https://drafts.csswg.org/web-animations-1/#playing-an-animation" target="_blank" rel="noopener">Web Animations — &ldquo;play an animation&rdquo; procedure</a></td><td>Defines the <code>auto-rewind</code> flag this change bypasses; script <code>play()</code> passes true, unchanged</td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section id="see-also">
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/5071640598806528" target="_blank" rel="noopener">Chrome Platform Status — No Auto-Rewind for AnimationTrigger Play Methods</a></li>
+      <li><a href="https://github.com/w3c/csswg-drafts/issues/13643" target="_blank" rel="noopener">w3c/csswg-drafts #13643 — no-effect-if-finished discussion + 2026-06-03 CSSWG resolution</a></li>
+      <li><a href="https://github.com/w3c/csswg-drafts/issues/12611" target="_blank" rel="noopener">w3c/csswg-drafts #12611 — set of actions for animation triggers (the model Chromium implements)</a></li>
+      <li><a href="https://github.com/web-platform-tests/wpt/tree/master/scroll-animations/animation-trigger" target="_blank" rel="noopener">WPT — scroll-animations/animation-trigger test suite</a></li>
+      <li><a href="https://crbug.com/519573765" target="_blank" rel="noopener">Chromium tracking bug 519573765</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v151/no-auto-rewind-for-animationtrigger-play-methods/" target="_blank" rel="noopener">Chrome Platform Showcase — interactive demos for this feature</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

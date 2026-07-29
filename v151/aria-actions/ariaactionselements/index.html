@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ariaActionsElements — aria-actions — Chrome 151 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v151/aria-actions/">&larr; aria-actions reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v151 · idl member · element + elementinternals</p>
+    <h1>ariaActionsElements</h1>
+    <p class="lede">The IDL reflection of the <a href="/v151/aria-actions/"><code>aria-actions</code> content attribute</a>: a settable <code>FrozenArray&lt;Element&gt;?</code> on <code>Element</code> and <code>ElementInternals</code> that lets script assign action targets by element reference instead of by ID string, with explicit precedence, tree-scope, and lifecycle semantics.</p>
+  </header>
+
+  <section>
+    <h2 id="syntax">syntax</h2>
+    <p>Verbatim from Chromium's <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/dom/aria_relationship_attributes.idl" target="_blank" rel="noopener">aria_relationship_attributes.idl</a> (the <code>AriaRelationshipAttributes</code> mixin, included by <code>Element</code> and <code>ElementInternals</code>):</p>
+    <pre><code>[
+    RuntimeEnabled=AOMAriaRelationshipProperties
+] interface mixin AriaRelationshipAttributes {
+    [CEReactions, Measure, RuntimeEnabled=AriaActions]
+        attribute FrozenArray&lt;Element&gt;? ariaActionsElements;
+    // ... ariaActiveDescendantElement, ariaControlsElements, etc.
+};
+
+Element includes AriaRelationshipAttributes;
+ElementInternals includes AriaRelationshipAttributes;</code></pre>
+    <p>Both flags are stable in shipping Chrome: <code>AOMAriaRelationshipProperties</code> (the mixin) is <code>status: "stable"</code> and <code>AriaActions</code> (the member) is <code>{"Win": "stable", "Mac": "stable", "Linux": "stable"}</code> &mdash; see the <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime flag record</a>.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/dom/aria_relationship_attributes.idl" target="_blank" rel="noopener">Chromium aria_relationship_attributes.idl</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a></span>
+  </section>
+
+  <section>
+    <h2 id="inputs">inputs (setter)</h2>
+    <p>The setter accepts an array of <code>Element</code> references, an empty array, or <code>null</code> (per the <a href="https://github.com/web-platform-tests/wpt/blob/master/wai-aria/aria-actions/idl-reflection.tentative.html" target="_blank" rel="noopener">WPT IDL-reflection tests</a>):</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row"><code>[elA, elB]</code></th><td>Assigns the targets in order; the getter exposes the same elements in the same order</td></tr>
+      <tr><th scope="row"><code>[]</code></td><td>Distinct from <code>null</code>: writes the empty string to the <code>aria-actions</code> content attribute as a <em>presence flag</em> (but note the spec's author MUST NOT for empty values on action-less elements &mdash; use <code>null</code> to fully unset)</td></tr>
+      <tr><th scope="row"><code>null</code></td><td>Clears the reflection and <strong>removes</strong> the <code>aria-actions</code> content attribute</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/web-platform-tests/wpt/blob/master/wai-aria/aria-actions/idl-reflection.tentative.html" target="_blank" rel="noopener">WPT idl-reflection.tentative.html</a></span>
+  </section>
+
+  <section>
+    <h2 id="outputs">outputs (getter)</h2>
+    <p>The getter returns <code>null</code> by default, otherwise a <code>FrozenArray</code> of the currently resolvable target <code>Element</code>s, in assignment order. Repeated reads return the <em>same</em> <code>FrozenArray</code> instance until reassignment or a DOM change that alters resolution (see <a href="#lifecycle">lifecycle</a>). Reading after setting the content attribute with resolvable IDREFs returns those elements; unresolvable IDREFs reflect as an <strong>empty list</strong> (<code>[]</code>), not <code>null</code>.</p>
+    <span class="citation">Source: <a href="https://github.com/web-platform-tests/wpt/blob/master/wai-aria/aria-actions/idl-reflection.tentative.html" target="_blank" rel="noopener">WPT idl-reflection.tentative.html</a> ("null by default", "FrozenArray identity", "Unresolvable IDREFs reflect to an empty list" tests)</span>
+  </section>
+
+  <section>
+    <h2 id="errors">errors and edge cases</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Unresolvable IDREFs</th><td>A content attribute pointing at missing IDs reflects as <code>[]</code> (no exception)</td></tr>
+      <tr><th scope="row">Cross-shadow-tree targets</th><td>Filtered out: assigning an element from a shadow tree that is not an ancestor scope of the host reflects as <code>[]</code>; same-shadow-tree targets reflect normally</td></tr>
+      <tr><th scope="row">Empty value on action-less elements</th><td>Spec-level author error: authors MUST NOT set <code>aria-actions=""</code> on elements that have no actions; user agents MUST NOT expose <code>aria-actions</code> when the author MUSTs are violated (<a href="https://deploy-preview-1805--wai-aria.netlify.app/index.html" target="_blank" rel="noopener">ARIA PR #1805 preview</a>)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/web-platform-tests/wpt/blob/master/wai-aria/aria-actions/idl-reflection.tentative.html" target="_blank" rel="noopener">WPT idl-reflection.tentative.html</a>; <a href="https://deploy-preview-1805--wai-aria.netlify.app/index.html" target="_blank" rel="noopener">ARIA PR #1805 preview</a></span>
+  </section>
+
+  <section>
+    <h2 id="context">context and exposure</h2>
+    <p>Exposed on <code>Element</code> in window contexts and on <code>ElementInternals</code> for custom elements (the mixin is included by both interfaces). Gated by <code>RuntimeEnabled=AriaActions</code>: enabled by default in Chrome 151 on Windows, macOS, and Linux; <strong>not</strong> implemented on ChromeOS or Android (the <code>Android</code> key is omitted from the flag record, which disables it on both Chrome for Android and Android WebView). The mixin itself is gated by <code>AOMAriaRelationshipProperties</code>, stable on all platforms. Feature-detect with <code>'ariaActionsElements' in Element.prototype</code> before use.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/dom/aria_relationship_attributes.idl" target="_blank" rel="noopener">aria_relationship_attributes.idl</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a> (flag comment); <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/DNE6dB1AS0Y" target="_blank" rel="noopener">M151 launch intent</a></span>
+  </section>
+
+  <section>
+    <h2 id="elementinternals">ElementInternals and custom elements</h2>
+    <p>On <code>ElementInternals</code> (obtained via <code>this.attachInternals()</code> inside a custom element), the member behaves identically &mdash; the WPT suite runs the full shared test set against both <code>Element</code> and <code>ElementInternals</code> reflectors. This is the path for component authors: a custom tab element can set <code>this.internals_.ariaActionsElements = [closeButton]</code> so the action relationship is part of the component's encapsulated accessibility semantics rather than light-DOM markup.</p>
+    <pre><code>class ActionTab extends HTMLElement {
+  #internals = this.attachInternals();
+  connectedCallback() {
+    this.#internals.role = 'tab';
+    const close = this.querySelector('button[aria-label]');
+    if (close &amp;&amp; 'ariaActionsElements' in this.#internals) {
+      this.#internals.ariaActionsElements = [close];
+    }
+  }
+}</code></pre>
+    <span class="citation">Source: <a href="https://github.com/web-platform-tests/wpt/blob/master/wai-aria/aria-actions/idl-reflection.tentative.html" target="_blank" rel="noopener">WPT idl-reflection.tentative.html</a> (shared tests run for both reflectors); <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/dom/aria_relationship_attributes.idl" target="_blank" rel="noopener">aria_relationship_attributes.idl</a> (<code>ElementInternals includes</code>)</span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">lifecycle and state transitions</h2>
+    <p>The reflection has precise, tested state semantics (all from the <a href="https://github.com/web-platform-tests/wpt/blob/master/wai-aria/aria-actions/idl-reflection.tentative.html" target="_blank" rel="noopener">WPT suite</a>):</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">IDL over content attribute</th><td>The IDL setter takes precedence: setting <code>ariaActionsElements</code> replaces the content attribute's value with the empty-string presence flag, and the IDL-set elements win over any IDREFs previously in the attribute</td></tr>
+      <tr><th scope="row">Attribute removal</th><td>Removing the <code>aria-actions</code> content attribute afterwards does <strong>not</strong> clear IDL-set elements &mdash; they survive</td></tr>
+      <tr><th scope="row">Disconnection</th><td>A target removed from the DOM is filtered out of the getter's result (new <code>FrozenArray</code>); reconnecting it restores it (another new instance)</td></tr>
+      <tr><th scope="row">Array identity</th><td>The getter returns the same <code>FrozenArray</code> across reads with no intervening change; reassignment or resolution changes yield a new instance</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/web-platform-tests/wpt/blob/master/wai-aria/aria-actions/idl-reflection.tentative.html" target="_blank" rel="noopener">WPT idl-reflection.tentative.html</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <pre><code>const tab = document.querySelector('[role="tab"]');
+const closeBtn = tab.querySelector('.close');
+
+// Feature-detect: member is absent on ChromeOS/Android and older browsers.
+if ('ariaActionsElements' in tab) {
+  tab.ariaActionsElements = [closeBtn];
+} else {
+  // Fallback: ID-reference form of the content attribute.
+  closeBtn.id = closeBtn.id || 'close-tab-1';
+  tab.setAttribute('aria-actions', closeBtn.id);
+}
+
+// Read back the effective targets (order preserved, disconnected
+// targets filtered out).
+console.log(tab.ariaActionsElements); // FrozenArray [button.close]
+
+// Unset entirely (removes the content attribute).
+tab.ariaActionsElements = null;</code></pre>
+    <p>A full light-DOM markup example (tab strip with per-tab close actions) is on the <a href="/v151/aria-actions/#examples">feature overview</a>, and live demos are on the <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v151/aria-actions/" target="_blank" rel="noopener">Chrome Platform Showcase</a>.</p>
+  </section>
+
+  <section>
+    <h2 id="compatibility">compatibility</h2>
+    <p>No <a href="https://github.com/mdn/browser-compat-data" target="_blank" rel="noopener">BCD</a> entry exists for <code>ariaActionsElements</code> (checked <code>api/Element</code>, <code>api/ElementInternals</code>, and <code>api/_mixins/ARIAMixin</code> paths, 2026-07-28); interim table from the linked primary sources:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th><code>ariaActionsElements</code> support</th></tr></thead>
+      <tr><td>Chrome</td><td>151+ on Windows, macOS, Linux (enabled by default); absent on ChromeOS and Android/WebView</td></tr>
+      <tr><td>Edge</td><td>Not separately reported</td></tr>
+      <tr><td>Firefox</td><td>146+ (feature shipped; UIA mappings 148+) &mdash; <a href="https://github.com/mozilla/standards-positions/issues/1422#issuecomment-4676693865" target="_blank" rel="noopener">jcsteh, mozilla/standards-positions #1422</a></td></tr>
+      <tr><td>Safari</td><td>Prototype behind a flag &mdash; <a href="https://bugs.webkit.org/show_bug.cgi?id=306476" target="_blank" rel="noopener">WebKit bug 306476</a>; <a href="https://github.com/WebKit/standards-positions/issues/686" target="_blank" rel="noopener">position thread</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="security-privacy">security and privacy</h2>
+    <p>The member is a discovery-only accessibility bridge: it exposes references between elements that already exist in the DOM to assistive technologies, with no new script-observable capability beyond reading back what was set (the <code>Measure</code> extended attribute in the IDL only records a use counter). Cross-shadow-tree filtering prevents a document from probing or binding actions into closed component internals it does not own. The content attribute and IDL carry no personally identifying information beyond the accessible names authors already publish; the author obligation that targets be keyboard-operable (<a href="https://deploy-preview-1805--wai-aria.netlify.app/index.html" target="_blank" rel="noopener">ARIA PR #1805 preview</a>) is an accessibility safety requirement, not a security control.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/dom/aria_relationship_attributes.idl" target="_blank" rel="noopener">aria_relationship_attributes.idl</a> (<code>Measure</code>, <code>CEReactions</code>); <a href="https://github.com/web-platform-tests/wpt/blob/master/wai-aria/aria-actions/idl-reflection.tentative.html" target="_blank" rel="noopener">WPT cross-shadow filtering test</a></span>
+  </section>
+
+  <section>
+    <h2 id="references">references</h2>
+    <ul>
+      <li><a href="/v151/aria-actions/">gendn &mdash; aria-actions feature overview</a></li>
+      <li><a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/dom/aria_relationship_attributes.idl" target="_blank" rel="noopener">Chromium aria_relationship_attributes.idl (verbatim IDL)</a></li>
+      <li><a href="https://github.com/web-platform-tests/wpt/blob/master/wai-aria/aria-actions/idl-reflection.tentative.html" target="_blank" rel="noopener">WPT &mdash; idl-reflection.tentative.html (semantics source)</a> &middot; <a href="https://wpt.fyi/results/wai-aria/aria-actions" target="_blank" rel="noopener">wpt.fyi results</a></li>
+      <li><a href="https://github.com/w3c/aria/pull/1805" target="_blank" rel="noopener">w3c/aria PR #1805</a> (<a href="https://deploy-preview-1805--wai-aria.netlify.app/index.html" target="_blank" rel="noopener">ARIA preview</a>)</li>
+      <li><a href="https://chromestatus.com/feature/5161589307867136" target="_blank" rel="noopener">chromestatus.com/feature/5161589307867136</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
