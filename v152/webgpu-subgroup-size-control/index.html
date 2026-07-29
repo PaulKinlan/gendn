@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebGPU: Subgroup Size Control — Chrome 152 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code { overflow-wrap: anywhere; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .compat-table { min-width: 34rem; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .baseline-banner { border: 2px solid var(--border-black); padding: 1rem 1.2rem; margin: 1.5rem 0; background: var(--bg-paper); box-shadow: var(--thin-shadow); }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    .example-embed { margin: 1.5rem 0; }
+    .example-embed iframe { max-width: 100%; }
+    .example-embed figcaption { font-size: 0.85rem; margin-top: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v152/">&larr; Chrome 152 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v152 · webgpu · wgsl · shipped</p>
+    <h1>WebGPU: Subgroup Size Control</h1>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome · enabled by default 152</li>
+        <li>Edge · mirrors Chrome (Chromium)</li>
+        <li class="limited">Firefox · positive position, support unrecorded</li>
+        <li class="limited">Safari · positive position, support unrecorded</li>
+      </ul>
+      <p>Not on the Baseline register: <a href="https://api.webstatus.dev/v1/features?q=subgroup" target="_blank" rel="noopener">webstatus.dev</a> has no entry for this feature (the related <a href="https://webstatus.dev/features/webgpu-subgroups" target="_blank" rel="noopener">webgpu-subgroups</a> feature is Baseline limited), and the <a href="https://chromestatus.com/api/v0/features/5077657663438848" target="_blank" rel="noopener">ChromeStatus record</a> marks its Web Feature ID &ldquo;Missing feature&rdquo; (verified 2026-07-29).</p>
+    </div>
+
+    <p class="lede">The optional GPU feature <code>"subgroup-size-control"</code> lets a compute shader declare its subgroup size explicitly with the WGSL <a href="subgroup-size-attribute/"><code>@subgroup_size</code> attribute</a>, instead of accepting whatever size the GPU driver picks. Ships in Chrome 152 on desktop, Android, and WebView, enabled by default.</p>
+  </header>
+
+  <div class="warn-block" id="practical-caveats">
+    <strong>No supported-size query &mdash; validate at pipeline creation</strong>
+    <p>There is deliberately <em>no API to enumerate the set of subgroup sizes an adapter accepts</em>: the WebGPU working group considered explicit limits (<code>explicitCompute<wbr>Subgroup<wbr>MinSize</code>/<code>MaxSize</code>, <code>maxCompute<wbr>Workgroup<wbr>Subgroups</code>) and decided against exposing them (<a href="https://github.com/gpuweb/gpuweb/issues/6241" target="_blank" rel="noopener">gpuweb#6241</a>), because expert users know their target sizes and native limit ranges do not reliably describe what is actually requestable. In practice:</p>
+    <ul>
+      <li>Always feature-detect: request <code>"subgroup-size-control"</code> only if <code>adapter.features.has("subgroup-size-control")</code> (see <a href="#examples">examples</a>).</li>
+      <li>Only the bounds <code>GPUAdapterInfo.<wbr>subgroupMinSize</code>/<code>subgroupMaxSize</code> are queryable; a requested size inside that range is <strong>not guaranteed to work</strong> — pipeline creation can still fail with an <em>uncategorized error</em> (register pressure, hardware workgroup-subgroup limits). Handle <code>createComputePipelineAsync()</code> rejection with a fallback pipeline (see <a href="subgroup-size-attribute/#errors">error taxonomy</a>).</li>
+      <li>Metal has no native subgroup-size control; the proposal notes browsers may expose the feature on Metal &ldquo;at their own risk&rdquo; — test on Apple GPUs specifically.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/subgroup-size-control.md" target="_blank" rel="noopener">subgroup-size-control proposal — Native API Availability</a>; <a href="https://github.com/gpuweb/gpuweb/issues/6241" target="_blank" rel="noopener">gpuweb issue #6241 (limits declined)</a>; <a href="https://gpuweb.github.io/gpuweb/wgsl/#attribute-subgroup_size" target="_blank" rel="noopener">WGSL — @subgroup_size</a></span>
+  </div>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">What it is</th><td>An optional <a href="https://gpuweb.github.io/gpuweb/#gpufeaturename" target="_blank" rel="noopener"><code>GPUFeatureName</code></a>, <code>"subgroup-size-control"</code>, that enables the WGSL <code>subgroup_size_control</code> extension and its <code>@subgroup_size</code> attribute on compute shader entry points</td></tr>
+      <tr><th scope="row">Milestone listing</th><td>Chrome 152 — Enabled by default (<a href="https://chromestatus.com/api/v0/features?milestone=152" target="_blank" rel="noopener">milestone=152 listing</a>, verified 2026-07-29; the listing is authoritative per gendn invariant #2)</td></tr>
+      <tr><th scope="row">Platforms</th><td>Desktop, Android, WebView — all 152 (<a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a3b9721.b645f071.283bd5.06d8.GAE%40google.com" target="_blank" rel="noopener">Intent to Ship</a>; &ldquo;Will ship enabled for all users&rdquo;, no about://flags entry, no Finch gate)</td></tr>
+      <tr><th scope="row">API surface added</th><td>None beyond the feature name itself — the spec records &ldquo;This feature adds no optional API surfaces&rdquo;. All behavior is in WGSL and pipeline validation</td></tr>
+      <tr><th scope="row">WGSL surface</th><td><code>enable subgroup_size_control;</code> extension + <code>@subgroup_size(&lt;expr&gt;)</code> attribute — full contract on the <a href="subgroup-size-attribute/">attribute page</a></td></tr>
+      <tr><th scope="row">Spec status</th><td>Merged into the WebGPU and WGSL specifications via <a href="https://github.com/gpuweb/gpuweb/pull/5578" target="_blank" rel="noopener">gpuweb/gpuweb PR #5578</a> (merged 2026-06-23)</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5077657663438848" target="_blank" rel="noopener">5077657663438848 — WebGPU: Subgroup Size Control</a> (tracking bug <a href="https://issues.chromium.org/issues/463721943" target="_blank" rel="noopener">463721943</a>)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/#dom-gpufeaturename-subgroup-size-control" target="_blank" rel="noopener">WebGPU spec — "subgroup-size-control"</a>; <a href="https://chromestatus.com/feature/5077657663438848" target="_blank" rel="noopener">chromestatus.com/feature/5077657663438848</a>; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a3b9721.b645f071.283bd5.06d8.GAE%40google.com" target="_blank" rel="noopener">Intent to Ship</a></span>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>Without this feature, a compute shader can only <em>read</em> the subgroup size the driver happened to choose (the <code>subgroup_size</code> built-in). On platforms whose GPUs support several subgroup sizes that creates three concrete problems, per the proposal:</p>
+    <ol>
+      <li><strong>Untestable code paths</strong> — correctness requires a path per possible size, but the developer cannot force a given size to test it.</li>
+      <li><strong>Suboptimal performance</strong> — the driver-chosen size is not always the best for a given workload (the motivating use case is AI/compute-heavy shaders tuned per subgroup width).</li>
+      <li><strong>Oversized derived parameters</strong> — workgroup sizes and workgroup-memory array sizes must be sized for the largest possible subgroup, wasting resources when a smaller size would do.</li>
+    </ol>
+    <p>The native equivalents already existed: Vulkan's <a href="https://docs.vulkan.org/refpages/latest/refpages/source/VK_EXT_subgroup_size_control.html" target="_blank" rel="noopener"><code>VK_EXT_subgroup_size_control</code></a> (or Vulkan 1.3) and HLSL's <a href="https://microsoft.github.io/DirectX-Specs/d3d/HLSL_SM_6_6_WaveSize.html" target="_blank" rel="noopener"><code>[WaveSize()]</code></a> (Shader Model 6.6). This feature brings the same control to WebGPU. Metal has no equivalent.</p>
+    <span class="citation">Source: <a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/subgroup-size-control.md" target="_blank" rel="noopener">subgroup-size-control proposal — Motivation + Native API Availability</a></span>
+  </section>
+
+  <section>
+    <h2 id="how-it-works">how it works</h2>
+    <ol>
+      <li>The page requests a device with <code>"subgroup-size-control"</code> in <code>requiredFeatures</code>. Per the spec, enabling this feature at device creation <strong>also enables <code>"subgroups"</code></strong> on the device automatically.</li>
+      <li>A WGSL module gains <code>enable subgroup_size_control;</code> — valid only when the device has the feature, and only alongside <code>enable subgroups;</code>.</li>
+      <li>The compute entry point declares <code>@subgroup_size(N)</code>. The pipeline will run with exactly that subgroup size, and the <code>subgroup_size</code> built-in always equals <code>N</code>.</li>
+      <li>Validation happens at shader creation (const-expression violations) and pipeline creation (range, workgroup-divisibility, and implementability checks) — see the <a href="subgroup-size-attribute/#errors">error taxonomy</a>.</li>
+    </ol>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/#dom-gpufeaturename-subgroup-size-control" target="_blank" rel="noopener">WebGPU spec — "subgroup-size-control"</a>; <a href="https://gpuweb.github.io/gpuweb/wgsl/#extension-subgroup_size_control" target="_blank" rel="noopener">WGSL — subgroup_size_control extension</a></span>
+  </section>
+
+  <section>
+    <h2 id="syntax">syntax</h2>
+    <p>The feature is a string in the <code>GPUFeatureName</code> enum — present verbatim in the spec's feature index and in Chromium's <code>gpu_supported_features.idl</code>:</p>
+    <pre><code>// GPUFeatureName (spec feature index §25.23)
+"subgroup-size-control"</code></pre>
+    <p>Feature detection and device request follow the standard WebGPU pattern:</p>
+    <pre><code>const adapter = await navigator.gpu.requestAdapter();
+
+const requestedFeatures = [];
+if (adapter.features.has("subgroup-size-control")) {
+  requestedFeatures.push("subgroup-size-control");
+} else {
+  // Use an alternate code path (driver-chosen subgroup size).
+}
+
+const device = await adapter.requestDevice({ requiredFeatures });</code></pre>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/#dom-gpufeaturename-subgroup-size-control" target="_blank" rel="noopener">WebGPU spec — "subgroup-size-control"</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgpu/gpu_supported_features.idl" target="_blank" rel="noopener">Chromium gpu_supported_features.idl</a>; <a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/subgroup-size-control.md" target="_blank" rel="noopener">proposal — example usage</a></span>
+  </section>
+
+  <section>
+    <h2 id="inputs">inputs</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Input</th><th>Contract</th></tr></thead>
+      <tr><td><code>adapter.<wbr>features</code></td><td>A <code>GPUSupportedFeatures</code> set; <code>has("subgroup-size-control")</code> tells whether this adapter can grant the feature. Passing an unknown string to <code>has()</code> returns <code>false</code> — safe on browsers that predate the enum value</td></tr>
+      <tr><td><code>descriptor.<wbr>requiredFeatures</code></td><td>Include <code>"subgroup-size-control"</code> to grant it. There are no accompanying limits or descriptors — the feature has no optional API surface and exposes no new <code>GPUAdapterInfo</code> fields (explicit limits were considered and declined, <a href="https://github.com/gpuweb/gpuweb/issues/6241" target="_blank" rel="noopener">gpuweb#6241</a>)</td></tr>
+      <tr><td>Implicit companion</td><td>Requesting <code>"subgroup-size-control"</code> implicitly enables <code>"subgroups"</code> on the device; it does not need to be listed separately</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/#dom-gpuadapter-requestdevice" target="_blank" rel="noopener">WebGPU spec — GPUAdapter.requestDevice()</a>; <a href="https://gpuweb.github.io/gpuweb/#dom-gpufeaturename-subgroup-size-control" target="_blank" rel="noopener">WebGPU spec — "subgroup-size-control"</a>; <a href="https://github.com/gpuweb/gpuweb/issues/6241" target="_blank" rel="noopener">gpuweb#6241</a></span>
+  </section>
+
+  <section>
+    <h2 id="outputs">outputs</h2>
+    <ul>
+      <li>A <code>GPUDevice</code> on which <code>device.features</code> contains <code>"subgroup-size-control"</code> <em>and</em> <code>"subgroups"</code> (the latter auto-enabled).</li>
+      <li>WGSL modules created on that device may use <code>enable subgroup_size_control;</code> and the <code>@subgroup_size</code> attribute (contract on the <a href="subgroup-size-attribute/">attribute page</a>).</li>
+      <li>Queryable bounds: <code>adapter.info.subgroupMinSize</code> / <code>subgroupMaxSize</code> delimit the valid request range (those members belong to the <code>"subgroups"</code> feature; requesting subgroup-size-control makes them meaningful on the same device).</li>
+    </ul>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/#dom-gpufeaturename-subgroup-size-control" target="_blank" rel="noopener">WebGPU spec — "subgroup-size-control"</a>; <a href="https://gpuweb.github.io/gpuweb/wgsl/#attribute-subgroup_size" target="_blank" rel="noopener">WGSL — @subgroup_size</a></span>
+  </section>
+
+  <section>
+    <h2 id="errors">errors</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Situation</th><th>Behavior</th></tr></thead>
+      <tr><td><code>requiredFeatures</code> contains <code>"subgroup-size-control"</code> but the adapter lacks it</td><td><code>requestDevice()</code> rejects with a <code>TypeError</code> — deliberately the same error as for a feature name the browser does not know at all, &ldquo;converging&rdquo; unknown-name and unsupported-adapter behavior so sites must feature-detect rather than branch on error types</td></tr>
+      <tr><td>Feature not requested, but WGSL uses <code>@subgroup_size</code></td><td>Shader-creation error (the <code>subgroup_size_control</code> extension is not enabled)</td></tr>
+      <tr><td>Feature requested, WGSL enables <code>subgroup_size_control</code> without <code>subgroups</code></td><td>Shader-creation error — the two must be enabled together</td></tr>
+      <tr><td>Attribute value out of range / not a power of two / pipeline not creatable</td><td>See the <a href="subgroup-size-attribute/#errors">attribute error taxonomy</a> (shader-creation vs pipeline-creation vs uncategorized error, by expression kind)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/#dom-gpuadapter-requestdevice" target="_blank" rel="noopener">WebGPU spec — requestDevice() device-timeline steps</a>; <a href="https://gpuweb.github.io/gpuweb/wgsl/#extension-subgroup_size_control" target="_blank" rel="noopener">WGSL — subgroup_size_control extension</a></span>
+  </section>
+
+  <section>
+    <h2 id="context">context and exposure</h2>
+    <ul>
+      <li>Available wherever WebGPU is: <code>Exposed=(Window, DedicatedWorker, SharedWorker, ServiceWorker)</code>, <strong>secure contexts only</strong> (per the WebGPU spec's <code>GPU</code>/<code>navigator.gpu</code> exposure).</li>
+      <li>Adapter-dependent: presence in <code>adapter.features</code> varies by GPU/driver/OS — the same browser build exposes it on one machine and not another. Metal has no native equivalent (proposal: browsers may expose it on Metal &ldquo;at their own risk&rdquo;).</li>
+      <li>Compute-only effect: the WGSL attribute is restricted to compute shader entry points; vertex/fragment pipelines are unaffected.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/#gpu-interface" target="_blank" rel="noopener">WebGPU spec — GPU interface exposure</a>; <a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/subgroup-size-control.md" target="_blank" rel="noopener">proposal — Native API Availability (Metal)</a>; <a href="https://gpuweb.github.io/gpuweb/wgsl/#attribute-subgroup_size" target="_blank" rel="noopener">WGSL — @subgroup_size</a></span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">lifecycle</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Stage</th><th>What happens</th></tr></thead>
+      <tr><td>1. Query</td><td><code>adapter.features.has("subgroup-size-control")</code> — static per adapter</td></tr>
+      <tr><td>2. Grant</td><td><code>requestDevice({requiredFeatures: ["subgroup-size-control"]})</code> — one-time; the adapter is consumed; <code>"subgroups"</code> enabled alongside</td></tr>
+      <tr><td>3. Shader authoring</td><td><code>enable subgroup_size_control;</code> + <code>@subgroup_size(N)</code> on a compute entry point; const-expression values are validated at shader creation</td></tr>
+      <tr><td>4. Pipeline creation</td><td>Range (<code>subgroupMinSize</code>..<code>subgroupMaxSize</code>), power-of-two (override-expressions), workgroup-divisibility, and implementability are validated; failures surface as pipeline-creation errors (or uncategorized errors for hardware limits)</td></tr>
+      <tr><td>5. Dispatch</td><td>The pipeline always runs at subgroup size <code>N</code>; the <code>subgroup_size</code> built-in equals <code>N</code>. The choice is immutable for the pipeline's lifetime — a different size means a new pipeline</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/#dom-gpuadapter-requestdevice" target="_blank" rel="noopener">WebGPU spec — requestDevice()</a>; <a href="https://gpuweb.github.io/gpuweb/wgsl/#attribute-subgroup_size" target="_blank" rel="noopener">WGSL — @subgroup_size</a>; <a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/subgroup-size-control.md" target="_blank" rel="noopener">proposal — Behavior</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <p>Feature-detect, request, and use (JS + WGSL, per the proposal):</p>
+    <pre><code>const adapter = await navigator.gpu.requestAdapter();
+const requestedFeatures = [];
+if (adapter.features.has("subgroup-size-control")) {
+  requestedFeatures.push("subgroup-size-control");
+} else {
+  // Fall back to a driver-sized variant of the shader.
+}
+const device = await adapter.requestDevice({ requiredFeatures });</code></pre>
+    <pre><code>enable subgroups;
+enable subgroup_size_control;
+
+@compute @workgroup_size(64, 1, 1) @subgroup_size(32)
+fn main(@builtin(subgroup_invocation_id) sg_id : u32,
+        @builtin(subgroup_size) sg_size : u32) {
+    // sg_size is guaranteed to be 32 in this pipeline.
+}</code></pre>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v152/webgpu-subgroup-size-control/shader-builder/"
+        title="Live example — subgroup size shader builder" loading="lazy" width="100%" height="560"
+        style="border:2px solid var(--border-black)"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase (route HEAD-checked 200, 2026-07-29). Requires a browser with WebGPU; the demo feature-detects and reports when the GPU lacks the feature.<span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v152/webgpu-subgroup-size-control/" target="_blank" rel="noopener">chrome-platform-showcase — WebGPU: Subgroup Size Control</a></span></figcaption>
+    </figure>
+    <span class="citation">Source: <a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/subgroup-size-control.md" target="_blank" rel="noopener">proposal — example usage</a></span>
+  </section>
+
+  <section>
+    <h2 id="tests">tests</h2>
+    <p>WebGPU conformance lives in the <a href="https://github.com/gpuweb/cts" target="_blank" rel="noopener">gpuweb/cts</a> test suite rather than upstream WPT directories. A search of the CTS operation, shader-execution, and validation trees found <strong>no dedicated subgroup-size-control tests</strong> at fetch time (2026-07-29); the Intent to Ship does not record a WPT/CTS row beyond the standard process. Treat behavior as spec-defined but conformance-unverified in public test suites.</p>
+    <span class="citation">Source: <a href="https://github.com/gpuweb/cts" target="_blank" rel="noopener">gpuweb/cts repository</a> (operation/execution/validation trees searched 2026-07-29); <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a3b9721.b645f071.283bd5.06d8.GAE%40google.com" target="_blank" rel="noopener">Intent to Ship</a></span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">browser compatibility</h2>
+    <p><em>Interim table.</em> BCD has no entry for this feature — <code>api/GPUSupportedFeatures.json</code> carries <code>feature_subgroups</code> but no <code>feature_subgroup-size-control</code> key, and there is no <code>@subgroup_size</code> WGSL entry (verified 2026-07-29). Rows below are compiled from the linked primary sources, not from BCD.</p>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <thead><tr><th>Browser</th><th>Support</th><th>Evidence</th></tr></thead>
+      <tr><td>Chrome</td><td>Enabled by default from 152 (desktop, Android, WebView)</td><td><a href="https://chromestatus.com/api/v0/features?milestone=152" target="_blank" rel="noopener">milestone=152 listing</a>; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a3b9721.b645f071.283bd5.06d8.GAE%40google.com" target="_blank" rel="noopener">Intent to Ship</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgpu/gpu_supported_features.idl" target="_blank" rel="noopener">gpu_supported_features.idl</a> (enum value present at trunk)</td></tr>
+      <tr><td>Edge</td><td>Mirrors Chrome (Chromium)</td><td>Chromium-based; no separate record</td></tr>
+      <tr><td>Firefox</td><td>Standards position positive; shipped support not recorded in public data</td><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a3b9721.b645f071.283bd5.06d8.GAE%40google.com" target="_blank" rel="noopener">Intent thread</a> — &ldquo;Gecko: Positive … Feedback indicated via WebGPU standardization process&rdquo;. BCD records Firefox 141 for the related <code>subgroupMinSize</code>/<code>subgroupMaxSize</code> queries, not for this feature</td></tr>
+      <tr><td>Safari</td><td>Standards position positive; shipped support not recorded in public data</td><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a3b9721.b645f071.283bd5.06d8.GAE%40google.com" target="_blank" rel="noopener">Intent thread</a> — &ldquo;WebKit: Positive … Specification approval constitutes a positive signal&rdquo;. BCD records Safari as not supporting the subgroup size <em>queries</em> at all (2026-07-29)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/GPUSupportedFeatures.json" target="_blank" rel="noopener">BCD api/GPUSupportedFeatures.json</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/GPUAdapterInfo.json" target="_blank" rel="noopener">BCD api/GPUAdapterInfo.json</a>; <a href="https://chromestatus.com/feature/5077657663438848" target="_blank" rel="noopener">chromestatus.com/feature/5077657663438848</a></span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <ul>
+      <li><strong>No new query surface</strong> — the working group deliberately declined new adapter limits (<a href="https://github.com/gpuweb/gpuweb/issues/6241" target="_blank" rel="noopener">gpuweb#6241</a>), so the feature adds no adapter-info fields. The pre-existing <code>subgroupMinSize</code>/<code>subgroupMaxSize</code> queries (part of <code>"subgroups"</code>) already reveal the hardware's subgroup-size bounds.</li>
+      <li><strong>Pipeline-creation oracle (minor)</strong> — because supported sizes are not enumerable, a page can only probe implementability by attempting pipeline creation and observing success/uncategorized-error. This is a slow, coarse signal of GPU capability, comparable in kind to the existing bounds queries; no spec mitigation is defined.</li>
+      <li><strong>No new shader capabilities</strong> — the attribute constrains scheduling geometry; it grants no additional memory access, precision, or instruction surface beyond what <code>"subgroups"</code> already provides.</li>
+      <li><strong>Availability variance</strong> — like every optional GPU feature, presence/absence contributes to adapter fingerprinting entropy already inherent in <code>adapter.features</code>.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/gpuweb/gpuweb/issues/6241" target="_blank" rel="noopener">gpuweb#6241</a>; <a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/subgroup-size-control.md" target="_blank" rel="noopener">proposal — Native API Availability</a>; <a href="https://gpuweb.github.io/gpuweb/#dom-gpufeaturename-subgroup-size-control" target="_blank" rel="noopener">WebGPU spec — "subgroup-size-control"</a></span>
+  </section>
+
+  <section>
+    <h2 id="specifications">specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Document</th><th>Status</th></tr></thead>
+      <tr><td><a href="https://gpuweb.github.io/gpuweb/#dom-gpufeaturename-subgroup-size-control" target="_blank" rel="noopener">WebGPU — feature index, "subgroup-size-control"</a></td><td>Merged (<a href="https://github.com/gpuweb/gpuweb/pull/5578" target="_blank" rel="noopener">PR #5578</a>, 2026-06-23): enables the WGSL attribute; auto-enables "subgroups"; no optional API surfaces</td></tr>
+      <tr><td><a href="https://gpuweb.github.io/gpuweb/wgsl/#extension-subgroup_size_control" target="_blank" rel="noopener">WGSL — subgroup_size_control enable extension</a> + <a href="https://gpuweb.github.io/gpuweb/wgsl/#attribute-subgroup_size" target="_blank" rel="noopener">@subgroup_size attribute</a></td><td>Merged (same PR): grammar, parameter contract, and the full error taxonomy — detailed on the <a href="subgroup-size-attribute/">attribute page</a></td></tr>
+      <tr><td><a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/subgroup-size-control.md" target="_blank" rel="noopener">subgroup-size-control proposal</a></td><td>Status &ldquo;Merged&rdquo;; motivation, native-API mapping (Vulkan/HLSL/Metal), behavior notes. The proposal text says &ldquo;not been approved by the working group yet&rdquo; — superseded by the merged spec; noted for provenance</td></tr>
+      <tr><td><a href="https://docs.vulkan.org/refpages/latest/refpages/source/VK_EXT_subgroup_size_control.html" target="_blank" rel="noopener">Vulkan VK_EXT_subgroup_size_control</a> · <a href="https://microsoft.github.io/DirectX-Specs/d3d/HLSL_SM_6_6_WaveSize.html" target="_blank" rel="noopener">HLSL WaveSize (SM 6.6)</a></td><td>Native equivalents the design maps to (Metal: no equivalent)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: repository and spec contents fetched 2026-07-29</span>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="subgroup-size-attribute/"><code>@subgroup_size</code> attribute reference</a> — the WGSL grammar, parameters, and error taxonomy (this feature's real surface)</li>
+      <li><a href="https://chromestatus.com/feature/5077657663438848" target="_blank" rel="noopener">Chrome Platform Status — WebGPU: Subgroup Size Control</a> (<a href="https://chromestatus.com/api/v0/features/5077657663438848" target="_blank" rel="noopener">API record</a>)</li>
+      <li><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a3b9721.b645f071.283bd5.06d8.GAE%40google.com" target="_blank" rel="noopener">blink-dev — Intent to Ship: WebGPU: Subgroup Size Control</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/GPUAdapterInfo/subgroupMaxSize" target="_blank" rel="noopener">MDN — GPUAdapterInfo: subgroupMaxSize</a> (the query side, which MDN covers; MDN has no page for this feature — verified 2026-07-29)</li>
+      <li><a href="https://webstatus.dev/features/webgpu-subgroups" target="_blank" rel="noopener">webstatus.dev — WebGPU subgroups</a> (related; Baseline limited)</li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v152/webgpu-subgroup-size-control/" target="_blank" rel="noopener">Chrome Platform Showcase — interactive demos for this feature</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
