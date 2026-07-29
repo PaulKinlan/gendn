@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Prefetch activation beacon — Chrome 151 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code { overflow-wrap: anywhere; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .baseline-banner { border: 2px solid var(--border-black); padding: 1rem 1.2rem; margin: 1.5rem 0; background: var(--bg-paper); box-shadow: var(--thin-shadow); }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    .example-embed { margin: 1.5rem 0; }
+    .example-embed iframe { max-width: 100%; }
+    .example-embed figcaption { font-size: 0.85rem; margin-top: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v151/">&larr; Chrome 151 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v151 · origin trial · performance · speculation rules</p>
+    <h1>Prefetch activation beacon</h1>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome · origin trial 151</li>
+        <li class="limited">Edge · not separately reported</li>
+        <li class="limited">Firefox · no signal</li>
+        <li class="limited">Safari · no signal</li>
+      </ul>
+      <p>Not on the Baseline register: the <a href="https://chromestatus.com/api/v0/features/5118934710878208" target="_blank" rel="noopener">ChromeStatus API record</a> marks <code>web_feature</code> as &ldquo;Missing feature&rdquo; and a <a href="https://api.webstatus.dev/v1/features?q=prefetch-activation" target="_blank" rel="noopener">webstatus.dev query</a> returns zero matches (2026-07-28). Vendor positions on the record are &ldquo;No signal&rdquo; for both Firefox and Safari.</p>
+    </div>
+
+    <p class="lede">The <code>on-prefetch-activation</code> HTTP response header enables servers to specify a telemetry endpoint that the browser notifies when a prefetched resource is used for navigation. Developers gain a reliable signal to measure the precision and performance impact of their prefetch strategies.</p>
+  </header>
+
+  <div class="warn-block" id="origin-trial">
+    <strong>Origin trial — API surface may move</strong>
+    This feature is in origin trial (the <a href="https://chromestatus.com/api/v0/features?milestone=151" target="_blank" rel="noopener">milestone=151 listing</a> files it as &ldquo;Origin trial&rdquo;, verified 2026-07-28). To use it:
+    <ul>
+      <li>Register your origin for the <code>PrefetchAndPrerenderActivationBeacon</code> trial at <a href="https://developer.chrome.com/origintrials/" target="_blank" rel="noopener">developer.chrome.com/origintrials</a> (ChromeStatus records origin-trial id <code>3433431765916581889</code>) and serve the token — either as a <code>&lt;meta http-equiv="origin-trial" content="TOKEN"&gt;</code> tag or an <code>Origin-Trial</code> HTTP response header on the page issuing the speculation rules.</li>
+      <li>For local development, launch Chrome with <code>--enable-blink-features=PrefetchAndPrerenderActivationBeacon</code> (the <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime flag record</a> is status <code>experimental</code>, <code>public: true</code>, <code>origin_trial_feature_name: "PrefetchAndPrerenderActivationBeacon"</code>).</li>
+      <li>There is no merged specification yet — the explainer is the only substantive document (see <a href="#specifications">specifications</a>); behavior may change before a ship decision.</li>
+    </ul>
+    <p>Serving the token, and local testing:</p>
+    <pre><code>&lt;meta http-equiv="origin-trial" content="TOKEN_FROM_DEVELOPER.CHROME.COM/ORIGINTRIALS"&gt;
+
+# local development instead of a token:
+chrome --enable-blink-features=PrefetchAndPrerenderActivationBeacon</code></pre>
+    <p style="margin-bottom:0">Enrollment notes: no feature-specific error surface exists for enrollment — the trial uses Chrome's standard origin-trial infrastructure, and neither the explainer nor the ChromeStatus record defines feature-specific token-failure behavior (2026-07-28). Enrollment adds no data exposure of its own: the origin-trial token is static and origin-scoped; the privacy-relevant data flow is the beacon itself, analyzed under <a href="#security-and-privacy">security and privacy</a>.</p>
+  </div>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">What it is</th><td>An HTTP response header, <code>on-prefetch-activation</code>, that registers a same-origin telemetry endpoint; the browser sends a credentialless <code>HEAD</code> request to that endpoint when the prefetched (or prerendered) document is actually consumed by a navigation</td></tr>
+      <tr><th scope="row">Milestone listing</th><td>Chrome 151 — Origin trial (<a href="https://chromestatus.com/api/v0/features?milestone=151" target="_blank" rel="noopener">listing</a>, verified 2026-07-28; the listing is authoritative per gendn invariant #2)</td></tr>
+      <tr><th scope="row">Applies to</th><td><a href="https://developer.mozilla.org/en-US/docs/Web/API/Speculation_Rules_API" target="_blank" rel="noopener">Speculation Rules API</a> prefetch and prerender loads — explicitly <em>not</em> legacy <code>&lt;link rel=prefetch&gt;</code>/<code>&lt;link rel=prerender&gt;</code> and not subresource prefetch (explainer non-goals)</td></tr>
+      <tr><th scope="row">Beacon request</th><td>HTTP <code>HEAD</code>, credentialless (no cookies/auth headers), dispatched post-commit by the browser navigation stack; not interceptable by Service Workers, page JavaScript, or extensions</td></tr>
+      <tr><th scope="row">Endpoint restriction</th><td>Same-origin with the prefetched page (validated against the final response URL after redirects); one-time use; discarded if the user navigates away from the referring page</td></tr>
+      <tr><th scope="row">Runtime feature</th><td><code>PrefetchAndPrerenderActivationBeacon</code> (status <code>experimental</code>, public, origin-trial-gated) in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a></td></tr>
+      <tr><th scope="row">WPT</th><td>Two tentative tests: <a href="https://github.com/web-platform-tests/wpt/blob/master/speculation-rules/activation-header/prefetch-activation-beacon.tentative.https.html" target="_blank" rel="noopener">prefetch</a> and <a href="https://github.com/web-platform-tests/wpt/blob/master/speculation-rules/activation-header/prerender-activation-beacon.tentative.https.html" target="_blank" rel="noopener">prerender</a> activation beacons</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5118934710878208" target="_blank" rel="noopener">5118934710878208 — Prefetch activation beacon</a> (blink component <code>Blink&gt;Loader&gt;Preload</code>)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5118934710878208" target="_blank" rel="noopener">chromestatus.com/feature/5118934710878208</a>; <a href="https://github.com/explainers-by-googlers/prefetch-activation-beacon" target="_blank" rel="noopener">explainer</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a></span>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>Sites that use the Speculation Rules API need to know how often their prefetches actually pay off. Today that measurement relies on client-side JavaScript (for example a <code>sendBeacon</code> fired when the page becomes visible), which the explainer rejects as unreliable for three reasons:</p>
+    <ul>
+      <li><strong>Cache ambiguity</strong> — telemetry often filters back/forward navigations to avoid double-counting, but back/forward navigation to prefetched pages is then missed entirely.</li>
+      <li><strong>Duplicate reporting</strong> — cache restores can re-run scripts, producing duplicate activation signals and wrong attribution.</li>
+      <li><strong>Race conditions</strong> — scripts often fail to execute early enough to capture rapid page transitions.</li>
+    </ul>
+    <p>Because the activation beacon is dispatched directly by the browser's navigation stack when a prefetch is consumed, it is immune to all three failure modes: no script executes, no Service Worker boots, and no extension can block, delay, or tamper with the signal.</p>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/prefetch-activation-beacon#considered-alternatives" target="_blank" rel="noopener">explainer — considered alternatives</a>; <a href="https://github.com/explainers-by-googlers/prefetch-activation-beacon#browser-mechanism" target="_blank" rel="noopener">explainer — browser mechanism</a></span>
+  </section>
+
+  <section>
+    <h2 id="syntax">syntax</h2>
+    <p>The server includes the header on the response to the <em>speculative</em> (prefetch or prerender) request. The value is the relative URL of the telemetry endpoint:</p>
+    <pre><code>on-prefetch-activation: &lt;relative-endpoint-path&gt;</code></pre>
+    <p>Key properties of the grammar:</p>
+    <ul>
+      <li>The value is a <strong>relative URL</strong> resolved against the prefetched page's URL — the reported endpoint is always same-origin with the prefetched page (see <a href="#origin-boundaries">origin boundaries</a>).</li>
+      <li>The server can embed its own identifiers (for example an event id) as URL parameters; the browser echoes them back verbatim and adds nothing of its own (the <a href="#security-and-privacy">&ldquo;echo back&rdquo; principle</a>).</li>
+      <li>Only the header on the <strong>final</strong> response is honored when the speculative request redirects; headers on intermediate redirect responses are dropped (see <a href="#redirects">redirect rules</a>).</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/prefetch-activation-beacon#header-syntax" target="_blank" rel="noopener">explainer — header syntax</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/speculation-rules/activation-header/resources/activation_beacon.py" target="_blank" rel="noopener">WPT beacon server (sets <code>on-prefetch-activation</code> with a relative URL)</a></span>
+  </section>
+
+  <section>
+    <h2 id="browser-mechanism">browser mechanism</h2>
+    <ol>
+      <li>The <strong>browser process</strong> consumes the header from the prefetch response and associates the endpoint URL with the prefetched document in its internal cache.</li>
+      <li><strong>Activation</strong> is defined as the point at which a document loaded via a speculative trigger transitions to the active state in its browsing context — typically when a user-initiated navigation is satisfied by the previously prefetched response.</li>
+      <li>The beacon is dispatched <strong>after the navigation commits</strong> (post-commit dispatch), so the signal means the page was actually shown to the user, not merely speculated.</li>
+      <li>The browser sends a <strong>credentialless HTTP <code>HEAD</code> request</strong> to the endpoint — no cookies, no authentication headers, no stored credentials.</li>
+      <li>Dispatch is <strong>non-interceptable</strong>: it does not pass through the origin's Service Worker, cannot be observed or modified by client-side JavaScript, and cannot be blocked by browser extensions.</li>
+    </ol>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/prefetch-activation-beacon#browser-mechanism" target="_blank" rel="noopener">explainer — browser mechanism</a>; <a href="https://github.com/explainers-by-googlers/prefetch-activation-beacon#non-interceptable-execution" target="_blank" rel="noopener">explainer — non-interceptable execution</a>; <a href="https://github.com/explainers-by-googlers/prefetch-activation-beacon#detailed-design-discussion" target="_blank" rel="noopener">explainer — activation definition &amp; post-commit dispatch</a></span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">endpoint lifetime and devalidation</h2>
+    <p>To prevent &ldquo;zombie&rdquo; beacons from unrelated navigations, the activation trigger has a deliberately short, scoped lifetime:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Rule</th><th>Contract</th></tr></thead>
+      <tr><td>One-time use</td><td>The trigger is valid for a single activation event; once the beacon fires it is devalidated for the page</td></tr>
+      <tr><td>Referrer-bound</td><td>The trigger is tied to the speculative context of the triggering (referrer) document — if the user navigates away from the referrer page to an unrelated destination, the activation metadata is discarded</td></tr>
+      <tr><td>No general cache persistence</td><td>The beacon does not fire for general navigations that later hit the disk cache after the speculative context expired; it fires only when the speculative loading logic explicitly consumes the response for a predicted navigation</td></tr>
+      <tr><td>No cross-session state</td><td>Activation metadata lives in the browser's speculative loading context and is discarded when that context expires; nothing persists across browsing sessions (Security &amp; Privacy Questionnaire §6)</td></tr>
+    </table>
+    </div>
+    <p>The explainer's three canonical scenarios:</p>
+    <ul>
+      <li><strong>Same-origin prefetch and activation</strong> — the user loads <code>a.com/</code>, which prefetches <code>a.com/target</code>; the beacon is sent when the user then navigates to <code>a.com/target</code>.</li>
+      <li><strong>Cross-origin prefetch and activation</strong> — <code>a.com/</code> prefetches <code>b.com/target</code>; the beacon is sent (to the <code>b.com</code> endpoint only) when the user navigates to <code>b.com/target</code>.</li>
+      <li><strong>Devalidation on navigating away</strong> — <code>a.com/</code> prefetches <code>a.com/target</code>, then the user navigates to <code>c.com</code>; the beacon is <em>not</em> sent when the user later navigates to <code>a.com/target</code>.</li>
+    </ul>
+    <p>The same rules as a state summary:</p>
+    <pre><code>active speculative context + committed navigation → beacon sent once → trigger devalidated
+referrer navigated away before activation        → activation metadata discarded (no beacon)
+speculative context expired (disk-cache hit)     → no beacon
+second navigation to the same prefetched page    → no beacon (one-time use)</code></pre>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/prefetch-activation-beacon#endpoint-lifetime" target="_blank" rel="noopener">explainer — endpoint lifetime</a>; <a href="https://github.com/explainers-by-googlers/prefetch-activation-beacon#examples" target="_blank" rel="noopener">explainer — examples</a>; <a href="https://github.com/explainers-by-googlers/prefetch-activation-beacon/blob/main/security_and_privacy_questionnaire.md" target="_blank" rel="noopener">Security &amp; Privacy Questionnaire §6</a></span>
+  </section>
+
+  <section>
+    <h2 id="origin-boundaries">origin boundaries</h2>
+    <p>To prevent the API from becoming a cross-site tracking vector, the reporting endpoint must be <strong>same-origin with the prefetched page</strong>:</p>
+    <ul>
+      <li>If the browser prefetches <code>target.com</code> on the user's initiative, the beacon can only go to an endpoint on <code>target.com</code>.</li>
+      <li>If <code>referer.com</code> prefetches <code>target.com</code>, the beacon can still only go to <code>target.com</code> — reporting back to <code>referer.com</code> or any third party <code>other.com</code> is prohibited.</li>
+    </ul>
+    <p>Only the site being prefetched — which already learns that the user visited — receives the signal.</p>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/prefetch-activation-beacon#origin-boundaries-target-origin-restriction" target="_blank" rel="noopener">explainer — origin boundaries</a>; <a href="https://github.com/explainers-by-googlers/prefetch-activation-beacon/blob/main/security_and_privacy_questionnaire.md" target="_blank" rel="noopener">Security &amp; Privacy Questionnaire §14</a></span>
+  </section>
+
+  <section>
+    <h2 id="redirects">redirect rules</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Phase</th><th>Rule</th></tr></thead>
+      <tr><td rowspan="3">Speculative navigation redirects</td><td>Only the <code>on-prefetch-activation</code> header in the <strong>final</strong> response is processed</td></tr>
+      <tr><td>Headers on intermediate redirect responses are <strong>ignored and dropped</strong></td></tr>
+      <tr><td>Same-origin validation is checked against the <strong>final response's URL</strong>, not the initial request URL</td></tr>
+      <tr><td rowspan="3">Beacon request redirects</td><td>The beacon <code>HEAD</code> request may only redirect to URLs <strong>same-origin with the original beacon URL</strong></td></tr>
+      <tr><td>A redirect to a cross-origin URL causes the browser to <strong>immediately block and discard</strong> the request</td></tr>
+      <tr><td>The method must remain <code>HEAD</code>; a redirect that changes the method (e.g. a <code>302</code> that would turn it into <code>GET</code>) is <strong>blocked</strong></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/prefetch-activation-beacon#redirect-behavior" target="_blank" rel="noopener">explainer — redirect behavior</a></span>
+  </section>
+
+  <section>
+    <h2 id="coverage">coverage: prefetch, prerender, and explicit non-goals</h2>
+    <p>The Chromium runtime feature is named <code>PrefetchAndPrerenderActivationBeacon</code> and WPT carries both a <a href="https://github.com/web-platform-tests/wpt/blob/master/speculation-rules/activation-header/prefetch-activation-beacon.tentative.https.html" target="_blank" rel="noopener">prefetch</a> and a <a href="https://github.com/web-platform-tests/wpt/blob/master/speculation-rules/activation-header/prerender-activation-beacon.tentative.https.html" target="_blank" rel="noopener">prerender</a> activation-beacon test, so the feature covers both Speculation Rules load types. One explainer sentence — that the beacon fires when the navigation &ldquo;is successfully committed in a <em>non-prerender</em> context&rdquo; — reads against that; the redirect section, the flag name, and the prerender WPT all treat prerender activation as in scope. gendn records the wording difference rather than resolving it.</p>
+    <p>Explicit non-goals (the header has no effect here):</p>
+    <ul>
+      <li>Legacy <code>&lt;link rel=prefetch&gt;</code> / <code>&lt;link rel=prerender&gt;</code> loads — those are being deprecated in favor of the Speculation Rules API.</li>
+      <li>Subresource prefetches (images, scripts) — &ldquo;prewarm&rdquo; mechanisms or specialized APIs are the intended measurement path.</li>
+      <li>Acting as a dynamic data channel for arbitrary client-side state — the beacon only ever reports the server-defined activation event.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/prefetch-activation-beacon#non-goals" target="_blank" rel="noopener">explainer — non-goals</a>; <a href="https://github.com/explainers-by-googlers/prefetch-activation-beacon#browser-mechanism" target="_blank" rel="noopener">explainer — browser mechanism</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime flag name</a>; <a href="https://github.com/web-platform-tests/wpt/tree/master/speculation-rules/activation-header" target="_blank" rel="noopener">WPT activation-header directory</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <p>A server opting a prefetched page into activation reporting:</p>
+    <pre><code># Response to the speculative (prefetch) request
+HTTP/1.1 200 OK
+Content-Type: text/html
+on-prefetch-activation: /telemetry/prefetch-hit?rule=product-page&amp;id=92</code></pre>
+    <p>When the user later navigates to that prefetched page and the navigation commits, the browser sends — once, with no cookies or authorization headers:</p>
+    <pre><code>HEAD /telemetry/prefetch-hit?rule=product-page&amp;id=92 HTTP/1.1
+Host: shop.example</code></pre>
+    <p>The page that issues the speculation needs nothing new beyond its normal speculation rules (plus the origin-trial token):</p>
+    <pre><code>&lt;script type="speculationrules"&gt;
+{
+  "prefetch": [{ "urls": ["/products/92"] }]
+}
+&lt;/script&gt;</code></pre>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v151/prefetch-activation-beacon/"
+        title="Live example — Prefetch activation beacon" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase (route HEAD-checked 200, 2026-07-28).<span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v151/prefetch-activation-beacon/" target="_blank" rel="noopener">chrome-platform-showcase</a></span></figcaption>
+    </figure>
+    <span class="citation">Source: header grammar per the <a href="https://github.com/explainers-by-googlers/prefetch-activation-beacon#header-syntax" target="_blank" rel="noopener">explainer</a>; server parameters pattern per the <a href="https://github.com/explainers-by-googlers/prefetch-activation-beacon/blob/main/security_and_privacy_questionnaire.md" target="_blank" rel="noopener">Security &amp; Privacy Questionnaire §3/§13</a>; WPT <a href="https://github.com/web-platform-tests/wpt/blob/master/speculation-rules/activation-header/resources/activation_beacon.py" target="_blank" rel="noopener">activation_beacon.py</a> (header value, HEAD method assertion)</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <ul>
+      <li><strong>&ldquo;Echo back&rdquo; principle</strong> — the browser conveys no new client-side information: it echoes only the URL and parameters the server itself provided. The API generates no identifiers (Questionnaire §2, §13).</li>
+      <li><strong>Static &amp; non-modifiable</strong> — the beacon URL comes from an HTTP header, so third-party JavaScript cannot read or rewrite it and cannot inject tracking identifiers into it.</li>
+      <li><strong>Origin boundaries</strong> — the endpoint is same-origin with the prefetched page; cross-origin reporting is prohibited and cross-origin beacon redirects are blocked (see <a href="#origin-boundaries">origin boundaries</a> and <a href="#redirects">redirect rules</a>).</li>
+      <li><strong>Credentialless</strong> — no cookies, authentication headers, or stored credentials, so the beacon cannot join user sessions across security contexts.</li>
+      <li><strong>No persistent state</strong> — activation metadata is scoped to the speculative loading context and discarded on expiry; nothing persists across sessions (Questionnaire §6).</li>
+      <li><strong>No new script execution</strong> — the beacon runs in the browser navigation stack; it boots no Service Worker and runs no page script (Questionnaire §10).</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/prefetch-activation-beacon#security-and-privacy-considerations" target="_blank" rel="noopener">explainer — security and privacy considerations</a>; <a href="https://github.com/explainers-by-googlers/prefetch-activation-beacon/blob/main/security_and_privacy_questionnaire.md" target="_blank" rel="noopener">Security &amp; Privacy Questionnaire</a></span>
+  </section>
+
+  <section>
+    <h2 id="errors">error and edge behavior</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Situation</th><th>Behavior (per explainer)</th></tr></thead>
+      <tr><td>Endpoint not same-origin with the prefetched page</td><td>Reporting prohibited — the cross-origin beacon is not sent (<a href="#origin-boundaries">origin boundaries</a>)</td></tr>
+      <tr><td>Header present on an intermediate redirect response</td><td>Ignored and dropped; only the final response's header is honored</td></tr>
+      <tr><td>Beacon redirect goes cross-origin</td><td>Browser immediately blocks and discards the request</td></tr>
+      <tr><td>Beacon redirect would change the method (e.g. 302 &rarr; GET)</td><td>Blocked — the method must remain <code>HEAD</code></td></tr>
+      <tr><td>User navigates away from the referrer before activation</td><td>Activation metadata discarded; no beacon (<a href="#lifecycle">lifetime rules</a>)</td></tr>
+      <tr><td>Second navigation to the same prefetched page</td><td>No beacon — the trigger is one-time use</td></tr>
+      <tr><td>Endpoint failure / network error on the beacon request</td><td>Not specified in the explainer; no retry contract is defined anywhere in the sources (recorded as an open question in the critique)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/prefetch-activation-beacon#redirect-behavior" target="_blank" rel="noopener">explainer — redirect behavior</a>; <a href="https://github.com/explainers-by-googlers/prefetch-activation-beacon#endpoint-lifetime" target="_blank" rel="noopener">explainer — endpoint lifetime</a></span>
+  </section>
+
+  <section>
+    <h2 id="wpt">web platform tests</h2>
+    <p>The feature has upstream (tentative) WPT coverage under <a href="https://github.com/web-platform-tests/wpt/tree/master/speculation-rules/activation-header" target="_blank" rel="noopener"><code>speculation-rules/activation-header/</code></a>:</p>
+    <ul>
+      <li><a href="https://github.com/web-platform-tests/wpt/blob/master/speculation-rules/activation-header/prefetch-activation-beacon.tentative.https.html" target="_blank" rel="noopener"><code>prefetch-activation-beacon.tentative.https.html</code></a> — prefetches a URL served with the header, navigates to it, then polls a server-side stash to assert the beacon was received (and the resource was actually fetched).</li>
+      <li><a href="https://github.com/web-platform-tests/wpt/blob/master/speculation-rules/activation-header/prerender-activation-beacon.tentative.https.html" target="_blank" rel="noopener"><code>prerender-activation-beacon.tentative.https.html</code></a> — the same flow through a prerender triggered by speculation rules.</li>
+      <li><a href="https://github.com/web-platform-tests/wpt/blob/master/speculation-rules/activation-header/resources/activation_beacon.py" target="_blank" rel="noopener"><code>resources/activation_beacon.py</code></a> — the test server: emits <code>on-prefetch-activation</code> with a relative URL, and rejects any beacon request whose method is not <code>HEAD</code> with a <code>405</code>.</li>
+    </ul>
+    <p>Both tests are <code>tentative</code>, matching the feature's pre-ship status.</p>
+    <span class="citation">Source: <a href="https://github.com/web-platform-tests/wpt/tree/master/speculation-rules/activation-header" target="_blank" rel="noopener">WPT activation-header directory</a>, fetched 2026-07-28</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">browser compatibility</h2>
+    <p><em>Interim table.</em> There is no BCD entry (<a href="https://github.com/mdn/browser-compat-data/blob/main/http/headers/" target="_blank" rel="noopener">BCD <code>http/headers/</code></a> has no <code>on-prefetch-activation.json</code>, verified 2026-07-28) and no web-features entry (<a href="https://api.webstatus.dev/v1/features?q=prefetch-activation" target="_blank" rel="noopener">webstatus.dev query</a>, zero matches). Rows below are compiled from the linked primary sources, not from BCD.</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Support</th><th>Evidence</th></tr></thead>
+      <tr><td>Chrome</td><td>Origin trial from 151</td><td><a href="https://chromestatus.com/api/v0/features?milestone=151" target="_blank" rel="noopener">milestone=151 listing</a> (&ldquo;Origin trial&rdquo;); <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">flag record</a> (experimental, origin-trial-gated)</td></tr>
+      <tr><td>Edge</td><td>Not separately reported</td><td>Chromium-based; no separate position on the ChromeStatus record</td></tr>
+      <tr><td>Firefox</td><td>No signal</td><td><a href="https://chromestatus.com/api/v0/features/5118934710878208" target="_blank" rel="noopener">ChromeStatus API record</a> vendor views</td></tr>
+      <tr><td>Safari</td><td>No signal</td><td><a href="https://chromestatus.com/api/v0/features/5118934710878208" target="_blank" rel="noopener">ChromeStatus API record</a> vendor views</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5118934710878208" target="_blank" rel="noopener">chromestatus.com/feature/5118934710878208</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a></span>
+  </section>
+
+  <section>
+    <h2 id="specifications">specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Document</th><th>Status</th></tr></thead>
+      <tr><td><a href="https://github.com/explainers-by-googlers/prefetch-activation-beacon" target="_blank" rel="noopener">Prefetch Activation Beacon API — explainer</a> (proponent: Jiacheng Guo, Google)</td><td>The only substantive specification document (header syntax, mechanism, lifetime, redirect and privacy rules)</td></tr>
+      <tr><td><a href="https://github.com/explainers-by-googlers/prefetch-activation-beacon/blob/main/security_and_privacy_questionnaire.md" target="_blank" rel="noopener">Security &amp; Privacy Questionnaire</a></td><td>Completed, in the same repository</td></tr>
+      <tr><td><a href="https://github.com/WICG/proposals/issues/284" target="_blank" rel="noopener">WICG/proposals #284</a></td><td>Incubation proposal, open</td></tr>
+      <tr><td><a href="https://github.com/explainers-by-googlers/prefetch-activation-beacon/blob/main/index.bs" target="_blank" rel="noopener">index.bs (Bikeshed)</a></td><td>An <strong>unfilled template</strong> (&ldquo;The TODO API&rdquo;) as of 2026-07-28 — no formal spec text exists yet; treat the explainer's contracts as proposal-stage</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: repository contents fetched 2026-07-28</span>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/5118934710878208" target="_blank" rel="noopener">Chrome Platform Status — Prefetch activation beacon</a> (<a href="https://chromestatus.com/api/v0/features/5118934710878208" target="_blank" rel="noopener">API record</a>)</li>
+      <li><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/CAJQw1NzrnJBU7pmpz7bfxK2G7cWUcJsaU9ekFHh3XKFUyzzrwg%40mail.gmail.com" target="_blank" rel="noopener">blink-dev — Intent to Prototype: Prefetch activation beacon</a> (<a href="https://www.mail-archive.com/blink-dev@chromium.org/msg16520.html" target="_blank" rel="noopener">mail-archive mirror</a>)</li>
+      <li><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/CAJQw1NycAvKKpE0s61otPPrkzJ2yTr372RtTOVod26sTh%2B%3DVxg%40mail.gmail.com" target="_blank" rel="noopener">blink-dev — Intent to Experiment: Prefetch activation beacon</a> (<a href="https://www.mail-archive.com/blink-dev@chromium.org/msg16952.html" target="_blank" rel="noopener">mail-archive mirror</a>)</li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Speculation_Rules_API" target="_blank" rel="noopener">MDN — Speculation Rules API</a> (the host API; MDN does not cover this header — MDN header URL 404, search returned no matching document, 2026-07-28)</li>
+      <li><a href="https://developer.chrome.com/origintrials/" target="_blank" rel="noopener">Chrome origin trials console</a> (trial <code>PrefetchAndPrerenderActivationBeacon</code>, id <code>3433431765916581889</code>)</li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v151/prefetch-activation-beacon/" target="_blank" rel="noopener">Chrome Platform Showcase — interactive demo for this feature</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
