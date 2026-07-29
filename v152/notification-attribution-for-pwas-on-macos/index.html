@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Notification attribution for PWAs on macOS — Chrome 152 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .compat-table tr > *:nth-child(2) { min-width: 6.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .doc-table caption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); text-align: left; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .table-wrap { overflow-x: auto; }
+    .lede-block h1, .lede { overflow-wrap: anywhere; }
+    p code, li code { overflow-wrap: anywhere; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .baseline-banner { border: 2px solid var(--border-black); padding: 1rem 1.2rem; margin: 1.5rem 0; background: var(--bg-paper); box-shadow: var(--thin-shadow); }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    .example-embed iframe { display: block; max-width: 100%; }
+    .example-embed figcaption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); margin-top: 0.5rem; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v152/">&larr; Chrome 152 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v152 · enabled by default · notifications · pwa · macos</p>
+    <h1>Notification attribution for PWAs on macOS</h1>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome · desktop 152 (macOS only)</li>
+        <li class="limited">Edge · not separately reported</li>
+        <li class="limited">Firefox · no signal</li>
+        <li class="limited">Safari · aligned behavior already shipping</li>
+      </ul>
+      <p>This is a Chrome-on-macOS platform behavior change, not a cross-browser web API. The underlying <a href="https://webstatus.dev/features/notifications" target="_blank" rel="noopener">notifications web feature</a> is itself Baseline <strong>limited</strong> (webstatus.dev, 2026-07-29). The <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">Web-Facing Change PSA</a> records WebKit as &ldquo;Shipped/Shipping&rdquo; — Chrome is aligning with Safari's existing behavior for installed web apps — and Gecko as &ldquo;No signal&rdquo;.</p>
+    </div>
+
+    <p class="lede">From Chrome 152 on macOS, notifications posted by an <strong>installed Progressive Web App</strong> are delivered through the PWA's own app shim and are natively attributed to the PWA — its own name and icon in Notification Center and per-app notification settings — instead of appearing under &ldquo;Google Chrome&rdquo;. The change also makes two behavioral adjustments that match WebKit: <code>requireInteraction</code> is no longer honored for installed PWAs (notification persistence is a per-app macOS user setting), and the app badging API now requires notification permission (silently doing nothing without it).</p>
+  </header>
+
+  <div class="warn-block" id="behavior-change">
+    <strong>Behavior change for installed PWAs on macOS — audit your notification + badge code</strong>
+    Shipping enabled by default in Chrome 152 on macOS only (<a href="https://chromestatus.com/api/v0/features?milestone=152" target="_blank" rel="noopener">milestone=152 listing</a> category &ldquo;Enabled by default&rdquo;, verified 2026-07-29). Three things to check:
+    <ul>
+      <li><strong><code>requireInteraction: true</code> is ignored</strong> for notifications attributed to an installed PWA — whether the alert stays on screen is now the user's per-app macOS setting, not the app's choice. Do not rely on persistent alerts for critical UX on macOS PWAs (<a href="requireinteraction/">details</a>).</li>
+      <li><strong><code>navigator.setAppBadge()</code> silently no-ops</strong> unless the PWA has notification permission — request permission before relying on the badge (<a href="app-badging/">details</a>).</li>
+      <li><strong>Admins</strong> who pre-grant notification permission via the Chrome <code>NotificationsAllowedForUrls</code> policy must <em>also</em> deploy a macOS MDM configuration profile for each PWA's bundle ID, or the pre-grant stops working (<a href="enterprise-deployment/">details</a>).</li>
+    </ul>
+    <p style="margin-bottom:0">A chrome://flags entry <code>#enable-mac-pwas-notification-attribution</code> exists (macOS-only) for local testing of the pre-change behavior; the feature is enabled by default in 152 and the flag is tracked by <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/about_flags.cc" target="_blank" rel="noopener"><code>about_flags.cc</code></a> as &ldquo;Route notifications for PWAs on Mac through the app shim, attributing notifications to the correct apps.&rdquo;</p>
+  </div>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">What it is</th><td>A macOS platform integration change: PWA notifications are delivered by the PWA's app shim through <code>UNUserNotificationCenter</code>, so macOS attributes them to the PWA's own bundle (name, icon, per-app settings) instead of Chrome</td></tr>
+      <tr><th scope="row">Milestone listing</th><td>Chrome 152 — &ldquo;Enabled by default&rdquo; (<a href="https://chromestatus.com/api/v0/features?milestone=152" target="_blank" rel="noopener">milestone=152 listing</a>, verified 2026-07-29; the listing is authoritative per gendn invariant #2)</td></tr>
+      <tr><th scope="row">Platform scope</th><td>macOS only, desktop only. The chrome://flags entry is compiled under <code>BUILDFLAG(IS_MAC)</code>; ChromeStatus records no Android/WebView/iOS milestones</td></tr>
+      <tr><th scope="row">Applies to</th><td>Installed PWAs only — apps in install state <code>INSTALLED_WITH_OS_INTEGRATION</code> that have an app shim registered in the <code>AppShimRegistry</code>, and whose shim is ad-hoc signed (Chromium source, see <a href="#requirements">requirements</a>)</td></tr>
+      <tr><th scope="row">Web API surface</th><td><strong>None new</strong> — the PSA calls the behavioral changes &ldquo;not directly web-exposed&rdquo;. The contract is behavioral: how <a href="https://notifications.spec.whatwg.org" target="_blank" rel="noopener">Notifications</a> and <a href="https://w3c.github.io/badging/" target="_blank" rel="noopener">Badging</a> behave for macOS PWAs</td></tr>
+      <tr><th scope="row">Runtime feature</th><td>base::Feature <code>features::kAppShimNotificationAttribution</code>, exposed at chrome://flags as <code>#enable-mac-pwas-notification-attribution</code>; enabled in Finch fieldtrial testing config 2026-07-08 (<a href="https://chromium-review.googlesource.com/c/chromium/src/+/8057884" target="_blank" rel="noopener">CL 8057884</a>)</td></tr>
+      <tr><th scope="row">History</th><td>Dev trial desktop 130; ship desktop 152 (<a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">PSA estimated milestones</a>)</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5863296436666368" target="_blank" rel="noopener">5863296436666368 — Notification attribution for PWAs on macOS</a> (blink component <code>UI&gt;Notifications</code>; tracking bug <a href="https://issues.chromium.org/issues/327449602" target="_blank" rel="noopener">327449602</a>)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5863296436666368" target="_blank" rel="noopener">chromestatus.com/feature/5863296436666368</a>; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">blink-dev PSA</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/about_flags.cc" target="_blank" rel="noopener">about_flags.cc</a></span>
+  </section>
+
+  <section>
+    <h2 id="syntax">syntax</h2>
+    <p>This feature adds no new syntax — the existing Notifications and Badging entry points are the trigger surface, and attribution is decided by Chrome from the posting context:</p>
+    <pre><code>// Triggers (unchanged web API surface):
+new Notification(title, options);                    // page context
+serviceWorkerRegistration.showNotification(title, options);
+navigator.setAppBadge(contents); / navigator.clearAppBadge();
+
+// Local testing switch (macOS only), compiled under BUILDFLAG(IS_MAC):
+chrome://flags/#enable-mac-pwas-notification-attribution</code></pre>
+    <p>Whether a given call is attributed depends on the <a href="#requirements">requirements</a> — the developer does not opt in or out per call.</p>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">blink-dev PSA</a> (&ldquo;not directly web-exposed&rdquo;); <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/about_flags.cc" target="_blank" rel="noopener">about_flags.cc</a></span>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>Before this change, every notification a PWA posted on macOS was displayed under the &ldquo;Google Chrome&rdquo; umbrella: Chrome's name, Chrome's icon, and Chrome's single entry in macOS notification settings. Users could not manage notification settings — sounds, badges, alert style, Focus modes — on a per-PWA basis, which the <a href="https://chromestatus.com/feature/5863296436666368" target="_blank" rel="noopener">ChromeStatus motivation</a> calls &ldquo;a highly requested native integration on macOS&rdquo;.</p>
+    <p>Routing delivery through the PWA's <strong>app shim</strong> (the small per-PWA <code>.app</code> bundle Chrome installs on macOS) gives each PWA its own identity with the operating system. Because macOS attributes a notification to the bundle that posts it, the PWA's name and icon appear in Notification Center and it gets its own entry in System Settings &rarr; Notifications, aligned with how native macOS applications behave.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5863296436666368" target="_blank" rel="noopener">ChromeStatus record — motivation</a>; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">blink-dev PSA — summary</a></span>
+  </section>
+
+  <section>
+    <h2 id="how-it-works">how it works</h2>
+    <p>The attribution is a delivery-path change inside Chrome and the app shim, verified against Chromium source:</p>
+    <ol>
+      <li><strong>Routing.</strong> When a web page or service worker that maps to an installed PWA posts a notification, Chrome connects to a <code>MacNotificationProvider</code> in the PWA's app shim process (<code>AppShimManager::LaunchNotificationProvider(app_id)</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/apps/app_shim/app_shim_manager_mac.h" target="_blank" rel="noopener"><code>app_shim_manager_mac.h</code></a>). If no shim is currently running, the call returns a remote connected to a <em>dummy notification provider</em> — the header documents a future change to instead launch the shim on demand.</li>
+      <li><strong>Shim-side delivery.</strong> The shim runs its own <code>MacNotificationServiceUN</code> bound to <code>UNUserNotificationCenter.currentNotificationCenter</code> (<code>AppShimController::BindNotificationService</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/app_shim/app_shim_controller.mm" target="_blank" rel="noopener"><code>app_shim_controller.mm</code></a>). Because the request is posted from the shim's own process and bundle, macOS attributes it to the PWA.</li>
+      <li><strong>Per-app OS permission.</strong> The app shim owns an operating-system-level notification permission of its own: <code>AppShimManager::ShowNotificationPermissionRequest(app_id)</code> triggers the OS prompt <em>shown by the shim</em>, and the result drives the web permission flow (see <a href="#permission-model">permission model</a>).</li>
+      <li><strong>Badging.</strong> <code>AppShimManager::UpdateAppBadge(profile, app_id, badge)</code> routes the app badge to the shim as part of the same integration (see <a href="app-badging/">app badging</a> for the new permission gate).</li>
+    </ol>
+    <p>Nothing in the Notifications or Badging web IDL changes. Web pages use the same <code>Notification</code> constructor, <code>ServiceWorkerRegistration.showNotification()</code>, and <code>navigator.setAppBadge()</code> calls as before; what changes is which process delivers them and which bundle macOS credits.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/apps/app_shim/app_shim_manager_mac.h" target="_blank" rel="noopener">app_shim_manager_mac.h</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/app_shim/app_shim_controller.mm" target="_blank" rel="noopener">app_shim_controller.mm</a>; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">blink-dev PSA</a></span>
+  </section>
+
+  <section>
+    <h2 id="requirements">requirements: when attribution applies</h2>
+    <p>Attribution is not unconditional. Chromium gates it on all of the following (<code>WebAppTabHelper::GetAppIdForNotificationAttribution</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/web_applications/web_app_tab_helper.cc" target="_blank" rel="noopener"><code>web_app_tab_helper.cc</code></a>, and <code>AppShimController::WebAppIsAdHocSigned</code> / <code>ShouldCreateNotificationServiceUN</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/app_shim/app_shim_controller.mm" target="_blank" rel="noopener"><code>app_shim_controller.mm</code></a>):</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Condition</th><th>Contract</th></tr></thead>
+      <tr><td>Feature enabled</td><td>base::Feature <code>kAppShimNotificationAttribution</code> is on — enabled by default in Chrome 152 (Finch), toggleable at chrome://flags <code>#enable-mac-pwas-notification-attribution</code></td></tr>
+      <tr><td>App installed with OS integration</td><td>The app's install state must be <code>INSTALLED_WITH_OS_INTEGRATION</code>; merely &ldquo;locally installed&rdquo; default apps are excluded</td></tr>
+      <tr><td>App shim exists</td><td>The app must be registered in the <code>AppShimRegistry</code> for the profile — i.e. a per-app shim bundle has actually been created</td></tr>
+      <tr><td>Shim is ad-hoc signed</td><td>The shim bundle's <code>Info.plist</code> key <code>kCrAppModeIsAdHocSignedKey</code> must be true; otherwise <code>ShouldCreateNotificationServiceUN()</code> returns false and no shim notification service is created. Ad-hoc signing is itself behind the separate <code>#use-adhoc-signing-for-web-app-shims</code> feature</td></tr>
+      <tr><td>macOS</td><td>The whole path is compiled under <code>BUILDFLAG(IS_MAC)</code>; no other platform is affected</td></tr>
+    </table>
+    </div>
+    <p>If any condition fails, notifications fall back to the previous behavior: delivered by Chrome itself and attributed to &ldquo;Google Chrome&rdquo;.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/web_applications/web_app_tab_helper.cc" target="_blank" rel="noopener">web_app_tab_helper.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/app_shim/app_shim_controller.mm" target="_blank" rel="noopener">app_shim_controller.mm</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/about_flags.cc" target="_blank" rel="noopener">about_flags.cc</a></span>
+  </section>
+
+  <section>
+    <h2 id="permission-model">the two-layer permission model</h2>
+    <p>With attribution active there are two permission layers for an installed PWA:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Layer</th><th>Owner</th><th>Behavior</th></tr></thead>
+      <tr><td>Web (origin) permission</td><td>Chrome content settings, per origin</td><td>Granted/denied via <code>Notification.requestPermission()</code> and Chrome's settings UI as before</td></tr>
+      <tr><td>OS (bundle) permission</td><td>macOS notification settings, per app shim bundle ID</td><td>The shim prompts via <code>UNUserNotificationCenter</code>; the user can also change it any time in System Settings &rarr; Notifications under the PWA's own name</td></tr>
+    </table>
+    </div>
+    <p>Chrome wires the layers together in the permission prompt path (<a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/ui/views/permissions/permission_prompt_notifications_mac.cc" target="_blank" rel="noopener"><code>permission_prompt_notifications_mac.cc</code></a>): when the web permission prompt runs for an attributed app, Chrome first asks the shim for its OS-level result —</p>
+    <ul>
+      <li><code>kPermissionGranted</code> &rarr; the web prompt is accepted.</li>
+      <li><code>kPermissionPreviouslyDenied</code> &rarr; the web prompt is <em>ignored</em> (no prompt shown) and Chrome records <code>NotificationsWasDeniedBecauseOfSystemPermission</code> in page-specific content settings.</li>
+      <li><code>kPermissionDenied</code> &rarr; the web prompt is denied.</li>
+    </ul>
+    <p>Practical consequence: once the user has denied the PWA at the macOS level, <code>Notification.requestPermission()</code> in that PWA no longer shows a prompt — recovery is only through System Settings &rarr; Notifications (or an MDM profile, for managed devices).</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/ui/views/permissions/permission_prompt_notifications_mac.cc" target="_blank" rel="noopener">permission_prompt_notifications_mac.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/apps/app_shim/app_shim_manager_mac.h" target="_blank" rel="noopener">app_shim_manager_mac.h</a></span>
+  </section>
+
+  <section>
+    <h2 id="behavior-contracts">behavior contracts</h2>
+    <p>The three developer- and administrator-facing contracts of this change each have a dedicated reference page:</p>
+    <ul>
+      <li><a href="requireinteraction/"><strong><code>requireInteraction</code> not honored for installed PWAs</strong></a> — notification persistence becomes a per-app macOS user setting; the web API field is ignored for attributed PWAs.</li>
+      <li><a href="app-badging/"><strong>App badging requires notification permission</strong></a> — <code>navigator.setAppBadge()</code> silently does nothing unless the PWA has notification permission.</li>
+      <li><a href="enterprise-deployment/"><strong>Enterprise pre-grant now requires MDM</strong></a> — the Chrome <code>NotificationsAllowedForUrls</code> policy must be paired with a macOS MDM configuration profile per PWA bundle ID.</li>
+    </ul>
+    <p>Both web-facing changes deliberately match the already-shipping behavior of installed web apps in Safari on macOS, per the <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">PSA</a> (&ldquo;Both of these changes match the already shipping behavior in WebKit&rdquo;).</p>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">blink-dev PSA — summary + interop section</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <p>There is no new API to call — the change is behavioral. What a developer can do is (1) stop depending on <code>requireInteraction</code> for macOS PWAs and (2) gate badge updates on notification permission:</p>
+    <pre><code>// Notifications: do not rely on requireInteraction persisting the alert
+// for installed PWAs on macOS — the user's per-app setting decides.
+const reg = await navigator.serviceWorker.ready;
+reg.showNotification("Order ready", {
+  body: "Pick up at counter 3",
+  // Still fine to set for other platforms; ignored by macOS PWA attribution:
+  requireInteraction: true,
+});
+
+// Badging: macOS PWAs now silently ignore setAppBadge() without
+// notification permission, so check first.
+async function updateBadge(count) {
+  if (!("setAppBadge" in navigator)) return;
+  if (Notification.permission !== "granted") return; // macOS no-op guard
+  await navigator.setAppBadge(count);
+}</code></pre>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v152/notification-attribution-for-pwas-on-macos/installed-attribution-inspector/"
+        title="Live example — installed attribution inspector" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase (route HEAD-checked 200, 2026-07-29). Also: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v152/notification-attribution-for-pwas-on-macos/notification-capability-lab/" target="_blank" rel="noopener">notification capability lab</a> and <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v152/notification-attribution-for-pwas-on-macos/badge-permission-lab/" target="_blank" rel="noopener">badge permission lab</a>.<span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v152/notification-attribution-for-pwas-on-macos/" target="_blank" rel="noopener">chrome-platform-showcase</a></span></figcaption>
+    </figure>
+    <p>ChromeStatus also links a <a href="https://googlechrome.github.io/samples/pwa-testing/notificationsapi/index.html" target="_blank" rel="noopener">Notifications API PWA-testing sample</a>.</p>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">blink-dev PSA — behavior changes</a>; <a href="https://chromestatus.com/feature/5863296436666368" target="_blank" rel="noopener">ChromeStatus sample link</a></span>
+  </section>
+
+  <section>
+    <h2 id="wpt">web platform tests</h2>
+    <p>There is <strong>no WPT coverage specific to this change</strong>: the attribution is browser-shell behavior with no web-exposed surface to assert against, and the PSA describes the behavioral changes as &ldquo;not directly web-exposed&rdquo;. The host-API suites continue to exist and are unaffected in scope:</p>
+    <ul>
+      <li><a href="https://github.com/web-platform-tests/wpt/tree/master/notifications" target="_blank" rel="noopener"><code>notifications/</code></a> — constructor, event, and permission tests for the Notifications API.</li>
+      <li><a href="https://github.com/web-platform-tests/wpt/tree/master/badging" target="_blank" rel="noopener"><code>badging/</code></a> — <code>setAppBadge</code>/<code>clearAppBadge</code> success, error, and IDL harness tests. None assert a notification-permission gate (that gate is Chrome-on-macOS PWA behavior, not spec behavior).</li>
+    </ul>
+    <span class="citation">Source: WPT <a href="https://github.com/web-platform-tests/wpt/tree/master/notifications" target="_blank" rel="noopener">notifications</a> and <a href="https://github.com/web-platform-tests/wpt/tree/master/badging" target="_blank" rel="noopener">badging</a> directories, fetched 2026-07-29; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">PSA</a></span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">browser compatibility</h2>
+    <p><em>Interim table.</em> BCD has no entry for the attribution behavior itself (it is browser-shell behavior, not an API member); the host APIs are covered. Rows below cite the linked BCD files verbatim, with the Chrome 152 macOS change annotated from the <a href="https://chromestatus.com/api/v0/features?milestone=152" target="_blank" rel="noopener">milestone listing</a> and <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">PSA</a>.</p>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <caption><code>Notification</code> option <code>requireInteraction</code> (<a href="https://github.com/mdn/browser-compat-data/blob/main/api/Notification.json" target="_blank" rel="noopener">BCD <code>api/Notification.json</code></a>, fetched 2026-07-29)</caption>
+      <thead><tr><th>Browser</th><th>Support</th><th>Evidence</th></tr></thead>
+      <tr><td>Chrome</td><td>47</td><td>BCD <code>version_added: 47</code>. <strong>152 (macOS):</strong> ignored for installed PWAs with attribution — per-app OS setting controls persistence (<a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">PSA</a>)</td></tr>
+      <tr><td>Edge</td><td>17</td><td>BCD <code>version_added: 17</code>; no separate statement on the macOS attribution change</td></tr>
+      <tr><td>Firefox</td><td>117 (partial)</td><td>BCD: &ldquo;Only supported on Windows. Behind a flag on other operating systems&rdquo; (<code>dom.webnotifications.requireinteraction.enabled</code>)</td></tr>
+      <tr><td>Safari</td><td>No support</td><td>BCD <code>version_added: false</code> — WebKit does not implement the field; installed web apps on macOS use per-app OS settings (the behavior Chrome is aligning to, per the PSA)</td></tr>
+    </table>
+    </div>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <caption><code>navigator.setAppBadge()</code> (<a href="https://github.com/mdn/browser-compat-data/blob/main/api/Navigator.json" target="_blank" rel="noopener">BCD <code>api/Navigator.json</code></a>, fetched 2026-07-29)</caption>
+      <thead><tr><th>Browser</th><th>Support</th><th>Evidence</th></tr></thead>
+      <tr><td>Chrome</td><td>81</td><td>BCD notes: &ldquo;Windows and macOS since Chrome 81. ChromeOS since Chrome 91. Linux offers no universal badging API on the operating system level.&rdquo; <strong>152 (macOS):</strong> requires notification permission for installed PWAs; silently no-ops without it (<a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">PSA</a>)</td></tr>
+      <tr><td>Edge</td><td>81 (mirror)</td><td>BCD <code>edge: mirror</code>; no separate statement on the macOS permission gate</td></tr>
+      <tr><td>Firefox</td><td>No support</td><td>BCD <code>version_added: false</code></td></tr>
+      <tr><td>Safari</td><td>17</td><td>BCD: &ldquo;Badging is supported for installed web apps on macOS Sonoma and higher&rdquo;; passing <code>0</code> clears the badge instead of showing an unnumbered dot</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Notification.json" target="_blank" rel="noopener">BCD api/Notification.json</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Navigator.json" target="_blank" rel="noopener">BCD api/Navigator.json</a>; <a href="https://webstatus.dev/features/notifications" target="_blank" rel="noopener">webstatus.dev notifications</a>; <a href="https://webstatus.dev/features/badging" target="_blank" rel="noopener">webstatus.dev badging</a> (both Baseline &ldquo;limited&rdquo;, 2026-07-29)</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <ul>
+      <li><strong>Attribution is identity-strengthening, not a new channel.</strong> Notifications a PWA already could show are now credited to the PWA's own bundle; no new data leaves the device and no new web-exposed surface is added (the PSA calls the changes &ldquo;not directly web-exposed&rdquo;).</li>
+      <li><strong>Per-app OS control.</strong> Users gain macOS-level control per PWA — alert style, sounds, badges, Focus modes — under System Settings &rarr; Notifications, which they previously only had for Chrome as a whole (the stated motivation).</li>
+      <li><strong>OS denial wins.</strong> A PWA whose macOS-level permission was denied cannot re-prompt from the web; <code>Notification.requestPermission()</code> is ignored and Chrome records the denial reason (<code>NotificationsWasDeniedBecauseOfSystemPermission</code>) for UI surfacing.</li>
+      <li><strong>Signing boundary.</strong> Attribution only happens for ad-hoc-signed shims (<code>WebAppIsAdHocSigned()</code>), so notification identity is tied to a shim bundle Chrome itself created and signed at install time.</li>
+      <li><strong>Managed devices.</strong> Enterprise pre-grants now span two trust domains (Chrome policy + macOS MDM); see <a href="enterprise-deployment/">enterprise deployment</a> for the exact requirements.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">blink-dev PSA</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/ui/views/permissions/permission_prompt_notifications_mac.cc" target="_blank" rel="noopener">permission_prompt_notifications_mac.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/app_shim/app_shim_controller.mm" target="_blank" rel="noopener">app_shim_controller.mm</a></span>
+  </section>
+
+  <section>
+    <h2 id="specifications">specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Document</th><th>Status</th></tr></thead>
+      <tr><td><a href="https://notifications.spec.whatwg.org" target="_blank" rel="noopener">Notifications API Standard</a> (WHATWG)</td><td>Living Standard — unchanged by this feature; <a href="https://notifications.spec.whatwg.org/#dom-notificationoptions-requireinteraction" target="_blank" rel="noopener"><code>requireInteraction</code> remains specified</a> (&ldquo;on devices with a sufficiently large screen, the notification should remain readily available until the end user activates or dismisses the notification&rdquo;)</td></tr>
+      <tr><td><a href="https://w3c.github.io/badging/" target="_blank" rel="noopener">Badging API</a> (W3C WICG)</td><td>Unchanged by this feature; the notification-permission gate is a Chrome-on-macOS platform constraint, not spec text</td></tr>
+      <tr><td><a href="https://chromeenterprise.google/policies/#NotificationsAllowedForUrls" target="_blank" rel="noopener">Chrome Enterprise policy — NotificationsAllowedForUrls</a></td><td>Existing policy; the macOS MDM profile is now additionally required for PWAs (see <a href="enterprise-deployment/">enterprise deployment</a>)</td></tr>
+    </table>
+    </div>
+    <p>There is no specification document for the attribution mechanism itself — it is an implementation detail of Chrome's macOS app shim layer; the authoritative records are the <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">PSA</a>, the <a href="https://chromestatus.com/feature/5863296436666368" target="_blank" rel="noopener">ChromeStatus entry</a>, and the linked Chromium source.</p>
+    <span class="citation">Source: documents linked above, fetched 2026-07-29</span>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/5863296436666368" target="_blank" rel="noopener">Chrome Platform Status — Notification attribution for PWAs on macOS</a> (<a href="https://chromestatus.com/api/v0/features/5863296436666368" target="_blank" rel="noopener">API record</a>)</li>
+      <li><a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">blink-dev — Web-Facing Change PSA: Notification attribution for PWAs on macOS</a></li>
+      <li><a href="https://issues.chromium.org/issues/327449602" target="_blank" rel="noopener">Chromium tracking bug 327449602</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Notifications_API" target="_blank" rel="noopener">MDN — Notifications API</a> and <a href="https://developer.mozilla.org/en-US/docs/Web/API/Badging_API" target="_blank" rel="noopener">MDN — Badging API</a> (host APIs; neither documents this macOS attribution behavior — checked 2026-07-29)</li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v152/notification-attribution-for-pwas-on-macos/" target="_blank" rel="noopener">Chrome Platform Showcase — interactive demos for this feature</a></li>
+      <li><a href="https://googlechrome.github.io/samples/pwa-testing/notificationsapi/index.html" target="_blank" rel="noopener">googlechrome.github.io — Notifications API PWA-testing sample</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

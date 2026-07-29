@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>requireInteraction (macOS PWA behavior) — Notification attribution for PWAs on macOS — Chrome 152 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .compat-table tr > *:nth-child(2) { min-width: 6.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .lede-block h1, .lede { overflow-wrap: anywhere; }
+    h1 code { overflow-wrap: normal; word-break: keep-all; display: inline-block; max-width: 100%; font-size: 0.82em; }
+    p code, li code { overflow-wrap: anywhere; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="../">&larr; Notification attribution for PWAs on macOS</a> · <a href="/v152/">Chrome 152 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v152 · behavior contract · notifications</p>
+    <h1><code>requireInteraction</code> is not honored for installed PWAs on macOS</h1>
+    <p class="lede">With <a href="../">notification attribution</a> active (Chrome 152+, macOS, installed PWAs), Chrome no longer supports the <code>requireInteraction</code> notification field for app notifications: whether an alert stays on screen is a <strong>per-app macOS setting controlled by the user</strong>, not a per-notification setting controlled by the app.</p>
+  </header>
+
+  <div class="warn-block" id="impact">
+    <strong>Breaking-change risk for critical-notification UX</strong>
+    If your PWA uses <code>requireInteraction: true</code> to keep calls, alarms, or time-critical alerts on screen until the user acts, that guarantee disappears for installed PWAs on macOS in Chrome 152. Users can set the PWA's alert style to &ldquo;Banners&rdquo; (auto-dismissing) in macOS settings, and the web app cannot override it. Provide an in-app fallback (for example a full-screen ringing UI) for flows that must not be missed.
+  </div>
+
+  <section>
+    <h2 id="syntax">syntax</h2>
+    <p>The web API surface is unchanged — the field still exists and is still specified:</p>
+    <pre><code>// Notifications API (WHATWG) — NotificationOptions.requireInteraction
+new Notification(title, { requireInteraction: true });
+serviceWorkerRegistration.showNotification(title, { requireInteraction: true });</code></pre>
+    <p>The WHATWG Notifications Standard defines <a href="https://notifications.spec.whatwg.org/#dom-notificationoptions-requireinteraction" target="_blank" rel="noopener"><code>requireInteraction</code></a> as a notification's <em>require interaction preference</em> (a boolean, initially false): &ldquo;When true, indicates that on devices with a sufficiently large screen, the notification should remain readily available until the end user activates or dismisses the notification.&rdquo;</p>
+    <span class="citation">Source: <a href="https://notifications.spec.whatwg.org/#dom-notificationoptions-requireinteraction" target="_blank" rel="noopener">WHATWG Notifications — NotificationOptions.requireInteraction</a></span>
+  </section>
+
+  <section>
+    <h2 id="inputs">inputs</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Input</th><th>Contract under attribution (Chrome 152+, macOS, installed PWA)</th></tr></thead>
+      <tr><td><code>requireInteraction: true</code></td><td><strong>Ignored.</strong> The notification is delivered through the PWA's app shim via <code>UNUserNotificationCenter</code>; persistence (banner vs. alert style) is the user's per-app macOS setting for the PWA, set in System Settings &rarr; Notifications</td></tr>
+      <tr><td><code>requireInteraction: false</code> / omitted</td><td>Unchanged — default behavior; the alert follows the same per-app macOS setting</td></tr>
+    </table>
+    </div>
+    <p>Scope of the change, per the <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">PSA</a>: &ldquo;For installed PWAs, Chrome will no longer support the <code>requireInteraction</code> field for notifications.&rdquo; Notifications posted by ordinary (non-installed) tabs in Chrome on macOS are not affected by this feature — they continue to be attributed to Google Chrome and keep the pre-152 behavior.</p>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">blink-dev PSA — summary</a></span>
+  </section>
+
+  <section>
+    <h2 id="outputs">outputs</h2>
+    <ul>
+      <li>The <code>Notification</code> object is still created and its <code>requireInteraction</code> getter still reflects the value passed in the options — the field is not removed from the API.</li>
+      <li>The observable difference is at the OS level: an attributed PWA notification's on-screen persistence follows the PWA's macOS alert-style setting (&ldquo;None&rdquo; / &ldquo;Banners&rdquo; / &ldquo;Alerts&rdquo;), regardless of the field's value.</li>
+      <li>Per the PSA, this &ldquo;matches the already shipping behavior in WebKit&rdquo; for installed web apps on macOS.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">blink-dev PSA</a>; <a href="https://notifications.spec.whatwg.org/#dom-notification-requireinteraction" target="_blank" rel="noopener">WHATWG Notifications — the getter</a></span>
+  </section>
+
+  <section>
+    <h2 id="errors">errors</h2>
+    <p>None. Passing <code>requireInteraction</code> never throws and produces no console warning — it is silently ignored for attributed PWAs. There is no programmatic signal that the preference was disregarded; developers should treat the field as advisory on this platform.</p>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">blink-dev PSA</a> (behavior stated as &ldquo;will no longer support&rdquo; with no error surface described); WHATWG spec defines no rejection path for the option</span>
+  </section>
+
+  <section>
+    <h2 id="context">context and exposure</h2>
+    <p>Applies only when <strong>all</strong> attribution requirements hold: macOS, the feature enabled (default in 152), the app installed with OS integration, an app shim registered, and the shim ad-hoc signed — see the <a href="../#requirements">requirements table</a>. When any condition fails, the notification is attributed to Google Chrome and <code>requireInteraction</code> behaves as before.</p>
+    <p>There is no web-exposed capability detection for &ldquo;is this notification attributed?&rdquo; — no API reports which delivery path was used. A pragmatic proxy is to check whether the page is running as an installed PWA (<code>matchMedia('(display-mode: standalone)')</code>) on macOS Chrome 152+ and avoid depending on the field there.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/web_applications/web_app_tab_helper.cc" target="_blank" rel="noopener">web_app_tab_helper.cc — gating conditions</a>; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">blink-dev PSA</a></span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">lifecycle</h2>
+    <ol>
+      <li>The web app creates the notification (page <code>new Notification()</code> or service worker <code>showNotification()</code>) with <code>requireInteraction</code> set.</li>
+      <li>Chrome resolves the posting context to an installed app id (<code>GetAppIdForNotificationAttribution</code>) and routes delivery to the PWA's app shim notification provider.</li>
+      <li>The shim posts a <code>UNNotificationRequest</code> to <code>UNUserNotificationCenter.currentNotificationCenter</code>. macOS applies the PWA's per-app notification settings — including alert style — with no channel for the app to request persistence.</li>
+      <li>The alert auto-dismisses or stays per the user's setting; activation/dismissal events flow back through the shim's action handler to the service worker as usual (<code>notificationclick</code>, <code>notificationclose</code>).</li>
+    </ol>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/app_shim/app_shim_controller.mm" target="_blank" rel="noopener">app_shim_controller.mm — BindNotificationService</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/web_applications/web_app_tab_helper.cc" target="_blank" rel="noopener">web_app_tab_helper.cc</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <pre><code>// Before (pre-152 macOS / other platforms): alert persists until dismissed
+reg.showNotification("Incoming call", {
+  body: "Ada is calling",
+  requireInteraction: true,
+});
+
+// Chrome 152+, installed PWA on macOS: same code, different outcome.
+// The field is ignored; the user's per-app alert style decides.
+// Robust pattern: don't encode "must persist" in the notification —
+// surface critical state in-app as well.
+const isMacPWA =
+  matchMedia("(display-mode: standalone)").matches &amp;&amp;
+  /Mac OS X/.test(navigator.userAgent);
+if (isMacPWA) {
+  showInAppRingUI(); // your own unmissable surface
+}
+reg.showNotification("Incoming call", { body: "Ada is calling" });</code></pre>
+    <p>Try it in the Chrome Platform Showcase <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v152/notification-attribution-for-pwas-on-macos/notification-capability-lab/" target="_blank" rel="noopener">notification capability lab</a> (route HEAD-checked 200, 2026-07-29).</p>
+    <span class="citation">Source: behavior per the <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">PSA</a>; demo per <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v152/notification-attribution-for-pwas-on-macos/" target="_blank" rel="noopener">chrome-platform-showcase</a></span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">browser compatibility</h2>
+    <p>From <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Notification.json" target="_blank" rel="noopener">BCD <code>api/Notification.json</code></a> (fetched 2026-07-29), with the macOS attribution change annotated — BCD itself has no entry for the attribution behavior:</p>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <thead><tr><th>Browser</th><th><code>requireInteraction</code></th><th>Notes</th></tr></thead>
+      <tr><td>Chrome</td><td>47</td><td><strong>152 (macOS):</strong> ignored for installed PWAs with attribution (<a href="https://chromestatus.com/api/v0/features?milestone=152" target="_blank" rel="noopener">listing</a>, <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">PSA</a>)</td></tr>
+      <tr><td>Edge</td><td>17</td><td>No separate statement on the macOS attribution change</td></tr>
+      <tr><td>Firefox</td><td>117 (partial)</td><td>&ldquo;Only supported on Windows. Behind a flag on other operating systems&rdquo; (<code>dom.webnotifications.requireinteraction.enabled</code>)</td></tr>
+      <tr><td>Safari</td><td>No support</td><td>BCD <code>version_added: false</code>; installed web apps on macOS use per-app OS settings — the behavior Chrome aligns to</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Notification.json" target="_blank" rel="noopener">BCD api/Notification.json</a>; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">blink-dev PSA</a></span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <ul>
+      <li><strong>User control over app control.</strong> Persistence moves from a per-notification app decision to a per-app user decision — users can no longer be forced to keep an alert on screen by an installed PWA on macOS.</li>
+      <li><strong>No fingerprinting surface added.</strong> The field continues to be accepted identically; there is no signal exposing whether attribution is active or which alert style the user chose.</li>
+      <li><strong>Do not compensate invasively.</strong> Because the platform intentionally removes the persistence guarantee, workarounds that try to recreate it (wake-lock tricks, re-posting loops) fight the user's explicit OS-level choice.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">blink-dev PSA — motivation and WebKit alignment</a></span>
+  </section>
+
+  <section>
+    <h2 id="specifications">specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><td><a href="https://notifications.spec.whatwg.org" target="_blank" rel="noopener">WHATWG Notifications API Standard</a> — <a href="https://notifications.spec.whatwg.org/#dom-notificationoptions-requireinteraction" target="_blank" rel="noopener"><code>requireInteraction</code></a></td><td>Living Standard — unchanged; the macOS behavior is a platform constraint layered on top, not a spec change</td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="../">Notification attribution for PWAs on macOS — overview</a></li>
+      <li><a href="../app-badging/">App badging requires notification permission</a></li>
+      <li><a href="../enterprise-deployment/">Enterprise deployment (MDM pre-grant)</a></li>
+      <li><a href="https://chromestatus.com/feature/5863296436666368" target="_blank" rel="noopener">ChromeStatus 5863296436666368</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Notification/requireInteraction" target="_blank" rel="noopener">MDN — Notification.requireInteraction</a> (API reference; does not document the macOS attribution behavior — checked 2026-07-29)</li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

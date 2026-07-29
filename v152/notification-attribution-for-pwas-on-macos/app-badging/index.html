@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>App badging requires notification permission (macOS PWAs) — Notification attribution for PWAs on macOS — Chrome 152 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .compat-table tr > *:nth-child(2) { min-width: 6.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .lede-block h1, .lede { overflow-wrap: anywhere; }
+    p code, li code { overflow-wrap: anywhere; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="../">&larr; Notification attribution for PWAs on macOS</a> · <a href="/v152/">Chrome 152 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v152 · behavior contract · badging</p>
+    <h1>App badging requires notification permission for installed PWAs on macOS</h1>
+    <p class="lede">With <a href="../">notification attribution</a> active (Chrome 152+, macOS, installed PWAs), the Badging API only updates the PWA's Dock icon badge when the app has <strong>notification permission</strong>. Without it, <code>navigator.setAppBadge()</code> and <code>navigator.clearAppBadge()</code> silently do nothing — no error, no rejection, no badge.</p>
+  </header>
+
+  <div class="warn-block" id="impact">
+    <strong>Silent failure — check permission before you badge</strong>
+    This is an intentional silent no-op, matching WebKit's behavior for installed web apps on macOS. If your PWA relies on the Dock badge (unread counts, pending tasks), request notification permission first or surface the count in-app; there is no programmatic way to detect that a badge update was dropped.
+  </div>
+
+  <section>
+    <h2 id="syntax">syntax</h2>
+    <p>The API surface is unchanged — the change is a precondition on the existing methods:</p>
+    <pre><code>// Badging API (W3C WICG)
+await navigator.setAppBadge(contents); // contents: optional integer
+await navigator.clearAppBadge();</code></pre>
+    <span class="citation">Source: <a href="https://w3c.github.io/badging/" target="_blank" rel="noopener">W3C Badging API — <code>setAppBadge()</code> / <code>clearAppBadge()</code></a></span>
+  </section>
+
+  <section>
+    <h2 id="inputs">inputs</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Input</th><th>Contract under attribution (Chrome 152+, macOS, installed PWA)</th></tr></thead>
+      <tr><td><code>setAppBadge(n)</code>, <code>n &gt; 0</code></td><td>Shows the number badge on the PWA's Dock icon <strong>only if notification permission is granted</strong>; otherwise silently ignored</td></tr>
+      <tr><td><code>setAppBadge()</code> / <code>setAppBadge(0)</code></td><td>Per the Badging API, no argument shows an unnumbered badge and <code>0</code> clears; the same permission precondition applies (Safari differs: <code>0</code> clears rather than showing a dot — see compatibility)</td></tr>
+      <tr><td><code>clearAppBadge()</code></td><td>Clears the badge; subject to the same permission gate</td></tr>
+    </table>
+    </div>
+    <p>Scope: the gate applies to the app badge of installed PWAs with attribution active. It does not change the Badging API on other platforms or for non-installed pages.</p>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">blink-dev PSA</a>; <a href="https://w3c.github.io/badging/" target="_blank" rel="noopener">W3C Badging API</a></span>
+  </section>
+
+  <section>
+    <h2 id="outputs">outputs</h2>
+    <ul>
+      <li>The returned <code>Promise</code> settles normally in both cases — <strong>there is no rejection when the update is dropped</strong>. The PSA states: &ldquo;If notifications permission isn't granted the API will silently do nothing.&rdquo;</li>
+      <li>When permission is granted, the badge is applied to the PWA's app shim Dock icon by macOS, routed via <code>AppShimManager::UpdateAppBadge(profile, app_id, badge)</code> (<a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/apps/app_shim/app_shim_manager_mac.h" target="_blank" rel="noopener"><code>app_shim_manager_mac.h</code></a>).</li>
+    </ul>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">blink-dev PSA</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/apps/app_shim/app_shim_manager_mac.h" target="_blank" rel="noopener">app_shim_manager_mac.h</a></span>
+  </section>
+
+  <section>
+    <h2 id="errors">errors</h2>
+    <p>The defining characteristic of this change is the <em>absence</em> of an error path: without notification permission the calls succeed from the page's point of view and simply have no effect. Permission state is observable in advance via <code>Notification.permission</code> (<code>"granted"</code> / <code>"denied"</code> / <code>"default"</code>) or <code>navigator.permissions.query({ name: "notifications" })</code> — check it before relying on the badge.</p>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">blink-dev PSA</a>; <a href="https://notifications.spec.whatwg.org" target="_blank" rel="noopener">WHATWG Notifications API Standard</a> — <a href="https://notifications.spec.whatwg.org/#permission" target="_blank" rel="noopener">permission model</a></span>
+  </section>
+
+  <section>
+    <h2 id="context">context and exposure</h2>
+    <p>The gate applies under the same conditions as attribution itself (macOS, installed with OS integration, registered ad-hoc-signed app shim, feature enabled — see <a href="../#requirements">requirements</a>). Why the coupling exists: with attribution, the badge belongs to the PWA's own bundle identity at the OS level, and macOS only shows a bundle's badge when that bundle is permitted to post notifications — badge visibility is part of per-app notification settings.</p>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">blink-dev PSA</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/web_applications/web_app_tab_helper.cc" target="_blank" rel="noopener">web_app_tab_helper.cc</a></span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">lifecycle</h2>
+    <ol>
+      <li>The PWA calls <code>navigator.setAppBadge(n)</code> (page or service worker context, per the Badging API).</li>
+      <li>Chrome checks the app's notification permission for the attributed PWA (the two-layer model — web origin permission plus the shim's OS-level permission; see the <a href="../#permission-model">permission model</a>).</li>
+      <li>Granted &rarr; the badge value is routed to the app shim (<code>UpdateAppBadge</code>) and macOS updates the Dock icon. Not granted &rarr; the call silently does nothing.</li>
+      <li>Revoking notification permission later (macOS settings or Chrome settings) removes the OS-level badge display; subsequent calls no-op until permission is restored.</li>
+    </ol>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">blink-dev PSA</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/apps/app_shim/app_shim_manager_mac.h" target="_blank" rel="noopener">app_shim_manager_mac.h</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/ui/views/permissions/permission_prompt_notifications_mac.cc" target="_blank" rel="noopener">permission_prompt_notifications_mac.cc</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <pre><code>// Gate badge updates on notification permission — required for
+// installed PWAs on macOS from Chrome 152.
+async function updateUnreadBadge(count) {
+  if (!("setAppBadge" in navigator)) return;
+  if (Notification.permission !== "granted") {
+    showInAppUnreadIndicator(count); // don't lose the signal
+    return;
+  }
+  if (count &gt; 0) {
+    await navigator.setAppBadge(count);
+  } else {
+    await navigator.clearAppBadge();
+  }
+}
+
+// Ask up front (from a user gesture) if your UX depends on the badge:
+enableButton.addEventListener("click", async () =&gt; {
+  const result = await Notification.requestPermission();
+  if (result === "granted") await updateUnreadBadge(currentCount);
+});</code></pre>
+    <p>Try it in the Chrome Platform Showcase <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v152/notification-attribution-for-pwas-on-macos/badge-permission-lab/" target="_blank" rel="noopener">badge permission lab</a> (route HEAD-checked 200, 2026-07-29).</p>
+    <span class="citation">Source: behavior per the <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">PSA</a>; demo per <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v152/notification-attribution-for-pwas-on-macos/" target="_blank" rel="noopener">chrome-platform-showcase</a></span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">browser compatibility</h2>
+    <p>From <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Navigator.json" target="_blank" rel="noopener">BCD <code>api/Navigator.json</code></a> <code>setAppBadge</code> (fetched 2026-07-29), with the macOS permission gate annotated — BCD has no entry for the gate itself:</p>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <thead><tr><th>Browser</th><th><code>setAppBadge()</code></th><th>Notes</th></tr></thead>
+      <tr><td>Chrome</td><td>81</td><td>BCD notes: &ldquo;Windows and macOS since Chrome 81. ChromeOS since Chrome 91. Linux offers no universal badging API on the operating system level.&rdquo; <strong>152 (macOS):</strong> notification permission required for installed PWAs (<a href="https://chromestatus.com/api/v0/features?milestone=152" target="_blank" rel="noopener">listing</a>, <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">PSA</a>)</td></tr>
+      <tr><td>Edge</td><td>81 (mirror)</td><td>BCD <code>edge: mirror</code>; no separate statement on the macOS permission gate</td></tr>
+      <tr><td>Firefox</td><td>No support</td><td>BCD <code>version_added: false</code></td></tr>
+      <tr><td>Safari</td><td>17</td><td>&ldquo;Badging is supported for installed web apps on macOS Sonoma and higher&rdquo;; passing <code>0</code> clears the badge instead of displaying an unnumbered dot</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Navigator.json" target="_blank" rel="noopener">BCD api/Navigator.json</a>; <a href="https://webstatus.dev/features/badging" target="_blank" rel="noopener">webstatus.dev badging</a> (Baseline &ldquo;limited&rdquo;, 2026-07-29)</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <ul>
+      <li><strong>Consent coupling.</strong> The badge is a persistent, attention-demanding surface; tying it to notification permission means a user who revoked a PWA's notifications also loses its Dock badge — one consent decision governs both.</li>
+      <li><strong>No silent degradation signal.</strong> Pages cannot distinguish &ldquo;badge applied&rdquo; from &ldquo;badge dropped for lack of permission&rdquo; after the fact; the only reliable check is the permission state before calling.</li>
+      <li><strong>Matches WebKit's trust model.</strong> Safari applies the same coupling for installed web apps on macOS, so cross-browser PWAs can share one gating strategy.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">blink-dev PSA — behavior + WebKit alignment</a></span>
+  </section>
+
+  <section>
+    <h2 id="specifications">specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><td><a href="https://w3c.github.io/badging/" target="_blank" rel="noopener">W3C Badging API</a></td><td>WICG draft — unchanged; the notification-permission precondition is a Chrome-on-macOS platform constraint, not spec text</td></tr>
+      <tr><td><a href="https://notifications.spec.whatwg.org" target="_blank" rel="noopener">WHATWG Notifications API Standard</a> — <a href="https://notifications.spec.whatwg.org/#permission" target="_blank" rel="noopener">permission model</a></td><td>Living Standard — referenced for the permission state the gate consults</td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="../">Notification attribution for PWAs on macOS — overview</a></li>
+      <li><a href="../requireinteraction/"><code>requireInteraction</code> not honored for installed PWAs</a></li>
+      <li><a href="../enterprise-deployment/">Enterprise deployment (MDM pre-grant)</a></li>
+      <li><a href="https://chromestatus.com/feature/5863296436666368" target="_blank" rel="noopener">ChromeStatus 5863296436666368</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Badging_API" target="_blank" rel="noopener">MDN — Badging API</a> (does not document the macOS permission gate — checked 2026-07-29)</li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

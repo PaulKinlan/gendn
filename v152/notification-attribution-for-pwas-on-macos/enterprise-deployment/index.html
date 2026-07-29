@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Enterprise deployment — Notification attribution for PWAs on macOS — Chrome 152 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .lede-block h1, .lede { overflow-wrap: anywhere; }
+    p code, li code { overflow-wrap: anywhere; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="../">&larr; Notification attribution for PWAs on macOS</a> · <a href="/v152/">Chrome 152 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v152 · behavior contract · enterprise</p>
+    <h1>Enterprise deployment: pre-granting notification permission now requires MDM</h1>
+    <p class="lede">Administrators who pre-grant notification permissions with Chrome policy must update their configuration for <a href="../">notification attribution</a>: in addition to the Chrome origin-based <code>NotificationsAllowedForUrls</code> policy, they must deploy a <strong>macOS MDM configuration profile</strong> that pre-grants notification permission to each PWA's specific bundle ID.</p>
+  </header>
+
+  <div class="warn-block" id="impact">
+    <strong>Existing pre-grants stop working for PWAs unless both layers are configured</strong>
+    With attribution active (Chrome 152+, macOS), the web-origin permission granted by Chrome policy is no longer sufficient on its own: the app shim's <em>operating-system-level</em> permission is also consulted (see the <a href="../#permission-model">two-layer permission model</a>). A PWA whose OS-level permission was never granted — or was denied at the macOS level — cannot show notifications even when <code>NotificationsAllowedForUrls</code> allows its origin, and its web permission prompt is ignored with the denial recorded as a system-permission denial.
+  </div>
+
+  <section>
+    <h2 id="syntax">syntax</h2>
+    <p>Two complementary configuration surfaces — neither replaces the other:</p>
+    <pre><code># 1. Chrome policy (origin layer) — pre-grants the web permission
+NotificationsAllowedForUrls = ["https://app.example.com"]
+
+# 2. macOS MDM configuration profile (OS layer) — pre-grants the
+#    bundle-layer notification permission for the PWA's app shim,
+#    identified by the shim's bundle identifier.</code></pre>
+    <span class="citation">Source: <a href="https://chromeenterprise.google/policies/#NotificationsAllowedForUrls" target="_blank" rel="noopener">Chrome Enterprise policy list — NotificationsAllowedForUrls</a>; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">blink-dev PSA — administrator guidance</a></span>
+  </section>
+
+  <section>
+    <h2 id="inputs">inputs</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Configuration</th><th>Contract</th></tr></thead>
+      <tr><td><code>NotificationsAllowedForUrls</code></td><td>Existing Chrome enterprise policy: list of origin URL patterns for which the web-level notifications permission is granted without prompting. Continues to govern the Chrome/origin layer</td></tr>
+      <tr><td>macOS MDM configuration profile</td><td>New requirement with attribution: a notifications payload that pre-grants (or otherwise manages) the OS-level notification permission for the PWA app shim's <strong>bundle ID</strong>. Deployed through the organization's MDM, per managed device</td></tr>
+      <tr><td>PWA bundle ID</td><td>The macOS bundle identifier of the installed PWA's app shim — the value the MDM profile targets. Each installed PWA has its own shim bundle, so each needs its own profile entry</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">blink-dev PSA</a>; <a href="https://chromeenterprise.google/policies/#NotificationsAllowedForUrls" target="_blank" rel="noopener">Chrome Enterprise policies</a></span>
+  </section>
+
+  <section>
+    <h2 id="outputs">outputs</h2>
+    <ul>
+      <li><strong>Both configured:</strong> the managed PWA can post attributed notifications without a user prompt — the pre-152 managed behavior is preserved.</li>
+      <li><strong>Chrome policy only:</strong> the web layer grants, but the shim's OS-level permission is unset (or user-denied); the notification flow consults the OS layer and the app cannot rely on prompt-free notifications.</li>
+      <li><strong>MDM profile only:</strong> the OS layer grants for the bundle, but the origin is still subject to the normal web permission prompt unless Chrome policy also allows it.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">blink-dev PSA</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/ui/views/permissions/permission_prompt_notifications_mac.cc" target="_blank" rel="noopener">permission_prompt_notifications_mac.cc</a></span>
+  </section>
+
+  <section>
+    <h2 id="errors">errors and failure modes</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Failure mode</th><th>Symptom and recovery</th></tr></thead>
+      <tr><td>MDM profile not deployed</td><td>The PWA's web notification prompt may be ignored when the OS layer has already denied; Chrome records <code>NotificationsWasDeniedBecauseOfSystemPermission</code>. Recovery: deploy the profile for the shim bundle ID, or have the user enable the PWA in System Settings &rarr; Notifications</td></tr>
+      <tr><td>Profile targets the wrong bundle ID</td><td>The OS grant does not apply to the PWA's shim; symptoms identical to &ldquo;not deployed&rdquo;. Verify the installed shim's bundle identifier on a managed device</td></tr>
+      <tr><td>User denied at OS level before MDM</td><td>A subsequent MDM grant replaces the user choice per macOS profile semantics; until the profile arrives, web prompts stay ignored</td></tr>
+      <tr><td>Badging expected without notifications</td><td><code>setAppBadge()</code> silently no-ops under the new gate (see <a href="../app-badging/">app badging</a>); the same MDM + policy pre-grant restores it</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/ui/views/permissions/permission_prompt_notifications_mac.cc" target="_blank" rel="noopener">permission_prompt_notifications_mac.cc</a>; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">blink-dev PSA</a></span>
+  </section>
+
+  <section>
+    <h2 id="context">context and exposure</h2>
+    <p>This contract concerns device administrators, not web developers: it applies only to managed macOS devices running Chrome 152+ with installed PWAs covered by notification attribution. It is independent of the web platform — nothing here is observable from page JavaScript beyond the standard <code>Notification.permission</code> state.</p>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">blink-dev PSA — administrator guidance</a></span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">lifecycle</h2>
+    <ol>
+      <li><strong>Pre-152:</strong> admin sets <code>NotificationsAllowedForUrls</code>; the PWA's origin is granted at the web layer and notifications appear under Google Chrome.</li>
+      <li><strong>Chrome 152 rollout:</strong> attribution activates for installed PWAs; delivery moves to each PWA's app shim and the OS-level bundle permission is consulted.</li>
+      <li><strong>Admin action:</strong> deploy the macOS MDM configuration profile pre-granting notifications for each managed PWA's shim bundle ID, alongside the existing Chrome policy.</li>
+      <li><strong>Steady state:</strong> managed PWAs notify (and badge) without prompts, attributed to their own name and icon; users retain per-app control in macOS settings unless the MDM profile locks the setting.</li>
+    </ol>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">blink-dev PSA</a>; <a href="https://chromestatus.com/feature/5863296436666368" target="_blank" rel="noopener">ChromeStatus record</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <pre><code># Chrome policy (origin layer) — e.g. via plist or cloud policy:
+#   NotificationsAllowedForUrls:
+#     - "https://crm.example.com"
+#     - "https://mail.example.com"
+#
+# MDM (OS layer) — deploy a macOS configuration profile whose
+# notifications payload pre-approves each PWA app-shim bundle ID,
+# e.g. the bundle for "CRM" and the bundle for "Mail".
+# (Payload details are MDM-vendor specific; the Chrome requirement
+#  is that the *PWA's* bundle ID — not com.google.Chrome — is
+#  pre-granted.)</code></pre>
+    <p>Verifying on a managed device: install the PWA, confirm its entry appears by name in System Settings &rarr; Notifications, and confirm <code>Notification.permission</code> reports <code>"granted"</code> inside the PWA without any prompt.</p>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">blink-dev PSA</a>; <a href="https://chromeenterprise.google/policies/#NotificationsAllowedForUrls" target="_blank" rel="noopener">Chrome Enterprise policies</a></span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">compatibility</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Environment</th><th>Contract</th></tr></thead>
+      <tr><td>Chrome 152+ macOS, managed</td><td>Both <code>NotificationsAllowedForUrls</code> <em>and</em> an MDM profile per PWA bundle ID required for prompt-free pre-grant (<a href="https://chromestatus.com/api/v0/features?milestone=152" target="_blank" rel="noopener">listing</a>, <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">PSA</a>)</td></tr>
+      <tr><td>Chrome &le; 151 macOS</td><td><code>NotificationsAllowedForUrls</code> alone sufficient (notifications attributed to Google Chrome)</td></tr>
+      <tr><td>Chrome on Windows / ChromeOS / Linux</td><td>Unaffected — attribution is macOS-only; Chrome policy pre-grant behaves as before</td></tr>
+      <tr><td>Android / WebView</td><td>Out of scope — the PSA records no Android/WebView milestones for this feature</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5863296436666368" target="_blank" rel="noopener">ChromeStatus record</a>; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">blink-dev PSA</a></span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <ul>
+      <li><strong>Two consent domains.</strong> A pre-grant now spans Chrome policy (web origin) and macOS MDM (bundle). Auditing only one layer gives an incomplete picture of which apps can interrupt the user.</li>
+      <li><strong>Per-app granularity cuts both ways.</strong> Users (and MDM) can manage a single PWA's notifications without affecting Chrome's other notifications — finer control, but also more entries to govern.</li>
+      <li><strong>OS denial is sticky.</strong> A user-level macOS denial makes web-layer prompts inert until the MDM profile or the user reverses it; helpdesk runbooks should start at System Settings &rarr; Notifications, not Chrome settings.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">blink-dev PSA</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/ui/views/permissions/permission_prompt_notifications_mac.cc" target="_blank" rel="noopener">permission_prompt_notifications_mac.cc</a></span>
+  </section>
+
+  <section>
+    <h2 id="specifications">specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><td><a href="https://chromeenterprise.google/policies/#NotificationsAllowedForUrls" target="_blank" rel="noopener">Chrome Enterprise policy — NotificationsAllowedForUrls</a></td><td>Active policy — unchanged semantics for the origin layer</td></tr>
+      <tr><td><a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">blink-dev PSA — administrator guidance</a></td><td>Authoritative public statement of the MDM requirement (2026-07-09)</td></tr>
+    </table>
+    </div>
+    <p>There is no public Chrome document yet detailing the MDM payload keys for PWA shim bundles; the PSA is the authoritative requirement statement as of 2026-07-29 (tracked in the critique's open questions).</p>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="../">Notification attribution for PWAs on macOS — overview</a></li>
+      <li><a href="../requireinteraction/"><code>requireInteraction</code> not honored for installed PWAs</a></li>
+      <li><a href="../app-badging/">App badging requires notification permission</a></li>
+      <li><a href="https://chromestatus.com/feature/5863296436666368" target="_blank" rel="noopener">ChromeStatus 5863296436666368</a></li>
+      <li><a href="https://issues.chromium.org/issues/327449602" target="_blank" rel="noopener">Chromium tracking bug 327449602</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
