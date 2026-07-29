@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>XSLT deprecation origin trial &amp; XSLTEnabled policy — Chrome 152 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code { overflow-wrap: anywhere; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .baseline-banner { border: 2px solid var(--border-black); padding: 1rem 1.2rem; margin: 1.5rem 0; background: var(--bg-paper); box-shadow: var(--thin-shadow); }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v152/deprecate-and-remove-xslt/">&larr; Deprecate and remove XSLT</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v152 · origin trial · enterprise policy · escape hatches</p>
+    <h1>&ldquo;XSLT&rdquo; deprecation trial &amp; <code>XSLTEnabled</code></h1>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Chrome-only escape hatches &mdash; time-boxed to Chrome 176</p>
+      <ul class="baseline-browsers">
+        <li>Chrome · trial + policy from 152</li>
+        <li class="limited">Edge · enterprise policy applicable (Chromium)</li>
+        <li class="limited">Firefox · n/a</li>
+        <li class="limited">Safari · n/a</li>
+      </ul>
+      <p>Both mechanisms end in <strong>Chrome 176 (Aug 17, 2027)</strong> per the <a href="https://developer.chrome.com/docs/web-platform/deprecating-xslt" target="_blank" rel="noopener">removal guide</a> — they buy migration time, they do not preserve the feature. ChromeStatus: <a href="https://chromestatus.com/feature/4709671889534976" target="_blank" rel="noopener">4709671889534976 — Deprecate and remove XSLT</a>.
+      </p>
+    </div>
+
+    <p class="lede">Two sanctioned mechanisms keep XSLT working past the Chrome 158 removal: the <strong>&ldquo;XSLT&rdquo; deprecation origin trial</strong> (a reverse trial — a token that <em>re-enables</em> a removed feature for your origin, Chrome 152&ndash;175) and the <strong><code>XSLTEnabled</code> enterprise policy</strong> (admin-deployed, same window). This page documents both contracts: registration, token serving, scope, and end-of-life.</p>
+  </header>
+
+  <div class="warn-block" id="time-boxed">
+    <strong>Time-boxed by design &mdash; plan the real migration</strong>
+    <p>The trial and policy stop functioning in Chrome 176 (Aug 17, 2027), after which XSLT is disabled for all users. Registering is cheap; migrating is the actual work — see <a href="/v152/deprecate-and-remove-xslt/#migration">migration paths</a>.</p>
+  </div>
+
+  <section>
+    <h2 id="deprecation-trial">the &ldquo;XSLT&rdquo; deprecation origin trial</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Trial name</th><td><code>XSLT</code> (<a href="https://developer.chrome.com/origintrials/" target="_blank" rel="noopener">origin trials console</a>; ChromeStatus origin-trial id <code>1902207892610613249</code>)</td></tr>
+      <tr><th scope="row">Type</th><td><strong>Deprecation trial</strong> (<code>origin_trial_type: "deprecation"</code> in the <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime flag record</a>) — a token restores the disabled feature instead of enabling a new one</td></tr>
+      <tr><th scope="row">Window</th><td>Chrome <strong>152&ndash;175</strong> (desktop, Android, WebView) — live from Aug 25, 2026; ends before the final M176 removal</td></tr>
+      <tr><th scope="row">Effect</th><td>Both removed surfaces return on the served origin: <code>window.XSLTProcessor</code> is present again and XSLT processing instructions run</td></tr>
+      <tr><th scope="row">Third-party tokens</th><td><strong>Supported</strong> (<code>origin_trial_allows_third_party: true</code>) — embedders can enable XSLT for their embedded contexts</td></tr>
+      <tr><th scope="row">Insecure origins</th><td><strong>Allowed</strong> (<code>origin_trial_allows_insecure: true</code>) — notable because intranet/embedded XML devices often run plain HTTP</td></tr>
+      <tr><th scope="row">Owner</th><td>masonfreed@google.com; feedback template on <a href="https://issues.chromium.org/issues/new?component=1456730&amp;template=2210866" target="_blank" rel="noopener">issues.chromium.org</a></td></tr>
+    </table>
+    </div>
+    <h3 id="trial-steps">registration and serving</h3>
+    <ol>
+      <li>Register your origin for the <code>XSLT</code> trial at the <a href="https://developer.chrome.com/origintrials/" target="_blank" rel="noopener">origin trials console</a> (or for third-party use, request a third-party token). Registration opened ahead of M152 — the <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/CAM%3DNeDhO%3D2mNq8QyzU5Ah9z8FR6pO9tct9G_prKD6bdtAE7cwA%40mail.gmail.com" target="_blank" rel="noopener">Request for Deprecation Trial</a> (Jun 2026) deliberately runs the trial early so sites can test before M158.</li>
+      <li>Serve the token on every page that needs XSLT, either as a meta tag or an HTTP header:</li>
+    </ol>
+    <pre><code>&lt;meta http-equiv="origin-trial" content="TOKEN_FROM_DEVELOPER.CHROME.COM/ORIGINTRIALS"&gt;
+
+# or, as a response header:
+Origin-Trial: TOKEN_FROM_DEVELOPER.CHROME.COM/ORIGINTRIALS</code></pre>
+    <p>For local development, the equivalent is the feature flag rather than a token: <code>chrome://flags/#xslt</code> set to <em>Enabled</em>, or launch with <code>--enable-blink-features=XSLT</code> (the runtime feature is <code>public: true</code>).</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/4709671889534976" target="_blank" rel="noopener">ChromeStatus API record, origin-trial stage</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime flag record</a>; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/CAM%3DNeDhO%3D2mNq8QyzU5Ah9z8FR6pO9tct9G_prKD6bdtAE7cwA%40mail.gmail.com" target="_blank" rel="noopener">blink-dev — Request for Deprecation Trial</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="enterprise-policy">the XSLTEnabled enterprise policy</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Policy</th><td><a href="https://chromeenterprise.google/policies/#XSLTEnabled" target="_blank" rel="noopener"><code>XSLTEnabled</code></a> (Chrome Enterprise policy list)</td></tr>
+      <tr><th scope="row">Available</th><td>Live for testing from <strong>Chrome 146</strong> (Mar 10, 2026) per the removal guide — before the M158 removal, so enterprises can test both states</td></tr>
+      <tr><th scope="row">Effect</th><td>Lets an enterprise keep XSLT enabled past the removal date for managed browsers; also usable to test the disabled state early</td></tr>
+      <tr><th scope="row">End of life</th><td>Stops functioning in <strong>Chrome 176</strong> (Aug 17, 2027) together with the origin trial</td></tr>
+      <tr><th scope="row">Discovery</th><td>Pair with the <a href="https://support.google.com/chrome/a/answer/11368526" target="_blank" rel="noopener">Legacy Technology Report</a> to find deprecated-feature usage across the fleet before deciding where to set the policy</td></tr>
+    </table>
+    </div>
+    <p>Deployment uses the standard Chromium policy mechanisms — for example:</p>
+    <pre><code># Linux: /etc/opt/chrome/policies/managed/xslt.json
+{ "XSLTEnabled": true }
+
+# Windows (registry): HKLM\Software\Policies\Google\Chrome
+"XSLTEnabled" = 1 (DWORD)
+
+# macOS: defaults write com.google.Chrome XSLTEnabled -bool true</code></pre>
+    <span class="citation">Source: <a href="https://developer.chrome.com/docs/web-platform/deprecating-xslt" target="_blank" rel="noopener">removal guide (timeline, detection)</a>; <a href="https://chromeenterprise.google/policies/#XSLTEnabled" target="_blank" rel="noopener">Chrome Enterprise policy list</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="errors">error and edge behavior</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Situation</th><th>Behavior</th></tr></thead>
+      <tr><td>Token expired or for the wrong origin</td><td>Standard origin-trial handling: the feature stays disabled — no XSLT-specific error surface is defined by the sources (2026-07-29)</td></tr>
+      <tr><td>Token served only on some pages</td><td>Trial state is per-document: pages without the token see the removed behavior (raw XML / no <code>XSLTProcessor</code>)</td></tr>
+      <tr><td>Trial window ends (M176)</td><td>Tokens and the policy stop being honored; XSLT is disabled for everyone — there is no second extension on the record</td></tr>
+      <tr><td>Policy vs trial conflict</td><td>Not specified in the sources; both independently restore the feature, and the sources define no precedence (recorded as an open question in the critique)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://developer.chrome.com/docs/web-platform/deprecating-xslt" target="_blank" rel="noopener">removal guide</a>; <a href="https://chromestatus.com/api/v0/features/4709671889534976" target="_blank" rel="noopener">ChromeStatus record</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">browser compatibility</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Escape hatch</th><th>Window</th></tr></thead>
+      <tr><td>Chrome</td><td>Deprecation trial + <code>XSLTEnabled</code> policy</td><td>152&ndash;175 (both end in 176)</td></tr>
+      <tr><td>Edge</td><td>Chromium-based; the enterprise policy applies — no separate statement on the record</td><td>Follows Chromium</td></tr>
+      <tr><td>Firefox</td><td>None on the record</td><td>&mdash;</td></tr>
+      <tr><td>Safari</td><td>None on the record (WebKit's position mentions possibly matching a reverse-trial origin list)</td><td>&mdash;</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/4709671889534976" target="_blank" rel="noopener">ChromeStatus record</a>; <a href="https://github.com/whatwg/html/issues/11523#issuecomment-3149280766" target="_blank" rel="noopener">WebKit position comment</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <ul>
+      <li><strong>Why the hatches are time-boxed</strong> — every day the trial/policy keeps libxslt alive is a day of continued memory-safety exposure (the reason for removal); the M176 hard stop is the security endgame.</li>
+      <li><strong>Third-party + insecure allowances widen exposure deliberately</strong> — the runtime flag record permits both, so intranet XML devices and embedded contexts can be reached; treat third-party tokens as extending an attack surface you are responsible for retiring.</li>
+      <li><strong>Origin-scoped</strong> — the token restores the feature only on your origin; it does not re-expose other origins' users.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime flag record</a>; <a href="https://developer.chrome.com/docs/web-platform/deprecating-xslt" target="_blank" rel="noopener">removal guide</a>.</span>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

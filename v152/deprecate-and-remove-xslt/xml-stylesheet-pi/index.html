@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>xml-stylesheet XSLT processing instruction — Deprecate and remove XSLT — Chrome 152 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code { overflow-wrap: anywhere; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .baseline-banner { border: 2px solid var(--border-black); padding: 1rem 1.2rem; margin: 1.5rem 0; background: var(--bg-paper); box-shadow: var(--thin-shadow); }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v152/deprecate-and-remove-xslt/">&larr; Deprecate and remove XSLT</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v152 · removal · xml</p>
+    <h1><code>&lt;?xml-stylesheet type="text/xsl" ?&gt;</code></h1>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Baseline widely available &mdash; <strong>being removed</strong></p>
+      <ul class="baseline-browsers">
+        <li>Chrome · removal from 158</li>
+        <li class="limited">Edge · follows Chromium</li>
+        <li class="limited">Firefox · removal planned</li>
+        <li class="limited">Safari · removal planned</li>
+      </ul>
+      <p>Usage of XSL processing instructions is ~0.001% of page loads &mdash; at the safe-deprecation threshold &mdash; per the <a href="https://chromestatus.com/api/v0/features/4709671889534976" target="_blank" rel="noopener">ChromeStatus record</a> (<a href="https://chromestatus.com/metrics/feature/timeline/popularity/78" target="_blank" rel="noopener">use counter</a>). ChromeStatus: <a href="https://chromestatus.com/feature/4709671889534976" target="_blank" rel="noopener">4709671889534976 — Deprecate and remove XSLT</a>.
+      </p>
+    </div>
+
+    <p class="lede">An XSLT processing instruction in an XML document — <code>&lt;?xml-stylesheet type="text/xsl" href="style.xsl"?&gt;</code> — makes the browser transform the document with the referenced stylesheet before rendering, typically turning raw XML into HTML. This behavior is <strong>deprecated since Chrome 143 and removed from Stable in Chrome 158</strong>: the document then renders as raw, untransformed XML (with a warning banner pointing users at an extension). The same PI with <code>type="text/css"</code> is <strong>not</strong> affected.</p>
+  </header>
+
+  <div class="warn-block" id="removed-behavior">
+    <strong>Removed behavior &mdash; raw XML will be shown instead of your page</strong>
+    <p>After Chrome 158, any user-facing flow that relies on an XSLT-transformed XML response renders the untransformed XML instead. Add the <a href="#polyfill">one-line polyfill</a> to the XML itself, move the transform server-side, or register the <a href="/v152/deprecate-and-remove-xslt/deprecation-trial/">deprecation origin trial</a> for time.</p>
+  </div>
+
+  <section>
+    <h2 id="syntax">syntax</h2>
+    <p>The PI grammar is defined by <a href="https://www.w3.org/TR/xml-stylesheet/" target="_blank" rel="noopener">Associating Style Sheets with XML documents</a>; the transformation semantics are XSLT 1.0 (<a href="https://www.w3.org/TR/xslt-10/" target="_blank" rel="noopener">W3C Recommendation, 1999</a>). The removal targets the XSLT <code>type</code> values only:</p>
+    <pre><code>&lt;?xml version="1.0"?&gt;
+&lt;?xml-stylesheet type="text/xsl" href="demo.xsl"?&gt;   &lt;!-- removed --&gt;
+&lt;?xml-stylesheet type="application/xslt+xml" href="demo.xsl"?&gt;  &lt;!-- removed --&gt;
+&lt;?xml-stylesheet type="text/css" href="styles.css"?&gt;  &lt;!-- NOT removed --&gt;
+&lt;page&gt;
+  &lt;message&gt;Hello World.&lt;/message&gt;
+&lt;/page&gt;</code></pre>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Pseudo-attribute</th><th>Role</th></tr></thead>
+      <tr><td><code>type="text/xsl"</code> / <code>type="application/xslt+xml"</code></td><td>Selects XSLT processing — <strong>the removed behavior</strong></td></tr>
+      <tr><td><code>type="text/css"</code></td><td>Selects CSS styling of the raw XML — remains supported</td></tr>
+      <tr><td><code>href</code></td><td>Stylesheet URL; loaded by the browser's native loader (synchronously, historically not CORS-bound)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://developer.chrome.com/docs/web-platform/deprecating-xslt" target="_blank" rel="noopener">removal guide ("What is being removed?", "XML + CSS is not being removed")</a>; <a href="https://github.com/mfreed7/xslt_polyfill" target="_blank" rel="noopener">polyfill README (accepted MIME types)</a>; <a href="https://www.w3.org/TR/xml-stylesheet/" target="_blank" rel="noopener">W3C xml-stylesheet</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="when-disabled">what happens when disabled</h2>
+    <ol>
+      <li>Chrome receives the XML document and finds the XSLT processing instruction.</li>
+      <li>With the <code>XSLT</code> feature disabled, the PI is ignored: <strong>no transformation runs</strong>.</li>
+      <li>Chrome renders the raw XML document (its standard XML view) and shows a <strong>warning banner</strong> that links directly to an extension search page, so affected users can discover the <a href="https://chromewebstore.google.com/detail/xslt-polyfill/hlahhpnhgficldhfioiafojgdhcppklm" target="_blank" rel="noopener">XSLT polyfill extension</a>.</li>
+      <li>A deprecation warning is logged to the console (from 143) and a deprecation report with id <code>"XSLT"</code> is emitted (see <a href="/v152/deprecate-and-remove-xslt/#detect">detection</a>).</li>
+    </ol>
+    <span class="citation">Source: <a href="https://developer.chrome.com/docs/web-platform/deprecating-xslt" target="_blank" rel="noopener">removal guide (extension + warning banner, detection)</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="polyfill">migration: one line of polyfill</h2>
+    <p>The <a href="https://github.com/mfreed7/xslt_polyfill" target="_blank" rel="noopener">polyfill</a> can be added <strong>to the XML document itself</strong> — a single <code>&lt;script&gt;</code> element (with the XHTML namespace declaration, required so the script executes in an XML document):</p>
+    <pre><code>&lt;?xml version="1.0"?&gt;
+&lt;?xml-stylesheet type="text/xsl" href="demo.xsl"?&gt;
+&lt;ROOT&gt;
+  &lt;script src="xslt-polyfill.min.js" xmlns="http://www.w3.org/1999/xhtml"&gt;&lt;/script&gt;
+  ...content...
+&lt;/ROOT&gt;</code></pre>
+    <p>Mechanism: the script detects the XML document type and the XSLT PI, re-fetches the source document (to get the clean original byte stream), fetches the stylesheet, runs the WASM libxslt engine, and replaces the document's content with the transformed result. Scripts in the transformed output are re-created so they execute, and synthetic <code>DOMContentLoaded</code>/<code>load</code> events fire. For RSS/Atom feeds the added script is safe for feed readers because it sits as a direct child of the root element.</p>
+    <p>Documented limits for the PI path:</p>
+    <ul>
+      <li><strong>CORS</strong> — stylesheet and <code>xsl:include</code>/<code>xsl:import</code>/<code>document()</code> resources load through <code>fetch()</code>; cross-origin stylesheets that native XSLT accepted can now be blocked. Host the stylesheet same-origin or serve CORS headers.</li>
+      <li><strong>Quirks</strong> — the replaced content lives in an XHTML document, which always renders in no-quirks mode; transformed HTML that relied on quirks rendering (no <code>&lt;!DOCTYPE&gt;</code>) can look different.</li>
+      <li><strong>Encoding</strong> — the single-file WASM build requires UTF-8.</li>
+      <li><strong>Loading latency</strong> — the WASM engine compiles on first use; the polyfill offers a <code>window.xsltPolyfillSpinner</code> hook for a loading indicator.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/mfreed7/xslt_polyfill" target="_blank" rel="noopener">xslt_polyfill README (usage, implementation, limitations)</a>; <a href="https://developer.chrome.com/docs/web-platform/deprecating-xslt" target="_blank" rel="noopener">removal guide (polyfill, RSS/Atom use case)</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="use-cases">affected use cases and recommended paths</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Use case</th><th>Recommended path</th></tr></thead>
+      <tr><td>RSS/Atom feeds styled for accidental human clicks</td><td>Prefer <code>&lt;link rel="alternate" type="application/rss+xml"&gt;</code> discovery on HTML pages; otherwise add the one-line polyfill to the feed</td></tr>
+      <tr><td>Embedded devices serving XML+PI on local networks</td><td>Update firmware (server-side transform, JSON, or polyfill) where possible; where the device cannot change, use the <a href="https://chromewebstore.google.com/detail/xslt-polyfill/hlahhpnhgficldhfioiafojgdhcppklm" target="_blank" rel="noopener">browser extension</a></td></tr>
+      <tr><td>Sites using XSLT as a lazy templating layer</td><td>Polyfill as stopgap; server-side transformation; long-term migration to a JS/JSON framework</td></tr>
+      <tr><td>XML+CSS documents (<code>type="text/css"</code>)</td><td><strong>No action</strong> — not part of the removal</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://developer.chrome.com/docs/web-platform/deprecating-xslt" target="_blank" rel="noopener">removal guide ("Specific use cases")</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">browser compatibility</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>PI processing today</th><th>Removal plan</th></tr></thead>
+      <tr><td>Chrome</td><td>Supported (Baseline widely as part of <code>xslt</code>)</td><td>Deprecated 143; Stable removal 158; trial/policy until 176</td></tr>
+      <tr><td>Edge</td><td>Supported</td><td>Follows Chromium</td></tr>
+      <tr><td>Firefox</td><td>Supported</td><td>Removal planned (Gecko supportive); no dated plan on the record</td></tr>
+      <tr><td>Safari</td><td>Supported</td><td>Removal planned (WebKit cautiously supportive)</td></tr>
+    </table>
+    </div>
+    <p>No dedicated BCD entry exists for the processing instruction itself (the <code>xslt</code> web-feature covers the capability; <a href="https://api.webstatus.dev/v1/features/xslt" target="_blank" rel="noopener">webstatus.dev</a>); treat this table as interim data compiled from the linked primary sources.</p>
+    <span class="citation">Source: <a href="https://api.webstatus.dev/v1/features/xslt" target="_blank" rel="noopener">webstatus.dev xslt</a>; <a href="https://chromestatus.com/api/v0/features/4709671889534976" target="_blank" rel="noopener">ChromeStatus record</a>; <a href="https://github.com/whatwg/html/issues/11523" target="_blank" rel="noopener">whatwg/html#11523</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <ul>
+      <li>The PI path is the riskiest half of the feature: it processes an attacker-supplied stylesheet through libxslt <em>during page load, with no script required</em> — the exploit class documented at <a href="https://www.offensivecon.org/speakers/2025/ivan-fratric.html" target="_blank" rel="noopener">OffensiveCon 2025</a>.</li>
+      <li>Native PI stylesheet loads were historically not CORS-bound; the polyfill's <code>fetch()</code>-based loads are CORS-checked, which is stricter (and the cause of most polyfill failures, per the <a href="https://chromestatus.com/api/v0/features/4709671889534976" target="_blank" rel="noopener">ChromeStatus interop notes</a>).</li>
+      <li>The browser extension route grants a user-installed extension access to raw XML pages; weigh that against firmware updates for managed devices.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://developer.chrome.com/docs/web-platform/deprecating-xslt" target="_blank" rel="noopener">removal guide</a>; <a href="https://github.com/mfreed7/xslt_polyfill" target="_blank" rel="noopener">polyfill README</a>.</span>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
