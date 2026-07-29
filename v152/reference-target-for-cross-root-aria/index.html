@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reference Target for Cross-root ARIA — Chrome 152 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .table-wrap .doc-table { min-width: 34rem; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .baseline-banner { border: 2px solid var(--border-black); padding: 1rem 1.2rem; margin: 1.5rem 0; background: var(--bg-paper); box-shadow: var(--thin-shadow); }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    pre { overflow-x: auto; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v152/">&larr; Chrome 152 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v152 · web components · accessibility · shipped</p>
+    <h1>Reference Target for Cross-root ARIA</h1>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome · enabled by default 152</li>
+        <li>Firefox · 144 behind a flag · standards position positive</li>
+        <li class="limited">Safari · 26 behind flags · no signal</li>
+        <li class="limited">Edge · mirrors Chrome</li>
+      </ul>
+      <p><a href="https://webstatus.dev/features/referencetarget" target="_blank" rel="noopener">webstatus.dev feature <code>referencetarget</code></a> — Baseline <strong>limited</strong> (queried 2026-07-28; 12 developer-signal upvotes). Chrome ships enabled by default in 152 per the authoritative <a href="https://chromestatus.com/api/v0/features?milestone=152" target="_blank" rel="noopener">milestone listing</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/ShadowRoot.json" target="_blank" rel="noopener">BCD</a> has not yet recorded the default-on milestone and still lists every engine as flag-gated (see <a href="#browser-compatibility">browser compatibility</a>).</p>
+    </div>
+
+    <p class="lede">Reference Target enables ID attributes like <code>&lt;label for&gt;</code>, <code>aria-labelledby</code>, <code>popovertarget</code>, and <code>commandfor</code> to be forwarded to elements inside a component's shadow DOM, while maintaining the shadow's encapsulation of its internal state. When a shadow host specifies an element in its shadow tree to act as its reference target, all ID references pointing to the shadow host are forwarded to the reference target element instead.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Specification in flight — phase 1 only</strong>
+    The normative changes are <a href="https://github.com/whatwg/html/pull/10995" target="_blank" rel="noopener">whatwg/html PR #10995</a> and <a href="https://github.com/whatwg/dom/pull/1353" target="_blank" rel="noopener">whatwg/dom PR #1353</a>, both <strong>open, not merged</strong> (verified 2026-07-28) — Chrome ships ahead of the merged spec, and details here cite the WICG explainer and Chromium IDL. Only <strong>Phase 1</strong> (a single reference target per shadow root) ships; Phase 2 (<code>referenceTargetMap</code>, <code>exportid</code>) is not implemented. Separately, <code>aria-owns</code> forwarding is gated behind a second runtime flag (<code>ShadowRootReferenceTargetAriaOwns</code>, no <code>status</code> — not enabled by default; <a href="https://github.com/WICG/webcomponents/issues/1091" target="_blank" rel="noopener">WICG/webcomponents #1091</a>). Feature-detect (<code>"referenceTarget" in ShadowRoot.prototype</code>) before relying on any of this cross-browser.
+  </div>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Shipped in</th><td>Chrome 152 — Enabled by default (desktop, Android, WebView; the <a href="https://chromestatus.com/api/v0/features?milestone=152" target="_blank" rel="noopener">milestone listing</a> is authoritative, verified 2026-07-28)</td></tr>
+      <tr><th scope="row">Mechanism</th><td>A shadow root names one element in its tree by ID as the <em>reference target</em>; any IDREF (<code>for</code>, <code>aria-labelledby</code>, <code>popovertarget</code>, …) that points at the host resolves to that element instead</td></tr>
+      <tr><th scope="row">Three ways to set</th><td><code>referenceTarget</code> in the <code>ShadowRootInit</code> argument to <code>attachShadow()</code> · the <code>ShadowRoot.referenceTarget</code> IDL attribute · the <code>shadowrootreferencetarget</code> attribute on <code>&lt;template&gt;</code> (declarative shadow DOM) — the JS surface has its <a href="shadowroot-referencetarget/">own reference page &rarr;</a></td></tr>
+      <tr><th scope="row">Runtime flag</th><td><code>ShadowRootReferenceTarget</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>: <code>status: "stable"</code>, <code>origin_trial_feature_name: "ShadowRootReferenceTarget"</code></td></tr>
+      <tr><th scope="row">Origin trial</th><td>Chrome 133 – 135 (concluded; stage record on the <a href="https://chromestatus.com/feature/5188237101891584" target="_blank" rel="noopener">ChromeStatus entry</a>)</td></tr>
+      <tr><th scope="row">Spec status</th><td><a href="https://github.com/whatwg/html/pull/10995" target="_blank" rel="noopener">whatwg/html #10995</a> + <a href="https://github.com/whatwg/dom/pull/1353" target="_blank" rel="noopener">whatwg/dom #1353</a> — both OPEN; explainer at <a href="https://github.com/WICG/webcomponents/blob/gh-pages/proposals/reference-target-explainer.md" target="_blank" rel="noopener">WICG/webcomponents</a>; original proposal <a href="https://github.com/WICG/aom/pull/207" target="_blank" rel="noopener">WICG/aom PR #207</a></td></tr>
+      <tr><th scope="row">Vendor positions</th><td>Firefox: <a href="https://github.com/mozilla/standards-positions/issues/1035" target="_blank" rel="noopener">positive</a> · Safari: <a href="https://github.com/WebKit/standards-positions/issues/356" target="_blank" rel="noopener">no signal</a> (open) · TAG review: <a href="https://github.com/w3ctag/design-reviews/issues/961" target="_blank" rel="noopener">w3ctag/design-reviews #961</a> (closed)</td></tr>
+      <tr><th scope="row">Intents</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/CH3PR00MB1627F4E2554F7969B2B61E94D3FFA%40CH3PR00MB1627.namprd00.prod.outlook.com" target="_blank" rel="noopener">Intent to Prototype</a> · <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/DS0PR00MB23422839CBB35C320F9CC344C5202%40DS0PR00MB2342.namprd00.prod.outlook.com" target="_blank" rel="noopener">Intent to Experiment (origin trial 133–135)</a> · <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/DS0PR00MB2527DA9DA93A1972F5594156C5EE2%40DS0PR00MB2527.namprd00.prod.outlook.com" target="_blank" rel="noopener">Intent to Ship</a></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5188237101891584" target="_blank" rel="noopener">5188237101891584 — Reference Target for Cross-root ARIA</a> (web-feature <code>referencetarget</code>)</td></tr>
+      <tr><th scope="row">Bug</th><td><a href="https://issues.chromium.org/issues/346835896" target="_blank" rel="noopener">Chromium issue 346835896</a></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5188237101891584" target="_blank" rel="noopener">chromestatus.com/feature/5188237101891584</a>; <a href="https://chromestatus.com/api/v0/features/5188237101891584" target="_blank" rel="noopener">ChromeStatus API record</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>, fetched 2026-07-28</span>
+  </section>
+
+  <section>
+    <h2 id="why-it-exists">why it exists</h2>
+    <p>Shadow DOM encapsulation breaks IDREF-based relationships. A component that wraps a native control — the explainer's examples are a design-system <code>&lt;sp-checkbox&gt;</code> enclosing a real <code>&lt;input type="checkbox"&gt;</code>, and an <code>&lt;md-dialog&gt;</code> enclosing a real <code>&lt;dialog&gt;</code> with scrim and focus-trap markup — cannot be the target of a <code>&lt;label for&gt;</code>, an <code>aria-labelledby</code>, or a <code>popovertarget</code> in any useful way: the reference points at the host, not at the internal element that actually implements the behavior. Before Reference Target, component authors had to break encapsulation (hoist IDs, duplicate ARIA onto the host and mirror state) or leave assistive technology and label activation broken. Reference Target lets the host substitute an enclosed element for exactly those IDREF purposes, and nothing else.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/webcomponents/blob/gh-pages/proposals/reference-target-explainer.md" target="_blank" rel="noopener">WICG reference-target explainer — Background (sp-checkbox, md-dialog)</a>; <a href="https://github.com/WICG/aom/pull/207" target="_blank" rel="noopener">WICG/aom PR #207 (initial public proposal)</a></span>
+  </section>
+
+  <section>
+    <h2 id="mechanism">how forwarding works</h2>
+    <p>Setting a reference target is a declaration on the shadow root: the ID of one element in the shadow tree. From then on, when the host element is the target of an IDREF attribute, the reference resolves to the reference target instead of the host. The explainer defines the intended scope as <strong>all attributes that refer to another element by ID string</strong>:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>IDREF attributes forwarded to the reference target</caption>
+      <thead><tr><th scope="col">Group</th><th scope="col">Attributes</th></tr></thead>
+      <tr><td>ARIA</td><td><code>aria-activedescendant</code>, <code>aria-controls</code>, <code>aria-describedby</code>, <code>aria-details</code>, <code>aria-errormessage</code>, <code>aria-flowto</code>, <code>aria-labelledby</code>, <code>aria-owns</code> (<code>aria-owns</code> is behind the separate <code>ShadowRootReferenceTargetAriaOwns</code> flag — see the warn-block)</td></tr>
+      <tr><td>Inputs / interactive</td><td><code>for</code> (including the label's click-to-activate behavior), <code>form</code>, <code>list</code>, <code>popovertarget</code>, <code>commandfor</code>, <code>interesttarget</code>, <code>anchor</code> (the last three from the Invokers/Popover proposals)</td></tr>
+      <tr><td>Tables</td><td><code>headers</code></td></tr>
+    </table>
+    </div>
+    <p>References are <strong>live</strong>. The effective target is recomputed when any of the following changes (explainer, verbatim list):</p>
+    <ul>
+      <li>The host changes its <code>referenceTarget</code> to refer to a different ID.</li>
+      <li>An element with an <code>id</code> matching the host's referenceTarget is added to or removed from the host's shadow tree.</li>
+      <li>The <code>id</code> attribute of an element inside the host's shadow tree is changed to or from the referenceTarget ID.</li>
+      <li>The host is added or removed from the DOM.</li>
+      <li>The host's <code>id</code> attribute is changed.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/WICG/webcomponents/blob/gh-pages/proposals/reference-target-explainer.md" target="_blank" rel="noopener">WICG explainer — Phase 1, Supported attributes, Live references</a></span>
+  </section>
+
+  <section>
+    <h2 id="declarative-syntax">declarative syntax</h2>
+    <p>With declarative shadow DOM, the reference target is set with the <code>shadowrootreferencetarget</code> attribute on the <code>&lt;template&gt;</code> element — the value is the <code>id</code> of an element inside that template:</p>
+    <pre><code>&lt;label for="my-checkbox"&gt;Checkbox value (click me to toggle checkbox)&lt;/label&gt;
+&lt;custom-checkbox id="my-checkbox"&gt;
+  &lt;template shadowrootmode="open" shadowrootreferencetarget="real-checkbox"&gt;
+    &lt;input id="real-checkbox" type="checkbox"&gt;
+  &lt;/template&gt;
+&lt;/custom-checkbox&gt;</code></pre>
+    <p>The label's <code>for="my-checkbox"</code> points at the host, but activation, accessibility computation, and <code>HTMLInputElement.labels</code> all treat the enclosed <code>&lt;input id="real-checkbox"&gt;</code> as the labeled control. The same value can be read back via the <code>HTMLTemplateElement.shadowRootReferenceTarget</code> IDL reflection (on the JS surface page: <a href="shadowroot-referencetarget/">ShadowRoot.referenceTarget &amp; friends &rarr;</a>).</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5188237101891584" target="_blank" rel="noopener">ChromeStatus summary (example verbatim)</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_template_element.idl" target="_blank" rel="noopener">Chromium html_template_element.idl</a></span>
+  </section>
+
+  <section>
+    <h2 id="interactions">interaction contracts and edge cases</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">CSS selectors</th><td>Unaffected. An ID selector matches the host element carrying the <code>id</code> — never the reference target inside the shadow tree</td></tr>
+      <tr><th scope="row">Form-associated custom elements</th><td>A FACE already supports being the target of <code>&lt;label for&gt;</code>; if it has a reference target, the label applies to the target instead. No other FACE behavior changes</td></tr>
+      <tr><th scope="row">Host nested in <code>&lt;label&gt;</code></th><td>Implicit association works: the reference target becomes the labeled control of the enclosing label (the explainer's <code>&lt;fancy-input&gt;</code> example)</td></tr>
+      <tr><th scope="row">Host nested in <code>&lt;form&gt;</code></th><td>No change: the target element is <em>not</em> implicitly associated with the form unless the host is a form-associated custom element</td></tr>
+      <tr><th scope="row">Element-reflecting JS attributes</th><td><code>ariaControlsElements</code>, <code>ariaLabelledByElements</code>, <code>popoverTargetElement</code>, <code>HTMLLabelElement.control</code>, and siblings <strong>return the host element</strong>, never the reference target inside the shadow tree — an IDL attribute of type <code>Element</code> can only refer to a descendant of a shadow-including ancestor of the element hosting the attribute. (<code>HTMLInputElement.form</code>/<code>.list</code> are specced to narrower types and need spec updates to return the host — noted in the explainer as open.)</td></tr>
+      <tr><th scope="row"><code>labels</code> APIs</th><td><code>HTMLInputElement.labels</code> on the <em>internal</em> input returns all forwarded labels in shadow-including tree order. <code>ElementInternals.labels</code> on a form-associated host <em>with</em> a reference target returns <code>[]</code> — every label is forwarded, none stays associated with the host</td></tr>
+      <tr><th scope="row">Event retargeting</th><td>Unaffected — Reference Target changes IDREF resolution only. The WPT suite includes <code>event-path.html</code> coverage confirming event paths behave normally</td></tr>
+      <tr><th scope="row">Serialization</th><td>Declarative roots serialize the attribute: <code>getHTML({serializableShadowRoots: true})</code> emits <code>shadowrootreferencetarget</code> (WPT <code>gethtml-serialization.html</code>)</td></tr>
+      <tr><th scope="row">Unknown / missing target ID</th><td>Not an error. Resolution is an ID lookup in the shadow tree at reference-lookup time; while nothing matches, forwarding has no target — and because references are live, it starts resolving as soon as a matching element exists (details: <a href="shadowroot-referencetarget/#errors">JS surface — errors</a>)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/WICG/webcomponents/blob/gh-pages/proposals/reference-target-explainer.md" target="_blank" rel="noopener">WICG explainer — Interaction with other features</a>; <a href="https://github.com/web-platform-tests/wpt/tree/master/shadow-dom/reference-target/tentative" target="_blank" rel="noopener">WPT shadow-dom/reference-target/tentative</a></span>
+  </section>
+
+  <section>
+    <h2 id="relationship-to-element-reflection">relationship to ARIA Element reflection (aria-actions &amp; friends)</h2>
+    <p>Reference Target composes with — but does not replace — the ARIA Element-reflection family (<code>ariaLabelledByElements</code>, <code>ariaControlsElements</code>, and Chrome 151's <a href="/v151/aria-actions/"><code>ariaActionsElements</code></a>). The two mechanisms answer different questions: Element reflection lets <em>script</em> assign target elements by reference instead of by ID string (and, per the interaction contract above, those getters return the <strong>host</strong> when forwarding is in play); Reference Target lets a <em>component author</em> decide where IDREFs that point at the host should land inside its shadow tree. A page can use both: <code>el.ariaControlsElements = [fancyListboxHost]</code> targets the host by reference, and the host's <code>referenceTarget</code> forwards the resulting AT relationship to the internal listbox.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/webcomponents/blob/gh-pages/proposals/reference-target-explainer.md" target="_blank" rel="noopener">WICG explainer — JavaScript attributes that reflect Element objects</a>; <a href="/v151/aria-actions/">gendn v151 — aria-actions</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <p>Imperative setup (the explainer's <code>sp-checkbox</code>, closed root):</p>
+    <pre><code>class Checkbox extends HTMLElement {
+  constructor() {
+    super();
+    const root = this.attachShadow({ mode: "closed", referenceTarget: "input" });
+    root.innerHTML = `&lt;input id="input" type="checkbox"&gt;`;
+  }
+}
+customElements.define("sp-checkbox", Checkbox);
+
+// &lt;label for="consent"&gt; + &lt;sp-checkbox id="consent"&gt; — the label now
+// labels the internal input: click activation, accName, and input.labels all work.</code></pre>
+    <p>The <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v152/reference-target-for-cross-root-aria/" target="_blank" rel="noopener">Chrome Platform Showcase feature page for Reference Target</a> (HEAD-checked 200, 2026-07-28) hosts the interactive demos; there is no concept sub-route to embed yet, so this page links rather than iframes. The <a href="https://microsoftedge.github.io/Demos/reference-target/" target="_blank" rel="noopener">Microsoft Edge reference-target demo</a> (from the ChromeStatus sample links) is a second live example.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/webcomponents/blob/gh-pages/proposals/reference-target-explainer.md" target="_blank" rel="noopener">WICG explainer — sp-checkbox example</a>; <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v152/reference-target-for-cross-root-aria/" target="_blank" rel="noopener">chrome-platform-showcase</a></span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">browser compatibility</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>Compatibility — BCD (<code>api/ShadowRoot.referenceTarget</code>, <code>html.elements.template.shadowrootreferencetarget</code>) plus the authoritative Chrome milestone listing</caption>
+      <thead><tr><th scope="col">Engine</th><th scope="col">Support</th><th scope="col">Notes</th></tr></thead>
+      <tr><td>Chrome / Edge</td><td>133 (flag) → <strong>152 enabled by default</strong></td><td>BCD records 133 behind <code>#enable-experimental-web-platform-features</code> and has <em>not yet</em> recorded the default-on milestone (freshness gap, checked 2026-07-28); the <a href="https://chromestatus.com/api/v0/features?milestone=152" target="_blank" rel="noopener">milestone=152 listing</a> files it Enabled by default. Origin trial ran 133–135</td></tr>
+      <tr><td>Firefox</td><td>144 behind a flag</td><td>BCD: <code>dom.shadowdom.referenceTarget.enabled</code>; <a href="https://github.com/mozilla/standards-positions/issues/1035" target="_blank" rel="noopener">standards position positive</a></td></tr>
+      <tr><td>Safari</td><td>26 behind flags</td><td>BCD lists two preferences: <code>referenceTarget</code> and <code>referenceTarget support for aria-owns</code>; <a href="https://github.com/WebKit/standards-positions/issues/356" target="_blank" rel="noopener">standards position: no signal</a> (open)</td></tr>
+      <tr><td>BCD status</td><td colspan="2"><code>experimental: true</code> on both BCD entries (<a href="https://github.com/mdn/browser-compat-data/blob/main/api/ShadowRoot.json" target="_blank" rel="noopener">api/ShadowRoot.json</a>, <a href="https://github.com/mdn/browser-compat-data/blob/main/html/elements/template.json" target="_blank" rel="noopener">html/elements/template.json</a>) — treat the whole surface as experimental outside Chrome 152+</td></tr>
+      <tr><td>WPT</td><td colspan="2">15 test files in <a href="https://github.com/web-platform-tests/wpt/tree/master/shadow-dom/reference-target/tentative" target="_blank" rel="noopener">shadow-dom/reference-target/tentative</a> (all mapped to the <code>referencetarget</code> web-feature via <a href="https://github.com/web-platform-tests/wpt/blob/master/shadow-dom/reference-target/WEB_FEATURES.yml" target="_blank" rel="noopener">WEB_FEATURES.yml</a>): basics, label-for, label-descendant, form, popovertarget, commandfor, interestfor, aria-labelledby, dom-mutation, event-path, gethtml-serialization, property-reflection ×3, shadowrootreferencetarget-idl-reflection. Per-run pass counts not captured at fetch time (<a href="https://wpt.fyi/results/shadow-dom/reference-target" target="_blank" rel="noopener">wpt.fyi dashboard</a>)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/ShadowRoot.json" target="_blank" rel="noopener">BCD api/ShadowRoot.json</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/html/elements/template.json" target="_blank" rel="noopener">BCD html/elements/template.json</a>; <a href="https://webstatus.dev/features/referencetarget" target="_blank" rel="noopener">webstatus.dev referencetarget</a>, all fetched 2026-07-28</span>
+  </section>
+
+  <section>
+    <h2 id="security-privacy">security and privacy</h2>
+    <p>Reference Target preserves shadow encapsulation rather than weakening it: outside pages learn only that IDREFs to the host resolve to <em>some</em> internal element, not which one — Element-reflecting JavaScript getters (<code>ariaControlsElements</code>, <code>HTMLLabelElement.control</code>, …) return the <strong>host</strong>, never the internal target, so shadow-internal element references cannot leak out through script (see <a href="#interactions">interaction contracts</a>). CSS selectors and event retargeting are unaffected. No new storage, network, or fingerprinting surface is introduced in the sources read.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/webcomponents/blob/gh-pages/proposals/reference-target-explainer.md" target="_blank" rel="noopener">WICG explainer — JavaScript attributes that reflect Element objects, Interaction with CSS Selectors</a></span>
+  </section>
+
+  <section>
+    <h2 id="specifications">specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Specification</th><th scope="col">Status</th></tr></thead>
+      <tr><td><a href="https://github.com/whatwg/html/pull/10995" target="_blank" rel="noopener">whatwg/html PR #10995 — Add reference target</a></td><td>OPEN (verified 2026-07-28)</td></tr>
+      <tr><td><a href="https://github.com/whatwg/dom/pull/1353" target="_blank" rel="noopener">whatwg/dom PR #1353</a></td><td>OPEN (linked from the <a href="https://webstatus.dev/features/referencetarget" target="_blank" rel="noopener">webstatus feature record</a>)</td></tr>
+      <tr><td><a href="https://github.com/WICG/webcomponents/blob/gh-pages/proposals/reference-target-explainer.md" target="_blank" rel="noopener">WICG/webcomponents — Reference Target explainer</a></td><td>Community-group explainer; the design document this page follows</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/10995" target="_blank" rel="noopener">whatwg/html #10995</a>; <a href="https://webstatus.dev/features/referencetarget" target="_blank" rel="noopener">webstatus.dev spec links</a></span>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="shadowroot-referencetarget/">gendn — ShadowRoot.referenceTarget, ShadowRootInit.referenceTarget, and the template reflection (JS surface)</a></li>
+      <li><a href="/v151/aria-actions/">gendn v151 — aria-actions (ARIA Element reflection family)</a></li>
+      <li><a href="/v151/declarative-shadow-dom-shadowrootslotassignment-attribute/">gendn v151 — shadowrootslotassignment (sibling declarative-shadow-DOM attribute)</a></li>
+      <li><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/DS0PR00MB2527DA9DA93A1972F5594156C5EE2%40DS0PR00MB2527.namprd00.prod.outlook.com" target="_blank" rel="noopener">blink-dev — Intent to Ship: Reference Target</a></li>
+      <li><a href="https://github.com/w3ctag/design-reviews/issues/961" target="_blank" rel="noopener">W3C TAG design review #961</a></li>
+      <li><a href="https://github.com/WICG/webcomponents/issues/1091" target="_blank" rel="noopener">WICG/webcomponents #1091 — referenceTarget support for aria-owns</a></li>
+      <li><a href="https://issues.chromium.org/issues/346835896" target="_blank" rel="noopener">Chromium tracking bug 346835896</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v152/reference-target-for-cross-root-aria/" target="_blank" rel="noopener">Chrome Platform Showcase — this feature</a> · <a href="https://microsoftedge.github.io/Demos/reference-target/" target="_blank" rel="noopener">Microsoft Edge demo</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
