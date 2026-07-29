@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Declarative Performance Observer — Chrome 151 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; table-layout: fixed; min-width: 36rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; }
+    .doc-table tr:last-child td, .doc-table tr:last-child th { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    .baseline-banner { border: 2px solid var(--border-black); padding: 1rem 1.2rem; margin: 1.5rem 0; background: var(--bg-paper); box-shadow: var(--thin-shadow); }
+    .baseline-status { font-weight: 700; margin: 0 0 0.5rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    pre { overflow-x: auto; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v151/">&larr; Chrome 151 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v151 · origin trial · performance · reporting api</p>
+    <h1>Declarative Performance Observer</h1>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome · origin trial 151&ndash;155</li>
+        <li class="limited">Edge · no separate signal (Chromium-based)</li>
+        <li class="limited">Firefox · no signal</li>
+        <li class="limited">Safari · no signal</li>
+      </ul>
+      <p>Not on the Baseline register: a <a href="https://api.webstatus.dev/v1/features?q=declarative%20performance%20observer" target="_blank" rel="noopener">webstatus.dev query</a> (2026-07-28) returns no web-feature entry. There is no <a href="https://github.com/mdn/browser-compat-data" target="_blank" rel="noopener">BCD</a> entry for this feature; the proposal is pre-incubation (a <a href="https://github.com/explainers-by-googlers/declarative-performance-observer" target="_blank" rel="noopener">personal-repository explainer</a>, per the <a href="https://chromestatus.com/api/v0/features/6594955352080384" target="_blank" rel="noopener">ChromeStatus API record</a>'s standards-maturity field) with a <a href="https://github.com/WICG/proposals/issues/280" target="_blank" rel="noopener">WICG proposal</a> still open.</p>
+    </div>
+
+    <p class="lede">A browser-resident telemetry system that reports performance metrics from navigation initiation to page termination. Activated by a declarative <code>Performance-Observer</code> HTTP response header rather than JavaScript, it captures data even when the request fails with a network error or the renderer process is killed by the OS, and delivers a consolidated report at session termination via the <a href="https://w3c.github.io/reporting/" target="_blank" rel="noopener">Reporting API</a>.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Origin trial — API surface may move</strong>
+    <p>This feature is in <strong>origin trial in Chrome 151&ndash;155</strong> on desktop, Android, and WebView (<a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a6078b0.68e56e23.371e2.01d5.GAE%40google.com" target="_blank" rel="noopener">Intent to Experiment</a>; <a href="https://chromestatus.com/api/v0/features/6594955352080384" target="_blank" rel="noopener">ChromeStatus API record</a>, stage data fetched 2026-07-28). The proposal is pre-incubation and its <strong>TAG review is pending</strong>, so the header grammar and payload format may change.</p>
+    <ul>
+      <li><strong>To use it on your origin:</strong> register for the &ldquo;Declarative Performance Observer&rdquo; trial at <a href="https://developer.chrome.com/origintrials/" target="_blank" rel="noopener">developer.chrome.com/origintrials</a> and serve the token (origin-trial feature name <code>DeclarativePerformanceObserver</code>).</li>
+      <li><strong>For local development:</strong> launch Chrome with <code>--enable-blink-features=DeclarativePerformanceObserver</code>. The runtime feature is <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener"><code>DeclarativePerformanceObserver</code></a> (<code>status: experimental</code>; it follows the origin trial unless the base feature is overridden by Finch or command line).</li>
+      <li><strong>Feedback:</strong> <a href="https://github.com/explainers-by-googlers/declarative-performance-observer/issues" target="_blank" rel="noopener">explainer issue tracker</a>.</li>
+    </ul>
+  </div>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">What it is</th><td>Declarative (HTTP-header-driven) activation of browser-process performance telemetry: a <code>Performance-Observer</code> response header selects entry types; the browser collects them out-of-band and POSTs a consolidated report at session end via the Reporting API</td></tr>
+      <tr><th scope="row">What it is not</th><td>A replacement for the JavaScript <a href="https://w3c.github.io/performance-timeline/#performanceobserver" target="_blank" rel="noopener">PerformanceObserver</a> API, <a href="https://www.w3.org/TR/network-error-logging/" target="_blank" rel="noopener">Network Error Logging</a>, or crash reporting (explicit non-goals in the explainer)</td></tr>
+      <tr><th scope="row">Activation</th><td><code>Performance-Observer</code> HTTP response header on the top-level main-document navigation only — first-party, no JavaScript API, no subresource/iframe activation</td></tr>
+      <tr><th scope="row">Delivery</th><td>Reporting API: <code>POST</code> with <code>Content-Type: application/reports+json</code> to an endpoint named by the header's <code>report-to</code> directive and defined in <code>Reporting-Endpoints</code></td></tr>
+      <tr><th scope="row">New entry type</th><td><a href="/v151/declarative-performance-observer/performancesessionendtiming/"><code>PerformanceSessionEndTiming</code></a> (<code>entryType "session-end"</code>) — an anonymous terminal marker giving precise session duration</td></tr>
+      <tr><th scope="row">Chrome status</th><td>Origin trial, Chrome 151&ndash;155 (desktop, Android, WebView) — the <a href="https://chromestatus.com/api/v0/features?milestone=151" target="_blank" rel="noopener">milestone listing</a> is authoritative (verified 2026-07-28)</td></tr>
+      <tr><th scope="row">Spec status</th><td>Pre-incubation <a href="https://github.com/explainers-by-googlers/declarative-performance-observer" target="_blank" rel="noopener">explainer</a> (&ldquo;early design sketch&rdquo;); <a href="https://github.com/WICG/proposals/issues/280" target="_blank" rel="noopener">WICG proposal #280</a> open; TAG review pending (per the <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a6078b0.68e56e23.371e2.01d5.GAE%40google.com" target="_blank" rel="noopener">Intent to Experiment</a>)</td></tr>
+      <tr><th scope="row">Tracking bug</th><td><a href="https://issues.chromium.org/issues/505208781" target="_blank" rel="noopener">crbug.com/505208781</a></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/6594955352080384" target="_blank" rel="noopener">6594955352080384 — Declarative Performance Observer</a></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/declarative-performance-observer" target="_blank" rel="noopener">Declarative Performance Observer explainer</a>; <a href="https://chromestatus.com/api/v0/features/6594955352080384" target="_blank" rel="noopener">ChromeStatus API record</a>; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a6078b0.68e56e23.371e2.01d5.GAE%40google.com" target="_blank" rel="noopener">Intent to Experiment</a>, fetched 2026-07-28.</span>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>JavaScript performance APIs are bound to the page's execution environment, so three classes of real user-journey data escape them:</p>
+    <ol>
+      <li><strong>Early network failures.</strong> If a navigation fails before any payload arrives (DNS timeout, connection refused, TLS failure), no JavaScript runs and the site never learns the visit happened — success-rate denominators are wrong. <a href="https://www.w3.org/TR/network-error-logging/" target="_blank" rel="noopener">NEL</a> captures network errors but cannot correlate them with application journeys.</li>
+      <li><strong>Abrupt terminations.</strong> On out-of-memory kills (common on low-end mobile) or sudden tab closures, <code>unload</code>/<code>pagehide</code> beacons are lost — and <code>unload</code> is deprecated anyway because it breaks BFCache.</li>
+      <li><strong>Session end.</strong> There is no reliable way to timestamp when the user actually left, so dwell time is approximate.</li>
+    </ol>
+    <p>The proposal moves collection into the browser process: events stream out of the renderer as they happen, so an OOM kill cannot take the already-recorded data with it, and the browser itself finalizes the report at the true session boundary.</p>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#introduction" target="_blank" rel="noopener">explainer — introduction</a> and <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#use-cases" target="_blank" rel="noopener">use cases</a>; <a href="https://chromestatus.com/api/v0/features/6594955352080384" target="_blank" rel="noopener">ChromeStatus motivation</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="how-it-works">how it works</h2>
+    <ol>
+      <li>The server responds to a top-level navigation with <a href="/v151/declarative-performance-observer/performance-observer-header/"><code>Performance-Observer</code></a> (selecting entry types and a reporting endpoint) plus a <code>Reporting-Endpoints</code> header defining that endpoint.</li>
+      <li>The browser process records the requested built-in entries (e.g. <code>navigation</code>, <code>mark</code>, <code>visibility-state</code>) and allowlisted <code>performance.mark()</code>/<code>measure()</code> events for the life of the session — no page JavaScript involved.</li>
+      <li>On session termination (tab close, navigation away, BFCache entry, early network error, renderer crash), the browser finalizes the payload — appending a terminal <a href="/v151/declarative-performance-observer/performancesessionendtiming/"><code>PerformanceSessionEndTiming</code></a> entry — and POSTs it to the endpoint via the Reporting API.</li>
+      <li>With <code>capture-early-failures</code>, failures that happen <em>before</em> any response (when no header could have been received) are persisted to a bounded on-disk buffer and flushed on the next successful navigation to the same origin.</li>
+    </ol>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#potential-solution" target="_blank" rel="noopener">explainer — potential solution</a>, <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#how-this-solution-would-solve-the-use-cases" target="_blank" rel="noopener">how this solves the use cases</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="report-format">report format</h2>
+    <p>The payload is a JSON array of report objects delivered via the <a href="https://w3c.github.io/reporting/" target="_blank" rel="noopener">Reporting API</a> with <code>Content-Type: application/reports+json</code>. Each report carries the standard Reporting-API fields plus a <code>body</code> whose <code>entries</code> array holds objects extending <a href="https://w3c.github.io/performance-timeline/#performanceentry" target="_blank" rel="noopener">PerformanceEntry</a>:</p>
+    <pre><code>[{
+  "type": "performance-observer",
+  "age": 100,
+  "url": "https://www.example.com/second",
+  "user_agent": "Mozilla/5.0 &hellip; Chrome/146.0.0.0 &hellip;",
+  "body": {
+    "entries": [
+      { "name": "https://www.example.com/second", "entryType": "navigation",
+        "startTime": 0, "domainLookupStart": 68, "domainLookupEnd": 120,
+        "connectStart": 122, "secureConnectionStart": 160,
+        "requestStart": 196, "responseStart": 562, "activationStart": 0 },
+      { "name": "hero-image-loaded", "entryType": "mark",
+        "startTime": 780, "duration": 0,
+        "detail": { "additionalinfo": "user defined arbitrary data" } },
+      { "name": "hidden", "entryType": "visibility-state",
+        "startTime": 13870, "duration": 0 },
+      { "name": "session-end-event", "entryType": "session-end",
+        "startTime": 240200, "duration": 0 }
+    ]
+  }
+}]</code></pre>
+    <ul>
+      <li><code>detail</code> on mark entries passes through the arbitrary data set via <a href="https://w3c.github.io/user-timing/#performancemarkoptions-detail" target="_blank" rel="noopener"><code>performance.mark()</code>'s <code>detail</code> option</a>.</li>
+      <li>Time-based fields are subject to standard <a href="https://w3c.github.io/hr-time/#clock-resolution" target="_blank" rel="noopener">HR-Time clock resolution</a> coarsening.</li>
+      <li>Multiple reports may be bundled into one request (the explainer's worked example batches two).</li>
+      <li>The explainer does not define a JSON Schema for the payload; the structure above is its documented example format (pre-incubation — field set may change).</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#report-format" target="_blank" rel="noopener">explainer — report format</a> and <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#example-report-payload" target="_blank" rel="noopener">example report payload</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="early-failure-entries">synthesized navigation entries for early failures</h2>
+    <p>When a network error or early abandonment happens before the response completes, the failure is reported as a <em>synthesized</em> <a href="https://w3c.github.io/navigation-timing/#sec-PerformanceNavigationTiming" target="_blank" rel="noopener">PerformanceNavigationTiming</a> entry: milestones that were never reached (e.g. <code>domainLookupEnd</code>, <code>responseStart</code>, <code>loadEventEnd</code>) are set to <code>0</code>, so the last non-zero milestone marks where the failure occurred. The explainer's example shows a DNS failure as <code>domainLookupStart: 50</code> with every subsequent field zeroed.</p>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#example-report-payload" target="_blank" rel="noopener">explainer — example report payload</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="deferred-reporting">capture-early-failures and deferred reporting</h2>
+    <p>On a <em>first-ever</em> navigation that fails before any response, the browser cannot know the origin wanted telemetry — the activating header never arrived. The <code>capture-early-failures</code> directive opts the origin into persisting that intent:</p>
+    <ul>
+      <li>Once set, an <strong>origin-level flag</strong> tells the browser to record subsequent early navigation failures (pre-response) and persist them to a bounded on-disk buffer.</li>
+      <li>Reporting endpoints are deliberately <em>not</em> persisted (the Reporting API v1 is ephemeral and document-tied). Instead, when a later navigation to the same origin succeeds and provides a <code>Reporting-Endpoints</code> header, the buffered failure reports are flushed alongside the current session's reports at session termination. If the user never returns, the buffered report is lost — an accepted tradeoff.</li>
+      <li><strong>Quotas:</strong> a 640KB memory buffer per document (when full, newest entries are silently dropped, preserving early-load metrics); persisted reports are limited to 640KB globally per storage partition in Chromium, evicted FIFO.</li>
+      <li><strong>Expiry:</strong> both the persisted failure reports and the origin-level opt-in flag expire after 7 days in Chromium (cleaned up on database initialization); reports are deleted immediately once successfully sent.</li>
+      <li><strong>Clearing:</strong> a <a href="https://w3c.github.io/webappsec-clear-site-data/" target="_blank" rel="noopener">Clear-Site-Data</a> header with <code>"storage"</code>, or the user clearing site data/history, purges both the buffer and the flag. Storage is partitioned by top-level site and isolated between regular and Incognito profiles.</li>
+      <li>Serving <code>capture-early-failures=false</code> explicitly disables the origin flag. By default nothing is persisted.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#deferred-reporting-for-early-failures-capture-early-failures" target="_blank" rel="noopener">explainer — deferred reporting</a>, <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#deactivation" target="_blank" rel="noopener">deactivation</a>, <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#disk-quota-for-buffered-reports-storage-dos" target="_blank" rel="noopener">disk quota</a>, <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#data-retention-and-expiration" target="_blank" rel="noopener">data retention and expiration</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="session-lifecycle">session lifecycle and deactivation</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Event</th><th>Behavior</th></tr></thead>
+      <tr><td>Header received on top-level navigation</td><td>Activation: browser begins collecting the requested entries for this document's session</td></tr>
+      <tr><td>Tab closure / navigation away</td><td>Report finalized and dispatched</td></tr>
+      <tr><td>BFCache entry</td><td>Report finalized and dispatched; if the page is restored, a <em>new</em> session begins automatically</td></tr>
+      <tr><td>Early network error</td><td>Synthesized zero-filled navigation entry reported (persisted first if no endpoint is available and <code>capture-early-failures</code> opted in)</td></tr>
+      <tr><td>Renderer crash (e.g. OS OOM kill)</td><td>Browser process still holds the accumulated payload and flushes it — this is the core reliability win over JS beaconing</td></tr>
+      <tr><td>Report dispatched</td><td>Deactivation: observation does not outlive the document; with no header on the next navigation, nothing is collected, stored, or reported</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#activation-timing" target="_blank" rel="noopener">explainer — activation timing</a>, <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#report-timing-session-termination" target="_blank" rel="noopener">report timing</a>, <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#deactivation" target="_blank" rel="noopener">deactivation</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <p>Enable telemetry for navigation, marks, and visibility changes, allowlist two application marks, opt into early-failure capture, and name the reporting endpoint:</p>
+    <pre><code>Reporting-Endpoints: telemetry="https://log.example.com/v1"
+Performance-Observer: report-to="telemetry",
+                      entry-types=("navigation" "mark" "visibility-state"),
+                      include-user-timing=("hero-image-loaded" "next-link-clicked"),
+                      capture-early-failures=?1</code></pre>
+    <p>Emit an allowlisted mark with attached detail from page JavaScript (the only JS involved — collection and delivery remain browser-side):</p>
+    <pre><code>performance.mark("hero-image-loaded", {
+  detail: { additional_info: 12345 }
+});
+// reported as:
+// { "name": "hero-image-loaded", "entryType": "mark",
+//   "startTime": 780, "duration": 0,
+//   "detail": { "additional_info": 12345 } }</code></pre>
+    <p>There is no Chrome Platform Showcase demo for this feature yet (the <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v151/declarative-performance-observer/" target="_blank" rel="noopener">showcase route</a> returns 404 as of 2026-07-28) — server-side header configuration is not meaningfully demonstrable in a client-side demo frame.</p>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#syntax" target="_blank" rel="noopener">explainer — syntax</a> and <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#report-format" target="_blank" rel="noopener">report format</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">browser compatibility</h2>
+    <p>No <a href="https://github.com/mdn/browser-compat-data" target="_blank" rel="noopener">BCD</a> entry and no <a href="https://api.webstatus.dev/v1/features?q=declarative%20performance%20observer" target="_blank" rel="noopener">webstatus.dev</a> web-feature exists for this proposal (both verified 2026-07-28), so this interim table is built from linked primary sources rather than BCD:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Support</th><th>Evidence</th></tr></thead>
+      <tr><td>Chrome / Edge (Chromium)</td><td>Origin trial 151&ndash;155 (desktop, Android, WebView)</td><td><a href="https://chromestatus.com/api/v0/features/6594955352080384" target="_blank" rel="noopener">ChromeStatus API record</a>; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a6078b0.68e56e23.371e2.01d5.GAE%40google.com" target="_blank" rel="noopener">Intent to Experiment</a></td></tr>
+      <tr><td>Firefox</td><td>No signal</td><td><a href="https://chromestatus.com/api/v0/features/6594955352080384" target="_blank" rel="noopener">ChromeStatus vendor views</a> (no position recorded)</td></tr>
+      <tr><td>Safari</td><td>No signal</td><td><a href="https://chromestatus.com/api/v0/features/6594955352080384" target="_blank" rel="noopener">ChromeStatus vendor views</a> (no position recorded)</td></tr>
+      <tr><td>WPT</td><td>None found upstream</td><td>No <code>declarative-performance-observer</code> directory or test in the <a href="https://github.com/web-platform-tests/wpt" target="_blank" rel="noopener">web-platform-tests</a> tree (checked 2026-07-28; <a href="https://wpt.fyi/results/performance-timeline" target="_blank" rel="noopener">performance-timeline suite</a> covers only the imperative API)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: linked records above, all fetched 2026-07-28.</span>
+  </section>
+
+  <section>
+    <h2 id="security-privacy">security &amp; privacy</h2>
+    <ul>
+      <li><strong>Header-only, first-party activation.</strong> There is no JavaScript API and no subresource or iframe activation — third-party scripts cannot enable observation without the origin's server-side consent.</li>
+      <li><strong>Telemetry pollution.</strong> Third-party scripts <em>can</em> call <code>performance.mark()</code> with allowlisted names and pollute data; the explainer's mitigation is to use specific, non-generic mark names.</li>
+      <li><strong>DoS bounds.</strong> 640KB memory buffer per document (newest dropped when full); 640KB disk quota per storage partition for persisted failure reports (FIFO eviction).</li>
+      <li><strong>Data minimization.</strong> Only explicitly requested entry types and allowlisted marks are collected; the session-end entry is anonymous (timestamp only). Persisted data and the origin flag expire after 7 days; nothing persists by default.</li>
+      <li><strong>Side-channels.</strong> Timestamps are subject to standard high-resolution-timer coarsening (Spectre-class mitigation) — <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#timer-resolution-and-side-channels" target="_blank" rel="noopener">explainer — timer resolution and side-channels</a>.</li>
+      <li><strong>Endpoint isolation.</strong> Reports go only to endpoints the document's own headers configured; note that multiple origins sharing one endpoint can be correlated by it (same caveat as shared analytics, per the <a href="https://w3c.github.io/reporting/" target="_blank" rel="noopener">Reporting API</a>).</li>
+      <li><strong>Network leakage.</strong> In-memory queued reports are discarded on network-interface change per <a href="https://w3c.github.io/reporting/#network-leakage" target="_blank" rel="noopener">Reporting API §3.6</a>; persisted failure reports survive but are only ever flushed during an active navigation to their own origin, exposing no new hostnames.</li>
+      <li><strong>Partitioning &amp; Incognito.</strong> All state lives in partitioned storage, isolated by top-level site and between regular and Incognito profiles.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#security-and-privacy-considerations" target="_blank" rel="noopener">explainer — security and privacy considerations</a>; <a href="https://github.com/explainers-by-googlers/declarative-performance-observer/blob/main/security_privacy_questionnaire_answers.md" target="_blank" rel="noopener">self-review questionnaire</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Specification</th><th>Status</th></tr></thead>
+      <tr><td><a href="https://github.com/explainers-by-googlers/declarative-performance-observer" target="_blank" rel="noopener">Declarative Performance Observer (explainer)</a></td><td>Pre-incubation — personal-repository proposal, no community adoption (<a href="https://github.com/WICG/proposals/issues/280" target="_blank" rel="noopener">WICG proposal #280</a> open)</td></tr>
+      <tr><td><a href="https://w3c.github.io/reporting/" target="_blank" rel="noopener">Reporting API</a></td><td>Delivery mechanism (cg-draft)</td></tr>
+      <tr><td><a href="https://w3c.github.io/performance-timeline/" target="_blank" rel="noopener">Performance Timeline</a></td><td>Defines <code>PerformanceEntry</code> / <code>PerformanceObserver</code> the payload extends (no declarative variant covered)</td></tr>
+      <tr><td><a href="https://w3c.github.io/navigation-timing/" target="_blank" rel="noopener">Navigation Timing</a></td><td>Defines <code>PerformanceNavigationTiming</code> (synthesized on early failures)</td></tr>
+      <tr><td><a href="https://w3c.github.io/user-timing/" target="_blank" rel="noopener">User Timing</a></td><td>Defines <code>performance.mark()</code>/<code>measure()</code> and <code>detail</code></td></tr>
+      <tr><td><a href="https://w3c.github.io/hr-time/" target="_blank" rel="noopener">High Resolution Time</a></td><td>Clock resolution for time-based fields</td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/6594955352080384" target="_blank" rel="noopener">Chrome Platform Status — Declarative Performance Observer</a></li>
+      <li><a href="/v151/declarative-performance-observer/performance-observer-header/">gendn — the <code>Performance-Observer</code> header (directive reference)</a></li>
+      <li><a href="/v151/declarative-performance-observer/performancesessionendtiming/">gendn — <code>PerformanceSessionEndTiming</code></a></li>
+      <li><a href="https://github.com/explainers-by-googlers/declarative-performance-observer" target="_blank" rel="noopener">Explainer (explainers-by-googlers)</a> · <a href="https://github.com/explainers-by-googlers/declarative-performance-observer/issues" target="_blank" rel="noopener">issue tracker</a></li>
+      <li><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/69f31432.050a0220.3ab19.0b38.GAE%40google.com" target="_blank" rel="noopener">blink-dev — Intent to Prototype</a></li>
+      <li><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a6078b0.68e56e23.371e2.01d5.GAE%40google.com" target="_blank" rel="noopener">blink-dev — Intent to Experiment (origin trial 151&ndash;155)</a></li>
+      <li><a href="https://issues.chromium.org/issues/505208781" target="_blank" rel="noopener">Chromium tracking bug 505208781</a></li>
+      <li><a href="https://github.com/WICG/proposals/issues/280" target="_blank" rel="noopener">WICG proposal #280</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/PerformanceObserver" target="_blank" rel="noopener">MDN — PerformanceObserver (the imperative API this complements)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

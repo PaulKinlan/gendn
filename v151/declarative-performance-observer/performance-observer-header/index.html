@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Performance-Observer header — Declarative Performance Observer — Chrome 151 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; table-layout: fixed; min-width: 36rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; }
+    .doc-table tr:last-child td, .doc-table tr:last-child th { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    pre { overflow-x: auto; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v151/declarative-performance-observer/">&larr; Declarative Performance Observer</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v151 · origin trial · http header</p>
+    <h1>Performance-Observer header</h1>
+    <p class="lede">The HTTP response header that activates the <a href="/v151/declarative-performance-observer/">Declarative Performance Observer</a>: a structured-field-style dictionary naming a reporting endpoint, the built-in entry types to collect, an allowlist of user-timing marks/measures, and the early-failure opt-in. Honored only on the top-level main-document navigation response.</p>
+  </header>
+
+  <section>
+    <h2 id="syntax">syntax</h2>
+    <pre><code>Performance-Observer: report-to="telemetry",
+                      entry-types=("navigation" "mark" "visibility-state"),
+                      include-user-timing=("hero-image-loaded" "next-link-clicked"),
+                      capture-early-failures=?1
+Reporting-Endpoints: telemetry="https://log.example.com/v1"</code></pre>
+    <p>The header carries four directives. <code>Reporting-Endpoints</code> (defined by the <a href="https://w3c.github.io/reporting/" target="_blank" rel="noopener">Reporting API</a>, not by this proposal) must accompany it to define the endpoint named by <code>report-to</code>.</p>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#syntax" target="_blank" rel="noopener">explainer — syntax</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="report-to">report-to</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Value</th><td>A string naming an endpoint group defined in the same response's <code>Reporting-Endpoints</code> header (e.g. <code>"telemetry"</code>)</td></tr>
+      <tr><th scope="row">Behavior</th><td>Routes the session report to the named endpoint; delivery uses the Reporting API (<code>application/reports+json</code>)</td></tr>
+      <tr><th scope="row">If the endpoint is undefined</th><td>Not specified in the explainer (2026-07-28). Related constraint: reporting endpoints are intentionally <em>not</em> persisted across navigations — Reporting API v1 is ephemeral and document-tied — so a report can only be sent while a document has supplied a valid endpoint</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#syntax" target="_blank" rel="noopener">explainer — syntax</a>; <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#deferred-reporting-for-early-failures-capture-early-failures" target="_blank" rel="noopener">deferred reporting</a>; <a href="https://w3c.github.io/reporting/" target="_blank" rel="noopener">Reporting API</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="entry-types">entry-types</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Value</th><td>A list of strings selecting built-in performance or visibility events to record (explainer examples: <code>"navigation"</code>, <code>"mark"</code>, <code>"visibility-state"</code>)</td></tr>
+      <tr><th scope="row">Behavior</th><td>The browser process records the selected entry types for the session — independent of any page JavaScript</td></tr>
+      <tr><th scope="row">Allowed values</th><td>Values match <a href="https://w3c.github.io/performance-timeline/#supportedentrytypes-attribute" target="_blank" rel="noopener"><code>PerformanceObserver.supportedEntryTypes</code></a> per the explainer; it does not pin down the exact subset honored during the origin trial (2026-07-28)</td></tr>
+      <tr><th scope="row">Unknown values</th><td>Not specified in the explainer (2026-07-28)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#syntax" target="_blank" rel="noopener">explainer — syntax</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="include-user-timing">include-user-timing</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Value</th><td>A list of strings: an allowlist of user-defined <code>performance.mark()</code>/<code>performance.measure()</code> names to sync to the browser process (e.g. <code>"hero-image-loaded"</code>)</td></tr>
+      <tr><th scope="row">Behavior</th><td>Marks/measures whose names appear in the allowlist are captured — including their <code>detail</code> payloads — even though they are created by page JavaScript</td></tr>
+      <tr><th scope="row">Third-party collision</th><td>Any script on the page (including third parties) can emit a mark with an allowlisted name and pollute telemetry; the explainer's mitigation is specific, non-generic mark names</td></tr>
+      <tr><th scope="row">Design alternative</th><td>Extending <code>markOptions</code> on <code>performance.mark()</code> was considered and rejected — any third-party script could set the option</td></tr>
+      <tr><th scope="row">Non-allowlisted / malformed names</th><td>Marks not in the allowlist are simply not synced (the allowlist defines the boundary); handling of a malformed list value is not specified in the explainer (2026-07-28)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#syntax" target="_blank" rel="noopener">explainer — syntax</a>, <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#telemetry-pollution-by-third-party-scripts" target="_blank" rel="noopener">telemetry pollution</a>, <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#extend-performancemark-instead-of-include-user-timing" target="_blank" rel="noopener">considered alternatives</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="capture-early-failures">capture-early-failures</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Value</th><td>Boolean (<code>?1</code> to enable, <code>?0</code>/<code>false</code> to disable; the explainer writes <code>capture-early-failures=false</code> for explicit opt-out)</td></tr>
+      <tr><th scope="row">Behavior when enabled</th><td>Persists an origin-level flag: the browser records subsequent early navigation failures (network errors before any response) as synthesized, zero-filled <code>PerformanceNavigationTiming</code> entries and stores them in a bounded on-disk buffer, flushed on the next successful navigation to the origin that supplies a reporting endpoint</td></tr>
+      <tr><th scope="row">Default / malformed</th><td>Off — nothing is persisted unless the origin opts in; handling of a malformed boolean is not specified in the explainer (2026-07-28)</td></tr>
+      <tr><th scope="row">Lifecycle</th><td>Flag and buffered reports expire after 7 days (Chromium); both are purged by <a href="https://w3c.github.io/webappsec-clear-site-data/" target="_blank" rel="noopener">Clear-Site-Data</a> <code>"storage"</code> and by the user clearing site data; stored in partitioned storage, Incognito-isolated. Full lifecycle on the <a href="/v151/declarative-performance-observer/#deferred-reporting">overview</a></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#deferred-reporting-for-early-failures-capture-early-failures" target="_blank" rel="noopener">explainer — deferred reporting</a> and <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#deactivation" target="_blank" rel="noopener">deactivation</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="context">context and exposure</h2>
+    <ul>
+      <li><strong>Top-level main-document responses only.</strong> The header is honored on the primary navigation; iframe documents and subresource responses cannot activate observation for the main document — the feature is first-party by design.</li>
+      <li><strong>No JavaScript API.</strong> There is no script surface to detect or call; activation exists only as this header (plus the origin-trial token requirement during Chrome 151&ndash;155).</li>
+      <li><strong>Session scope.</strong> Observation lasts for the receiving document's session and deactivates when the report is dispatched; it does not outlive the document (the <code>capture-early-failures</code> origin flag is the single exception).</li>
+      <li><strong>Full proposal.</strong> The header and its directives are defined by the <a href="https://github.com/explainers-by-googlers/declarative-performance-observer" target="_blank" rel="noopener">Declarative Performance Observer explainer</a> (pre-incubation; no standalone specification exists as of 2026-07-28).</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#safe-api-design-and-telemetry-hijacking" target="_blank" rel="noopener">explainer — safe API design</a>, <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#deactivation" target="_blank" rel="noopener">deactivation</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <pre><code># Minimal: navigation + session-end only, one endpoint
+Reporting-Endpoints: telemetry="https://log.example.com/v1"
+Performance-Observer: report-to="telemetry", entry-types=("navigation")
+
+# Full: early-failure capture and allowlisted app marks
+Reporting-Endpoints: telemetry="https://log.example.com/v1"
+Performance-Observer: report-to="telemetry",
+                      entry-types=("navigation" "mark" "visibility-state"),
+                      include-user-timing=("hero-image-loaded" "next-link-clicked"),
+                      capture-early-failures=?1</code></pre>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#syntax" target="_blank" rel="noopener">explainer — syntax</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">browser compatibility</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Support</th></tr></thead>
+      <tr><td>Chrome / Edge (Chromium)</td><td>Origin trial 151&ndash;155 (desktop, Android, WebView) — <a href="https://chromestatus.com/feature/6594955352080384" target="_blank" rel="noopener">ChromeStatus</a> / <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a6078b0.68e56e23.371e2.01d5.GAE%40google.com" target="_blank" rel="noopener">Intent to Experiment</a>; no BCD entry</td></tr>
+      <tr><td>Firefox</td><td>No signal (no position recorded)</td></tr>
+      <tr><td>Safari</td><td>No signal (no position recorded)</td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="security-privacy">security &amp; privacy</h2>
+    <ul>
+      <li>Header-only activation prevents script-based telemetry hijacking; first-party/main-document-only scope.</li>
+      <li>Reports are delivered only to endpoints the same response configured (<a href="https://w3c.github.io/reporting/" target="_blank" rel="noopener">Reporting API</a> isolation); shared endpoints can correlate across origins.</li>
+      <li>The <code>capture-early-failures</code> flag and buffered reports are partitioned, 7-day-expiring, and cleared with site data — see the <a href="/v151/declarative-performance-observer/#security-privacy">overview security section</a>.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#security-and-privacy-considerations" target="_blank" rel="noopener">explainer — security and privacy considerations</a>.</span>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

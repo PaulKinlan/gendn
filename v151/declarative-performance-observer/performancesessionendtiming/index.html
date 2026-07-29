@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PerformanceSessionEndTiming — Declarative Performance Observer — Chrome 151 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; table-layout: fixed; min-width: 36rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; }
+    .doc-table tr:last-child td, .doc-table tr:last-child th { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    pre { overflow-x: auto; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v151/declarative-performance-observer/">&larr; Declarative Performance Observer</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v151 · origin trial · performance entry</p>
+    <h1>Performance<wbr>Session<wbr>End<wbr>Timing</h1>
+    <p class="lede">A new <a href="https://w3c.github.io/performance-timeline/#performanceentry" target="_blank" rel="noopener">PerformanceEntry</a> type proposed by the <a href="/v151/declarative-performance-observer/">Declarative Performance Observer</a>: an anonymous terminal marker the browser appends when a session ends, giving the precise total session duration (dwell time after the last recorded event) that JavaScript cannot reliably measure.</p>
+  </header>
+
+  <section>
+    <h2 id="syntax">structure</h2>
+    <p>Inherits from <code>PerformanceEntry</code>. In the report payload it serializes as:</p>
+    <pre><code>{ "name": "session-end-event",
+  "entryType": "session-end",
+  "startTime": 240200,
+  "duration": 0 }</code></pre>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row"><code>entryType</code></th><td><code>"session-end"</code></td></tr>
+      <tr><th scope="row"><code>name</code></th><td><code>"session-end-event"</code> (in the explainer's payload examples)</td></tr>
+      <tr><th scope="row"><code>startTime</code></th><td>The timestamp of session termination; subject to standard <a href="https://w3c.github.io/hr-time/#clock-resolution" target="_blank" rel="noopener">HR-Time clock-resolution</a> coarsening</td></tr>
+      <tr><th scope="row"><code>duration</code></th><td><code>0</code></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#report-format" target="_blank" rel="noopener">explainer — report format</a> and <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#example-report-payload" target="_blank" rel="noopener">example payload</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="semantics">semantics</h2>
+    <ul>
+      <li><strong>Terminal entry.</strong> Synthesized by the browser at session end (tab close, navigation away, BFCache entry, renderer crash, early network error) and reported as the last entry of the session's <code>entries</code> array.</li>
+      <li><strong>Anonymous by design.</strong> The entry does not reveal any closure-type details — there is no field distinguishing a crash from a normal tab close; only the end timestamp is exposed (&ldquo;This entry doesn&rsquo;t reveal any closure type details, except for <code>start_time</code>&rdquo;). Note: the explainer's table of contents lists a &ldquo;Crash Detection Heuristic vs. Explicit Field&rdquo; discussion section, but that section has no content as of 2026-07-28 — whether closure typing will be added is an open design question.</li>
+      <li><strong>Why it exists.</strong> The explainer considered not adding any new type (spec minimalism) but kept an explicit terminal entry because without it the precise total session duration — dwell time after the last recorded event — is unmeasurable.</li>
+      <li><strong>BFCache.</strong> Entering the back/forward cache ends the session (and emits this entry); a restore starts a new session.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#report-format" target="_blank" rel="noopener">explainer — report format</a>, <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#explicit-performancesessionendtiming-vs-spec-minimalism" target="_blank" rel="noopener">explicit PerformanceSessionEndTiming vs spec minimalism</a>, <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#report-timing-session-termination" target="_blank" rel="noopener">report timing</a>, <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#data-minimization-and-opt-in" target="_blank" rel="noopener">data minimization and opt-in</a>; TOC-vs-content gap verified by reading the full explainer text, 2026-07-28.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <p>Full session report ending with the session-end entry (abridged from the explainer's worked example):</p>
+    <pre><code>{
+  "type": "performance-observer",
+  "age": 100,
+  "url": "https://www.example.com/second",
+  "user_agent": "Mozilla/5.0 &hellip;",
+  "body": {
+    "entries": [
+      { "name": "https://www.example.com/second", "entryType": "navigation",
+        "startTime": 0, "domainLookupStart": 68, "domainLookupEnd": 120,
+        "connectStart": 122, "responseStart": 562 },
+      { "name": "hero-image-loaded", "entryType": "mark",
+        "startTime": 780, "duration": 0 },
+      { "name": "session-end-event", "entryType": "session-end",
+        "startTime": 240200, "duration": 0 }
+    ]
+  }
+}
+// Total session duration: 240200 ms (startTime of the terminal entry).</code></pre>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#example-report-payload" target="_blank" rel="noopener">explainer — example report payload</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">browser compatibility</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Support</th></tr></thead>
+      <tr><td>Chrome / Edge (Chromium)</td><td>Origin trial 151&ndash;155 with the Declarative Performance Observer feature (<a href="https://chromestatus.com/feature/6594955352080384" target="_blank" rel="noopener">ChromeStatus</a>); no BCD entry</td></tr>
+      <tr><td>Firefox</td><td>No signal</td></tr>
+      <tr><td>Safari</td><td>No signal</td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="security-privacy">security &amp; privacy</h2>
+    <ul>
+      <li>Anonymous: the entry carries only a coarsened timestamp — no closure reason, no page state (data minimization).</li>
+      <li>Time values follow <a href="https://w3c.github.io/hr-time/#clock-resolution" target="_blank" rel="noopener">HR-Time clock-resolution</a> limits, mitigating high-precision-timer side channels.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#data-minimization-and-opt-in" target="_blank" rel="noopener">explainer — data minimization</a>, <a href="https://github.com/explainers-by-googlers/declarative-performance-observer#timer-resolution-and-side-channels" target="_blank" rel="noopener">timer resolution and side-channels</a>.</span>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
