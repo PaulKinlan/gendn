@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>moderate_viewport_heuristics — Speculation Rules moderate viewport heuristics controls — Chrome 152 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code { overflow-wrap: anywhere; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v152/speculation-rules-moderate-viewport-heuristics-controls/">&larr; Speculation Rules - moderate viewport heuristics controls</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v152 &middot; origin trial &middot; speculation rules grammar</p>
+    <h1><code>moderate_viewport_heuristics</code></h1>
+    <p class="lede">The ruleset-level key that carries the heuristic overrides. An optional JSON object at the top level of a speculation-rules rule set, with up to three numeric fields &mdash; <code>distance_from_pointer_down</code>, <code>largest_anchor_threshold</code>, and <code>delay</code> &mdash; that retune Chrome&rsquo;s Android &ldquo;moderate&rdquo;-eagerness viewport heuristic for the document. Experimental, origin-trial-gated, and not planned to ship as is.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Origin trial &mdash; experiment-only grammar</strong>
+    <p>This key only has an effect in documents opted into the <code>SpeculationRulesModerateViewportHeuristicsControl</code> origin trial (Chrome 152&ndash;157, Android only; registration and local-flag steps on the <a href="/v152/speculation-rules-moderate-viewport-heuristics-controls/#origin-trial">overview</a>). There is no specification; every contract on this page is anchored to the <a href="https://gist.github.com/yoavweiss/6bb2de06642b475a12205684aea2eef9" target="_blank" rel="noopener">explainer</a> and the linked Chromium source files, and the grammar may change or disappear without a deprecation path.</p>
+  </div>
+
+  <section>
+    <h2 id="syntax">syntax</h2>
+    <p>Formal position: a top-level member of the rule-set object, a sibling of <code>prefetch</code>, <code>prerender</code>, and <code>tag</code> &mdash; not a member of any individual rule:</p>
+    <pre><code>rule-set = {
+  "moderate_viewport_heuristics": {
+    "distance_from_pointer_down": [ low, high ],   // optional; two numbers
+    "largest_anchor_threshold": number,            // optional
+    "delay": milliseconds                          // optional; number
+  },                                // ^ the whole object is optional
+  "prefetch": [ &hellip; ],   // and/or "prerender"
+}</code></pre>
+    <p>The key is valid in inline <code>&lt;script type="speculationrules"&gt;</code> blocks and in external rule sets fetched via <code>Speculation-Rules</code> headers alike &mdash; parsing happens in the shared rule-set parser (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/speculation_rules/speculation_rule_set.cc" target="_blank" rel="noopener">speculation_rule_set.cc</a>), which makes no inline/external distinction for this key.</p>
+    <span class="citation">Source: <a href="https://gist.github.com/yoavweiss/6bb2de06642b475a12205684aea2eef9" target="_blank" rel="noopener">explainer — proposal</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/speculation_rules/speculation_rule_set.cc" target="_blank" rel="noopener">speculation_rule_set.cc</a>; host grammar: <a href="https://wicg.github.io/nav-speculation/speculation-rules.html" target="_blank" rel="noopener">Speculation Rules spec</a></span>
+  </section>
+
+  <section>
+    <h2 id="distance-from-pointer-down"><code>distance_from_pointer_down</code></h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Type</th><td>Two-element array of numbers <code>[low, high]</code></td></tr>
+      <tr><th scope="row">Meaning</th><td>The inclusive band a candidate link&rsquo;s <em>vertical</em> distance from the user&rsquo;s last <code>pointerdown</code> must fall inside, expressed as a fraction of screen height. Negative values are above the tap point, positive below. Links outside the band are discarded before the dominance test runs</td></tr>
+      <tr><th scope="row">Default</th><td><code>[-0.3, 0.0]</code> &mdash; the P12.5/P87.5 bounds of the middle 75% of <code>distance_from_ptr_down_ratio</code> values observed for <em>clicked</em> anchors (per the implementation comments); the compiled values are Finch feature parameters and can be adjusted server-side</td></tr>
+      <tr><th scope="row">Clamping</th><td>Each end is clamped to <code>[-1, 1]</code>; after clamping, <code>high</code> is raised to at least <code>low</code> (<code>high = max(low, high)</code>), so an inverted band degenerates to a single value rather than an empty interval</td></tr>
+      <tr><th scope="row">Malformed input</th><td>Ignored unless the value is exactly a two-element array whose entries both convert to numbers; a malformed value leaves the default in place and never fails the rule set</td></tr>
+      <tr><th scope="row">Effect of widening</th><td>A wider band (e.g. <code>[-0.5, 0.2]</code>) lets more links pass the distance filter &mdash; more speculation, more candidate ambiguity for the dominance test to resolve. A band of <code>[0, 0]</code> restricts candidates to links level with the last tap</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://gist.github.com/yoavweiss/6bb2de06642b475a12205684aea2eef9" target="_blank" rel="noopener">explainer — field table</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/loader/anchor_element_interaction_tracker.cc" target="_blank" rel="noopener">anchor_element_interaction_tracker.cc — defaults, clamping</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/speculation_rules/speculation_rule_set.cc" target="_blank" rel="noopener">speculation_rule_set.cc — two-number parse rule</a></span>
+  </section>
+
+  <section>
+    <h2 id="largest-anchor-threshold"><code>largest_anchor_threshold</code></h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Type</th><td>Number (a ratio, dimensionless)</td></tr>
+      <tr><th scope="row">Meaning</th><td>How much bigger the largest in-viewport link must be than the second largest before it is picked: the heuristic requires <code>(size(largest) &minus; size(second)) / size(second) &gt; threshold</code>, with size measured as visible area. If the two biggest links are too close in size, no candidate is chosen &mdash; the browser does not guess between near-equal targets</td></tr>
+      <tr><th scope="row">Default</th><td><code>0.25</code> &mdash; the implementation comment records this default &ldquo;was selected arbitrarily and hasn&rsquo;t been tuned&rdquo;, which is precisely the kind of value this experiment exists to improve</td></tr>
+      <tr><th scope="row">Clamping</th><td>Negative values are clamped up to <code>0</code> (<code>max(value, 0)</code>); there is no upper clamp</td></tr>
+      <tr><th scope="row">Malformed input</th><td>Ignored unless the value converts to a number; the default then applies and the rule set is unaffected</td></tr>
+      <tr><th scope="row">Effect of changing</th><td><code>0</code> always accepts the largest link even when a near-tie exists (more speculation, more wrong guesses); large values make the picker increasingly conservative, suppressing speculation on dense link grids</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://gist.github.com/yoavweiss/6bb2de06642b475a12205684aea2eef9" target="_blank" rel="noopener">explainer — field table + dominance test</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/loader/anchor_element_interaction_tracker.cc" target="_blank" rel="noopener">anchor_element_interaction_tracker.cc — default rationale + clamp</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/speculation_rules/speculation_rule_set.cc" target="_blank" rel="noopener">speculation_rule_set.cc — numeric parse rule</a></span>
+  </section>
+
+  <section>
+    <h2 id="delay"><code>delay</code></h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Type</th><td>Number, milliseconds</td></tr>
+      <tr><th scope="row">Meaning</th><td>The dwell time the browser waits after picking a candidate before it triggers the speculative load. If the user scrolls again during the delay, the candidate is dropped &mdash; this is the filter that keeps fling-scrolling from wasting fetches on links that merely whip through the viewport</td></tr>
+      <tr><th scope="row">Default</th><td><code>500</code> ms &mdash; like the threshold, the implementation comment records this default &ldquo;was selected arbitrarily and hasn&rsquo;t been tuned&rdquo;</td></tr>
+      <tr><th scope="row">Clamping</th><td><strong>10&ndash;5000 ms</strong>. The implementation enforces a nonzero 10 ms floor &ldquo;per privacy review&rdquo; so authors cannot configure the heuristic to fire essentially immediately. The explainer&rsquo;s field table documents a <code>0</code>&ndash;<code>5000</code> range; the implementation floor postdates or supersedes it and is the authoritative contract (2026-07-29)</td></tr>
+      <tr><th scope="row">Malformed input</th><td>Ignored unless the value converts to a number; the default then applies</td></tr>
+      <tr><th scope="row">Effect of changing</th><td>Lower values speculate sooner after a scroll stop (better perceived latency, more fling false-positives); higher values waste fewer fetches but arrive later relative to the user&rsquo;s next tap</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/loader/anchor_element_interaction_tracker.cc" target="_blank" rel="noopener">anchor_element_interaction_tracker.cc — floor, ceiling, defaults</a>; <a href="https://gist.github.com/yoavweiss/6bb2de06642b475a12205684aea2eef9" target="_blank" rel="noopener">explainer — field table (documents 0&ndash;5000)</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/speculation_rules/speculation_rule_set.cc" target="_blank" rel="noopener">speculation_rule_set.cc — numeric parse rule</a></span>
+  </section>
+
+  <section>
+    <h2 id="parse-semantics">parse and error semantics</h2>
+    <p>The object is parsed <strong>unconditionally</strong> &mdash; including in documents with no origin-trial token &mdash; so that a third-party token registered after parsing can still take effect on the next heuristic run without a re-parse; effectiveness is gated separately at application time. Error handling is deliberately forgiving, and the implementation comment states the design rule explicitly: <strong>unknown sub-keys and malformed values are ignored; they never cause the whole rule set to fail</strong>.</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Input situation</th><th>Behavior</th></tr></thead>
+      <tr><td>Key absent</td><td>No overrides; the document uses the (Finch-adjustable) default configuration</td></tr>
+      <tr><td>Field absent from the object</td><td>That parameter keeps the default; present fields still override (fields are independently optional)</td></tr>
+      <tr><td>Unknown sub-key inside the object</td><td>Ignored</td></tr>
+      <tr><td>Wrong type (string, object, boolean&hellip;)</td><td>That field is ignored; the default applies; the rule set is unaffected</td></tr>
+      <tr><td><code>distance_from_pointer_down</code> not a 2-element number array</td><td>Both distance values are ignored; the default band applies</td></tr>
+      <tr><td>Out-of-range numbers</td><td>Clamped at application time (per-field rules above) &mdash; never a parse error</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/speculation_rules/speculation_rule_set.cc" target="_blank" rel="noopener">speculation_rule_set.cc — unconditional parse + ignored-malformed rule</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/speculation_rules/speculation_rule_set.h" target="_blank" rel="noopener">speculation_rule_set.h — optional fields fall back to defaults, clamped when applied</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/loader/anchor_element_interaction_tracker.cc" target="_blank" rel="noopener">anchor_element_interaction_tracker.cc — clamping</a></span>
+  </section>
+
+  <section>
+    <h2 id="context">context and exposure</h2>
+    <ul>
+      <li><strong>Where it applies.</strong> Documents that contain document-source speculation rules with <code>"eagerness": "moderate"</code>, on Android, with the <code>SpeculationRulesModerateViewportHeuristicsControl</code> origin trial enabled. It does not affect desktop hover-based heuristics, other eagerness levels (<code>immediate</code>, <code>eager</code>, <code>conservative</code>), or list rules (explicit <code>urls</code>), none of which use the viewport candidate picker.</li>
+      <li><strong>Inline and external rule sets.</strong> Parsed by the shared rule-set parser, so the key works in inline <code>&lt;script type="speculationrules"&gt;</code> blocks and external rule-set resources alike.</li>
+      <li><strong>Prerequisite base behavior.</strong> The viewport heuristic itself must be active on the device (the base <code>kPreloadingModerateViewportHeuristics</code> feature behind the Chrome 138 mobile behavior); the overrides layer onto its configuration, they do not enable it.</li>
+      <li><strong>Third-party contexts.</strong> First- and third-party origin-trial tokens both enable the override application, by design, so injected rule sets from performance libraries can participate.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://gist.github.com/yoavweiss/6bb2de06642b475a12205684aea2eef9" target="_blank" rel="noopener">explainer</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/loader/anchor_element_interaction_tracker.cc" target="_blank" rel="noopener">anchor_element_interaction_tracker.cc — application gating</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime flag record — OS + third-party token rules</a></span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">lifecycle</h2>
+    <ol>
+      <li><strong>Parse</strong> (page load / rule-set insertion): the object is read into an optional per-rule-set params struct; malformed fields are dropped here, but nothing is clamped or applied yet and no metric is recorded.</li>
+      <li><strong>Selection</strong> (document level): when the heuristic needs the configuration, the document consults its rule sets in order and uses the <strong>first</strong> rule set that carries the object; objects on later rule sets are ignored (no merging), a deliberate simplification for an experiment-only mechanism.</li>
+      <li><strong>Application</strong> (each scroll stop): if and only if the origin trial is enabled for the document, the params are clamped and layered onto the default config; the use counter <code>kSpeculationRulesModerateViewportHeuristicsControl</code> is recorded at this point so the metric reflects params that actually took effect.</li>
+      <li><strong>Action</strong>: the retuned distance filter, dominance test, and dwell delay govern the next candidate pick; the candidate dies if the user scrolls during the delay, and the delay timer resets on new position updates.</li>
+      <li><strong>Teardown</strong>: nothing persists &mdash; params live and die with the document&rsquo;s rule sets; navigating away discards all state.</li>
+    </ol>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/speculation_rules/speculation_rule_set.cc" target="_blank" rel="noopener">speculation_rule_set.cc — parse</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/speculation_rules/document_speculation_rules.cc" target="_blank" rel="noopener">document_speculation_rules.cc — first-rule-set-wins</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/loader/anchor_element_interaction_tracker.cc" target="_blank" rel="noopener">anchor_element_interaction_tracker.cc — apply, use counter, timer reset</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <p>All three fields set (the explainer&rsquo;s proposal example):</p>
+    <pre><code>&lt;script type="speculationrules"&gt;
+{
+  "moderate_viewport_heuristics": {
+    "distance_from_pointer_down": [-0.5, 0.2],
+    "largest_anchor_threshold": 0.1,
+    "delay": 200
+  },
+  "prefetch": [
+    { "source": "document", "where": { "href_matches": "/*" }, "eagerness": "moderate" }
+  ]
+}
+&lt;/script&gt;</code></pre>
+    <p>Conservative experiment &mdash; only admit links nearly level with the tap, require a clear size winner, wait longer:</p>
+    <pre><code>&lt;script type="speculationrules"&gt;
+{
+  "moderate_viewport_heuristics": {
+    "distance_from_pointer_down": [-0.1, 0.1],
+    "largest_anchor_threshold": 0.5,
+    "delay": 1500
+  },
+  "prefetch": [
+    { "source": "document", "where": { "href_matches": "/articles/*" }, "eagerness": "moderate" }
+  ]
+}
+&lt;/script&gt;</code></pre>
+    <p>Two rule sets &mdash; demonstrating first-wins: the second object is ignored, so <code>delay</code> stays <code>300</code>, not <code>900</code>:</p>
+    <pre><code>&lt;script type="speculationrules"&gt;
+{
+  "moderate_viewport_heuristics": { "delay": 300 },
+  "prefetch": [ { "source": "document", "where": { "href_matches": "/*" }, "eagerness": "moderate" } ]
+}
+&lt;/script&gt;
+&lt;script type="speculationrules"&gt;
+{
+  "moderate_viewport_heuristics": { "delay": 900 },
+  "prerender": [ { "source": "document", "where": { "href_matches": "/checkout/*" }, "eagerness": "moderate" } ]
+}
+&lt;/script&gt;</code></pre>
+    <span class="citation">Source: first example verbatim from the <a href="https://gist.github.com/yoavweiss/6bb2de06642b475a12205684aea2eef9" target="_blank" rel="noopener">explainer</a>; first-wins behavior per <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/speculation_rules/document_speculation_rules.cc" target="_blank" rel="noopener">document_speculation_rules.cc</a></span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">compatibility</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Engine / browser</th><th>Support</th><th>Evidence</th></tr></thead>
+      <tr><td>Chrome for Android 152&ndash;157</td><td>Behind origin trial (first- and third-party tokens); parsed unconditionally, effective only with the token</td><td><a href="https://chromestatus.com/api/v0/features?milestone=152" target="_blank" rel="noopener">milestone=152 listing</a>; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/bfe53f18-adb1-4bfe-9709-b1bac7aa084an%40chromium.org" target="_blank" rel="noopener">API-owner LGTM M152&ndash;M157</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime flag record</a></td></tr>
+      <tr><td>Chrome desktop / WebView</td><td>No effect (viewport heuristic is Android-only; trial restricted to Android)</td><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/CAOmohSJJhjzz31rm-5rDJV_BHuUegyhz2VSP0wTEfpbNH-DT3g%40mail.gmail.com" target="_blank" rel="noopener">Intent</a>; runtime flag record</td></tr>
+      <tr><td>Firefox / Safari</td><td>No signal; key ignored as unknown speculation-rules content</td><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/CAOmohSJJhjzz31rm-5rDJV_BHuUegyhz2VSP0wTEfpbNH-DT3g%40mail.gmail.com" target="_blank" rel="noopener">Intent</a> vendor views</td></tr>
+      <tr><td>BCD / webstatus</td><td>No entries (checked 2026-07-29) &mdash; this table is the interim record</td><td><a href="https://github.com/mdn/browser-compat-data/tree/main/api" target="_blank" rel="noopener">BCD api/</a>; <a href="https://api.webstatus.dev/v1/features?q=speculation-rules" target="_blank" rel="noopener">webstatus.dev query</a></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features?milestone=152" target="_blank" rel="noopener">milestone=152 listing</a>; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/CAOmohSJJhjzz31rm-5rDJV_BHuUegyhz2VSP0wTEfpbNH-DT3g%40mail.gmail.com" target="_blank" rel="noopener">Intent</a>; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/bfe53f18-adb1-4bfe-9709-b1bac7aa084an%40chromium.org" target="_blank" rel="noopener">API-owner LGTM</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime flag record</a>; <a href="https://github.com/mdn/browser-compat-data/tree/main/api" target="_blank" rel="noopener">BCD api/</a>; <a href="https://api.webstatus.dev/v1/features?q=speculation-rules" target="_blank" rel="noopener">webstatus.dev query</a> — compiled 2026-07-29</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <ul>
+      <li>The <code>delay</code> floor of 10 ms exists &ldquo;per privacy review&rdquo; so the heuristic cannot be configured to fire essentially immediately (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/loader/anchor_element_interaction_tracker.cc" target="_blank" rel="noopener">anchor_element_interaction_tracker.cc</a>).</li>
+      <li>The parameters influence only the timing and selectivity of speculative loads the browser would be eligible to perform anyway; they introduce no new request destinations, credentials, storage, or identifiers.</li>
+      <li>Third-party trial tokens are an explicit design decision to accommodate cross-origin performance libraries (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime flag record</a>); the parse-anywhere/apply-under-token split exists so such libraries cannot silently change behavior before their token registers (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/speculation_rules/speculation_rule_set.cc" target="_blank" rel="noopener">speculation_rule_set.cc</a>).</li>
+      <li>Malformed content fails closed: it is ignored, leaving conservative defaults (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/speculation_rules/speculation_rule_set.cc" target="_blank" rel="noopener">speculation_rule_set.cc</a>).</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/loader/anchor_element_interaction_tracker.cc" target="_blank" rel="noopener">anchor_element_interaction_tracker.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime flag record</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/speculation_rules/speculation_rule_set.cc" target="_blank" rel="noopener">speculation_rule_set.cc</a> — fetched 2026-07-29</span>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
