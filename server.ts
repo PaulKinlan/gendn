@@ -287,6 +287,33 @@ async function featureHasDoc(release: string, slug: string): Promise<boolean> {
   }
 }
 
+// ----- Cross-release identity index -----
+// Identity is the chromestatus feature id (invariant #1), not the milestone folder. When a
+// feature's listing drifts to a later milestone (or appears in two listings), the page already
+// built under an earlier release is the canonical reference — the listing must link it rather
+// than flag a false "doc pending". Built lazily once per process from each page's identity link.
+let identityIndexPromise: Promise<Map<string, string>> | null = null;
+function getIdentityIndex(): Promise<Map<string, string>> {
+  if (!identityIndexPromise) {
+    identityIndexPromise = (async () => {
+      const map = new Map<string, string>();
+      for (const dir of Deno.readDirSync(".")) {
+        if (!dir.isDirectory || !/^v\d+$/.test(dir.name)) continue;
+        for (const sub of Deno.readDirSync(`./${dir.name}`)) {
+          if (!sub.isDirectory) continue;
+          try {
+            const html = await Deno.readTextFile(`./${dir.name}/${sub.name}/index.html`);
+            const m = html.match(/chromestatus\.com\/feature\/(\d+)/);
+            if (m && !map.has(m[1])) map.set(m[1], `/${dir.name}/${sub.name}/`);
+          } catch { /* folder without an index page (child route container) */ }
+        }
+      }
+      return map;
+    })();
+  }
+  return identityIndexPromise;
+}
+
 function categoryTag(category: string): string {
   return category
     .replace("In developer trial (Behind a flag)", "Dev Trial")
@@ -298,15 +325,22 @@ function categoryTag(category: string): string {
 
 async function renderReleasePage(release: string, milestone: number): Promise<string> {
   const features = await getMilestoneFeatures(milestone);
+  const identityIndex = await getIdentityIndex();
 
   const sections = await Promise.all(features.groups.map(async (group) => {
     const cards = await Promise.all(group.features.map(async (f) => {
       const slug = slugify(f.name);
       const hasDoc = await featureHasDoc(release, slug);
       const summary = (f.summary ?? "").slice(0, 220);
-      const docTag = hasDoc
-        ? `<a class="tag tag-live" href="/${release}/${slug}/">reference &rarr;</a>`
-        : `<span class="tag tag-pending">doc pending</span>`;
+      let docTag: string;
+      if (hasDoc) {
+        docTag = `<a class="tag tag-live" href="/${release}/${slug}/">reference &rarr;</a>`;
+      } else {
+        const cross = identityIndex.get(String(f.id));
+        docTag = cross
+          ? `<a class="tag tag-live" href="${cross}">reference ${cross.split("/")[1]} &rarr;</a>`
+          : `<span class="tag tag-pending">doc pending</span>`;
+      }
       return `<li class="demo-card">
         <h3><a href="https://chromestatus.com/feature/${f.id}" target="_blank" rel="noopener">${
         escapeHTML(f.name)
