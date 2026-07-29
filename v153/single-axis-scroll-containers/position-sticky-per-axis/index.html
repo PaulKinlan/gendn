@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>position: sticky per-axis resolution — Chrome 153 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code { overflow-wrap: anywhere; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v153/single-axis-scroll-containers/">&larr; Single-axis scroll containers</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v153 · css position · sticky</p>
+    <h1><code>position: sticky</code> per-axis resolution</h1>
+    <p class="lede">How sticky positioning resolves its constraint <strong>independently per axis</strong> — against the nearest ancestor scroll container <em>scrollable in that axis</em> — which is what makes split-axis layouts (horizontally scrolling grid, vertically sticky header) work in plain CSS.</p>
+  </header>
+
+  <section>
+    <h2 id="syntax">the rule (verbatim)</h2>
+    <p>From <a href="https://drafts.csswg.org/css-position-3/#sticky-pos" target="_blank" rel="noopener">CSS Positioned Layout Level 3 §3.4 (sticky positioning)</a>, fetched 2026-07-29:</p>
+    <blockquote>
+      <p>&ldquo;Sticky positioning is similar to relative positioning except the offsets are automatically calculated in reference to the nearest scrollport. For a sticky positioned box, the inset properties represent insets from the respective edges of the scrollport of the <strong>nearest scroll container with a matching scrollable axis</strong>, defining the sticky view rectangle used to constrain the box&rsquo;s position. (The sticky view rectangle can be constructed from edges of two different scrollports, if the nearest scroll container is a single-axis scroll container.)&rdquo;</p>
+    </blockquote>
+    <p>For a <code>position: sticky</code> box the parenthetical is the behavioral core of this feature: when the nearest scroll container is <a href="overflow-scroll-clip/">single-axis</a>, the sticky view rectangle&rsquo;s edges may come from <strong>two different scrollports</strong> — the x edges from the single-axis container, the y edges from the next ancestor that scrolls in y. The per-axis insets (<code>top</code>, <code>right</code>, <code>bottom</code>, <code>left</code>) are measured against the scrollport found for <em>their</em> axis.</p>
+    <span class="citation">Source: <a href="https://drafts.csswg.org/css-position-3/#sticky-pos" target="_blank" rel="noopener">CSS Position 3 §3.4</a> (quoted verbatim 2026-07-29); <a href="https://github.com/w3c/csswg-drafts/pull/13903" target="_blank" rel="noopener">csswg-drafts PR #13903</a> (merged 2026-06-30; the spec-link on the chromestatus record)</span>
+  </section>
+
+  <section>
+    <h2 id="resolution">resolution walk-through</h2>
+    <ol>
+      <li>For each axis, the UA walks the ancestor chain looking for the <strong>nearest scroll container with a scrollable axis matching that axis</strong>.</li>
+      <li>An <code>overflow: clip</code> axis is <em>not</em> a scrollable axis — the WPT assertion states it directly: &ldquo;sticky elements do not consider <code>overflow: clip</code> containers as possible scroll ancestor&rdquo;. The walk continues past it.</li>
+      <li>The two per-axis scrollports together define the sticky view rectangle; insets (<code>top</code>, <code>left</code>, &hellip;) are measured from the respective edges of the scrollport found <em>for that axis</em>.</li>
+      <li>If both insets in a given axis are <code>auto</code>, no offset is added in that axis — the element stays where it was laid out there (unchanged rule).</li>
+    </ol>
+    <span class="citation">Source: <a href="https://drafts.csswg.org/css-position-3/#sticky-pos" target="_blank" rel="noopener">CSS Position 3 §3.4</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/css/css-position/sticky/position-sticky-overflow-clip-container.html" target="_blank" rel="noopener">WPT position-sticky-overflow-clip-container.html</a> (assert quoted)</span>
+  </section>
+
+  <section>
+    <h2 id="worked-example">worked example: the split-axis data grid</h2>
+    <pre><code>&lt;body&gt;                      &lt;!-- scrolls vertically (the page) --&gt;
+  &lt;div class="grid"&gt;         &lt;!-- overflow: auto clip → single-axis (x) --&gt;
+    &lt;div class="header"&gt;      &lt;!-- position: sticky; top: 0 --&gt;
+    &lt;div class="first-col"&gt;   &lt;!-- position: sticky; left: 0 --&gt;</code></pre>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Element</th><th>Vertical (y) constraint resolves against</th><th>Horizontal (x) constraint resolves against</th></tr></thead>
+      <tr><td><code>.header</code> (sticky top)</td><td><strong>The page</strong> — <code>.grid</code> is not y-scrollable, so the walk continues past it</td><td>n/a (no x inset)</td></tr>
+      <tr><td><code>.first-col</code> (sticky left)</td><td>n/a (no y inset)</td><td><strong><code>.grid</code></strong> — the nearest x-axis scroll container</td></tr>
+    </table>
+    </div>
+    <p>Result: the header follows vertical page scrolling while the grid scrolls horizontally beneath it; the first column stays pinned inside the grid&rsquo;s horizontal scroll. Before single-axis scroll containers, <code>.grid</code> (via <code>overflow-y: hidden</code>) captured <em>both</em> constraints and the header never stuck to the page.</p>
+    <span class="citation">Source: pattern per the <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/69b81554.050a0220.87ff1.0e40.GAE%40google.com" target="_blank" rel="noopener">Intent to Prototype</a> (&ldquo;wide tables and data grids with horizontally scrollable content and vertically sticky headers&rdquo;); resolution rule per <a href="https://drafts.csswg.org/css-position-3/#sticky-pos" target="_blank" rel="noopener">CSS Position 3 §3.4</a></span>
+  </section>
+
+  <section>
+    <h2 id="edge-cases">edge cases</h2>
+    <ul>
+      <li><strong>No scrollable ancestor in an axis</strong> — the constraint resolves against the initial containing block&rsquo;s scrollport (the viewport), as before.</li>
+      <li><strong><code>overflow: hidden</code> ancestors</strong> — still count as scroll containers (programmatic scrolling), so they still capture sticky constraints in both axes; only <code>clip</code> opts an axis out. This asymmetry is the migration trap when converting old <code>hidden</code>-based layouts.</li>
+      <li><strong>RTL</strong> — covered upstream by the RTL WPT variants (<code>single-axis-overflow-clip-rtl.html</code>, <code>single-axis-scroll-into-view-rtl.html</code>).</li>
+      <li><strong>Both insets auto in an axis</strong> — no offset in that axis (per the spec paragraph above).</li>
+    </ul>
+    <span class="citation">Source: <a href="https://drafts.csswg.org/css-position-3/#sticky-pos" target="_blank" rel="noopener">CSS Position 3 §3.4</a>; <a href="https://github.com/web-platform-tests/wpt/tree/master/css/css-overflow" target="_blank" rel="noopener">WPT css/css-overflow directory</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <pre><code>.page { /* normal vertically scrolling document */ }
+
+.grid {
+  overflow: auto clip;   /* single-axis (x) scroll container */
+  max-width: 100%;
+}
+
+.grid thead th {
+  position: sticky;
+  top: 0;                /* sticks to the PAGE, not .grid */
+  background: Canvas;
+}
+
+.grid td:first-child,
+.grid th:first-child {
+  position: sticky;
+  left: 0;               /* sticks inside .grid's horizontal scroll */
+  background: Canvas;
+}</code></pre>
+    <span class="citation">Source: <a href="https://drafts.csswg.org/css-position-3/#sticky-pos" target="_blank" rel="noopener">CSS Position 3 §3.4</a>; <a href="https://drafts.csswg.org/css-overflow-3/#overflow-properties" target="_blank" rel="noopener">CSS Overflow 3 §3.1</a></span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">compatibility</h2>
+    <p>Same interim status as the <a href="/v153/single-axis-scroll-containers/#compatibility">overview table</a> (runtime flag experimental at trunk, enable-by-default CL pending — see the overview <a href="/v153/single-axis-scroll-containers/#ship-status">ship-status note</a>). No BCD key records per-axis sticky resolution.</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Per-axis sticky resolution</th></tr></thead>
+      <tr><td>Chrome</td><td>Enabled by default 153 (per the <a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">listing</a>); flag experimental at trunk</td></tr>
+      <tr><td>Edge</td><td>Not separately reported</td></tr>
+      <tr><td>Firefox</td><td>Unknown — <a href="https://github.com/mozilla/standards-positions/issues/1418" target="_blank" rel="noopener">Mozilla #1418</a> open, no signal</td></tr>
+      <tr><td>Safari</td><td>Unknown — <a href="https://github.com/WebKit/standards-positions/issues/680" target="_blank" rel="noopener">WebKit #680</a> open, no signal</td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <p>No new exposure — a constraint-resolution change in layout. Per-axis resolution is observable via <code>getBoundingClientRect()</code> during scroll, which reveals engine/version family only, as all layout behavior does.</p>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a> · feature: <a href="https://chromestatus.com/feature/5067363861004288" target="_blank" rel="noopener">chromestatus.com/feature/5067363861004288</a></footer>
+</main>
+</body>
+</html>

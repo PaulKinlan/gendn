@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>overflow: scroll clip — combination semantics — Chrome 153 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code { overflow-wrap: anywhere; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v153/single-axis-scroll-containers/">&larr; Single-axis scroll containers</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v153 · css overflow · grammar + computed values</p>
+    <h1><code>overflow: scroll clip</code> — combination semantics</h1>
+    <p class="lede">How the two-keyword <code>overflow</code> grammar and its per-axis computed-value rules turn &ldquo;scrollable on one axis, <code>clip</code> on the other&rdquo; into a <strong>single-axis scroll container</strong> — and what that does to scroll offsets, scrollbars, and programmatic scrolling on the clipped axis.</p>
+  </header>
+
+  <section>
+    <h2 id="syntax">syntax</h2>
+    <p>Verbatim from <a href="https://drafts.csswg.org/css-overflow-3/#propdef-overflow" target="_blank" rel="noopener">CSS Overflow 3 §3.1</a>:</p>
+    <pre><code>overflow
+  Value:    &lt;'overflow-block'&gt;{1,2}
+  Initial:  visible
+  Applies to: block containers, flex containers, and grid containers</code></pre>
+    <p>&ldquo;The <code>overflow</code> property is a shorthand property that sets the specified values of <code>overflow-x</code> and <code>overflow-y</code> <strong>in that order</strong>. If the second value is omitted, it is copied from the first.&rdquo; So <code>overflow: scroll clip</code> means <code>overflow-x: scroll; overflow-y: clip</code> — the first keyword is always the x (inline-in-horizontal-writing) axis, never the &ldquo;primary&rdquo; one. The longhands take the same value set: <code>visible | hidden | clip | scroll | auto</code> (plus <code>overlay</code> as a legacy alias of <code>auto</code>).</p>
+    <p>The value definitions that matter here, verbatim:</p>
+    <ul>
+      <li><strong><code>clip</code></strong> — &ldquo;the box&rsquo;s content is clipped to its overflow clip edge and that no scrolling user interface should be provided by the UA to view the content outside the clipping region. In addition, unlike <code>overflow: hidden</code> which still allows programmatic scrolling, <code>overflow: clip</code> forbids scrolling entirely, through any mechanism. Unlike <code>hidden</code>, this value does not cause the element to establish a new formatting context.&rdquo;</li>
+      <li><strong><code>scroll</code></strong> — &ldquo;the content is clipped to the overflow clip edge, but can be scrolled into view. Furthermore, if the user agent uses a scrolling mechanism that is visible on the screen (such as a scroll bar or a panner), that mechanism should be displayed whether or not any of its content is clipped.&rdquo;</li>
+      <li><strong><code>auto</code></strong> — &ldquo;Like <code>scroll</code> when the box has scrollable overflow; like <code>hidden</code> otherwise.&rdquo;</li>
+    </ul>
+    <span class="citation">Source: <a href="https://drafts.csswg.org/css-overflow-3/#overflow-properties" target="_blank" rel="noopener">CSS Overflow 3 §3.1</a> (quoted verbatim 2026-07-29)</span>
+  </section>
+
+  <section>
+    <h2 id="computed-values">computed-value rules (what each axis becomes)</h2>
+    <p>The classification that drives everything else — verbatim from the same section:</p>
+    <blockquote>
+      <p>&ldquo;The <code>scroll</code>, <code>auto</code>, and <code>hidden</code> values are known as the <em>scrollable values</em> of <code>overflow</code>. They cause the box to be a scroll container and the affected axis to be a scrollable axis. [&hellip;] The <code>visible</code> and <code>clip</code> values are known as the <em>non-scrollable values</em>. However, if the other axis specifies a scrollable value, a specified value of <code>visible</code> computes to <code>auto</code>, enabling scrolling in its axis. If neither axis computes to a scrollable value, the box is not a scroll container. If only one axis computes to a scrollable value (i.e. the other axis is <code>clip</code>), the box is a <em>single-axis scroll container</em>.&rdquo;</p>
+    </blockquote>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Declared (x / y)</th><th>Computed result</th><th>Scroll container type</th></tr></thead>
+      <tr><td><code>scroll</code> / <code>clip</code></td><td>unchanged</td><td><strong>single-axis</strong> (x)</td></tr>
+      <tr><td><code>auto</code> / <code>clip</code></td><td>unchanged</td><td><strong>single-axis</strong> (x) — no scrollbar until there is x-overflow</td></tr>
+      <tr><td><code>clip</code> / <code>scroll</code></td><td>unchanged</td><td><strong>single-axis</strong> (y)</td></tr>
+      <tr><td><code>scroll</code> / <code>hidden</code></td><td>unchanged</td><td>dual-axis — y is still scrollable programmatically</td></tr>
+      <tr><td><code>scroll</code> / <code>visible</code></td><td><code>visible</code> → <code>auto</code></td><td>dual-axis</td></tr>
+      <tr><td><code>clip</code> / <code>visible</code></td><td>unchanged (no scrollable value)</td><td>not a scroll container</td></tr>
+    </table>
+    </div>
+    <p>The spec&rsquo;s parenthetical — &ldquo;i.e. the other axis is <code>clip</code>&rdquo; — is the whole point: <code>clip</code> is the <em>only</em> non-scrollable value that does not compute away when paired with a scrollable value. <code>hidden</code> cannot produce a single-axis container because it is itself scrollable.</p>
+    <span class="citation">Source: <a href="https://drafts.csswg.org/css-overflow-3/#overflow-properties" target="_blank" rel="noopener">CSS Overflow 3 §3.1</a> (quoted verbatim 2026-07-29)</span>
+  </section>
+
+  <section>
+    <h2 id="disabled-axis">the disabled axis: offsets, scrollbars, programmatic scrolling</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Behavior</th><th>Contract</th></tr></thead>
+      <tr><td>Scroll offset on the clipped axis</td><td>Always <code>0</code> — <code>scrollTop</code>/<code>scrollLeft</code> read 0 and programmatic scrolls (<code>scrollTo()</code>, <code>scrollBy()</code>, offset assignment) on that axis do not change it</td></tr>
+      <tr><td>Scroll metrics</td><td><code>scrollWidth</code>/<code>scrollHeight</code> still measure the full overflowing content — clipping does not shrink the measurement</td></tr>
+      <tr><td>User scrolling</td><td>None on the clipped axis: no scrollbar, no wheel/touch/keyboard scrolling — &ldquo;forbids scrolling entirely, through any mechanism&rdquo;</td></tr>
+      <tr><td><code>scrollIntoView()</code></td><td>Scrolls only the scrollable axis of a single-axis container</td></tr>
+      <tr><td>Dynamic change to <code>clip</code></td><td>Switching an axis from a scrollable value to <code>clip</code> clamps that axis back to offset 0 and repaints</td></tr>
+      <tr><td>Formatting context</td><td><code>clip</code> alone does not establish one (unlike <code>hidden</code>); a box that <em>is</em> a scroll container (the other axis) still establishes an independent formatting context</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/web-platform-tests/wpt/blob/master/css/css-overflow/single-axis-scroll-apis-programmatic.html" target="_blank" rel="noopener">WPT single-axis-scroll-apis-programmatic.html</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/css/css-overflow/single-axis-overflow-scroll-to-clip.html" target="_blank" rel="noopener">single-axis-overflow-scroll-to-clip.html</a> (assert quoted on the <a href="/v153/single-axis-scroll-containers/#scroll-apis">overview</a>); <a href="https://drafts.csswg.org/css-overflow-3/#valdef-overflow-clip" target="_blank" rel="noopener">CSS Overflow 3 — clip</a>; <a href="https://drafts.csswg.org/cssom-view/#dom-element-scrollto" target="_blank" rel="noopener">CSSOM View — scrollTo()</a></span>
+  </section>
+
+  <section>
+    <h2 id="errors">error and edge behavior</h2>
+    <ul>
+      <li><strong>Unknown keywords</strong> — anything outside the value set (<code>visible | hidden | clip | scroll | auto | overlay</code>) makes the declaration invalid at parse time and it is dropped (standard CSS error handling); there is no partial application.</li>
+      <li><strong>Three or more keywords</strong> — the grammar is <code>{1,2}</code>; a third keyword invalidates the whole declaration.</li>
+      <li><strong>Replaced elements</strong> — CSS Overflow 3&rsquo;s properties apply to block/flex/grid containers; Level 4 expands <code>overflow</code> to replaced elements, which is out of scope for this feature&rsquo;s sources.</li>
+      <li><strong>Scroll snap</strong> — snap-point interaction with single-axis containers is a separate, not-yet-enabled feature in Chromium (<code>SingleAxisScrollContainersForScrollSnap</code>) and an open spec question (<a href="https://github.com/w3c/csswg-drafts/issues/14018" target="_blank" rel="noopener">csswg-drafts #14018</a>); treat snap behavior on the scrollable axis as unsettled.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://drafts.csswg.org/css-overflow-3/#propdef-overflow" target="_blank" rel="noopener">CSS Overflow 3 — overflow grammar</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a> (snap flag record, 2026-07-29)</span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <pre><code>/* x-scrollable, y-disabled: a single-axis (x) scroll container */
+.rail {
+  overflow: scroll clip;   /* = overflow-x: scroll; overflow-y: clip */
+}
+
+/* equivalent longhands, scrollbar only when x-overflow exists */
+.rail-lazy {
+  overflow-x: auto;
+  overflow-y: clip;
+}
+
+/* NOT equivalent — hidden keeps y programmatically scrollable,
+   so this stays a dual-axis scroll container */
+.rail-broken {
+  overflow-x: auto;
+  overflow-y: hidden;
+}</code></pre>
+    <pre><code>// The disabled axis holds no offset:
+const rail = document.querySelector('.rail');
+rail.scrollTo({ top: 100, left: 40 });
+console.log(rail.scrollTop);  // 0 — the y axis is clipped, not scrollable
+console.log(rail.scrollLeft); // 40 — the x axis scrolls</code></pre>
+    <span class="citation">Source: semantics per <a href="https://drafts.csswg.org/css-overflow-3/#overflow-properties" target="_blank" rel="noopener">CSS Overflow 3 §3.1</a> and <a href="https://github.com/web-platform-tests/wpt/blob/master/css/css-overflow/single-axis-scroll-apis-programmatic.html" target="_blank" rel="noopener">WPT programmatic-API assertions</a></span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">compatibility</h2>
+    <p>Same interim status as the <a href="/v153/single-axis-scroll-containers/#compatibility">overview table</a> (flag still experimental at trunk — see the overview <a href="/v153/single-axis-scroll-containers/#ship-status">ship-status note</a>). BCD&rsquo;s <code>multiple_keywords</code> key (Chrome 68 / Firefox 61 / Safari 13.1) records only the two-keyword <em>syntax</em>, not single-axis behavior.</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th><code>overflow: scroll clip</code> → single-axis scroll container</th></tr></thead>
+      <tr><td>Chrome</td><td>Enabled by default 153 (per the <a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">listing</a>); flag experimental at trunk</td></tr>
+      <tr><td>Edge</td><td>Not separately reported</td></tr>
+      <tr><td>Firefox</td><td>Unknown — <a href="https://github.com/mozilla/standards-positions/issues/1418" target="_blank" rel="noopener">Mozilla #1418</a> open, no signal</td></tr>
+      <tr><td>Safari</td><td>Unknown — <a href="https://github.com/WebKit/standards-positions/issues/680" target="_blank" rel="noopener">WebKit #680</a> open, no signal</td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <p>No new exposure: a grammar/computed-value change with no I/O. The one authoring hazard is that <code>clip</code> disables scrolling <em>through any mechanism</em> on that axis — including assistive-technology and keyboard scrolling — so content must never depend on being reachable by scrolling the clipped axis.</p>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a> · feature: <a href="https://chromestatus.com/feature/5067363861004288" target="_blank" rel="noopener">chromestatus.com/feature/5067363861004288</a></footer>
+</main>
+</body>
+</html>
