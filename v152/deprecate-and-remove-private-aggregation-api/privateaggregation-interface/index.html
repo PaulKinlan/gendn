@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PrivateAggregation interface (removed) — Deprecate and remove: Private Aggregation API — Chrome 152 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 26%; min-width: 7rem; overflow-wrap: normal; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code { overflow-wrap: anywhere; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .warn-block > strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v152/deprecate-and-remove-private-aggregation-api/">&larr; Deprecate and remove: Private Aggregation API</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v152 · privacy sandbox · web idl · removed</p>
+    <h1>PrivateAggregation interface</h1>
+    <p class="lede">The removed JavaScript surface of the Private Aggregation API: a worklet-global object with three methods &mdash; <code>contributeToHistogram()</code>, <code>contributeToHistogramOnEvent()</code>, and <code>enableDebugMode()</code> &mdash; plus its two dictionaries. Documented here exactly as specified and as shipped, so existing callers can audit, guard, and delete their usage. See the <a href="/v152/deprecate-and-remove-private-aggregation-api/">overview</a> for the removal timeline and migration paths.</p>
+  </header>
+
+  <div class="warn-block" id="removed">
+    <strong>Removed surface &mdash; reference for deletion, not adoption</strong>
+    <p>Every contract on this page describes an API on a published removal path (<a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/8d2b9c6a-d1f1-4111-bdb4-31933998cd36n%40chromium.org" target="_blank" rel="noopener">Intent to Deprecate and Remove</a>; <a href="https://chromestatus.com/feature/4683382919397376" target="_blank" rel="noopener">ChromeStatus 4683382919397376</a>). As disablement rolls out, <code>privateAggregation</code> is <code>undefined</code> in worklet globals and any call throws <code>TypeError</code> &mdash; guard with <code>typeof privateAggregation !== &quot;undefined&quot;</code> or delete the calls.</p>
+  </div>
+
+  <section>
+    <h2 id="syntax">syntax</h2>
+    <p>Normative IDL from the final published draft (<a href="https://patcg-individual-drafts.github.io/private-aggregation-api/#exposed-interface" target="_blank" rel="noopener">§ the exposed interface</a>), verbatim:</p>
+    <pre><code>[Exposed=(InterestGroupScriptRunnerGlobalScope,SharedStorageWorklet),
+ SecureContext]
+interface PrivateAggregation {
+  undefined contributeToHistogram(PAHistogramContribution contribution);
+  undefined contributeToHistogramOnEvent(DOMString event,
+                                         record&lt;DOMString, any&gt; contribution);
+  undefined enableDebugMode(optional PADebugModeOptions options = {});
+};
+
+dictionary PAHistogramContribution {
+  required bigint bucket;
+  required long value;
+  bigint filteringId = 0;
+};
+
+dictionary PADebugModeOptions {
+  required bigint debugKey;
+};</code></pre>
+    <p>The interface was exposed on the <strong>Shared Storage worklet global scope</strong> and the <strong>Protected Audience interest-group script runner global scope</strong> only, in <a href="https://patcg-individual-drafts.github.io/private-aggregation-api/#exposed-interface" target="_blank" rel="noopener">secure contexts</a> &mdash; never on <code>window</code>. As shipped in Chromium (Shared Storage side, <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7820/third_party/blink/renderer/modules/shared_storage/private_aggregation.idl" target="_blank" rel="noopener">private_aggregation.idl at the M149 branch</a>), verbatim &mdash; note the shipped dictionary name <code>PrivateAggregationHistogramContribution</code> and the runtime gate on the on-event method:</p>
+    <pre><code>[Exposed=(SharedStorageWorklet),
+ ContextEnabled=PrivateAggregationInSharedStorage]
+interface PrivateAggregation {
+  [CallWith=ScriptState, RaisesException]
+    void contributeToHistogram(PrivateAggregationHistogramContribution contribution);
+  [CallWith=ScriptState, RaisesException,
+   RuntimeEnabled=PrivateAggregationApiErrorReporting]
+    void contributeToHistogramOnEvent(DOMString event,
+                                      PrivateAggregationHistogramContribution contribution);
+  [CallWith=ScriptState, RaisesException]
+    void enableDebugMode(optional PrivateAggregationDebugModeOptions options);
+};</code></pre>
+    <span class="citation">Source: <a href="https://patcg-individual-drafts.github.io/private-aggregation-api/#exposed-interface" target="_blank" rel="noopener">Private Aggregation API draft &mdash; the exposed interface</a>; <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7820/third_party/blink/renderer/modules/shared_storage/private_aggregation.idl" target="_blank" rel="noopener">Chromium private_aggregation.idl (M149 branch)</a></span>
+  </section>
+
+  <section>
+    <h2 id="context">context and exposure</h2>
+    <p>The object was reachable only as <code>privateAggregation</code> on the two worklet globals named in the IDL <code>Exposed</code> attribute. In Chromium the attribute on <code>SharedStorageWorkletGlobalScope</code> was gated by <code>ContextEnabled=PrivateAggregationInSharedStorage</code> (<a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7380/third_party/blink/renderer/modules/shared_storage/shared_storage_worklet_global_scope.idl" target="_blank" rel="noopener">shared_storage_worklet_global_scope.idl</a>), ultimately controlled by the <code>kPrivateAggregationApi</code> base feature with per-context Finch parameters <code>enabled_in_shared_storage</code> / <code>enabled_in_fledge</code> (<a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7924/third_party/blink/common/features.cc" target="_blank" rel="noopener">features.cc, M152 branch</a>). Ordinary documents, workers, and service workers never had access; there was no permissions-policy-gated document surface.</p>
+    <span class="citation">Source: <a href="https://patcg-individual-drafts.github.io/private-aggregation-api/#exposed-interface" target="_blank" rel="noopener">draft &mdash; exposed interface</a>; <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7924/third_party/blink/common/features.cc" target="_blank" rel="noopener">Chromium features.cc (M152 branch)</a></span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">lifecycle of a contribution</h2>
+    <p>Each <code>contributeToHistogram()</code> call queued a histogram contribution inside the worklet invocation; at the end of the invocation the browser assembled contributions into an <strong>aggregatable report</strong> (encrypted to the aggregation service&rsquo;s public key), and later sent it to the reporting origin&rsquo;s fixed <code>.well-known</code> endpoint &mdash; the full pipeline, its endpoints, and its sunset are on the <a href="../aggregatable-reports/">aggregatable-reports page</a>. Calls were fire-and-forget: they returned <code>undefined</code> immediately and no handle to the eventual report existed. With the API disabled, the queueing step no longer happens &mdash; calls throw <code>TypeError</code> at the property access itself.</p>
+    <span class="citation">Source: <a href="https://patcg-individual-drafts.github.io/private-aggregation-api/" target="_blank" rel="noopener">Private Aggregation API draft &mdash; report scheduling</a>; <a href="https://chromestatus.com/api/v0/features/4683382919397376" target="_blank" rel="noopener">ChromeStatus API record</a></span>
+  </section>
+
+  <section>
+    <h2 id="contributetohistogram">contributeToHistogram(contribution)</h2>
+    <p>The core method: queued one histogram contribution for the current worklet invocation.</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Inputs</th><td><code>contribution</code> &mdash; a <a href="#dictionaries"><code>PAHistogramContribution</code></a>: <code>bucket</code> (required <code>bigint</code>) must be contained in the range 0 to 2<sup>128</sup>, exclusive, or the method returns a <code>RangeError</code>; <code>value</code> (required <code>long</code>) must not be negative, or a <code>RangeError</code>; <code>filteringId</code> (optional <code>bigint</code>, default <code>0</code>) must fit the context&rsquo;s filtering-ID byte bound or a <code>RangeError</code> (all three per the <a href="https://patcg-individual-drafts.github.io/private-aggregation-api/" target="_blank" rel="noopener">draft&rsquo;s contribution-validation algorithm</a>)</td></tr>
+      <tr><th scope="row">Outputs</th><td><code>undefined</code> (fire-and-forget); the observable effect is a contribution added to the report assembled when the worklet invocation ends</td></tr>
+      <tr><th scope="row">Errors</th><td><code>RangeError</code> for the three validation failures above; <code>TypeError</code> now, post-disablement, because <code>privateAggregation</code> itself is <code>undefined</code></td></tr>
+      <tr><th scope="row">Context</th><td>Shared Storage worklets and Protected Audience script runners, secure contexts only; receiver must be the worklet-global <code>privateAggregation</code></td></tr>
+      <tr><th scope="row">Now</th><td>Guard or delete: <code>typeof privateAggregation !== &quot;undefined&quot;</code> before calling</td></tr>
+    </table>
+    </div>
+    <pre><code>// REMOVED API — shown for audit/deletion only.
+privateAggregation.contributeToHistogram({
+  bucket: 123456789n,   // bigint, 0 &lt;= bucket &lt; 2**128
+  value: 25,            // long, &gt;= 0
+  filteringId: 7n       // optional, defaults to 0n
+});</code></pre>
+    <span class="citation">Source: <a href="https://patcg-individual-drafts.github.io/private-aggregation-api/" target="_blank" rel="noopener">Private Aggregation API draft</a>; <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7820/third_party/blink/renderer/modules/shared_storage/private_aggregation.idl" target="_blank" rel="noopener">Chromium IDL (M149 branch)</a></span>
+  </section>
+
+  <section>
+    <h2 id="contributetohistogramonevent">contributeToHistogramOnEvent(event, contribution)</h2>
+    <p>A Protected-Audience-oriented variant that deferred the contribution until a named reportable event occurred (for example the reserved win/loss events of an auction).</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Inputs</th><td><code>event</code> (<code>DOMString</code>) &mdash; per the <a href="https://patcg-individual-drafts.github.io/private-aggregation-api/" target="_blank" rel="noopener">draft</a>, if the event name does not start with <code>&quot;reserved.&quot;</code> the method throws a <code>TypeError</code> (non-reserved events are reserved for future per-API extension); <code>contribution</code> &mdash; a record/dictionary of contribution fields (the draft types it as <code>record&lt;DOMString, any&gt;</code>; the shipped Shared Storage IDL reuses <code>PrivateAggregationHistogramContribution</code>)</td></tr>
+      <tr><th scope="row">Outputs</th><td><code>undefined</code>; the contribution was recorded against the event and materialized only if that event fired</td></tr>
+      <tr><th scope="row">Errors</th><td><code>TypeError</code> for an unrecognized (non-<code>reserved.</code>) event name; <code>RangeError</code> for the same bucket/value validation as <code>contributeToHistogram()</code>; <code>TypeError</code> now, post-disablement</td></tr>
+      <tr><th scope="row">Context</th><td>Same two worklet globals; in Chromium additionally gated by the <code>PrivateAggregationApiErrorReporting</code> runtime flag (<a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7820/third_party/blink/renderer/modules/shared_storage/private_aggregation.idl" target="_blank" rel="noopener">shipped IDL</a>; flag <code>experimental</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>)</td></tr>
+      <tr><th scope="row">Now</th><td>Guard or delete, as above</td></tr>
+    </table>
+    </div>
+    <pre><code>// REMOVED API — shown for audit/deletion only.
+// Protected Audience auction worklet, deferred to the win event:
+privateAggregation.contributeToHistogramOnEvent(&quot;reserved.win&quot;, {
+  bucket: 42n,
+  value: 1
+});</code></pre>
+    <span class="citation">Source: <a href="https://patcg-individual-drafts.github.io/private-aggregation-api/" target="_blank" rel="noopener">Private Aggregation API draft</a>; <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7820/third_party/blink/renderer/modules/shared_storage/private_aggregation.idl" target="_blank" rel="noopener">Chromium IDL (M149 branch)</a></span>
+  </section>
+
+  <section>
+    <h2 id="enabledebugmode">enableDebugMode(options)</h2>
+    <p>Opted the current context into <strong>debug mode</strong>: contributions also produced unencrypted, immediately sent debug reports, bypassing the aggregation service&rsquo;s privacy protections. This is the bridge the deprecation plan told server-side-report users to rely on until full removal.</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Inputs</th><td><code>options</code> (optional <a href="#dictionaries"><code>PADebugModeOptions</code></a>, default <code>{}</code>) &mdash; <code>debugKey</code>: required <code>bigint</code>, an opaque caller-chosen marker attached to debug reports</td></tr>
+      <tr><th scope="row">Outputs</th><td><code>undefined</code>; subsequent contributions in the context emitted debug reports</td></tr>
+      <tr><th scope="row">Errors</th><td>WebIDL dictionary validation (<code>TypeError</code>) when <code>debugKey</code> is missing or not a <code>bigint</code>; Chromium could disable debug mode independently via the <code>debug_mode_enabled_at_all</code> base-feature parameter, in which case calls &ldquo;will essentially have no effect&rdquo; (<a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7924/third_party/blink/common/features.cc" target="_blank" rel="noopener">features.cc, M152 branch</a>)</td></tr>
+      <tr><th scope="row">Context</th><td>Same two worklet globals; idempotent within a context (subsequent calls only update the key)</td></tr>
+      <tr><th scope="row">Now</th><td>Delete with the rest of the surface; debug reporting ends with the API</td></tr>
+    </table>
+    </div>
+    <pre><code>// REMOVED API — shown for audit/deletion only.
+privateAggregation.enableDebugMode({ debugKey: 1234n });</code></pre>
+    <span class="citation">Source: <a href="https://patcg-individual-drafts.github.io/private-aggregation-api/" target="_blank" rel="noopener">Private Aggregation API draft</a>; <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7924/third_party/blink/common/features.cc" target="_blank" rel="noopener">Chromium features.cc (M152 branch)</a>; <a href="https://chromestatus.com/api/v0/features/4683382919397376" target="_blank" rel="noopener">ChromeStatus feature notes (debug-reports bridge)</a></span>
+  </section>
+
+  <section>
+    <h2 id="dictionaries">dictionaries</h2>
+    <p><code>PAHistogramContribution</code> &mdash; the contribution shape: <code>bucket</code> (required <code>bigint</code>) identifies the histogram bucket, validated to 0 &le; bucket &lt; 2<sup>128</sup>; <code>value</code> (required <code>long</code>) is the amount contributed, validated non-negative; <code>filteringId</code> (optional <code>bigint</code>, default <code>0</code>) lets aggregation-service queries partition results, validated against a context-defined byte bound. <code>PADebugModeOptions</code> &mdash; <code>debugKey</code> (required <code>bigint</code>), the marker carried on debug reports. Both dictionaries were input-only: passed by value into the methods above, never returned or observable afterward. Chromium shipped them under the names <code>PrivateAggregationHistogramContribution</code> and <code>PrivateAggregationDebugModeOptions</code> (<a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7820/third_party/blink/renderer/modules/shared_storage/private_aggregation.idl" target="_blank" rel="noopener">shipped IDL</a>).</p>
+    <pre><code>// REMOVED API — dictionary shapes for reference.
+// Spec names:              PAHistogramContribution / PADebugModeOptions
+// Shipped Chromium names:  PrivateAggregationHistogramContribution /
+//                          PrivateAggregationDebugModeOptions
+{ bucket: 99n, value: 10, filteringId: 0n }   // PAHistogramContribution
+{ debugKey: 1234n }                            // PADebugModeOptions</code></pre>
+    <span class="citation">Source: <a href="https://patcg-individual-drafts.github.io/private-aggregation-api/#exposed-interface" target="_blank" rel="noopener">draft &mdash; exposed interface</a>; <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7820/third_party/blink/renderer/modules/shared_storage/private_aggregation.idl" target="_blank" rel="noopener">Chromium IDL (M149 branch)</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <p>A complete Shared Storage usage as it would have appeared before deprecation &mdash; kept for auditing existing code; the guard pattern beneath is the only snippet that should survive:</p>
+    <pre><code>// REMOVED API — historical usage, for audit only.
+class ReachMeasurer {
+  async run(data) {
+    const bucket = BigInt(data.campaignId);
+    privateAggregation.contributeToHistogram({ bucket, value: 1 });
+  }
+}
+register(&quot;reach-measurer&quot;, ReachMeasurer);</code></pre>
+    <pre><code>// Transition-safe guard (the only pattern to keep):
+if (typeof privateAggregation !== &quot;undefined&quot;) {
+  privateAggregation.contributeToHistogram({ bucket: 1n, value: 1 });
+}</code></pre>
+    <span class="citation">Source: usage pattern per the <a href="https://patcg-individual-drafts.github.io/private-aggregation-api/" target="_blank" rel="noopener">Private Aggregation API draft</a>; guard per the <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/8d2b9c6a-d1f1-4111-bdb4-31933998cd36n%40chromium.org" target="_blank" rel="noopener">Intent to Deprecate and Remove</a> breakage analysis</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">browser compatibility</h2>
+    <p><em>Interim table.</em> No BCD entry exists for <code>PrivateAggregation</code> (checked in the <a href="https://github.com/mdn/browser-compat-data/tree/main/api" target="_blank" rel="noopener">BCD api/ directory</a>, 2026-07-29) and <a href="https://api.webstatus.dev/v1/features?q=private%20aggregation" target="_blank" rel="noopener">webstatus.dev</a> has no feature. Compiled from the linked primary sources:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Support</th><th>Evidence</th></tr></thead>
+      <tr><td>Chrome</td><td>Was exposed in Shared Storage / Protected Audience worklets; deprecated from 144, removal filed at 152</td><td><a href="https://chromestatus.com/api/v0/features?milestone=152" target="_blank" rel="noopener">milestone=152 listing</a>; <a href="https://chromestatus.com/api/v0/features/4683382919397376" target="_blank" rel="noopener">feature notes</a></td></tr>
+      <tr><td>Edge</td><td>Follows Chromium</td><td>Chromium-based; no separate position on record</td></tr>
+      <tr><td>Firefox</td><td>Never implemented</td><td><a href="https://github.com/mozilla/standards-positions/issues/805" target="_blank" rel="noopener">mozilla/standards-positions #805</a> (&ldquo;proposal appears stale&rdquo;)</td></tr>
+      <tr><td>Safari</td><td>Never implemented</td><td><a href="https://github.com/WebKit/standards-positions/issues/189" target="_blank" rel="noopener">WebKit/standards-positions #189</a> (&ldquo;proposal withdrawn&rdquo;)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/4683382919397376" target="_blank" rel="noopener">chromestatus.com/feature/4683382919397376</a>; vendor position records as linked per row</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <ul>
+      <li><strong>Trust boundary:</strong> contributions were encrypted to the aggregation service&rsquo;s key; the reporting origin could not read individual contributions (<a href="https://patcg-individual-drafts.github.io/private-aggregation-api/" target="_blank" rel="noopener">draft</a>).</li>
+      <li><strong>Debug mode weakened that boundary deliberately</strong> &mdash; unencrypted per-event reports &mdash; which is why its use was limited to debugging and, in the deprecation plan, to a short bridge for former server-side-report users (<a href="https://chromestatus.com/api/v0/features/4683382919397376" target="_blank" rel="noopener">feature notes</a>).</li>
+      <li><strong>Removal adds no new data flow;</strong> any code path that keeps calling the API simply fails closed (<code>TypeError</code>).</li>
+    </ul>
+    <span class="citation">Source: <a href="https://patcg-individual-drafts.github.io/private-aggregation-api/" target="_blank" rel="noopener">Private Aggregation API draft</a>; <a href="https://chromestatus.com/api/v0/features/4683382919397376" target="_blank" rel="noopener">ChromeStatus API record</a></span>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

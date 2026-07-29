@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Deprecate and remove: Private Aggregation API — Chrome 152 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; overflow-wrap: normal; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .lede-block h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code { overflow-wrap: anywhere; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .warn-block > strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    .baseline-banner { border: 2px solid var(--border-black); padding: 1rem 1.2rem; margin: 1.5rem 0; background: var(--bg-paper); box-shadow: var(--thin-shadow); }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .example-embed { margin: 1.5rem 0; }
+    .example-embed iframe { max-width: 100%; }
+    .example-embed figcaption { font-size: 0.85rem; margin-top: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v152/">&larr; Chrome 152 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v152 · privacy sandbox · web api · deprecated</p>
+    <h1>Deprecate and remove: Private Aggregation API</h1>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Deprecated &mdash; removal in progress</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; removal filed at 152 (&ldquo;Deprecated&rdquo;)</li>
+        <li class="limited">Edge &middot; follows Chromium</li>
+        <li class="limited">Firefox &middot; never implemented</li>
+        <li class="limited">Safari &middot; never implemented</li>
+      </ul>
+      <p>Never a cross-browser feature: the API only ever shipped in Chromium, and the <a href="https://chromestatus.com/api/v0/features?milestone=152" target="_blank" rel="noopener">milestone=152 listing</a> now files its removal under &ldquo;Deprecated&rdquo; (verified 2026-07-29). There is no BCD entry and no web-features entry &mdash; the compat story is documented as an <a href="#compatibility">interim table</a> below.</p>
+    </div>
+
+    <p class="lede">Chrome is removing the <strong>Private Aggregation API</strong> &mdash; the Privacy Sandbox mechanism that let Shared Storage and Protected Audience worklets emit noisy, aggregate cross-site measurement reports. The API was designed for a future without third-party cookies; Chrome&rsquo;s decision to keep the current third-party-cookie approach removed its reason to exist. The surface (<code>privateAggregation.contributeToHistogram()</code> and friends) is exposed only inside those two worklet contexts, which are themselves being removed, so no standalone API change reaches the open web.</p>
+  </header>
+
+  <div class="warn-block" id="removal-notice">
+    <strong>Removal notice &mdash; do not build on this API</strong>
+    <p>The Private Aggregation API is on a published deprecation path (<a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/8d2b9c6a-d1f1-4111-bdb4-31933998cd36n%40chromium.org" target="_blank" rel="noopener">Intent to Deprecate and Remove</a>): deprecated from Chrome 144, with removal planned from Chrome 150 and the intervention filed at milestone 152. Server-side summary-report computation stopped operating in <strong>late December 2025</strong>. New code must not call <code>privateAggregation</code>; existing callers should follow the <a href="#migration">migration paths</a>. At fetch time the JavaScript surface still exists in Chromium source (gated by a Finch-controlled feature) &mdash; removal is being executed as a staged disablement, not a single code deletion (see <a href="#timeline">timeline</a>).</p>
+  </div>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">What it was</th><td>A generic mechanism for measuring aggregate, cross-site data in a privacy-preserving manner: worklet code contributed encrypted histogram buckets that a server-side aggregation service later summed with noise into &ldquo;summary reports&rdquo; (<a href="https://chromestatus.com/feature/4683382919397376" target="_blank" rel="noopener">ChromeStatus 4683382919397376</a>)</td></tr>
+      <tr><th scope="row">Where it was exposed</th><td>Only inside <a href="https://patcg-individual-drafts.github.io/private-aggregation-api/#exposed-interface" target="_blank" rel="noopener">Shared Storage worklets and Protected Audience interest-group script runners</a> &mdash; never on <code>window</code> in an ordinary document</td></tr>
+      <tr><th scope="row">Milestone listing</th><td>Chrome 152 &mdash; &ldquo;Deprecated&rdquo; (<a href="https://chromestatus.com/api/v0/features?milestone=152" target="_blank" rel="noopener">listing</a>, verified 2026-07-29; the listing is authoritative for identity per gendn invariant #2)</td></tr>
+      <tr><th scope="row">Deprecation path</th><td>Deprecated in Chrome 144, removal planned from Chrome 150; server-side summary-report computation ended late December 2025 (<a href="https://chromestatus.com/api/v0/features/4683382919397376" target="_blank" rel="noopener">ChromeStatus feature notes</a>)</td></tr>
+      <tr><th scope="row">Usage at deprecation</th><td>~3% of page loads &mdash; high for a removal, but driven by a small number of third-party ad-tech scripts present on many sites (<a href="https://chromestatus.com/api/v0/features/4683382919397376" target="_blank" rel="noopener">feature notes</a>)</td></tr>
+      <tr><th scope="row">Replacement</th><td><strong>None.</strong> Cross-site measurement remains possible with third-party cookies; Google states removal helps &ldquo;focus efforts on the proposed interoperable Attribution standard&rdquo; (<a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/8d2b9c6a-d1f1-4111-bdb4-31933998cd36n%40chromium.org" target="_blank" rel="noopener">intent</a>)</td></tr>
+      <tr><th scope="row">Specification</th><td><a href="https://patcg-individual-drafts.github.io/private-aggregation-api/" target="_blank" rel="noopener">Private Aggregation API &mdash; Unofficial Proposal Draft, 13 May 2025</a>; repository <a href="https://github.com/patcg-individual-drafts/private-aggregation-api" target="_blank" rel="noopener">archived 2025-12-01</a></td></tr>
+      <tr><th scope="row">WPT</th><td>None: no <code>private-aggregation</code> directory exists in the <a href="https://github.com/web-platform-tests/wpt" target="_blank" rel="noopener">WPT repository</a> (directory listing checked 2026-07-29)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/4683382919397376" target="_blank" rel="noopener">chromestatus.com/feature/4683382919397376</a>; <a href="https://patcg-individual-drafts.github.io/private-aggregation-api/" target="_blank" rel="noopener">Private Aggregation API draft</a></span>
+  </section>
+
+  <section>
+    <h2 id="why-removed">why it was removed</h2>
+    <p>The <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/8d2b9c6a-d1f1-4111-bdb4-31933998cd36n%40chromium.org" target="_blank" rel="noopener">Intent to Deprecate and Remove</a> gives three reasons, verbatim in substance:</p>
+    <ul>
+      <li><strong>Third-party cookies are staying.</strong> The API &ldquo;was originally designed for a future without third-party cookies&rdquo;; after Chrome announced the current approach to third-party cookies will be maintained, adoption was expected to decrease since cross-site measurement remains possible with cookies.</li>
+      <li><strong>No other engine ever adopted it.</strong> &ldquo;Other browser engines have not signaled interest in launching the API&rdquo; &mdash; Mozilla&rsquo;s standards-position record was closed as <a href="https://github.com/mozilla/standards-positions/issues/805" target="_blank" rel="noopener">&ldquo;proposal appears stale&rdquo;</a> and WebKit&rsquo;s as <a href="https://github.com/WebKit/standards-positions/issues/189" target="_blank" rel="noopener">&ldquo;proposal withdrawn&rdquo;</a>, neither recording an implementation.</li>
+      <li><strong>Focus.</strong> Removing this and certain other Privacy Sandbox APIs &ldquo;will help focus efforts on the proposed interoperable Attribution standard&rdquo; (see <a href="https://privacysandbox.google.com/overview/status" target="_blank" rel="noopener">Privacy Sandbox feature status</a>).</li>
+    </ul>
+    <p>Because the API surface is only reachable from inside Shared Storage and Protected Audience worklets &mdash; both on their own removal paths (<a href="https://chromestatus.com/feature/5076349064708096" target="_blank" rel="noopener">Shared Storage deprecation record</a>, <a href="https://chromestatus.com/feature/6552486106234880" target="_blank" rel="noopener">Protected Audience deprecation record</a>) &mdash; the intent states &ldquo;no additional work will be required for Private Aggregation&rdquo;: its functionality is removed transitively when those host APIs go.</p>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/8d2b9c6a-d1f1-4111-bdb4-31933998cd36n%40chromium.org" target="_blank" rel="noopener">blink-dev &mdash; Intent to Deprecate and Remove: Private Aggregation API</a>; <a href="https://chromestatus.com/api/v0/features/4683382919397376" target="_blank" rel="noopener">ChromeStatus API record</a></span>
+  </section>
+
+  <section>
+    <h2 id="timeline">removal timeline</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>When</th><th>What happened / is planned</th></tr></thead>
+      <tr><td>2025-10-21</td><td>Deprecation feature recorded on ChromeStatus (<a href="https://chromestatus.com/api/v0/features/4683382919397376" target="_blank" rel="noopener">record metadata</a>); Intent to Deprecate and Remove posted to blink-dev</td></tr>
+      <tr><td>Chrome 144</td><td>Deprecation begins (<a href="https://chromestatus.com/api/v0/features/4683382919397376" target="_blank" rel="noopener">feature notes</a>); new enrollment sign-ups disallowed; enrolled sites contacted about timelines</td></tr>
+      <tr><td>Late December 2025</td><td><strong>Server-side summary-report computation stops operating.</strong> Users of that service were notified in advance and directed to debug reports until the API surface as a whole is removed. Because this affects post-facto server-side operations, it caused no user-facing breakage (<a href="https://chromestatus.com/api/v0/features/4683382919397376" target="_blank" rel="noopener">feature notes</a>)</td></tr>
+      <tr><td>Chrome 150</td><td>Planned removal of the API surface (<a href="https://chromestatus.com/api/v0/features/4683382919397376" target="_blank" rel="noopener">feature notes</a>); the intent notes that if usage stayed too high, Protected Audience and Shared Storage could be temporarily retained with stub/no-op implementations &mdash; in which case the worklet contexts where <code>privateAggregation</code> exists would simply no longer be created</td></tr>
+      <tr><td>Chrome 152 (this listing)</td><td>The intervention is filed under &ldquo;Deprecated&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=152" target="_blank" rel="noopener">milestone=152 listing</a> (verified 2026-07-29)</td></tr>
+      <tr><td>Code state at fetch time</td><td>The surface is <em>not yet deleted from source</em>. On the M152 branch the IDL and the <code>kPrivateAggregationApi</code> base feature remain, <code>FEATURE_ENABLED_BY_DEFAULT</code> with Finch parameters <code>enabled_in_shared_storage</code> / <code>enabled_in_fledge</code> (<a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7924/third_party/blink/common/features.cc" target="_blank" rel="noopener">features.cc, M152 branch</a>); at trunk the IDL still exists (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/shared_storage/private_aggregation.idl" target="_blank" rel="noopener">private_aggregation.idl</a>) while the base feature no longer appears in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/common/features.cc" target="_blank" rel="noopener">blink/common/features.cc</a> (both fetched 2026-07-29). Removal is proceeding as a staged, Finch-controlled disablement rather than a single deletion</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/4683382919397376" target="_blank" rel="noopener">ChromeStatus API record (feature notes)</a>; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/8d2b9c6a-d1f1-4111-bdb4-31933998cd36n%40chromium.org" target="_blank" rel="noopener">Intent to Deprecate and Remove</a>; Chromium branch-heads 7924 and trunk, fetched 2026-07-29</span>
+  </section>
+
+  <section>
+    <h2 id="removed-surface">the removed surface</h2>
+    <p>The whole developer-facing surface was one interface exposed on two worklet global scopes, plus the reporting pipeline it fed. The normative IDL from the final published draft (<a href="https://patcg-individual-drafts.github.io/private-aggregation-api/#exposed-interface" target="_blank" rel="noopener">§ the exposed interface</a>), verbatim:</p>
+    <pre><code>[Exposed=(InterestGroupScriptRunnerGlobalScope,SharedStorageWorklet),
+ SecureContext]
+interface PrivateAggregation {
+  undefined contributeToHistogram(PAHistogramContribution contribution);
+  undefined contributeToHistogramOnEvent(DOMString event,
+                                         record&lt;DOMString, any&gt; contribution);
+  undefined enableDebugMode(optional PADebugModeOptions options = {});
+};
+
+dictionary PAHistogramContribution {
+  required bigint bucket;
+  required long value;
+  bigint filteringId = 0;
+};
+
+dictionary PADebugModeOptions {
+  required bigint debugKey;
+};</code></pre>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Surface item</th><th>Documented at</th></tr></thead>
+      <tr><td><code>PrivateAggregation</code> interface (the worklet-global object)</td><td><a href="privateaggregation-interface/">privateaggregation-interface/ reference</a></td></tr>
+      <tr><td><code>contributeToHistogram(contribution)</code></td><td><a href="privateaggregation-interface/#contributetohistogram">method contract</a></td></tr>
+      <tr><td><code>contributeToHistogramOnEvent(event, contribution)</code></td><td><a href="privateaggregation-interface/#contributetohistogramonevent">method contract</a></td></tr>
+      <tr><td><code>enableDebugMode(options)</code></td><td><a href="privateaggregation-interface/#enabledebugmode">method contract</a></td></tr>
+      <tr><td><code>PAHistogramContribution</code> / <code>PADebugModeOptions</code> dictionaries</td><td><a href="privateaggregation-interface/#dictionaries">dictionary contracts</a></td></tr>
+      <tr><td>Aggregatable report pipeline (<code>.well-known</code> endpoints, server-side aggregation)</td><td><a href="aggregatable-reports/">aggregatable-reports/ reference</a></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://patcg-individual-drafts.github.io/private-aggregation-api/#exposed-interface" target="_blank" rel="noopener">Private Aggregation API draft &mdash; exposed interface</a>; <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7820/third_party/blink/renderer/modules/shared_storage/private_aggregation.idl" target="_blank" rel="noopener">Chromium IDL, M149 branch</a></span>
+  </section>
+
+  <section>
+    <h2 id="breakage">what calling code sees now</h2>
+    <p>Because <code>privateAggregation</code> was only ever exposed inside Shared Storage and Protected Audience worklets, ordinary page JavaScript cannot touch it directly &mdash; and the <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/8d2b9c6a-d1f1-4111-bdb4-31933998cd36n%40chromium.org" target="_blank" rel="noopener">intent</a> states the contexts that expose it &ldquo;would still no longer be created&rdquo; even in the stub-retention contingency. Inside a worklet, the removal sequence is:</p>
+    <ol>
+      <li><strong>Disablement (current staged step):</strong> with the Finch-controlled feature off, the worklet global no longer exposes <code>privateAggregation</code> &mdash; reading it yields <code>undefined</code>, and calling <code>privateAggregation.contributeToHistogram(...)</code> throws a <code>TypeError</code> (<em>Cannot read properties of undefined</em>). Contributions silently stop flowing; no reports are generated.</li>
+      <li><strong>Host-API removal (end state):</strong> when Shared Storage and Protected Audience are themselves removed, the worklets never run at all, so the question becomes moot &mdash; see the host deprecations (<a href="https://chromestatus.com/feature/5076349064708096" target="_blank" rel="noopener">Shared Storage</a>, <a href="https://chromestatus.com/feature/6552486106234880" target="_blank" rel="noopener">Protected Audience</a>).</li>
+    </ol>
+    <p>Defensive guard for worklet code that must survive the transition (the pattern the spec&rsquo;s own callers were advised to use):</p>
+    <pre><code>// Inside a Shared Storage or Protected Audience worklet:
+if (typeof privateAggregation !== &quot;undefined&quot;) {
+  privateAggregation.contributeToHistogram({ bucket: 1n, value: 128 });
+}
+// After disablement/removal this is a silent no-op instead of a TypeError.</code></pre>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/8d2b9c6a-d1f1-4111-bdb4-31933998cd36n%40chromium.org" target="_blank" rel="noopener">Intent to Deprecate and Remove &mdash; &ldquo;Possible breakage&rdquo;</a>; <a href="https://patcg-individual-drafts.github.io/private-aggregation-api/#exposed-interface" target="_blank" rel="noopener">draft &mdash; exposed interface</a></span>
+  </section>
+
+  <section>
+    <h2 id="migration">migration paths</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Situation</th><th>Path</th></tr></thead>
+      <tr><td>Cross-site reach / conversion measurement</td><td>Third-party cookies remain available in Chrome &mdash; the stated rationale for the removal is precisely that cross-site measurement &ldquo;will remain possible in Chrome using third-party cookies&rdquo; (<a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/8d2b9c6a-d1f1-4111-bdb4-31933998cd36n%40chromium.org" target="_blank" rel="noopener">intent &mdash; Motivation</a>)</td></tr>
+      <tr><td>Aggregate reporting already collected</td><td>Server-side summary-report computation ended <strong>late December 2025</strong>; affected users were told to switch to <strong>debug reports</strong> until the API surface as a whole is removed (<a href="https://chromestatus.com/api/v0/features/4683382919397376" target="_blank" rel="noopener">feature notes</a>). Debug reports were unencrypted, immediate reports enabled via <a href="privateaggregation-interface/#enabledebugmode"><code>enableDebugMode()</code></a></td></tr>
+      <tr><td>Private measurement going forward</td><td>No in-browser replacement exists. The intent says removal &ldquo;will help focus efforts on the proposed interoperable Attribution standard&rdquo; &mdash; a future standards-track effort, not a drop-in API; track it via the <a href="https://privacysandbox.google.com/overview/status" target="_blank" rel="noopener">Privacy Sandbox status page</a>. Chrome&rsquo;s separate <a href="https://chromestatus.com/feature/6320639375966208" target="_blank" rel="noopener">Attribution Reporting API is itself being deprecated and removed</a> under the same consolidation</td></tr>
+      <tr><td>Enrollment / operations</td><td>New enrollment sign-ups were disallowed once the intent was approved; enrolled sites were contacted with deprecation timelines (<a href="https://chromestatus.com/api/v0/features/4683382919397376" target="_blank" rel="noopener">feature notes</a>)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/8d2b9c6a-d1f1-4111-bdb4-31933998cd36n%40chromium.org" target="_blank" rel="noopener">Intent to Deprecate and Remove</a>; <a href="https://chromestatus.com/api/v0/features/4683382919397376" target="_blank" rel="noopener">ChromeStatus API record</a></span>
+  </section>
+
+  <section>
+    <h2 id="reporting">reporting pipeline sunset</h2>
+    <p>Contributions made in a worklet were encrypted into an <em>aggregatable report</em> and sent by the browser to a fixed endpoint on the reporting origin &mdash; <code>.well-known/private-aggregation/report-&lt;api&gt;</code>, with the aggregation service&rsquo;s public keys fetched from <code>.well-known/aggregation-service/v1/public-keys</code> (<a href="https://patcg-individual-drafts.github.io/private-aggregation-api/" target="_blank" rel="noopener">draft &mdash; report scheduling</a>). The full pipeline is documented on the <a href="aggregatable-reports/">aggregatable-reports/ child page</a>, including which stage ended when:</p>
+    <ul>
+      <li><strong>Worklet contribution</strong> &mdash; ends with the API disablement/removal described above.</li>
+      <li><strong>Report delivery to the origin&rsquo;s <code>.well-known</code> endpoint</strong> &mdash; stops when no further contributions are made.</li>
+      <li><strong>Server-side aggregation into summary reports</strong> &mdash; <em>already ended</em> (late December 2025), ahead of the client-side surface (<a href="https://chromestatus.com/api/v0/features/4683382919397376" target="_blank" rel="noopener">feature notes</a>).</li>
+    </ul>
+    <span class="citation">Source: <a href="https://patcg-individual-drafts.github.io/private-aggregation-api/" target="_blank" rel="noopener">Private Aggregation API draft</a>; <a href="https://chromestatus.com/api/v0/features/4683382919397376" target="_blank" rel="noopener">ChromeStatus feature notes</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <p>Historical usage (from the pre-removal developer flow): a Shared Storage worklet recording a conversion bucket after reading cross-site data:</p>
+    <pre><code>// Inside a Shared Storage worklet operation (REMOVED API — do not use):
+class MeasureConversion {
+  async run(data) {
+    // bucket: a 128-bit id; value: a contribution amount
+    privateAggregation.contributeToHistogram({ bucket: 543n, value: 1 });
+  }
+}
+register(&quot;measure-conversion&quot;, MeasureConversion);</code></pre>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v152/deprecate-and-remove-private-aggregation-api/"
+        title="Live example — Deprecate and remove: Private Aggregation API" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase (route HEAD-checked 200, 2026-07-29).<span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v152/deprecate-and-remove-private-aggregation-api/" target="_blank" rel="noopener">chrome-platform-showcase</a></span></figcaption>
+    </figure>
+    <span class="citation">Source: usage pattern per the <a href="https://patcg-individual-drafts.github.io/private-aggregation-api/" target="_blank" rel="noopener">Private Aggregation API draft</a>; endpoint constants per the draft&rsquo;s report-scheduling algorithm</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">browser compatibility</h2>
+    <p><em>Interim table.</em> There is no BCD entry for <code>PrivateAggregation</code> (<a href="https://github.com/mdn/browser-compat-data/tree/main/api" target="_blank" rel="noopener">BCD <code>api/</code> directory</a> has no <code>PrivateAggregation.json</code>, checked 2026-07-29) and a <a href="https://api.webstatus.dev/v1/features?q=private%20aggregation" target="_blank" rel="noopener">webstatus.dev query</a> returns zero features. Rows below are compiled from the linked primary sources, not from BCD.</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Support</th><th>Evidence</th></tr></thead>
+      <tr><td>Chrome</td><td>Shipped (Shared Storage / Protected Audience worklets), deprecated from 144, removal filed at 152</td><td><a href="https://chromestatus.com/api/v0/features?milestone=152" target="_blank" rel="noopener">milestone=152 listing</a> (&ldquo;Deprecated&rdquo;); <a href="https://chromestatus.com/api/v0/features/4683382919397376" target="_blank" rel="noopener">feature notes</a></td></tr>
+      <tr><td>Edge</td><td>Follows Chromium</td><td>Chromium-based; no separate position on record</td></tr>
+      <tr><td>Firefox</td><td>Never implemented</td><td><a href="https://github.com/mozilla/standards-positions/issues/805" target="_blank" rel="noopener">mozilla/standards-positions #805</a> — closed, &ldquo;proposal appears stale&rdquo;</td></tr>
+      <tr><td>Safari</td><td>Never implemented</td><td><a href="https://github.com/WebKit/standards-positions/issues/189" target="_blank" rel="noopener">WebKit/standards-positions #189</a> — closed, &ldquo;proposal withdrawn&rdquo;</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/4683382919397376" target="_blank" rel="noopener">chromestatus.com/feature/4683382919397376</a>; vendor position records as linked per row</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <ul>
+      <li><strong>What the API protected:</strong> contributions were encrypted so only the trusted aggregation service could read them; individual worklet inputs were never exposed to the reporting origin in the clear, and summary reports added noise to limit cross-site identity leakage (the API&rsquo;s stated purpose per the <a href="https://patcg-individual-drafts.github.io/private-aggregation-api/" target="_blank" rel="noopener">draft</a>).</li>
+      <li><strong>Removal direction is privacy-positive or neutral:</strong> no new data flow is created by removal; the measurement flows that remain (third-party cookies, first-party analytics) pre-date the API. Sites that depended on the privacy properties of aggregate measurement lose that option and must re-evaluate their measurement design (see <a href="#migration">migration paths</a>).</li>
+      <li><strong>Residual data:</strong> previously collected encrypted reports held by an origin&rsquo;s aggregation-service deployment can no longer be processed into new summary reports once server-side computation has ended (late December 2025) &mdash; retained ciphertext has no supported decryption path (<a href="https://chromestatus.com/api/v0/features/4683382919397376" target="_blank" rel="noopener">feature notes</a>).</li>
+      <li><strong>Debug reports caveat:</strong> the interim debug-report path bypasses the aggregation service&rsquo;s privacy protections by design (unencrypted, per-event) &mdash; acceptable only as a short migration bridge, and it ends with the API surface itself.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://patcg-individual-drafts.github.io/private-aggregation-api/" target="_blank" rel="noopener">Private Aggregation API draft</a>; <a href="https://chromestatus.com/api/v0/features/4683382919397376" target="_blank" rel="noopener">ChromeStatus feature notes</a></span>
+  </section>
+
+  <section>
+    <h2 id="specifications">specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Document</th><th>Status</th></tr></thead>
+      <tr><td><a href="https://patcg-individual-drafts.github.io/private-aggregation-api/" target="_blank" rel="noopener">Private Aggregation API</a> &mdash; Unofficial Proposal Draft, 13 May 2025 (editor: Alexander Turner, Google)</td><td>Final published draft; never on a W3C Recommendation track</td></tr>
+      <tr><td><a href="https://github.com/patcg-individual-drafts/private-aggregation-api" target="_blank" rel="noopener">patcg-individual-drafts/private-aggregation-api</a></td><td>Specification repository &mdash; <strong>archived</strong>, last push 2025-12-01</td></tr>
+      <tr><td><code>WICG/private-aggregation</code> (former location)</td><td><strong>Deleted</strong> &mdash; the earlier WICG repo and its <code>wicg.github.io/private-aggregation</code> rendering both return 404 (checked 2026-07-29); no public archive link is recorded in the remaining sources, and gendn does not imply one exists</td></tr>
+      <tr><td><a href="https://privacysandbox.google.com/overview/status" target="_blank" rel="noopener">Privacy Sandbox feature status</a></td><td>Google&rsquo;s tracker for the wider Sandbox wind-down referenced by the intent</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: repository and rendering URLs fetched 2026-07-29</span>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/4683382919397376" target="_blank" rel="noopener">Chrome Platform Status &mdash; Deprecate and remove: Private Aggregation API</a> (<a href="https://chromestatus.com/api/v0/features/4683382919397376" target="_blank" rel="noopener">API record</a>)</li>
+      <li><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/8d2b9c6a-d1f1-4111-bdb4-31933998cd36n%40chromium.org" target="_blank" rel="noopener">blink-dev &mdash; Intent to Deprecate and Remove: Private Aggregation API</a></li>
+      <li><a href="https://chromestatus.com/feature/5076349064708096" target="_blank" rel="noopener">ChromeStatus &mdash; Deprecate and Remove: Shared Storage API</a> (host API #1)</li>
+      <li><a href="https://chromestatus.com/feature/6552486106234880" target="_blank" rel="noopener">ChromeStatus &mdash; Deprecate and Remove Protected Audience</a> (host API #2)</li>
+      <li><a href="https://chromestatus.com/feature/6320639375966208" target="_blank" rel="noopener">ChromeStatus &mdash; Deprecate and remove: Attribution Reporting API</a> (sibling consolidation removal)</li>
+      <li><a href="privateaggregation-interface/">gendn &mdash; PrivateAggregation interface reference (removed surface)</a> · <a href="aggregatable-reports/">gendn &mdash; aggregatable reports pipeline</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v152/deprecate-and-remove-private-aggregation-api/" target="_blank" rel="noopener">Chrome Platform Showcase &mdash; demo for this feature</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

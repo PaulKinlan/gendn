@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Aggregatable reports pipeline (sunset) — Deprecate and remove: Private Aggregation API — Chrome 152 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 26%; min-width: 7rem; overflow-wrap: normal; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code { overflow-wrap: anywhere; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .warn-block > strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v152/deprecate-and-remove-private-aggregation-api/">&larr; Deprecate and remove: Private Aggregation API</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v152 · privacy sandbox · reporting · sunset</p>
+    <h1>Aggregatable reports pipeline</h1>
+    <p class="lede">The reporting half of the removed Private Aggregation API: how worklet contributions became encrypted <em>aggregatable reports</em>, where the browser delivered them, and the server-side aggregation that turned them into summary reports &mdash; including the precise order in which each stage shut down.</p>
+  </header>
+
+  <div class="warn-block" id="sunset-notice">
+    <strong>Server-side aggregation already ended</strong>
+    <p>Summary-report computation on the server side <strong>stopped operating in late December 2025</strong>, ahead of the client-side API surface (<a href="https://chromestatus.com/api/v0/features/4683382919397376" target="_blank" rel="noopener">ChromeStatus feature notes</a>). Former users were directed to debug reports as a bridge. Retained encrypted report payloads have no supported processing path.</p>
+  </div>
+
+  <section>
+    <h2 id="pipeline">the pipeline, end to end</h2>
+    <ol>
+      <li><strong>Contribute.</strong> Worklet code called <a href="../privateaggregation-interface/#contributetohistogram"><code>privateAggregation.contributeToHistogram()</code></a>; contributions were validated (bucket &lt; 2<sup>128</sup>, non-negative value) and queued for the invocation.</li>
+      <li><strong>Assemble.</strong> When the worklet invocation ended, the browser packaged the contributions into an <em>aggregatable report</em> &mdash; a struct carrying the reporting origin, original report time and (randomized) report time, the contribution list, the API context (&ldquo;shared-storage&rdquo; or Protected Audience), a report ID, an aggregation coordinator, an optional context ID, and the filtering-ID byte bound (<a href="https://patcg-individual-drafts.github.io/private-aggregation-api/" target="_blank" rel="noopener">draft &mdash; §4.8 Aggregatable report</a>).</li>
+      <li><strong>Encrypt.</strong> The contribution payload was encrypted to the aggregation service&rsquo;s public key, fetched from <code>.well-known/aggregation-service/v1/public-keys</code> on the coordinator&rsquo;s origin; the browser could not read it back and neither could the reporting origin.</li>
+      <li><strong>Deliver.</strong> The browser POSTed the report &mdash; JSON with a <code>shared_info</code> envelope and an <code>aggregation_service_payloads</code> array &mdash; to a fixed path on the reporting origin: <code>.well-known/private-aggregation/report-&lt;api&gt;</code> (for example <code>report-shared-storage</code>). Reports could not be sent to arbitrary endpoints &mdash; only that well-known path (<a href="https://patcg-individual-drafts.github.io/private-aggregation-api/" target="_blank" rel="noopener">draft &mdash; report scheduling &amp; serialization</a>).</li>
+      <li><strong>Aggregate.</strong> The origin later batched encrypted payloads to the aggregation service (a trusted-execution-environment deployment), which decrypted, summed with noise, and produced <em>summary reports</em>.</li>
+    </ol>
+    <span class="citation">Source: <a href="https://patcg-individual-drafts.github.io/private-aggregation-api/" target="_blank" rel="noopener">Private Aggregation API draft</a> (structures §4.8, algorithms §9)</span>
+  </section>
+
+  <section>
+    <h2 id="endpoints">endpoint contract</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Report destination</th><td><code>https://&lt;reporting origin&gt;/.well-known/private-aggregation/report-&lt;api&gt;</code> &mdash; fixed, per-API suffix; no arbitrary endpoints (<a href="https://patcg-individual-drafts.github.io/private-aggregation-api/" target="_blank" rel="noopener">draft</a>)</td></tr>
+      <tr><th scope="row">Public keys</th><td><code>.well-known/aggregation-service/v1/public-keys</code> on the aggregation coordinator&rsquo;s origin</td></tr>
+      <tr><th scope="row">Method</th><td>Browser-initiated <code>POST</code>, on a delay, with retries per the browser&rsquo;s reporting machinery; not interceptable by page script</td></tr>
+      <tr><th scope="row">Body</th><td>JSON object: <code>shared_info</code> (origin, times, report ID, API context) + <code>aggregation_service_payloads</code> (encrypted contribution ciphertext)</td></tr>
+      <tr><th scope="row">Now</th><td>Origins can stop serving the endpoint once disablement is complete for their traffic; the browser stops generating reports when the API is off</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://patcg-individual-drafts.github.io/private-aggregation-api/" target="_blank" rel="noopener">Private Aggregation API draft &mdash; report scheduling / serializing reports</a></span>
+  </section>
+
+  <section>
+    <h2 id="sunset">sunset sequence</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Stage</th><th>State</th></tr></thead>
+      <tr><td>Server-side summary-report computation</td><td><strong>Ended late December 2025</strong>, ahead of everything else; affected users notified in advance and pointed at debug reports; &ldquo;no user-facing breakage&rdquo; by design (<a href="https://chromestatus.com/api/v0/features/4683382919397376" target="_blank" rel="noopener">feature notes</a>)</td></tr>
+      <tr><td>Client-side contribution (worklet calls)</td><td>Deprecated from Chrome 144; removal planned from Chrome 150 and filed at milestone 152; executed as staged Finch disablement (see the <a href="../#timeline">overview timeline</a>)</td></tr>
+      <tr><td>Report delivery (<code>.well-known</code> POSTs)</td><td>Stops automatically once no contributions are made; no endpoint changes are required of sites, but retained payloads are unprocessable</td></tr>
+      <tr><td>Debug reports</td><td>The sanctioned bridge for former server-side users; ends together with the API surface (<a href="https://chromestatus.com/api/v0/features/4683382919397376" target="_blank" rel="noopener">feature notes</a>)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/4683382919397376" target="_blank" rel="noopener">ChromeStatus API record (feature notes)</a>; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/8d2b9c6a-d1f1-4111-bdb4-31933998cd36n%40chromium.org" target="_blank" rel="noopener">Intent to Deprecate and Remove</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <p>The delivery step, as an origin&rsquo;s <code>.well-known</code> endpoint would have seen it (field set per the draft&rsquo;s aggregatable-report struct and serialization; ciphertext elided):</p>
+    <pre><code>POST /.well-known/private-aggregation/report-shared-storage HTTP/1.1
+Host: ad-tech.example
+Content-Type: application/json
+
+{
+  &quot;shared_info&quot;: &quot;{\&quot;reporting_origin\&quot;:\&quot;https://ad-tech.example\&quot;,
+    \&quot;api\&quot;:\&quot;shared-storage\&quot;, \&quot;report_id\&quot;:\&quot;&lt;uuid&gt;\&quot;, ...}&quot;,
+  &quot;aggregation_service_payloads&quot;: [
+    { &quot;payload&quot;: &quot;&lt;encrypted contributions — opaque to the origin&gt;&quot; }
+  ]
+}</code></pre>
+    <p>An aggregation-service batch later turned many such payloads into one summary report: per-bucket sums plus noise &mdash; the only output where individual user contributions were (probabilistically) protected. That service is what shut down in late December 2025.</p>
+    <span class="citation">Source: report struct and wire keys per the <a href="https://patcg-individual-drafts.github.io/private-aggregation-api/" target="_blank" rel="noopener">Private Aggregation API draft</a> (§4.8, §9); shutdown per the <a href="https://chromestatus.com/api/v0/features/4683382919397376" target="_blank" rel="noopener">ChromeStatus feature notes</a></span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">browser compatibility</h2>
+    <p>The pipeline was Chromium-only end to end; no other engine generated or accepted these reports. <em>Interim table</em> (no BCD entry; <a href="https://api.webstatus.dev/v1/features?q=private%20aggregation" target="_blank" rel="noopener">webstatus.dev</a> zero matches, 2026-07-29):</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Support</th><th>Evidence</th></tr></thead>
+      <tr><td>Chrome</td><td>Generated reports until staged disablement (deprecated 144, removal filed 152)</td><td><a href="https://chromestatus.com/api/v0/features?milestone=152" target="_blank" rel="noopener">milestone=152 listing</a>; <a href="https://chromestatus.com/api/v0/features/4683382919397376" target="_blank" rel="noopener">feature notes</a></td></tr>
+      <tr><td>Edge</td><td>Follows Chromium</td><td>Chromium-based; no separate position on record</td></tr>
+      <tr><td>Firefox</td><td>Never implemented</td><td><a href="https://github.com/mozilla/standards-positions/issues/805" target="_blank" rel="noopener">mozilla/standards-positions #805</a></td></tr>
+      <tr><td>Safari</td><td>Never implemented</td><td><a href="https://github.com/WebKit/standards-positions/issues/189" target="_blank" rel="noopener">WebKit/standards-positions #189</a></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/4683382919397376" target="_blank" rel="noopener">chromestatus.com/feature/4683382919397376</a>; vendor position records as linked per row</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <ul>
+      <li><strong>Encryption boundary:</strong> contribution payloads were readable only by the aggregation service&rsquo;s TEE deployment; the reporting origin saw only <code>shared_info</code> metadata (<a href="https://patcg-individual-drafts.github.io/private-aggregation-api/" target="_blank" rel="noopener">draft</a>).</li>
+      <li><strong>Fixed endpoint:</strong> the <code>.well-known</code>-only delivery rule prevented the API from being repurposed as an arbitrary exfiltration channel.</li>
+      <li><strong>After sunset:</strong> retained ciphertext is undecryptable through any supported path (server-side computation ended late December 2025) &mdash; origins holding payloads should treat them as inert and delete per their retention policy (<a href="https://chromestatus.com/api/v0/features/4683382919397376" target="_blank" rel="noopener">feature notes</a>).</li>
+    </ul>
+    <span class="citation">Source: <a href="https://patcg-individual-drafts.github.io/private-aggregation-api/" target="_blank" rel="noopener">Private Aggregation API draft</a>; <a href="https://chromestatus.com/api/v0/features/4683382919397376" target="_blank" rel="noopener">ChromeStatus API record</a></span>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
