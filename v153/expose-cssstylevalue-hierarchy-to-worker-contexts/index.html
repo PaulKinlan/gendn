@@ -25,7 +25,7 @@
     .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
     .baseline-browsers .limited { color: var(--text-muted); }
     .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
-    .warn-block > strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    .warn-block > strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--text-charcoal); display: block; margin-bottom: 0.4rem; }
     pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
     pre code { font-size: 0.85rem; }
   </style>
@@ -134,8 +134,17 @@ if (typeof CSSUnitValue === "undefined") {
     doubled: String(doubled),            // stringifier — e.g. "960px"
     inCm: String(inCm),                  // "2.54cm"
   });
-}</code></pre>
-    <pre><code>// main.js — parsing stays on the main thread (Contract 2)
+}
+
+// Receives plain data from the main thread (Contract 2: no parse() here, and
+// CSSStyleValue objects are not serializable — only plain data crosses over):
+self.onmessage = (event) => {
+  console.log("main thread parsed:", event.data.cssText);
+};</code></pre>
+    <pre><code>// main.js — create the worker; parsing stays on the main thread (Contract 2)
+const worker = new Worker("worker.js");
+worker.onmessage = (event) => console.log(event.data); // {supported, doubled, inCm}
+
 const parsed = CSSStyleValue.parse("width", "calc(100% - 2em)"); // Window-only
 // CSSStyleValue instances are not serializable — send plain data, not the object:
 worker.postMessage({ cssText: String(parsed) });</code></pre>
@@ -153,7 +162,7 @@ worker.postMessage({ cssText: String(parsed) });</code></pre>
     <p>Two layers matter: whether the browser has the Typed OM interfaces at all, and whether it exposes them in workers. BCD (fetched raw 2026-08-02) records the first; it has <strong>no worker-exposure subfeature rows</strong> for these interfaces, so the second layer below is sourced from the CL commit message and marked explicitly where it is unverified.</p>
     <div class="table-wrap">
     <table class="doc-table compat-table">
-      <caption>Interface availability (any context) — <a href="https://github.com/mdn/browser-compat-data/blob/main/api/CSSStyleValue.json" target="_blank" rel="noopener">BCD api/CSSStyleValue.json</a>, <a href="https://github.com/mdn/browser-compat-data/blob/main/api/CSSUnitValue.json" target="_blank" rel="noopener">api/CSSUnitValue.json</a></caption>
+      <caption>Interface availability (any context) — all five BCD records fetched raw 2026-08-02 and identical: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/CSSStyleValue.json" target="_blank" rel="noopener">api/CSSStyleValue.json</a>, <a href="https://github.com/mdn/browser-compat-data/blob/main/api/CSSKeywordValue.json" target="_blank" rel="noopener">api/CSSKeywordValue.json</a>, <a href="https://github.com/mdn/browser-compat-data/blob/main/api/CSSNumericValue.json" target="_blank" rel="noopener">api/CSSNumericValue.json</a>, <a href="https://github.com/mdn/browser-compat-data/blob/main/api/CSSUnitValue.json" target="_blank" rel="noopener">api/CSSUnitValue.json</a>, <a href="https://github.com/mdn/browser-compat-data/blob/main/api/CSSUnparsedValue.json" target="_blank" rel="noopener">api/CSSUnparsedValue.json</a></caption>
       <tr><th>Browser</th><th>Version</th><th>Notes</th></tr>
       <tr><td>Chrome</td><td>66</td><td>all five core interfaces</td></tr>
       <tr><td>Edge</td><td>79</td><td>BCD <code>mirror</code> of Chrome</td></tr>
@@ -166,12 +175,12 @@ worker.postMessage({ cssText: String(parsed) });</code></pre>
       <caption>Worker exposure of the five core interfaces</caption>
       <tr><th>Browser</th><th>Status</th><th>Source</th></tr>
       <tr><td>Chrome</td><td>Not yet at trunk (2026-08-02); the milestone=153 listing anticipates &ldquo;Enabled by default&rdquo; at 153</td><td><a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/css/cssom/css_style_value.idl" target="_blank" rel="noopener">trunk IDL</a>; <a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">listing</a></td></tr>
-      <tr><td>Edge</td><td>Follows Chromium</td><td>BCD <code>mirror</code></td></tr>
+      <tr><td>Edge</td><td>Unknown until the change ships. Edge ships Chromium, so it is <em>expected</em> to inherit the exposure, but there is no direct Edge evidence — BCD&rsquo;s <code>mirror</code> covers interface availability only, not this worker exposure</td><td><a href="https://github.com/mdn/browser-compat-data/blob/main/api/CSSStyleValue.json" target="_blank" rel="noopener">BCD (no worker subfeature)</a></td></tr>
       <tr><td>Firefox</td><td>Exposed in workers where Typed OM is enabled (preview builds) &mdash; per the CL&rsquo;s &ldquo;unlike in Firefox and Safari&rdquo;; BCD records no worker subfeature (unknown in release terms)</td><td><a href="https://chromium-review.googlesource.com/c/chromium/src/+/8085260" target="_blank" rel="noopener">CL commit message</a></td></tr>
       <tr><td>Safari</td><td>Exposed in workers per the CL commit message; BCD records no worker subfeature (version unknown)</td><td><a href="https://chromium-review.googlesource.com/c/chromium/src/+/8085260" target="_blank" rel="noopener">CL commit message</a></td></tr>
     </table>
     </div>
-    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/CSSStyleValue.json" target="_blank" rel="noopener">BCD api/CSSStyleValue.json</a> and <a href="https://github.com/mdn/browser-compat-data/blob/main/api/CSSUnitValue.json" target="_blank" rel="noopener">api/CSSUnitValue.json</a> (raw, 2026-08-02); <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8085260" target="_blank" rel="noopener">CL 8085260</a></span>
+    <span class="citation">Source: BCD <a href="https://github.com/mdn/browser-compat-data/blob/main/api/CSSStyleValue.json" target="_blank" rel="noopener">api/CSSStyleValue.json</a>, <a href="https://github.com/mdn/browser-compat-data/blob/main/api/CSSKeywordValue.json" target="_blank" rel="noopener">api/CSSKeywordValue.json</a>, <a href="https://github.com/mdn/browser-compat-data/blob/main/api/CSSNumericValue.json" target="_blank" rel="noopener">api/CSSNumericValue.json</a>, <a href="https://github.com/mdn/browser-compat-data/blob/main/api/CSSUnitValue.json" target="_blank" rel="noopener">api/CSSUnitValue.json</a>, <a href="https://github.com/mdn/browser-compat-data/blob/main/api/CSSUnparsedValue.json" target="_blank" rel="noopener">api/CSSUnparsedValue.json</a> (all raw, 2026-08-02); <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8085260" target="_blank" rel="noopener">CL 8085260</a></span>
   </section>
 
   <section>
