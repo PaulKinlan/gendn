@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Expose CSSStyleValue hierarchy to Worker contexts — Chrome 153 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; overflow-wrap: normal; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .compat-table tr > *:nth-child(2) { min-width: 6.5rem; }
+    .compat-table { min-width: 34rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .doc-table caption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); text-align: left; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .table-wrap { overflow-x: auto; }
+    .lede-block h1, .lede { overflow-wrap: anywhere; }
+    p code, li code { overflow-wrap: anywhere; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .baseline-banner { border: 2px solid var(--border-black); padding: 1rem 1.2rem; margin: 1.5rem 0; background: var(--bg-paper); box-shadow: var(--thin-shadow); }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .warn-block > strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v153/">&larr; Chrome 153 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v153 &middot; enabled by default &middot; miscellaneous &middot; css typed om</p>
+    <h1>Expose CSSStyleValue hierarchy to Worker contexts</h1>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; interfaces since 66 (Window); Worker exposure anticipated at 153</li>
+        <li class="limited">Edge &middot; mirrors Chromium</li>
+        <li class="limited">Firefox &middot; Typed OM in preview builds only</li>
+        <li class="limited">Safari &middot; interfaces since 16.4</li>
+      </ul>
+      <p>The parent <a href="https://webstatus.dev/features/css-typed-om" target="_blank" rel="noopener">css-typed-om web-feature</a> is <strong>Limited availability</strong> on <a href="https://api.webstatus.dev/v1/features?q=typed%20om" target="_blank" rel="noopener">webstatus.dev</a> (no Baseline date; verified 2026-08-02): <a href="https://github.com/mdn/browser-compat-data/blob/main/api/CSSStyleValue.json" target="_blank" rel="noopener">BCD <code>api/CSSStyleValue.json</code></a> records the interfaces in Chrome&nbsp;66 and Safari&nbsp;16.4 but only <code>preview</code> in Firefox (<a href="https://bugzil.la/1278697" target="_blank" rel="noopener">bugzil.la/1278697</a>). This page documents a Chrome <em>exposure</em> change within that limited-availability feature — do not treat any of it as Baseline.</p>
+    </div>
+
+    <p class="lede">The <a href="https://drafts.css-houdini.org/css-typed-om/" target="_blank" rel="noopener">CSS Typed OM specification</a> exposes the <code>CSSStyleValue</code> hierarchy to worker global scopes (<code>[Exposed=(Window, Worker, PaintWorklet, LayoutWorklet)]</code>), but Blink only exposed <code>CSSStyleValue</code>, <code>CSSKeywordValue</code>, <code>CSSNumericValue</code>, <code>CSSUnitValue</code> and <code>CSSUnparsedValue</code> to <code>Window</code> and the worklets. As a result these constructors were <code>undefined</code> in Workers, unlike in Firefox and Safari. This change adds <code>Worker</code> to the <code>[Exposed]</code> extended attribute of those five interfaces, so their constructors become defined in dedicated worker, shared worker, and service worker scopes.</p>
+  </header>
+
+  <div class="warn-block" id="implementation-status">
+    <strong>Implementation status &mdash; the change had not landed at trunk when this page was written</strong>
+    <p>The <a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">milestone=153 listing</a> files this feature under &ldquo;Enabled by default&rdquo; (verified 2026-08-02; the listing is authoritative for identity and milestone mapping), and the <a href="https://chromestatus.com/api/v0/features/5114591051907072" target="_blank" rel="noopener">ChromeStatus API record</a> anticipates desktop/Android/WebView 153. But the implementing CL, <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8085260" target="_blank" rel="noopener">chromium-review 8085260 &ldquo;[Typed OM] Expose core CSS Typed OM interfaces to Worker&rdquo;</a> (Javier Fernandez, Igalia), was still <strong>open (status NEW, updated 2026-07-28)</strong> when checked on 2026-08-02, and the trunk IDL for all five interfaces still read <code>Exposed=(Window,LayoutWorklet,PaintWorklet)</code> (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/css/cssom/css_style_value.idl" target="_blank" rel="noopener">css_style_value.idl at main</a>, fetched 2026-08-02). There is no runtime flag: the CL changes the IDL unconditionally, so the exposure arrives when the CL merges. Feature-detect (<code>typeof CSSStyleValue !== "undefined"</code> inside the worker) rather than assuming a Chrome-version cutoff.</p>
+  </div>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">What changes</th><td>The constructors of <code>CSSStyleValue</code>, <code>CSSKeywordValue</code>, <code>CSSNumericValue</code>, <code>CSSUnitValue</code>, and <code>CSSUnparsedValue</code> become defined in <code>DedicatedWorkerGlobalScope</code>, <code>SharedWorkerGlobalScope</code>, and <code>ServiceWorkerGlobalScope</code></td></tr>
+      <tr><th scope="row">What does not change</th><td><code>CSSStyleValue.parse()</code>/<code>parseAll()</code> and <code>CSSNumericValue.parse()</code> stay <code>Window</code>-only; the rest of the Blink-implemented hierarchy (transform, math, color subclasses) is not touched by this CL</td></tr>
+      <tr><th scope="row">Why</th><td>Spec conformance and interop: the <a href="https://drafts.css-houdini.org/css-typed-om/" target="_blank" rel="noopener">CSS Typed OM editor&rsquo;s draft</a> marks the whole hierarchy <code>[Exposed=(Window, Worker, PaintWorklet, LayoutWorklet)]</code>; per the <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8085260" target="_blank" rel="noopener">CL commit message</a>, the constructors were &ldquo;undefined in Workers, unlike in Firefox and Safari&rdquo;</td></tr>
+      <tr><th scope="row">Chrome status</th><td>&ldquo;Enabled by default&rdquo; in the milestone=153 listing; detail record status text &ldquo;Proposed&rdquo; with anticipated milestone 153 (both read 2026-08-02); implementing CL still open &mdash; see the warning above</td></tr>
+      <tr><th scope="row">Tracking</th><td><a href="https://issues.chromium.org/issues/534781956" target="_blank" rel="noopener">issues.chromium.org/534781956</a> &middot; blink component <code>Blink&gt;CSS</code></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5114591051907072" target="_blank" rel="noopener">chromestatus.com/feature/5114591051907072</a> (<a href="https://chromestatus.com/api/v0/features/5114591051907072" target="_blank" rel="noopener">API record</a>)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5114591051907072" target="_blank" rel="noopener">ChromeStatus API record</a> and <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8085260" target="_blank" rel="noopener">CL 8085260</a> (commit message + file list), both fetched 2026-08-02</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>This feature has no new methods or properties; its syntax is the Web IDL <code>[Exposed]</code> change itself. The one-line diff to <code>css_style_value.idl</code> in <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8085260" target="_blank" rel="noopener">CL 8085260</a> (fetched 2026-08-02) — the other four IDL files in the CL get the same one-line change:</p>
+    <pre><code>  [
+-   Exposed=(Window,LayoutWorklet,PaintWorklet)
++   Exposed=(Window,Worker,LayoutWorklet,PaintWorklet)
+  ] interface CSSStyleValue {
+    stringifier;
+    // Putting Exposed=Window in the next line makes |parse| not exposed to Worklets.
+    [RaisesException, Exposed=Window, CallWith=ExecutionContext] static CSSStyleValue parse(CSSOMString property, CSSOMString cssText);
+    [RaisesException, Exposed=Window, CallWith=ExecutionContext] static sequence&lt;CSSStyleValue&gt; parseAll(CSSOMString property, CSSOMString cssText);
+  };</code></pre>
+    <p>The specification&rsquo;s corresponding IDL marks every interface in the hierarchy <code>[Exposed=(Window, Worker, PaintWorklet, LayoutWorklet)]</code> — verified against the <a href="https://drafts.css-houdini.org/css-typed-om/" target="_blank" rel="noopener">CSS Typed OM editor&rsquo;s draft</a> (all 36 interface declarations carry that list; extracted 2026-08-02). The <a href="https://www.w3.org/TR/css-typed-om-1/#stylevalue-subclasses" target="_blank" rel="noopener">TR snapshot section the ChromeStatus record links</a> is the stylevalue-subclasses chapter of the same spec.</p>
+    <span class="citation">Source: <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8085260" target="_blank" rel="noopener">CL 8085260 css_style_value.idl diff</a>; <a href="https://drafts.css-houdini.org/css-typed-om/" target="_blank" rel="noopener">CSS Typed OM ED IDL</a></span>
+  </section>
+
+  <section>
+    <h2 id="worker-exposure">Contract 1: five constructors become defined in worker scopes</h2>
+    <p>After the change, the following global constructors are defined in <strong>dedicated worker, shared worker, and service worker</strong> global scopes — the CL updates Blink&rsquo;s <code>webexposed/global-interface-listing</code> expectations for exactly those three scopes (<a href="https://chromium-review.googlesource.com/c/chromium/src/+/8085260" target="_blank" rel="noopener">CL file list</a>, read 2026-08-02):</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>Interfaces gaining Worker exposure</caption>
+      <tr><th>Interface</th><th>Constructor signature in a worker (unchanged from Window)</th><th>MDN reference</th></tr>
+      <tr><td><code>CSSStyleValue</code></td><td>abstract base — no direct constructor; gains definition for <code>instanceof</code> checks and as the return-type base</td><td><a href="https://developer.mozilla.org/en-US/docs/Web/API/CSSStyleValue" target="_blank" rel="noopener">CSSStyleValue</a></td></tr>
+      <tr><td><code>CSSKeywordValue</code></td><td><code>new CSSKeywordValue(value)</code></td><td><a href="https://developer.mozilla.org/en-US/docs/Web/API/CSSKeywordValue" target="_blank" rel="noopener">CSSKeywordValue</a></td></tr>
+      <tr><td><code>CSSNumericValue</code></td><td>abstract base of the numeric family; arithmetic (<code>add</code>, <code>sub</code>, <code>mul</code>, <code>div</code>, <code>to</code>, &hellip;) and comparison methods</td><td><a href="https://developer.mozilla.org/en-US/docs/Web/API/CSSNumericValue" target="_blank" rel="noopener">CSSNumericValue</a></td></tr>
+      <tr><td><code>CSSUnitValue</code></td><td><code>new CSSUnitValue(value, unit)</code></td><td><a href="https://developer.mozilla.org/en-US/docs/Web/API/CSSUnitValue" target="_blank" rel="noopener">CSSUnitValue</a></td></tr>
+      <tr><td><code>CSSUnparsedValue</code></td><td><code>new CSSUnparsedValue(members)</code></td><td><a href="https://developer.mozilla.org/en-US/docs/Web/API/CSSUnparsedValue" target="_blank" rel="noopener">CSSUnparsedValue</a></td></tr>
+    </table>
+    </div>
+    <p>Member behavior inside a worker is identical to the long-shipped Window behavior — MDN&rsquo;s per-interface pages above are the member-level reference (all five verified substantive with Specifications + Browser compatibility sections, 2026-08-02); this page documents only what the exposure change makes newly reachable. The interfaces carry no <code>[Serializable]</code> extended attribute in the spec IDL (checked in the <a href="https://drafts.css-houdini.org/css-typed-om/" target="_blank" rel="noopener">ED</a>, 2026-08-02), so instances cannot be sent through <code>postMessage()</code> — each context constructs its own values and posts plain data (for example the stringified value) instead.</p>
+    <span class="citation">Source: <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8085260" target="_blank" rel="noopener">CL 8085260</a> (IDL diffs + webexposed expectation updates); <a href="https://drafts.css-houdini.org/css-typed-om/" target="_blank" rel="noopener">CSS Typed OM ED</a>; MDN interface pages linked per row</span>
+  </section>
+
+  <section>
+    <h2 id="parse-window-only">Contract 2: the <code>parse()</code> factories stay Window-only</h2>
+    <p>The static factories <code>CSSStyleValue.parse()</code>, <code>CSSStyleValue.parseAll()</code>, and <code>CSSNumericValue.parse()</code> keep their member-level <code>[Exposed=Window]</code> attribute — the <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8085260" target="_blank" rel="noopener">CL commit message</a> states &ldquo;The static parse()/parseAll() factories remain Window-only&rdquo;, and the trunk IDL shows the member-level override on each (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/css/cssom/css_style_value.idl" target="_blank" rel="noopener">css_style_value.idl</a>, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/css/cssom/css_numeric_value.idl" target="_blank" rel="noopener">css_numeric_value.idl</a>, fetched 2026-08-02). Inside a worker, <code>CSSStyleValue.parse</code> is <code>undefined</code> even after this change: parsing arbitrary CSS text requires property-registration context a worker does not have. Workers construct values directly (<code>new CSSUnitValue(&hellip;)</code>) or receive plain data from the main thread.</p>
+    <span class="citation">Source: <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8085260" target="_blank" rel="noopener">CL 8085260 commit message</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/css/cssom/css_style_value.idl" target="_blank" rel="noopener">Blink css_style_value.idl at main</a></span>
+  </section>
+
+  <section>
+    <h2 id="unchanged-hierarchy">Contract 3: what this change does not expose</h2>
+    <p>The specification exposes the <em>entire</em> hierarchy to workers — including the transform components (<code>CSSTransformValue</code>, <code>CSSTranslate</code>, <code>CSSRotate</code>, &hellip;), the math family (<code>CSSMathSum</code>, <code>CSSMathProduct</code>, &hellip;), <code>CSSNumericArray</code>, <code>CSSImageValue</code>, and the color classes. <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8085260" target="_blank" rel="noopener">CL 8085260</a> touches only the five core IDL files listed above, plus &mdash; per its commit message &mdash; <code>CSSSkewX</code>/<code>CSSSkewY</code> were <em>already</em> worker-exposed in Blink before this change. Expect the remaining subclasses to stay <code>undefined</code> in Chrome workers until a follow-up lands under the same <a href="https://issues.chromium.org/issues/534781956" target="_blank" rel="noopener">tracking bug</a>; feature-detect each constructor you need rather than inferring the whole hierarchy from one check.</p>
+    <span class="citation">Source: <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8085260" target="_blank" rel="noopener">CL 8085260 file list + commit message</a> (fetched 2026-08-02); <a href="https://drafts.css-houdini.org/css-typed-om/" target="_blank" rel="noopener">CSS Typed OM ED</a> (full-hierarchy exposure)</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+    <p>No Chrome Platform Showcase demo exists for this feature yet — the expected route <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v153/expose-cssstylevalue-hierarchy-to-worker-contexts/" target="_blank" rel="noopener">v153/expose-cssstylevalue-hierarchy-to-worker-contexts</a> returned 404 on 2026-08-02, so the snippets below are gendn-derived from the sources cited on this page (not runtime-verified against a build with the CL applied — see the implementation-status warning).</p>
+    <pre><code>// worker.js — feature-detect, then do unit math off the main thread
+if (typeof CSSUnitValue === "undefined") {
+  // Chrome without this change (and any browser without Typed OM in workers)
+  postMessage({ supported: false });
+} else {
+  const width = new CSSUnitValue(480, "px");
+  const doubled = width.mul(2);          // CSSNumericValue arithmetic, per MDN/spec
+  const inCm = new CSSUnitValue(96, "px").to("cm");
+  postMessage({
+    supported: true,
+    doubled: String(doubled),            // stringifier — e.g. "960px"
+    inCm: String(inCm),                  // "2.54cm"
+  });
+}</code></pre>
+    <pre><code>// main.js — parsing stays on the main thread (Contract 2)
+const parsed = CSSStyleValue.parse("width", "calc(100% - 2em)"); // Window-only
+// CSSStyleValue instances are not serializable — send plain data, not the object:
+worker.postMessage({ cssText: String(parsed) });</code></pre>
+    <span class="citation">Source: gendn-derived from the <a href="https://drafts.css-houdini.org/css-typed-om/" target="_blank" rel="noopener">CSS Typed OM ED</a>, <a href="https://developer.mozilla.org/en-US/docs/Web/API/CSSUnitValue" target="_blank" rel="noopener">MDN CSSUnitValue</a>, <a href="https://developer.mozilla.org/en-US/docs/Web/API/CSSNumericValue" target="_blank" rel="noopener">MDN CSSNumericValue</a>, and <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8085260" target="_blank" rel="noopener">CL 8085260</a></span>
+  </section>
+
+  <section>
+    <h2 id="wpt">web platform tests</h2>
+    <p>CSS Typed OM tests under <a href="https://github.com/web-platform-tests/wpt/tree/master/css/css-typed-om" target="_blank" rel="noopener">wpt/css/css-typed-om</a> written as <code>.any.js</code> run in worker scopes automatically. The CL updates Blink&rsquo;s baseline expectations for <a href="https://github.com/web-platform-tests/wpt/blob/master/css/css-typed-om/stylevalue-subclasses/cssKeywordValue-invalid.any.js" target="_blank" rel="noopener">stylevalue-subclasses/cssKeywordValue-invalid.any.js</a> in its <code>.worker</code>, <code>.sharedworker</code>, and <code>.serviceworker</code> variants (per the <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8085260" target="_blank" rel="noopener">CL file list</a>, read 2026-08-02) — those variants previously failed wholesale because the constructors were undefined.</p>
+    <span class="citation">Source: <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8085260" target="_blank" rel="noopener">CL 8085260 file list</a>; <a href="https://github.com/web-platform-tests/wpt/tree/master/css/css-typed-om" target="_blank" rel="noopener">WPT css/css-typed-om</a></span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">Browser compatibility</h2>
+    <p>Two layers matter: whether the browser has the Typed OM interfaces at all, and whether it exposes them in workers. BCD (fetched raw 2026-08-02) records the first; it has <strong>no worker-exposure subfeature rows</strong> for these interfaces, so the second layer below is sourced from the CL commit message and marked explicitly where it is unverified.</p>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <caption>Interface availability (any context) — <a href="https://github.com/mdn/browser-compat-data/blob/main/api/CSSStyleValue.json" target="_blank" rel="noopener">BCD api/CSSStyleValue.json</a>, <a href="https://github.com/mdn/browser-compat-data/blob/main/api/CSSUnitValue.json" target="_blank" rel="noopener">api/CSSUnitValue.json</a></caption>
+      <tr><th>Browser</th><th>Version</th><th>Notes</th></tr>
+      <tr><td>Chrome</td><td>66</td><td>all five core interfaces</td></tr>
+      <tr><td>Edge</td><td>79</td><td>BCD <code>mirror</code> of Chrome</td></tr>
+      <tr><td>Firefox</td><td><code>preview</code></td><td>Typed OM not shipped; tracked in <a href="https://bugzil.la/1278697" target="_blank" rel="noopener">bugzil.la/1278697</a></td></tr>
+      <tr><td>Safari</td><td>16.4</td><td></td></tr>
+    </table>
+    </div>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <caption>Worker exposure of the five core interfaces</caption>
+      <tr><th>Browser</th><th>Status</th><th>Source</th></tr>
+      <tr><td>Chrome</td><td>Not yet at trunk (2026-08-02); the milestone=153 listing anticipates &ldquo;Enabled by default&rdquo; at 153</td><td><a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/css/cssom/css_style_value.idl" target="_blank" rel="noopener">trunk IDL</a>; <a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">listing</a></td></tr>
+      <tr><td>Edge</td><td>Follows Chromium</td><td>BCD <code>mirror</code></td></tr>
+      <tr><td>Firefox</td><td>Exposed in workers where Typed OM is enabled (preview builds) &mdash; per the CL&rsquo;s &ldquo;unlike in Firefox and Safari&rdquo;; BCD records no worker subfeature (unknown in release terms)</td><td><a href="https://chromium-review.googlesource.com/c/chromium/src/+/8085260" target="_blank" rel="noopener">CL commit message</a></td></tr>
+      <tr><td>Safari</td><td>Exposed in workers per the CL commit message; BCD records no worker subfeature (version unknown)</td><td><a href="https://chromium-review.googlesource.com/c/chromium/src/+/8085260" target="_blank" rel="noopener">CL commit message</a></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/CSSStyleValue.json" target="_blank" rel="noopener">BCD api/CSSStyleValue.json</a> and <a href="https://github.com/mdn/browser-compat-data/blob/main/api/CSSUnitValue.json" target="_blank" rel="noopener">api/CSSUnitValue.json</a> (raw, 2026-08-02); <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8085260" target="_blank" rel="noopener">CL 8085260</a></span>
+  </section>
+
+  <section>
+    <h2 id="security-privacy">Security and privacy</h2>
+    <p>The change exposes value-construction and unit-math classes to contexts that already run author script; it adds no I/O, no access to layout or computed style from workers (<code>StylePropertyMapReadOnly</code> exposure is unchanged by this CL and its accessors — <code>Element.computedStyleMap()</code>, <code>element.attributeStyleMap</code> — remain main-thread), and no new cross-origin surface. The <a href="https://chromestatus.com/api/v0/features/5114591051907072" target="_blank" rel="noopener">ChromeStatus record</a> lists no origin-trial, permission, or enterprise-policy considerations. Constructed values are pure data; the absence of <code>[Serializable]</code> means they cannot cross agent boundaries as objects.</p>
+    <span class="citation">Source: <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8085260" target="_blank" rel="noopener">CL 8085260 file list</a> (no StylePropertyMap changes); <a href="https://drafts.css-houdini.org/css-typed-om/" target="_blank" rel="noopener">CSS Typed OM ED</a></span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th>Specification</th><th>Section</th></tr>
+      <tr><td><a href="https://drafts.css-houdini.org/css-typed-om/" target="_blank" rel="noopener">CSS Typed OM Level 1 (editor&rsquo;s draft)</a></td><td><a href="https://drafts.css-houdini.org/css-typed-om/#stylevalue-objects" target="_blank" rel="noopener">&sect; CSSStyleValue objects</a> (IDL <code>[Exposed]</code> lists)</td></tr>
+      <tr><td><a href="https://www.w3.org/TR/css-typed-om-1/" target="_blank" rel="noopener">CSS Typed OM Level 1 (TR snapshot)</a></td><td><a href="https://www.w3.org/TR/css-typed-om-1/#stylevalue-subclasses" target="_blank" rel="noopener">&sect; CSSStyleValue subclasses</a> (the section the ChromeStatus record links)</td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">See also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/5114591051907072" target="_blank" rel="noopener">Chrome Platform Status — Expose CSSStyleValue hierarchy to Worker contexts</a> (<a href="https://chromestatus.com/api/v0/features/5114591051907072" target="_blank" rel="noopener">API record</a>)</li>
+      <li><a href="https://chromium-review.googlesource.com/c/chromium/src/+/8085260" target="_blank" rel="noopener">CL 8085260 — [Typed OM] Expose core CSS Typed OM interfaces to Worker</a> &middot; <a href="https://issues.chromium.org/issues/534781956" target="_blank" rel="noopener">tracking bug 534781956</a></li>
+      <li>MDN: <a href="https://developer.mozilla.org/en-US/docs/Web/API/CSS_Typed_OM_API" target="_blank" rel="noopener">CSS Typed OM API overview</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/CSSStyleValue" target="_blank" rel="noopener">CSSStyleValue</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/CSSUnitValue" target="_blank" rel="noopener">CSSUnitValue</a></li>
+      <li><a href="https://webstatus.dev/features/css-typed-om" target="_blank" rel="noopener">webstatus.dev — css-typed-om</a> &middot; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/CSSStyleValue.json" target="_blank" rel="noopener">BCD api/CSSStyleValue.json</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v153/expose-cssstylevalue-hierarchy-to-worker-contexts/" target="_blank" rel="noopener">Chrome Platform Showcase — expected demo route</a> (404 as of 2026-08-02; linked for when the showcase builds it)</li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
