@@ -7,13 +7,24 @@
   <link rel="stylesheet" href="/public/styles.css">
   <style>
     .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
-    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
     .doc-table th { background: var(--bg-stone); font-weight: 600; }
     .doc-table tr:last-child td { border-bottom: none; }
     .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    #values th, #values td:first-child, #values td:nth-child(2) { white-space: nowrap; overflow-wrap: normal; }
     .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
     .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
     .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    .baseline-banner { border: 2px solid var(--border-black); background: var(--bg-paper); box-shadow: var(--thin-shadow); padding: 1rem 1.2rem; margin: 0 0 var(--space-5); }
+    .baseline-banner .baseline-status { font-family: var(--font-mono); font-weight: 500; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent-amber); margin: 0 0 0.6rem; }
+    .baseline-banner .baseline-browsers { display: flex; flex-wrap: wrap; gap: var(--space-2); list-style: none; padding: 0; margin: 0 0 0.6rem; }
+    .baseline-banner .baseline-browsers li { font-family: var(--font-mono); font-size: 0.75rem; border: 1px solid var(--border-black); padding: 0.25rem 0.6rem; background: var(--bg-stone); }
+    .baseline-banner .baseline-browsers li.limited { border-style: dashed; color: var(--text-muted); }
+    .baseline-banner p { font-size: 0.9rem; margin: 0; }
+    .example-embed { margin: var(--space-4) 0; }
+    .example-embed iframe { display: block; max-width: 100%; }
+    .example-embed figcaption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); margin-top: 0.5rem; }
   </style>
 </head>
 <body>
@@ -23,57 +34,99 @@
   <header class="lede-block">
     <p class="eyebrow">v147 · html · in developer trial</p>
     <h1>Lazy loading for video and audio elements</h1>
+
+    <div class="baseline-banner" id="baseline" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome · 150 (partial 148&ndash;149)</li>
+        <li>Edge · 150</li>
+        <li class="limited">Firefox · not supported (in development)</li>
+        <li class="limited">Safari · not supported</li>
+      </ul>
+      <p>Not Baseline. The web-features register tracks this as <a href="https://webstatus.dev/features/loading-lazy-media" target="_blank" rel="noopener">loading-lazy-media</a> with Baseline status &ldquo;limited&rdquo;: Chrome and Chrome for Android 150 (2026-06-30), Edge 150 (2026-07-02), no Firefox or Safari support yet. This page documents the Chrome&nbsp;147 developer-trial stage of the feature.</p>
+    </div>
+
     <p class="lede">Adds the <code>loading</code> attribute to <code>&lt;video&gt;</code> and <code>&lt;audio&gt;</code> elements, letting browsers defer media resource loading until the element is near the viewport — the same mechanism already available for <code>&lt;img&gt;</code> and <code>&lt;iframe&gt;</code>.</p>
   </header>
 
   <div class="warn-block">
-    <strong>In developer trial</strong>
-    This feature is behind a flag in Chrome 147. Enable <code>chrome://flags/#enable-experimental-web-platform-features</code> to test it. The HTML spec pull request is still open; attribute semantics may change before shipping.
+    <strong>Documented at the developer-trial stage</strong>
+    In Chrome 147 this feature was in developer trial behind a flag: the runtime-enabled feature is <code>LazyLoadVideoAndAudio</code> (enable with <code>--enable-blink-features=LazyLoadVideoAndAudio</code> or <code>chrome://flags/#enable-experimental-web-platform-features</code>). It has since shipped: partial support in Chrome 148&ndash;149 (the attribute is not honoured for <code>&lt;source&gt;</code> selection — <a href="https://crbug.com/514611050" target="_blank" rel="noopener">crbug.com/514611050</a>) and full support from Chrome 150; the runtime feature is now <code>status: stable</code> on trunk. The spec change has merged into the HTML Standard.
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium runtime_enabled_features.json5 (LazyLoadVideoAndAudio)</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/html/elements/video.json" target="_blank" rel="noopener">mdn/browser-compat-data html/elements/video.json</a></span>
   </div>
 
   <section>
     <h2>at a glance</h2>
+    <div class="table-wrap">
     <table class="doc-table">
-      <tr><th>Status in Chrome 147</th><td>In developer trial (behind a flag)</td></tr>
-      <tr><th>Flag</th><td><code>chrome://flags/#enable-experimental-web-platform-features</code></td></tr>
-      <tr><th>New attribute</th><td><code>loading</code> on <code>&lt;video&gt;</code> and <code>&lt;audio&gt;</code></td></tr>
-      <tr><th>Values</th><td><code>eager</code> (default) · <code>lazy</code></td></tr>
-      <tr><th>Standards position</th><td>Firefox: Positive (implementation in progress) &nbsp;·&nbsp; Safari: Support (implementation in progress)</td></tr>
-      <tr><th>Spec</th><td><a href="https://github.com/whatwg/html/pull/11980" target="_blank" rel="noopener">WHATWG HTML PR #11980</a></td></tr>
-      <tr><th>Chromium bug</th><td><a href="https://issues.chromium.org/issues/469111735" target="_blank" rel="noopener">issues.chromium.org/issues/469111735</a></td></tr>
-      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5200068565139456" target="_blank" rel="noopener">5200068565139456 — Lazy loading for video and audio elements</a></td></tr>
+      <tr><th scope="row">Status in Chrome 147</th><td>In developer trial (behind a flag); shipped partial 148, full 150</td></tr>
+      <tr><th scope="row">Runtime flag (147)</th><td><code>LazyLoadVideoAndAudio</code> in <code>runtime_enabled_features.json5</code>; also under <code>chrome://flags/#enable-experimental-web-platform-features</code></td></tr>
+      <tr><th scope="row">New attribute</th><td><code>loading</code> on <code>&lt;video&gt;</code> and <code>&lt;audio&gt;</code></td></tr>
+      <tr><th scope="row">Values</th><td><code>eager</code> (default) · <code>lazy</code></td></tr>
+      <tr><th scope="row">Standards position</th><td>Firefox: <a href="https://github.com/mozilla/standards-positions/issues/1325" target="_blank" rel="noopener">Positive (mozilla/standards-positions#1325)</a> &nbsp;·&nbsp; Safari: <a href="https://github.com/WebKit/standards-positions/issues/586" target="_blank" rel="noopener">Support (WebKit/standards-positions#586)</a></td></tr>
+      <tr><th scope="row">Spec</th><td><a href="https://html.spec.whatwg.org/multipage/media.html#attr-media-loading" target="_blank" rel="noopener">HTML Standard — media elements: <code>loading</code></a> (merged via <a href="https://github.com/whatwg/html/pull/11980" target="_blank" rel="noopener">whatwg/html#11980</a>)</td></tr>
+      <tr><th scope="row">Chromium bug</th><td><a href="https://issues.chromium.org/issues/469111735" target="_blank" rel="noopener">issues.chromium.org/issues/469111735</a></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5200068565139456" target="_blank" rel="noopener">5200068565139456 — Lazy loading for video and audio elements</a></td></tr>
     </table>
-    <span class="citation">Source: chromestatus.com feature 5200068565139456, May 2026.</span>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5200068565139456" target="_blank" rel="noopener">chromestatus.com/feature/5200068565139456</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a></span>
   </section>
 
   <section>
     <h2>why it exists</h2>
     <p>Since Chrome 76, <code>&lt;img loading="lazy"&gt;</code> and <code>&lt;iframe loading="lazy"&gt;</code> have let browsers skip fetching off-screen resources until the user scrolls close to them. The same pattern has never applied to <code>&lt;video&gt;</code> and <code>&lt;audio&gt;</code>, which start loading their source files as soon as the parser encounters them regardless of position on the page. Long-form pages with multiple embedded videos pay a large up-front network cost even when most users never scroll to those media elements. The <code>loading</code> attribute on media elements closes this gap and aligns behaviour across all embeddable resources.</p>
-    <span class="citation">Source: chromestatus summary and WHATWG HTML PR #11980, May 2026.</span>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5200068565139456" target="_blank" rel="noopener">chromestatus feature summary</a>; <a href="https://github.com/whatwg/html/pull/11980" target="_blank" rel="noopener">WHATWG HTML PR #11980</a></span>
   </section>
 
   <section>
-    <h2>the attribute</h2>
-    <table class="doc-table">
-      <tr><th>Attribute</th><td><code>loading</code></td></tr>
-      <tr><th>Elements</th><td><code>&lt;video&gt;</code>, <code>&lt;audio&gt;</code></td></tr>
-      <tr><th><code>loading="eager"</code></th><td>Default. Load the resource immediately, same as current behavior without the attribute.</td></tr>
-      <tr><th><code>loading="lazy"</code></th><td>Defer resource loading until the element is within the browser&#39;s lazy-loading distance threshold from the viewport. The exact threshold is browser-defined and may vary by network conditions.</td></tr>
+    <h2 id="syntax">Syntax</h2>
+    <p>The <code>loading</code> attribute is a <a href="https://html.spec.whatwg.org/multipage/urls-and-fetching.html#lazy-loading-attributes" target="_blank" rel="noopener">lazy loading attribute</a> — an enumerated attribute with two keywords — applied to the <code>&lt;video&gt;</code> and <code>&lt;audio&gt;</code> media elements:</p>
+<pre><code>&lt;video loading="eager" | "lazy"&gt; … &lt;/video&gt;
+&lt;audio loading="eager" | "lazy"&gt; … &lt;/audio&gt;</code></pre>
+    <div class="table-wrap">
+    <table class="doc-table" id="values">
+      <caption>Keywords and states</caption>
+      <thead><tr><th scope="col">Keyword</th><th scope="col">State</th><th scope="col">Meaning</th></tr></thead>
+      <tr><td><code>eager</code></td><td>Eager</td><td>Fetch the media resource immediately, regardless of position on the page (the pre-existing behaviour).</td></tr>
+      <tr><td><code>lazy</code></td><td>Lazy</td><td>Defer fetching the media resource until conditions defined by the user agent are met — in practice, until the element is within the browser&#39;s lazy-loading distance threshold of the viewport.</td></tr>
     </table>
+    </div>
+    <p id="invalid-values"><strong>Missing and invalid values.</strong> As a lazy loading attribute, the <em>missing value default</em> and <em>invalid value default</em> are both the Eager state: omitting the attribute or writing an unrecognised value (for example <code>loading="defer"</code>) behaves exactly like <code>loading="eager"</code>.</p>
+    <span class="citation">Source: <a href="https://html.spec.whatwg.org/multipage/urls-and-fetching.html#lazy-loading-attributes" target="_blank" rel="noopener">HTML Standard §2.5.7 Lazy loading attributes</a>; <a href="https://html.spec.whatwg.org/multipage/media.html#attr-media-loading" target="_blank" rel="noopener">HTML Standard — media elements: <code>loading</code></a></span>
 
-    <p>When <code>loading="lazy"</code> is set:</p>
-    <table class="doc-table">
-      <tr><th>Network request</th><td>Deferred until the element enters the lazy-load intersection zone.</td></tr>
-      <tr><th><code>preload</code> interaction</th><td>A <code>preload="none"</code> hint continues to suppress loading. <code>loading="lazy"</code> takes effect only when the browser would otherwise begin fetching.</td></tr>
-      <tr><th>Autoplay</th><td>An element with <code>autoplay</code> and <code>loading="lazy"</code> will begin playing once loaded, which happens when it enters the threshold zone.</td></tr>
-      <tr><th>JavaScript <code>.play()</code></th><td>Calling <code>.play()</code> before the resource is loaded triggers an immediate load, overriding the lazy deferral.</td></tr>
-    </table>
-    <span class="citation">Source: WHATWG HTML PR #11980 and chromestatus summary, May 2026.</span>
+    <h3 id="idl-reflection">IDL reflection: <code>HTMLMediaElement.loading</code></h3>
+    <p>The content attribute is reflected as an IDL attribute on <code>HTMLMediaElement</code> (so it is inherited by both <code>HTMLVideoElement</code> and <code>HTMLAudioElement</code>), verbatim from the HTML Standard&#39;s <code>HTMLMediaElement</code> interface:</p>
+<pre><code>[CEReactions] attribute DOMString loading;</code></pre>
+    <p>Per the spec, &ldquo;the <code>loading</code> IDL attribute must reflect the <code>loading</code> content attribute, <em>limited to only known values</em>&rdquo;: reading <code>el.loading</code> returns <code>"eager"</code> or <code>"lazy"</code> only — an unrecognised or missing content attribute reads back as <code>"eager"</code>. Assigning to <code>el.loading</code> sets the content attribute; switching a deferred element from <code>lazy</code> to <code>eager</code> runs the stored lazy-load resumption steps immediately (see lifecycle below).</p>
+    <span class="citation">Source: <a href="https://html.spec.whatwg.org/multipage/media.html#attr-media-loading" target="_blank" rel="noopener">HTML Standard — media elements: <code>loading</code> (IDL and reflection)</a></span>
   </section>
 
   <section>
-    <h2>example</h2>
-    <h3>Basic lazy video</h3>
+    <h2 id="behavior">Behavior and lifecycle</h2>
+    <p id="context"><strong>Where it applies.</strong> The attribute applies to all <a href="https://html.spec.whatwg.org/multipage/media.html" target="_blank" rel="noopener">media elements</a> — <code>&lt;video&gt;</code> and <code>&lt;audio&gt;</code> — in any browsing context. It is plain declarative HTML: no JavaScript, no secure-context requirement, no permission, and no origin-trial token is needed (in Chrome 147 the runtime flag above must be enabled). In Chrome 148&ndash;149 the attribute was not honoured when the resource is chosen via <code>&lt;source&gt;</code> children (<a href="https://crbug.com/514611050" target="_blank" rel="noopener">crbug.com/514611050</a>); from Chrome 150 both the <code>src</code> attribute and <code>&lt;source&gt;</code> selection paths defer.</p>
+    <div class="table-wrap">
+    <table class="doc-table" id="lifecycle">
+      <caption>Lifecycle with loading="lazy"</caption>
+      <tr><th scope="row">Network request</th><td>Deferred until the element enters the browser-defined lazy-load distance threshold from the viewport; the deferred fetch is stored as the element&#39;s <em>lazy load resumption steps</em>.</td></tr>
+      <tr><th scope="row">Switching to <code>eager</code></th><td>Changing the attribute&#39;s state to Eager (markup or <code>el.loading = "eager"</code>) runs the stored resumption steps at once — the fetch starts immediately. A lazily loaded <code>&lt;video&gt;</code> with a deferred <code>poster</code> also runs its poster resumption steps.</td></tr>
+      <tr><th scope="row"><code>preload</code> interaction</th><td>A <code>preload="none"</code> hint continues to suppress loading. <code>loading="lazy"</code> takes effect only when the browser would otherwise begin fetching; combine <code>loading="lazy" preload="metadata"</code> to defer, then fetch only metadata.</td></tr>
+      <tr><th scope="row">Autoplay</th><td>An element with <code>autoplay</code> and <code>loading="lazy"</code> begins playing once loaded, which happens when it enters the threshold zone.</td></tr>
+      <tr><th scope="row">JavaScript <code>.play()</code></th><td>Calling <code>.play()</code> before the resource is loaded triggers an immediate load, overriding the lazy deferral.</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://html.spec.whatwg.org/multipage/media.html#attr-media-loading" target="_blank" rel="noopener">HTML Standard — media elements: <code>loading</code> (state-change steps)</a>; <a href="https://chromestatus.com/feature/5200068565139456" target="_blank" rel="noopener">chromestatus feature summary</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/html/elements/video.json" target="_blank" rel="noopener">BCD html/elements/video.json (partial-support note)</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/lazy-loading-for-video-and-audio-elements/scroll-detector/"
+        title="Live example — scroll detector for lazy media loading" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase: scroll toward an off-screen <code>&lt;video loading="lazy"&gt;</code> and watch exactly when the browser starts fetching it. <span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/lazy-loading-for-video-and-audio-elements/scroll-detector/" target="_blank" rel="noopener">chrome-platform-showcase — scroll detector</a></span></figcaption>
+    </figure>
+
+    <h3 id="example-code">Basic lazy video</h3>
 <pre><code>&lt;video loading="lazy" controls&gt;
   &lt;source src="feature-demo.mp4" type="video/mp4"&gt;
   &lt;source src="feature-demo.webm" type="video/webm"&gt;
@@ -93,34 +146,62 @@
   &lt;source src="explainer.mp4" type="video/mp4"&gt;
 &lt;/video&gt;</code></pre>
 
-    <h3>Detecting support</h3>
-<pre><code>const supportsLazyMedia = 'loading' in HTMLVideoElement.prototype;
+    <h3 id="detecting-support">Detecting support</h3>
+<pre><code>// The IDL attribute lives on HTMLMediaElement.prototype and is
+// inherited by both HTMLVideoElement and HTMLAudioElement.
+const supportsLazyMedia = 'loading' in HTMLMediaElement.prototype;
 if (!supportsLazyMedia) {
   // Fall back to IntersectionObserver-based lazy loading
 }</code></pre>
-    <span class="citation">Source: WHATWG HTML PR #11980, May 2026.</span>
+    <span class="citation">Source: <a href="https://html.spec.whatwg.org/multipage/media.html#attr-media-loading" target="_blank" rel="noopener">HTML Standard — media elements: <code>loading</code></a></span>
   </section>
 
   <section>
-    <h2>browser support</h2>
-    <table class="doc-table">
-      <thead><tr><th>Browser</th><th>Support</th></tr></thead>
-      <tr><td>Chrome 147</td><td>In developer trial (behind flag)</td></tr>
-      <tr><td>Edge 147</td><td>Tracking Chromium</td></tr>
-      <tr><td>Firefox</td><td>Positive — implementation in progress</td></tr>
-      <tr><td>Safari</td><td>Support — implementation in progress</td></tr>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <p>Per-version data from mdn/browser-compat-data (<code>html.elements.video.loading</code> and <code>html.elements.audio.loading</code> — identical support), cross-checked against the webstatus.dev <a href="https://webstatus.dev/features/loading-lazy-media" target="_blank" rel="noopener">loading-lazy-media</a> record:</p>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <caption>loading on &lt;video&gt; / &lt;audio&gt; — from BCD</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col">Support</th><th scope="col">Notes</th></tr></thead>
+      <tr><td>Chrome</td><td>150 (partial 148&ndash;149)</td><td>148&ndash;149: not supported for <code>&lt;source&gt;</code> selection (<a href="https://crbug.com/514611050" target="_blank" rel="noopener">crbug 514611050</a>); 147: developer trial behind a flag</td></tr>
+      <tr><td>Chrome Android</td><td>150 (mirrors Chrome)</td><td>webstatus.dev: available 150 (2026-06-30)</td></tr>
+      <tr><td>Edge</td><td>150 (mirrors Chrome)</td><td>webstatus.dev: available 150 (2026-07-02)</td></tr>
+      <tr><td>Firefox</td><td>Not supported</td><td>In development — <a href="https://bugzil.la/2005072" target="_blank" rel="noopener">bugzil.la/2005072</a>; position <a href="https://github.com/mozilla/standards-positions/issues/1325" target="_blank" rel="noopener">positive</a></td></tr>
+      <tr><td>Safari</td><td>Not supported</td><td>Tracked at <a href="https://webkit.org/b/303995" target="_blank" rel="noopener">webkit.org/b/303995</a>; position <a href="https://github.com/WebKit/standards-positions/issues/586" target="_blank" rel="noopener">support</a></td></tr>
     </table>
-    <span class="citation">Source: chromestatus browser views, May 2026. Firefox and Safari signals reference the WHATWG PR.</span>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/html/elements/video.json" target="_blank" rel="noopener">mdn/browser-compat-data html/elements/video.json</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/html/elements/audio.json" target="_blank" rel="noopener">html/elements/audio.json</a>; <a href="https://webstatus.dev/features/loading-lazy-media" target="_blank" rel="noopener">webstatus.dev — loading-lazy-media</a> (fetched 2026-08-09)</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>Specifications</caption>
+      <thead><tr><th scope="col">Specification</th><th scope="col">Status</th></tr></thead>
+      <tr><td><a href="https://html.spec.whatwg.org/multipage/media.html#attr-media-loading" target="_blank" rel="noopener">HTML Standard — media elements: the <code>loading</code> attribute</a></td><td>Living Standard (merged)</td></tr>
+      <tr><td><a href="https://html.spec.whatwg.org/multipage/urls-and-fetching.html#lazy-loading-attributes" target="_blank" rel="noopener">HTML Standard §2.5.7 — Lazy loading attributes</a></td><td>Living Standard</td></tr>
+      <tr><td><a href="https://github.com/whatwg/html/pull/11980" target="_blank" rel="noopener">whatwg/html PR #11980</a></td><td>Merged (historical: the change that added media lazy loading)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/html/elements/video.json" target="_blank" rel="noopener">BCD spec_url for html.elements.video.loading</a></span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <p>The attribute adds no new capability, permission, or secure-context requirement — it only changes <em>when</em> an already-permitted media fetch happens. The observable consequence of the specified deferral behaviour is timing: with <code>loading="lazy"</code>, the media server receives the request only when the element nears the viewport, so request timing can reveal scroll proximity to the embedding page&#39;s media origin (the same property that <code>&lt;img loading="lazy"&gt;</code> has had since Chrome 76). No log, identifier, or DOM state beyond the ordinary media request is exposed.</p>
+    <span class="citation">Source: deferral behaviour per <a href="https://html.spec.whatwg.org/multipage/media.html#attr-media-loading" target="_blank" rel="noopener">HTML Standard — media elements: <code>loading</code></a>; no additional security section is defined for lazy loading attributes in <a href="https://html.spec.whatwg.org/multipage/urls-and-fetching.html#lazy-loading-attributes" target="_blank" rel="noopener">HTML Standard §2.5.7</a></span>
   </section>
 
   <section>
     <h2>see also</h2>
     <ul>
       <li><a href="https://chromestatus.com/feature/5200068565139456" target="_blank" rel="noopener">chromestatus — Lazy loading for video and audio elements (5200068565139456)</a></li>
-      <li><a href="https://github.com/whatwg/html/pull/11980" target="_blank" rel="noopener">WHATWG HTML PR #11980</a> — the spec change</li>
+      <li><a href="https://html.spec.whatwg.org/multipage/media.html#attr-media-loading" target="_blank" rel="noopener">HTML Standard — media elements: <code>loading</code></a> — the merged spec text (originally <a href="https://github.com/whatwg/html/pull/11980" target="_blank" rel="noopener">whatwg/html#11980</a>)</li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/Performance/Guides/Lazy_loading" target="_blank" rel="noopener">MDN — Lazy loading guide</a> (images and iframes; media elements not yet covered there)</li>
       <li><a href="https://scottjehl.com/posts/lazy-media" target="_blank" rel="noopener">Scott Jehl: Lazy loading media elements</a> — background reading</li>
       <li><a href="https://issues.chromium.org/issues/469111735" target="_blank" rel="noopener">Chromium bug — issue 469111735</a></li>
-      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/lazy-loading-for-video-and-audio-elements/" target="_blank" rel="noopener">chrome-platform-showcase: Lazy loading for video and audio demos</a> (when built)</li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/lazy-loading-for-video-and-audio-elements/" target="_blank" rel="noopener">chrome-platform-showcase: Lazy loading for video and audio demos</a> — concepts: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/lazy-loading-for-video-and-audio-elements/scroll-detector/" target="_blank" rel="noopener">scroll detector</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/lazy-loading-for-video-and-audio-elements/media-loading-timeline/" target="_blank" rel="noopener">media loading timeline</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/lazy-loading-for-video-and-audio-elements/network-savings-estimator/" target="_blank" rel="noopener">network savings estimator</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/lazy-loading-for-video-and-audio-elements/performance-compare/" target="_blank" rel="noopener">performance compare</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/lazy-loading-for-video-and-audio-elements/compatibility-lab/" target="_blank" rel="noopener">compatibility lab</a></li>
     </ul>
   </section>
 

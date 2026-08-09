@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Spell Check Custom Dictionary API — Chrome 153 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, h2, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code, h2 code, h3 code { overflow-wrap: anywhere; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .baseline-banner { border: 2px solid var(--border-black); padding: 0.9rem 1.1rem; margin: 1.2rem 0; background: var(--bg-stone); }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.1rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    .baseline-banner p { margin: 0.35rem 0 0; font-size: 0.9rem; }
+    .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .warn-block > strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    .route-cards { display: grid; gap: 0.8rem; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); margin: 1rem 0 1.5rem; }
+    .route-card { border: 2px solid var(--border-black); padding: 0.8rem 1rem; background: var(--bg-paper); box-shadow: var(--thin-shadow); }
+    .route-card h3 { margin: 0 0 0.3rem; font-size: 1rem; }
+    .route-card p { margin: 0; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v153/">&larr; Chrome 153 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v153 · dev trial</p>
+    <h1>Spell Check Custom Dictionary API</h1>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability — experimental</p>
+      <ul class="baseline-browsers">
+        <li>Chrome · 153 dev trial, behind a flag (milestone listing)</li>
+        <li class="limited">Edge · not separately reported (Chromium-based)</li>
+        <li class="limited">Firefox · under consideration</li>
+        <li class="limited">Safari · no signal</li>
+      </ul>
+      <p>Not on the Baseline register: the <a href="https://chromestatus.com/api/v0/features/6185007701557248" target="_blank" rel="noopener">ChromeStatus API record</a> marks the Web Feature ID as &ldquo;Missing feature&rdquo;, a <a href="https://api.webstatus.dev/v1/features?q=custom%20dictionary" target="_blank" rel="noopener">webstatus.dev query</a> returns zero matches, and <a href="https://github.com/mdn/browser-compat-data" target="_blank" rel="noopener">BCD</a> has no entry (<code>api/SpellCheckCustomDictionary.json</code> 404) — all verified 2026-08-09.</p>
+    </div>
+
+    <p class="lede">A per-document, transient custom dictionary that supplements the browser&rsquo;s built-in spell-checking dictionaries without changing how they behave. A page calls <code>document.spellCheckCustomDictionary.addWords()</code> to mark domain-specific vocabulary — product names, tickers, fictional characters, scientific terms — as known, so the browser&rsquo;s spell checker stops flagging them as misspelled inside that document. <code>removeWords()</code> retracts entries. The API is deliberately <strong>write-only</strong>: script can never read the dictionary back.</p>
+  </header>
+
+  <div class="warn-block" id="experimental">
+    <strong>Experimental — developer trial, behind a flag. The API surface may move.</strong>
+    <ul>
+      <li><strong>Not enabled by default.</strong> Chrome 153 lists this feature as &ldquo;In developer trial (Behind a flag)&rdquo; (<a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">milestone=153 listing</a>, verified 2026-08-09). The Blink runtime flag is <code>SpellCheckCustomDictionaryAPI</code>, status <code>experimental</code> at trunk <em>and</em> on the M153 branch (branch-heads/7978), per <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a> and the <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7978/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">M153 branch copy</a>, both fetched 2026-08-09.</li>
+      <li><strong>Exact enable steps</strong> (either one):
+        <ul>
+          <li>Set <code>chrome://flags/#enable-experimental-web-platform-features</code> to <em>Enabled</em> and relaunch (the flag enables every <code>experimental</code>-status Blink feature; there is no dedicated <code>chrome://flags</code> entry for this API — zero matches in <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/about_flags.cc" target="_blank" rel="noopener">about_flags.cc</a>, 2026-08-09), or</li>
+          <li>launch with <code>--enable-blink-features=SpellCheckCustomDictionaryAPI</code>.</li>
+        </ul>
+        Additionally the page must be served from a <strong>secure context</strong> (https:// or http://localhost) and browser spell checking must be turned on (Settings &rsaquo; Languages) with at least one spellcheck language — otherwise the attribute is <code>undefined</code> or the calls are silent no-ops. These preconditions are spelled out in Chromium&rsquo;s own <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/web_tests/wpt_internal/spell-check-custom-dictionary/add-remove-words-manual.html" target="_blank" rel="noopener">manual test</a>.</li>
+      <li><strong>The attribute name is not settled.</strong> Chrome&rsquo;s dev trial ships <code>document.spellCheckCustomDictionary</code> (per the shipped <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/spell_check_custom_dictionary/document_spell_check_custom_dictionary.idl" target="_blank" rel="noopener">Blink IDL</a>), but the open HTML Standard pull request <a href="https://github.com/whatwg/html/pull/12590" target="_blank" rel="noopener">whatwg/html#12590</a> proposes <code>window.spellCheckDictionary</code> — a different attribute name on a different global. The PR is not merged (the published <a href="https://html.spec.whatwg.org/multipage/interaction.html" target="_blank" rel="noopener">HTML Standard</a> contains neither name, verified 2026-08-09). Code written against the dev trial may need renaming before this ships.</li>
+      <li><strong>No effect is observable from script.</strong> The only outcome is that spelling squiggles appear or disappear. Nothing throws, nothing returns state — debug by watching editable regions (<a href="https://chromestatus.com/api/v0/features/6185007701557248" target="_blank" rel="noopener">ChromeStatus record, debuggability</a>).</li>
+    </ul>
+  </div>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">What it is</th><td>A per-document, write-only word set consulted by the browser&rsquo;s spell checker: words in the set are never flagged as misspelled inside that document. Purely additive — it can only suppress a flag, never create one, and never touches browser, OS, or user dictionaries</td></tr>
+      <tr><th scope="row">Developer surface</th><td><code>document.spellCheckCustomDictionary</code> (a <a href="#document-attribute"><code>SpellCheckCustomDictionary</code></a> object) with two methods: <a href="addwords/"><code>addWords()</code></a> and <a href="removewords/"><code>removeWords()</code></a>. <code>[SecureContext]</code>, <code>Exposed=Window</code>, write-only by design</td></tr>
+      <tr><th scope="row">Milestone listing</th><td>Chrome 153 — In developer trial (Behind a flag) (<a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">listing</a>, verified 2026-08-09; Chrome 153 is the current dev channel)</td></tr>
+      <tr><th scope="row">Flag</th><td>Blink runtime feature <code>SpellCheckCustomDictionaryAPI</code> (<code>experimental</code>); enable via <code>chrome://flags/#enable-experimental-web-platform-features</code> or <code>--enable-blink-features=SpellCheckCustomDictionaryAPI</code></td></tr>
+      <tr><th scope="row">Scope &amp; lifetime</th><td>One independent word set per <code>Document</code> (each iframe gets its own); discarded on navigation or document teardown; never persisted, never shared</td></tr>
+      <tr><th scope="row">Limits</th><td>20&#8201;000 words per document, 128 bytes (UTF-8) per word; overflow is silently dropped with a single console warning (<a href="https://chromium.googlesource.com/chromium/src/+/main/components/spellcheck/common/spellcheck_common.h" target="_blank" rel="noopener">spellcheck_common.h</a>)</td></tr>
+      <tr><th scope="row">Matching</th><td>Exact, verbatim string match against the token the spell checker flagged, across all enabled spellcheck languages; add plural/inflected forms separately</td></tr>
+      <tr><th scope="row">Standards status</th><td>Incubation — explainer by Igalia; open HTML Standard PR <a href="https://github.com/whatwg/html/pull/12590" target="_blank" rel="noopener">whatwg/html#12590</a>; TAG review <a href="https://github.com/w3ctag/design-reviews/issues/1191" target="_blank" rel="noopener">design-reviews#1191</a> (&ldquo;Issues addressed&rdquo; per the ChromeStatus record)</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/6185007701557248" target="_blank" rel="noopener">6185007701557248 — Spell Check Custom Dictionary API</a> (Blink component <code>Blink&gt;Editing&gt;Spellcheck</code>; tracking bug <a href="https://issues.chromium.org/issues/428005649" target="_blank" rel="noopener">issues.chromium.org/428005649</a>)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6185007701557248" target="_blank" rel="noopener">chromestatus.com/feature/6185007701557248</a>; <a href="https://github.com/Igalia/explainers/tree/main/spell-check-dictionary" target="_blank" rel="noopener">Igalia explainer</a>; Chromium sources linked per-section, fetched 2026-08-09.</span>
+  </section>
+
+  <section>
+    <h2 id="reference-routes">reference routes</h2>
+    <div class="route-cards">
+      <div class="route-card">
+        <h3><a href="addwords/"><code>addWords()</code></a></h3>
+        <p>Add words to the per-document dictionary. Validation rules, the 20&#8201;000-word / 128-byte caps, immediate squiggle removal, and complete examples.</p>
+      </div>
+      <div class="route-card">
+        <h3><a href="removewords/"><code>removeWords()</code></a></h3>
+        <p>Remove words from the per-document dictionary. Why its validation differs from <code>addWords()</code>, and how re-flagging is deliberately deferred as a privacy defense.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>Spell checkers routinely flag words that are correct within a particular site but unknown to general dictionaries, per the <a href="https://chromestatus.com/api/v0/features/6185007701557248" target="_blank" rel="noopener">ChromeStatus record&rsquo;s motivation</a>:</p>
+    <ul>
+      <li>A Pok&eacute;mon wiki containing names like <em>Pikachu</em> or <em>Charmander</em>.</li>
+      <li>A financial analysis dashboard referencing company-specific product names or tickers.</li>
+      <li>A medical or scientific tool using specialized terminology.</li>
+    </ul>
+    <p>False positives in these contexts are distracting and erode user trust. Browsers let <em>users</em> add words via a settings panel, but until now there was no way for the <em>page</em> to declare its own domain vocabulary programmatically, scoped to its own context. The <a href="https://github.com/Igalia/explainers/tree/main/spell-check-dictionary" target="_blank" rel="noopener">explainer</a> notes the API is intentionally minimal — one call, no setup — and is not polyfillable, since no existing surface can suppress the browser&rsquo;s native squiggles.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/6185007701557248" target="_blank" rel="noopener">ChromeStatus API record — motivation, activation risks</a>; <a href="https://github.com/Igalia/explainers/tree/main/spell-check-dictionary" target="_blank" rel="noopener">Spell Check Custom Dictionary API explainer</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>The Web IDL Chrome&rsquo;s developer trial ships, verbatim from the Blink module (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/spell_check_custom_dictionary/spell_check_custom_dictionary.idl" target="_blank" rel="noopener">spell_check_custom_dictionary.idl</a> and <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/spell_check_custom_dictionary/document_spell_check_custom_dictionary.idl" target="_blank" rel="noopener">document_spell_check_custom_dictionary.idl</a>, fetched 2026-08-09; Blink-specific extended attributes <code>[CallWith]</code>, <code>[ImplementedAs]</code>, <code>[RuntimeEnabled]</code> omitted):</p>
+    <pre><code>[
+    Exposed=Window,
+    SecureContext
+] interface SpellCheckCustomDictionary {
+    undefined addWords(sequence&lt;DOMString&gt; words);
+    undefined removeWords(sequence&lt;DOMString&gt; words);
+};
+
+partial interface Document {
+    [SameObject] readonly attribute SpellCheckCustomDictionary spellCheckCustomDictionary;
+};</code></pre>
+    <p>This matches the IDL in the <a href="https://github.com/Igalia/explainers/tree/main/spell-check-dictionary" target="_blank" rel="noopener">explainer</a> exactly. The interface has no constructor — the only way to obtain the object is the <code>document.spellCheckCustomDictionary</code> getter. Both methods take a <code>sequence&lt;DOMString&gt;</code> (any iterable of strings) and return <code>undefined</code>; neither throws for invalid words (see <a href="#validation-and-limits">validation and limits</a>).</p>
+    <p>The open spec PR <a href="https://github.com/whatwg/html/pull/12590" target="_blank" rel="noopener">whatwg/html#12590</a> instead hangs a <code>[SecureContext, SameObject] readonly attribute SpellCheckCustomDictionary spellCheckDictionary</code> off <code>Window</code>, backed by a per-<code>Document</code> &ldquo;custom spelling exemption list&rdquo; (an ordered set of strings). The interface name and both method names are the same; the accessor differs. This page documents the shipped dev-trial surface and flags the divergence rather than guessing the outcome.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/spell_check_custom_dictionary/spell_check_custom_dictionary.idl" target="_blank" rel="noopener">Blink interface IDL</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/spell_check_custom_dictionary/document_spell_check_custom_dictionary.idl" target="_blank" rel="noopener">Blink Document partial IDL</a>; <a href="https://github.com/whatwg/html/pull/12590" target="_blank" rel="noopener">whatwg/html#12590 diff</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="document-attribute"><code>Document.spellCheckCustomDictionary</code></h2>
+    <p>A read-only accessor returning the document&rsquo;s <code>SpellCheckCustomDictionary</code> object. It is annotated <code>[SameObject]</code>, so every access returns the identical object — Chromium&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/web_tests/wpt_internal/spell-check-custom-dictionary/same-object.https.html" target="_blank" rel="noopener">same-object.https.html</a> test asserts identity across repeated accesses and across held references. Being a plain readonly attribute getter, it takes no arguments and never throws.</p>
+    <p>Exposure is conditional, and the failure mode is <em>absence</em>, not an exception:</p>
+    <ul>
+      <li>On an insecure origin (<code>[SecureContext]</code>), or with the <code>SpellCheckCustomDictionaryAPI</code> runtime flag off, the attribute simply does not exist — <code>document.spellCheckCustomDictionary</code> evaluates to <code>undefined</code>. Feature-detect with <code>if ('spellCheckCustomDictionary' in document)</code>.</li>
+      <li>The attribute is <code>Exposed=Window</code> only — it does not exist in workers.</li>
+      <li>Even when the object exists, its methods are silent no-ops if browser spell checking is disabled (see <a href="#availability">availability and platform behavior</a>).</li>
+    </ul>
+    <p>The object&rsquo;s lifetime follows its document: each <code>Document</code> — including every iframe&rsquo;s — gets its own object backed by its own independent word set, and the set is discarded when the document is destroyed or navigated away.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/spell_check_custom_dictionary/document_spell_check_custom_dictionary.idl" target="_blank" rel="noopener">document_spell_check_custom_dictionary.idl</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/web_tests/wpt_internal/spell-check-custom-dictionary/same-object.https.html" target="_blank" rel="noopener">same-object.https.html</a>; <a href="https://github.com/Igalia/explainers/tree/main/spell-check-dictionary" target="_blank" rel="noopener">explainer — per-document lifecycle</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="model">how it works: a suppression filter over spell-check results</h2>
+    <p>The existing spell-check pipeline is unchanged; the custom set is consulted only when results are reconciled. The per-document word set lives in the renderer&rsquo;s per-frame <code>SpellCheckProvider</code> (<code>document_custom_words_</code>), and Chromium&rsquo;s spell checker consults it wherever misspelling results are produced (<a href="https://chromium.googlesource.com/chromium/src/+/main/components/spellcheck/renderer/spellcheck.cc" target="_blank" rel="noopener">spellcheck.cc</a>): a token that would otherwise be flagged is skipped if it is <em>in the profile custom dictionary or in the per-document word set</em>. The check is strictly additive — it can only suppress a spelling flag, never create one, and <code>removeWords()</code> only affects the page&rsquo;s own set, so removing a word that also exists in a built-in dictionary does not cause it to be flagged.</p>
+    <p>Behavioral consequences, each verified against the linked sources:</p>
+    <ul>
+      <li><strong>Exact match only.</strong> The flagged token must equal a stored word verbatim (<code>document_custom_words_.contains(...)</code> on the exact substring). <em>Anaerobe</em> does not cover <em>anaerobes</em>; add each form. The <a href="https://github.com/whatwg/html/pull/12590" target="_blank" rel="noopener">spec PR</a> makes the same point normatively, and entries containing whitespace or word separators will generally match nothing.</li>
+      <li><strong>Language-agnostic.</strong> The set is consulted independently of which enabled spellcheck language produced the flag — words apply across all user-enabled languages, exactly like words a user adds in browser settings (<a href="https://github.com/Igalia/explainers/tree/main/spell-check-dictionary" target="_blank" rel="noopener">explainer, internationalization</a>; exercised by the <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/web_tests/wpt_internal/spell-check-custom-dictionary/add-remove-words-manual.html" target="_blank" rel="noopener">manual test</a> with Latin and Hebrew words).</li>
+      <li><strong>Whole-document effect.</strong> One <code>addWords()</code> call suppresses the squiggle for that word in every editable region of the document — <code>contenteditable</code> regions, <code>&lt;textarea&gt;</code>, and text inputs alike.</li>
+      <li><strong>Per-document lifecycle.</strong> On navigation to a new document the set is cleared (<code>DidCreateNewDocument</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/components/spellcheck/renderer/spellcheck_provider.cc" target="_blank" rel="noopener">spellcheck_provider.cc</a>). For a long-lived single-page app the document <em>is</em> the session — vocabulary does not reset on view switches, which is exactly why <code>removeWords()</code> exists (<a href="https://github.com/Igalia/explainers/tree/main/spell-check-dictionary" target="_blank" rel="noopener">explainer</a>). Chrome records only an anonymous word-count histogram at teardown, not the words.</li>
+      <li><strong>Refresh timing is asymmetric.</strong> Adding words clears existing squiggles immediately; removal re-flags lazily — squiggles reappear per editable when it is next checked (focus by user gesture, typing, or an idle re-check pass). The asymmetry is deliberate; the <a href="removewords/">removeWords() page</a> documents the mechanism and its privacy rationale.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/components/spellcheck/renderer/spellcheck.cc" target="_blank" rel="noopener">spellcheck.cc — SpellCheckParagraph / CreateTextCheckingResults</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/spellcheck/renderer/spellcheck_provider.cc" target="_blank" rel="noopener">spellcheck_provider.cc</a>; <a href="https://github.com/Igalia/explainers/tree/main/spell-check-dictionary" target="_blank" rel="noopener">explainer — implementation notes</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/web_tests/wpt_internal/spell-check-custom-dictionary/add-remove-words-manual.html" target="_blank" rel="noopener">add-remove-words-manual.html</a> — all fetched 2026-08-09.</span>
+  </section>
+
+  <section>
+    <h2 id="availability">availability and platform behavior</h2>
+    <p>Every one of these preconditions must hold before the API has any observable effect; none of them produces an error when unmet:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Precondition</th><th>Behavior when unmet</th></tr></thead>
+      <tr><td>Runtime flag <code>SpellCheckCustomDictionaryAPI</code> enabled</td><td><code>document.spellCheckCustomDictionary</code> is <code>undefined</code></td></tr>
+      <tr><td>Secure context (https:// or localhost)</td><td><code>document.spellCheckCustomDictionary</code> is <code>undefined</code> (<code>[SecureContext]</code>)</td></tr>
+      <tr><td>Window context (not a worker)</td><td>Interface not exposed (<code>Exposed=Window</code>)</td></tr>
+      <tr><td>Browser spell checking enabled with &ge;1 language</td><td>Methods return without doing anything — the implementation bails out when <code>IsSpellCheckingEnabled()</code> is false (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/spell_check_custom_dictionary/spell_check_custom_dictionary.cc" target="_blank" rel="noopener">spell_check_custom_dictionary.cc</a>)</td></tr>
+    </table>
+    </div>
+    <p>Per-platform notes, from the <a href="https://chromestatus.com/api/v0/features/6185007701557248" target="_blank" rel="noopener">ChromeStatus record&rsquo;s all-platforms description</a>: the Blink API surface is platform-independent, and the suppression filter applies regardless of spell-check backend — Windows (hybrid native + Hunspell), macOS (native <code>NSSpellChecker</code>), Linux / ChromeOS (Hunspell in the renderer) are all supported. On <strong>Android</strong>, misspellings reported through the browser&rsquo;s spell-check result path are suppressed, but squiggle-like suggestion markers originating from the Android IME/keyboard during composition are outside the browser&rsquo;s pipeline and are <em>not</em> suppressed — a page cannot override the system keyboard&rsquo;s dictionary. On <strong>Android WebView</strong> the filter applies in principle, but spell checking is disabled by default in WebView, so the API has no observable effect on typical WebView content.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/6185007701557248" target="_blank" rel="noopener">ChromeStatus API record — all_platforms description</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/spell_check_custom_dictionary/spell_check_custom_dictionary.cc" target="_blank" rel="noopener">spell_check_custom_dictionary.cc — GetTextCheckEntryPoint</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="validation-and-limits">validation and limits — nothing ever throws</h2>
+    <p>Both methods return <code>undefined</code> unconditionally. Invalid entries are silently skipped, and resource caps are enforced by dropping surplus words — the page keeps running either way. The concrete contract, read from <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/spell_check_custom_dictionary/spell_check_custom_dictionary.cc" target="_blank" rel="noopener">spell_check_custom_dictionary.cc</a> and <a href="https://chromium.googlesource.com/chromium/src/+/main/components/spellcheck/renderer/spellcheck_provider.cc" target="_blank" rel="noopener">spellcheck_provider.cc</a> (2026-08-09):</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Rule</th><th>addWords()</th><th>removeWords()</th></tr></thead>
+      <tr><td>Empty string</td><td>Skipped</td><td>Forwarded (harmless no-op — such words are never stored)</td></tr>
+      <tr><td>Leading/trailing whitespace</td><td>Skipped (matches the browser custom dictionary&rsquo;s <code>IsValidWord()</code>)</td><td>Forwarded (harmless no-op)</td></tr>
+      <tr><td>Ill-formed UTF-16 (unpaired surrogates)</td><td>Skipped — never stored as a U+FFFD-mangled entry</td><td>Skipped — so it cannot accidentally remove a legitimate U+FFFD entry</td></tr>
+      <tr><td>Word longer than 128 bytes (UTF-8)</td><td>Dropped (<code>kMaxDocumentCustomDictionaryWordBytes</code>)</td><td>n/a — removal has no length gate</td></tr>
+      <tr><td>Set already holds 20&#8201;000 words</td><td>All further additions dropped (<code>kMaxDocumentCustomDictionaryWords</code>)</td><td>n/a — removal shrinks the set</td></tr>
+      <tr><td>Duplicate of a stored word</td><td>Ignored (set semantics)</td><td>n/a</td></tr>
+      <tr><td>Word not in the set</td><td>n/a</td><td>Ignored (no-op)</td></tr>
+    </table>
+    </div>
+    <p>When any addition is dropped for a cap reason, Chrome logs <strong>one</strong> console warning per document: <code>&ldquo;SpellCheckCustomDictionary: per-document word limit reached or a word exceeded the maximum length; some additions were ignored.&rdquo;</code> The caps bound the <em>resident</em> set, not lifetime churn — removing words frees room for new ones. Both constants are defined in <a href="https://chromium.googlesource.com/chromium/src/+/main/components/spellcheck/common/spellcheck_common.h" target="_blank" rel="noopener">spellcheck_common.h</a>; the explainer records the design intent that surplus words are ignored rather than corrupting state or breaking the page.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/spell_check_custom_dictionary/spell_check_custom_dictionary.cc" target="_blank" rel="noopener">spell_check_custom_dictionary.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/spellcheck/renderer/spellcheck_provider.cc" target="_blank" rel="noopener">spellcheck_provider.cc — SpellCheckCustomDictionaryChanged</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/spellcheck/common/spellcheck_common.h" target="_blank" rel="noopener">spellcheck_common.h</a>; <a href="https://github.com/Igalia/explainers/tree/main/spell-check-dictionary" target="_blank" rel="noopener">explainer — resource limits</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+    <p>Feature-detect, then load a domain vocabulary. The words apply to every editable region in the document as soon as the call returns:</p>
+    <pre><code>// The attribute is absent (undefined) on insecure origins or when the
+// SpellCheckCustomDictionaryAPI flag is off — feature-detect first.
+if ('spellCheckCustomDictionary' in document) {
+  // One call marks the whole page's domain vocabulary as known.
+  document.spellCheckCustomDictionary.addWords([
+    'Igalia', 'Wolvic', 'spidermonkey',
+  ]);
+}</code></pre>
+    <p>A single-page app scoping vocabulary to the current view — the document outlives view switches, so retract the old view&rsquo;s words when it goes away (matching is exact, so inflected forms are added individually):</p>
+    <pre><code>const dict = document.spellCheckCustomDictionary;
+
+function enterView(vocabulary) {
+  dict?.addWords(vocabulary);          // squiggles clear immediately
+  return () =&gt; dict?.removeWords(vocabulary);
+  // After removal, squiggles reappear per editable when it is next
+  // checked (e.g. when the user focuses it) — not instantly.
+}
+
+const leaveTickers = enterView(['AAPL', 'GOOG', 'BRK.B']);
+// ... later, when the view unmounts:
+leaveTickers();</code></pre>
+    <p>Runnable material: Chromium&rsquo;s own <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/web_tests/wpt_internal/spell-check-custom-dictionary/add-remove-words-manual.html" target="_blank" rel="noopener">manual test page</a> (also browsable on <a href="https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/web_tests/wpt_internal/spell-check-custom-dictionary/add-remove-words-manual.html" target="_blank" rel="noopener">source.chromium.org</a>) drives add/remove across contenteditable, textarea, RTL text, and the resource caps — it is the closest thing to a live demo today. The sister <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v153/spell-check-custom-dictionary-api/" target="_blank" rel="noopener">Chrome Platform Showcase route</a> for this feature returned 404 at build time (2026-08-09), so no live iframe is embedded here.</p>
+    <span class="citation">Source: first snippet adapts the <a href="https://github.com/Igalia/explainers/tree/main/spell-check-dictionary" target="_blank" rel="noopener">explainer&rsquo;s example</a>; SPA pattern per the explainer&rsquo;s removeWords() rationale; refresh timing per the <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/web_tests/wpt_internal/spell-check-custom-dictionary/add-remove-words-manual.html" target="_blank" rel="noopener">manual test</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">Browser compatibility</h2>
+    <p><em>Interim table.</em> There is no BCD entry (no <code>api/SpellCheckCustomDictionary.json</code> and no <code>spellCheckCustomDictionary</code> key in <code>api/Document.json</code> under <a href="https://github.com/mdn/browser-compat-data" target="_blank" rel="noopener">browser-compat-data</a>) and no <a href="https://api.webstatus.dev/v1/features?q=custom%20dictionary" target="_blank" rel="noopener">webstatus.dev feature</a> (zero matches) — both verified 2026-08-09. Rows below are compiled from the linked primary sources, not from BCD.</p>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <thead><tr><th>Browser</th><th>Support</th><th>Evidence</th></tr></thead>
+      <tr><td>Chrome</td><td>153 (dev channel) — developer trial, behind the <code>SpellCheckCustomDictionaryAPI</code> flag; not enabled by default</td><td><a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">milestone=153 listing</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a> (status <code>experimental</code>)</td></tr>
+      <tr><td>Edge</td><td>Not separately reported</td><td>Chromium-based; no separate position on the <a href="https://chromestatus.com/api/v0/features/6185007701557248" target="_blank" rel="noopener">ChromeStatus record</a></td></tr>
+      <tr><td>Firefox</td><td>No support — position: &ldquo;Under consideration&rdquo; (discussions in progress)</td><td><a href="https://github.com/mozilla/standards-positions/issues/1384" target="_blank" rel="noopener">mozilla/standards-positions#1384</a></td></tr>
+      <tr><td>Safari</td><td>No support — no signal (position requested, discussions in progress)</td><td><a href="https://github.com/WebKit/standards-positions/issues/646" target="_blank" rel="noopener">WebKit/standards-positions#646</a></td></tr>
+    </table>
+    </div>
+    <p>If the feature is absent the only user-visible difference is red squiggles under the custom words — the ChromeStatus record rates interop/compat risk low for exactly that reason. Treat the API as a progressive enhancement and never gate functionality on it.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6185007701557248" target="_blank" rel="noopener">chromestatus.com/feature/6185007701557248</a>; vendor-position issues linked above; queries verified 2026-08-09.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Document</th><th>Status</th></tr></thead>
+      <tr><td><a href="https://github.com/whatwg/html/pull/12590" target="_blank" rel="noopener">whatwg/html#12590 — Add a custom spelling dictionary</a></td><td>Open pull request against the HTML Standard (the ChromeStatus record&rsquo;s <code>spec_link</code>). Not merged — the published <a href="https://html.spec.whatwg.org/multipage/interaction.html" target="_blank" rel="noopener">HTML Standard spell-checking section</a> contains no <code>spellCheckDictionary</code> as of 2026-08-09. Proposes <code>window.spellCheckDictionary</code>; see the naming caveat above.</td></tr>
+      <tr><td><a href="https://github.com/Igalia/explainers/tree/main/spell-check-dictionary" target="_blank" rel="noopener">Spell Check Custom Dictionary API — explainer (Igalia)</a></td><td>Initial public proposal; ChromeStatus marks standards maturity &ldquo;Incubation&rdquo;. Matches the shipped IDL.</td></tr>
+      <tr><td><a href="https://github.com/w3ctag/design-reviews/issues/1191" target="_blank" rel="noopener">W3C TAG design review #1191</a></td><td>&ldquo;Issues addressed&rdquo; per the ChromeStatus record; the explainer summarizes the TAG position as satisfied with concerns, and the write-only design responds directly to TAG feedback.</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/6185007701557248" target="_blank" rel="noopener">ChromeStatus API record — standards fields</a>; documents fetched 2026-08-09.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <ul>
+      <li><strong>Write-only by design.</strong> There is no read, has, size, or iteration surface — a page can only observe words it supplied itself. The explainer rejected <code>ObservableArray</code> and setlike shapes specifically because they would re-expose the read surface (<a href="https://github.com/w3ctag/design-reviews/issues/1191" target="_blank" rel="noopener">TAG feedback</a>: spell-check internals are &ldquo;carefully designed to not be observable&rdquo;).</li>
+      <li><strong>Transient, per-frame state.</strong> The word set is owned by a single <code>Document</code>; every frame — including cross-origin third-party iframes — gets its own independent set, and an embedded third party can only affect its own document. The set is discarded at teardown. Nothing is persisted, synced, or shared, and there is no network exposure (<a href="https://chromestatus.com/api/v0/features/6185007701557248" target="_blank" rel="noopener">ChromeStatus security section</a>).</li>
+      <li><strong>No writes to user or OS dictionaries.</strong> The API maps to <em>ignored</em>-word semantics, never <em>learned</em>-word semantics: it neither reads nor modifies the browser&rsquo;s or operating system&rsquo;s dictionaries (<a href="https://github.com/Igalia/explainers/tree/main/spell-check-dictionary" target="_blank" rel="noopener">explainer</a>).</li>
+      <li><strong>Abuse mitigation.</strong> Input validation (empty / whitespace-padded / ill-formed UTF-16 rejected) plus the 20&#8201;000-word and 128-byte caps bound resource use; surplus words are ignored with a console warning rather than corrupting state (<a href="https://chromium.googlesource.com/chromium/src/+/main/components/spellcheck/renderer/spellcheck_provider.cc" target="_blank" rel="noopener">spellcheck_provider.cc</a>).</li>
+      <li><strong>Known adjacent side channel.</strong> A page could try to probe dictionary membership by timing <code>::spelling-error</code> highlight painting. That channel predates this API and is being addressed in <a href="https://drafts.csswg.org/css-pseudo/#highlight-security" target="_blank" rel="noopener">css-pseudo &sect;highlight security</a> and the <a href="https://github.com/explainers-by-googlers/user-dictionary-leaks" target="_blank" rel="noopener">user-dictionary-leaks proposal</a>; the explainer notes fixing it would also protect the custom set. Chrome&rsquo;s deferred re-check after <code>removeWords()</code> (gated on a user-gesture focus) is one such defense — see the <a href="removewords/">removeWords() page</a>.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/Igalia/explainers/tree/main/spell-check-dictionary" target="_blank" rel="noopener">explainer — privacy &amp; security</a>; <a href="https://chromestatus.com/api/v0/features/6185007701557248" target="_blank" rel="noopener">ChromeStatus API record — security risks</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/spellcheck/renderer/spellcheck_provider.cc" target="_blank" rel="noopener">spellcheck_provider.cc</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="see-also">See also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/6185007701557248" target="_blank" rel="noopener">Chrome Platform Status — Spell Check Custom Dictionary API</a> (<a href="https://chromestatus.com/api/v0/features/6185007701557248" target="_blank" rel="noopener">API record</a>) · tracking bug <a href="https://issues.chromium.org/issues/428005649" target="_blank" rel="noopener">issues.chromium.org/428005649</a></li>
+      <li><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/687a1d04.170a0220.2dad83.0168.GAE%40google.com" target="_blank" rel="noopener">blink-dev intent thread</a> (the ChromeStatus record&rsquo;s intent-to-prototype link)</li>
+      <li>Chromium implementation: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/spell_check_custom_dictionary/spell_check_custom_dictionary.cc" target="_blank" rel="noopener">Blink module</a> · <a href="https://chromium.googlesource.com/chromium/src/+/main/components/spellcheck/renderer/spellcheck_provider.cc" target="_blank" rel="noopener">SpellCheckProvider</a> · <a href="https://chromium.googlesource.com/chromium/src/+/main/components/spellcheck/renderer/spellcheck.cc" target="_blank" rel="noopener">SpellCheck filter</a> · re-check CL <a href="https://chromium-review.googlesource.com/c/chromium/src/+/7837649" target="_blank" rel="noopener">crrev.com/c/7837649</a></li>
+      <li>Tests: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/web_tests/wpt_internal/spell-check-custom-dictionary/add-remove-words-manual.html" target="_blank" rel="noopener">add-remove-words-manual.html</a> · <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/web_tests/wpt_internal/spell-check-custom-dictionary/same-object.https.html" target="_blank" rel="noopener">same-object.https.html</a> (no public WPT — the squiggle is not script-observable, per the <a href="https://chromestatus.com/api/v0/features/6185007701557248" target="_blank" rel="noopener">ChromeStatus WPT note</a>)</li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Global_attributes/spellcheck" target="_blank" rel="noopener">MDN — the <code>spellcheck</code> global attribute</a> (the toggle this API layers onto; MDN has no page for this API — <code>Web/API/SpellCheckCustomDictionary</code> 404, zero relevant search hits, 2026-08-09)</li>
+      <li>Related vocabularies: <a href="https://github.com/WebAudio/web-speech-api/blob/main/explainers/contextual-biasing.md" target="_blank" rel="noopener">Web Speech contextual biasing</a> · <a href="https://github.com/webmachinelearning/proofreader-api" target="_blank" rel="noopener">Proofreader API</a> (complementary, shipping independently per both explainers)</li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v153/spell-check-custom-dictionary-api/" target="_blank" rel="noopener">Chrome Platform Showcase — feature route</a> (404 as of 2026-08-09; will host the live demo when built)</li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

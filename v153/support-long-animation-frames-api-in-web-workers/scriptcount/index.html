@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PerformanceLongAnimationFrameTiming.scriptCount — Chrome 153 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code { overflow-wrap: anywhere; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .warn-block > strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="../">&larr; Support Long Animation Frames API in Web Workers</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v153 · performance · dev trial · attribute</p>
+    <h1>PerformanceLongAnimationFrameTiming.scriptCount</h1>
+    <p class="lede">The <code>scriptCount</code> read-only attribute reports how many <strong>top-level JavaScript entry points</strong> ran during the entry&rsquo;s reporting interval — every one of them, including scripts far too short to appear in the <code>scripts</code> array. It is the signal that distinguishes <em>one long task</em> (low count, long duration) from <em>a queue congested by many small tasks</em> (high count). It ships with, and is gated by, the same <code>LongAnimationFrameWorker</code> feature that exposes LoAF to dedicated workers.</p>
+  </header>
+
+  <div class="warn-block" id="status">
+    <strong>Developer trial — behind a flag, no spec text</strong>
+    <p>Available only with <code>--enable-blink-features=LongAnimationFrameWorker</code> (Blink feature status <code>&quot;test&quot;</code> at trunk and on the M153 branch, fetched 2026-08-09 — no <code>chrome://flags</code> entry, and the &ldquo;Experimental Web Platform features&rdquo; toggle does not enable it). The attribute appears in neither the <a href="https://w3c.github.io/long-animation-frames/" target="_blank" rel="noopener">LoAF specification</a> nor <a href="https://github.com/mdn/browser-compat-data/blob/main/api/PerformanceLongAnimationFrameTiming.json" target="_blank" rel="noopener">BCD</a>; its shape may change before shipping. See the <a href="../#status-caveats">parent page&rsquo;s caveats</a>.</p>
+  </div>
+
+  <section>
+    <h2 id="syntax">syntax / value</h2>
+    <p>IDL, verbatim from Chromium trunk (identical on the M153 branch, fetched 2026-08-09):</p>
+    <pre><code>[RuntimeEnabled=LongAnimationFrameWorker] readonly attribute unsigned long scriptCount;</code></pre>
+    <p>A read-only <code>unsigned long</code>. There are no parameters and no setter; reading it never throws. It is included in the entry&rsquo;s <code>toJSON()</code> output when the feature is enabled.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/timing/performance_long_animation_frame_timing.idl" target="_blank" rel="noopener">performance_long_animation_frame_timing.idl</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/timing/performance_long_animation_frame_timing.cc" target="_blank" rel="noopener">performance_long_animation_frame_timing.cc (BuildJSONValue)</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="value-semantics">what is counted</h2>
+    <p>The monitor increments the count once per <strong>top-level script entry point</strong> in the current reporting interval — the in-source comment reads: <em>&ldquo;A top-level script entry point of the current reporting interval (a window LoAF or a congested moment). Count it for scriptCount regardless of its duration.&rdquo;</em> Nested script invocations inside an already-running entry point are not counted separately.</p>
+    <p>Contrast with the <code>scripts</code> array, which lists only scripts whose individual duration is at least 5&nbsp;ms (<code>kLongScriptDuration</code>) and which pass the same-origin filter. The two together give the diagnostic shape the <a href="https://github.com/WICG/delayed-message-timing/blob/main/loaf-congested-moments/explainer.md" target="_blank" rel="noopener">explainer</a> describes:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Shape</th><th>Reading</th></tr></thead>
+      <tr><td>Low <code>scriptCount</code>, long <code>duration</code>, populated <code>scripts</code></td><td>A single long task blocked the event loop; <code>scripts</code> names the culprit</td></tr>
+      <tr><td>High <code>scriptCount</code>, <code>scripts</code> sparse or empty</td><td>The loop was saturated by many short tasks, none individually long — the case classic LoAF and Long Tasks cannot surface (fully realized in the trunk coalescing model; in the M153 single-task model this shape only occurs within one long task that ran many entry points)</td></tr>
+    </table>
+    </div>
+    <p><strong>Context of the value:</strong> in a dedicated worker (M153), the interval is a single blocking task &ge; 200&nbsp;ms. In a window, the interval is the long animation frame; window entries also expose <code>scriptCount</code> whenever the flag is on, since <code>RuntimeEnabled</code> gates the attribute, not the context.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7978/third_party/blink/renderer/core/frame/animation_frame_timing_monitor.cc" target="_blank" rel="noopener">M153 animation_frame_timing_monitor.cc (PopScriptEntryPointInternal, OnWorkerTaskCompleted, OnMainThreadTaskCompleted)</a>; <a href="https://github.com/WICG/delayed-message-timing/blob/main/loaf-congested-moments/explainer.md" target="_blank" rel="noopener">explainer — &ldquo;The scriptCount property&rdquo;</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="context">context and exposure</h2>
+    <ul>
+      <li>Lives on <code>PerformanceLongAnimationFrameTiming</code>, which is exposed to <code>Window</code> (stable) and, behind <code>LongAnimationFrameWorker</code>, to <code>DedicatedWorker</code>. Not exposed in shared or service workers.</li>
+      <li>The attribute itself is <code>[RuntimeEnabled=LongAnimationFrameWorker]</code>: with the flag off, window entries have <em>no</em> <code>scriptCount</code> property at all (reading it gives <code>undefined</code>), and worker contexts have no LoAF entries whatsoever.</li>
+      <li>No permission, secure-context, or cross-origin-isolation requirement beyond what the Performance timeline already imposes.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/timing/performance_long_animation_frame_timing.idl" target="_blank" rel="noopener">IDL exposure annotations</a>, fetched 2026-08-09.</span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">lifecycle</h2>
+    <p>The counter accumulates while the reporting interval is open (a window long animation frame, or a worker blocking task in M153) and is snapshotted into the entry when the interval is reported; the monitor then resets it to zero for the next interval. Entries — and therefore their <code>scriptCount</code> — are immutable once queued on the timeline. WPT asserts the worker contract: the entry from a single backlogged long task reports <code>scriptCount &ge; 1</code>, and (in the upstream coalescing version) <code>scriptCount</code> is at least the number of attributed <code>scripts</code>.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7978/third_party/blink/renderer/core/frame/animation_frame_timing_monitor.cc" target="_blank" rel="noopener">M153 animation_frame_timing_monitor.cc</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/long-animation-frame/loaf-congested-moment-worker.html" target="_blank" rel="noopener">upstream WPT loaf-congested-moment-worker.html</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/long-animation-frame/loaf-script-count.tentative.html" target="_blank" rel="noopener">loaf-script-count.tentative.html</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <pre><code>// worker.js — classify what kind of congestion an entry represents
+const observer = new PerformanceObserver((list) =&gt; {
+  for (const entry of list.getEntries()) {
+    if (entry.scriptCount === undefined) {
+      // Flag off / older Chrome: scriptCount not exposed.
+      continue;
+    }
+    const attributed = entry.scripts.length;
+    if (entry.scriptCount &gt; attributed * 3 &amp;&amp; entry.scriptCount &gt; 20) {
+      console.warn(
+        `queue flooded: ${entry.scriptCount} entry points in ` +
+        `${entry.duration.toFixed(0)}ms, only ${attributed} long enough to attribute`,
+      );
+    } else {
+      console.warn(
+        `long task(s): ${attributed} attributed scripts over ` +
+        `${entry.duration.toFixed(0)}ms`,
+      );
+    }
+  }
+});
+observer.observe({ type: "long-animation-frame", buffered: true });</code></pre>
+    <span class="citation">Source: thresholds in this classification are illustrative; the count/attribution semantics follow the <a href="https://github.com/WICG/delayed-message-timing/blob/main/loaf-congested-moments/explainer.md" target="_blank" rel="noopener">explainer</a> and the Chromium sources cited above.</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">browser compatibility</h2>
+    <p><em>Interim table.</em> No BCD entry exists for <code>scriptCount</code> (the <a href="https://github.com/mdn/browser-compat-data/blob/main/api/PerformanceLongAnimationFrameTiming.json" target="_blank" rel="noopener">BCD interface file</a> lists no such member, checked 2026-08-09).</p>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <thead><tr><th>Browser</th><th>Support</th><th>Evidence</th></tr></thead>
+      <tr><td>Chrome</td><td>153, developer trial, behind <code>--enable-blink-features=LongAnimationFrameWorker</code></td><td><a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">milestone=153 listing</a>; <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7978/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">M153 flag state</a></td></tr>
+      <tr><td>Edge</td><td>Not separately reported</td><td>Chromium-based; no separate signal on the <a href="https://chromestatus.com/api/v0/features/5387465121726464" target="_blank" rel="noopener">ChromeStatus record</a></td></tr>
+      <tr><td>Firefox</td><td>No signal</td><td><a href="https://chromestatus.com/api/v0/features/5387465121726464" target="_blank" rel="noopener">ChromeStatus API record</a> vendor views</td></tr>
+      <tr><td>Safari</td><td>No signal</td><td><a href="https://chromestatus.com/api/v0/features/5387465121726464" target="_blank" rel="noopener">ChromeStatus API record</a> vendor views</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: queries linked above, fetched 2026-08-09.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <p><code>scriptCount</code> is an aggregate over the observer&rsquo;s <em>own</em> event loop: it counts entry points without identifying them, and the identifying detail (<code>sourceURL</code> etc.) remains behind the existing same-origin filter on the <code>scripts</code> array. The explainer states the constraint directly: &ldquo;The congested-moment interval and <code>scriptCount</code> aggregate work on the observer&rsquo;s own event loop; they do not expose the internal timing of cross-origin frames or workers beyond what LoAF already permits.&rdquo; While the feature is flag-gated, the attribute&rsquo;s presence adds one fingerprinting bit (flag on/off).</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/delayed-message-timing/blob/main/loaf-congested-moments/explainer.md" target="_blank" rel="noopener">explainer — Privacy and Security Considerations</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/timing/performance_long_animation_frame_timing.cc" target="_blank" rel="noopener">performance_long_animation_frame_timing.cc</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="../">Support Long Animation Frames API in Web Workers</a> — the parent feature reference (includes the mandatory <a href="https://chromestatus.com/feature/5387465121726464" target="_blank" rel="noopener">chromestatus.com/feature/5387465121726464</a> record)</li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/PerformanceLongAnimationFrameTiming" target="_blank" rel="noopener">MDN — PerformanceLongAnimationFrameTiming</a> (base interface; does not document <code>scriptCount</code>, checked 2026-08-09)</li>
+      <li><a href="https://github.com/WICG/delayed-message-timing/blob/main/loaf-congested-moments/explainer.md" target="_blank" rel="noopener">Congested-moments explainer — &ldquo;The scriptCount property&rdquo;</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

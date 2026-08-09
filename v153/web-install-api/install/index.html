@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>navigator.install() — Web Install API — Chrome 153 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code { overflow-wrap: anywhere; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .warn-block > strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v153/web-install-api/">&larr; Web Install API</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v153 · capabilities (fugu)</p>
+    <h1><code>navigator.install()</code></h1>
+    <p class="lede">Requests installation of a web app: with no arguments, the currently loaded document; with an <code>InstallParams</code> dictionary, the app described by the manifest at <code>params.manifest</code>. Returns a promise that resolves with a <code>WebInstallResult</code> when installation completes and rejects otherwise. Requires a secure context, the primary top-level frame, and transient user activation. Identity: <a href="https://chromestatus.com/feature/5183481574850560" target="_blank" rel="noopener">chromestatus.com/feature/5183481574850560</a>.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Experimental — availability gating applies</strong>
+    <p>This method only exists where the <code>WebAppInstallation</code> runtime feature is enabled — see the <a href="/v153/web-install-api/#availability">overview warn-block</a> for the M153 flag state and the exact enable steps (<code>chrome://flags/#web-app-installation-api</code> or <code>--enable-features=WebAppInstallation</code>). The two <code>install_url</code> string overloads are the origin-trial-era shape and are marked for removal (<a href="https://issues.chromium.org/issues/520025525" target="_blank" rel="noopener">crbug.com/520025525</a>) — write new code against the no-argument and dictionary forms.</p>
+  </div>
+
+  <section>
+    <h2 id="syntax">syntax</h2>
+    <pre><code>install()
+install(params)
+
+// Deprecated origin-trial shape, marked for removal (crbug.com/520025525):
+install(install_url)
+install(install_url, manifest_id)</code></pre>
+    <p>Web IDL, verbatim from Chromium trunk (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/web_install/navigator_web_install.idl" target="_blank" rel="noopener">navigator_web_install.idl</a>, fetched 2026-08-09):</p>
+    <pre><code>[
+  RuntimeEnabled=WebAppInstallation,
+  ImplementedAs=NavigatorWebInstall
+] partial interface Navigator {
+  [CallWith=ScriptState, RaisesException, MeasureAs="WebDXFeature::kNavigatorInstall"] Promise&lt;WebInstallResult&gt; install();
+  [CallWith=ScriptState, RaisesException, MeasureAs="WebDXFeature::kNavigatorInstall"] Promise&lt;WebInstallResult&gt; install(USVString install_url);
+  [CallWith=ScriptState, RaisesException, MeasureAs="WebDXFeature::kNavigatorInstall"] Promise&lt;WebInstallResult&gt; install(USVString install_url, USVString manifest_id);
+  [CallWith=ScriptState, RaisesException, MeasureAs="WebDXFeature::kNavigatorInstall"] Promise&lt;WebInstallResult&gt; install(InstallParams params);
+};</code></pre>
+    <p>The draft specification (<a href="https://github.com/w3c/manifest/pull/1175" target="_blank" rel="noopener">w3c/manifest#1175</a>) currently defines only the zero-argument overload, with <code>[SecureContext, NewObject]</code> and a <code>Promise&lt;undefined&gt;</code> return.</p>
+    <span class="citation">Source: Chromium IDL and spec PR linked above.</span>
+  </section>
+
+  <section>
+    <h2 id="parameters">parameters</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Parameter</th><th>Type</th><th>Meaning</th></tr></thead>
+      <tr><td>(none)</td><td>&mdash;</td><td><em>Current-document install.</em> Targets the currently loaded page's linked manifest. The manifest JSON must declare an <a href="https://www.w3.org/TR/appmanifest/#id-member" target="_blank" rel="noopener"><code>id</code></a>, or the promise rejects with <code>DataError</code>.</td></tr>
+      <tr><td><code>params</code></td><td><code>InstallParams</code></td><td><em>Background-document install.</em> Dictionary described below.</td></tr>
+      <tr><td><code>install_url</code> <em>(deprecated shape)</em></td><td><code>USVString</code></td><td>Document URL to load in the background and install via its linked manifest. Empty or invalid URLs reject with <code>TypeError</code>. Retained from the 143&ndash;150 origin trial; marked for removal.</td></tr>
+      <tr><td><code>manifest_id</code> <em>(deprecated shape)</em></td><td><code>USVString</code></td><td>Expected app id for the <code>install_url</code> form. May be absolute or relative; relative values resolve against the calling document's origin. Empty, <code>"null"</code>, or <code>"undefined"</code> strings reject with <code>TypeError</code> (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/web_install/navigator_web_install.cc" target="_blank" rel="noopener">ValidateAndResolveManifestId</a>).</td></tr>
+    </table>
+    </div>
+    <h3 id="installparams">the <code>InstallParams</code> dictionary</h3>
+    <p>Verbatim from <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/web_install/install_params.idl" target="_blank" rel="noopener">install_params.idl</a>:</p>
+    <pre><code>dictionary InstallParams {
+  required USVString manifest;
+  // If present, must be a valid absolute URL. Pass undefined, null, or omit
+  // completely if the JSON at `manifest` contains an `id` field.
+  USVString? manifestId;
+};</code></pre>
+    <ul>
+      <li><code>manifest</code> (required) — URL of the target app's manifest file. The browser fetches it with credentials mode <code>"omit"</code>. An invalid URL rejects with <code>TypeError</code> (&ldquo;Invalid manifest url&rdquo;). Per the explainer's current decisions, the manifest URL must be same-origin with the app's <code>start_url</code>, and relative URLs inside the manifest resolve against the manifest URL itself. If relative, the <code>manifest</code> value resolves against the calling document.</li>
+      <li><code>manifestId</code> (optional, nullable) — the expected app identity. May be omitted (or passed as <code>undefined</code>/<code>null</code>, which Chromium treats as not provided) <strong>if and only if</strong> the JSON at <code>manifest</code> declares an <code>id</code>. When provided it must be a valid absolute URL (invalid or empty values reject with <code>TypeError</code>, &ldquo;Invalid manifest id&rdquo;; relative support is tracked in <a href="https://issues.chromium.org/issues/397043069" target="_blank" rel="noopener">crbug.com/397043069</a>) and must equal the browser-computed manifest id, else the promise rejects with <code>DataError</code>. The computed id is visible in DevTools &rarr; Application &rarr; Manifest.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/web_install/install_params.idl" target="_blank" rel="noopener">install_params.idl</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/web_install/navigator_web_install.cc" target="_blank" rel="noopener">navigator_web_install.cc — InstallFromParamsImpl / InstallImpl</a>; <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/WebInstall/explainer.md" target="_blank" rel="noopener">explainer — Proposed Approach, A note on manifest id, Open Questions</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="return-value">return value</h2>
+    <p>A <code>Promise</code> that fulfills with a <code>WebInstallResult</code> dictionary when the user accepts and installation completes (verbatim from <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/web_install/web_install_result.idl" target="_blank" rel="noopener">web_install_result.idl</a>):</p>
+    <pre><code>dictionary WebInstallResult {
+  USVString manifestId;
+};</code></pre>
+    <ul>
+      <li><strong>No-argument and <code>install_url</code> overloads:</strong> the result's <code>manifestId</code> is set to the installed app's computed manifest id (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/web_install/navigator_web_install.cc" target="_blank" rel="noopener">OnInstallResponse</a>).</li>
+      <li><strong><code>InstallParams</code> overload:</strong> Chromium currently resolves with an <em>empty</em> <code>WebInstallResult</code> — <code>manifestId</code> is deliberately withheld while the team evaluates how much to disclose to callers (<a href="https://issues.chromium.org/issues/520052963" target="_blank" rel="noopener">crbug.com/520052963</a>). Do not rely on <code>result.manifestId</code> being present.</li>
+      <li>The explainer describes the resolved value as an empty dictionary &ldquo;for future-proofing&rdquo;; the draft spec resolves with <code>undefined</code>. Treat resolution itself — not the payload — as the success signal.</li>
+      <li>If the app is already installed, the browser may show launch UI instead: the promise resolves if the user accepts the launch and rejects with <code>AbortError</code> otherwise (explainer note).</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/web_install/web_install_result.idl" target="_blank" rel="noopener">web_install_result.idl</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/web_install/navigator_web_install.cc" target="_blank" rel="noopener">navigator_web_install.cc</a>; <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/WebInstall/explainer.md" target="_blank" rel="noopener">explainer — Proposed Approach</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="exceptions">exceptions and rejections</h2>
+    <p>Chromium distinguishes <em>synchronously thrown</em> exceptions (precondition failures, before any promise exists — the IDL is <code>RaisesException</code>) from <em>promise rejections</em>. All names below are read directly from <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/web_install/navigator_web_install.cc" target="_blank" rel="noopener">navigator_web_install.cc</a>; the explainer specifies the same taxonomy as rejections.</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Error</th><th>Thrown or rejected</th><th>When</th></tr></thead>
+      <tr><td><code>SecurityError</code></td><td>thrown</td><td>Permissions policy disallows <code>web-app-installation</code>; or the document is in any sandboxed context</td></tr>
+      <tr><td><code>NotFoundError</code></td><td>thrown</td><td>The <code>navigator</code> object is no longer associated with a document (detached)</td></tr>
+      <tr><td><code>InvalidStateError</code></td><td>thrown</td><td>Not the primary top-level frame: subframes, prerendering documents, fenced frames; or invalid script state. (The draft spec also rejects with this when the document is not fully active or another <code>install()</code> promise is pending.)</td></tr>
+      <tr><td><code>NotAllowedError</code></td><td>thrown</td><td>No transient user activation (&ldquo;This API can only be called shortly after a user activation.&rdquo;). Activation is consumed on success, so back-to-back calls need a fresh gesture</td></tr>
+      <tr><td><code>TypeError</code></td><td>rejected</td><td>Invalid <code>manifest</code> URL; invalid/empty <code>manifestId</code>; invalid or empty <code>install_url</code> (deprecated shape)</td></tr>
+      <tr><td><code>DataError</code></td><td>rejected</td><td>Manifest fetch failed, malformed manifest, no <code>id</code> in the manifest when <code>manifestId</code> was omitted, or a supplied <code>manifestId</code> not matching the computed id</td></tr>
+      <tr><td><code>AbortError</code></td><td>rejected</td><td>User dismissed the permission prompt or the install/launch confirmation, or installation failed in the browser</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/web_install/navigator_web_install.cc" target="_blank" rel="noopener">navigator_web_install.cc — CheckPreconditionsMaybeThrow, InstallImpl, InstallFromParamsImpl, OnInstallResponse</a>; <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/WebInstall/explainer.md" target="_blank" rel="noopener">explainer — What information is exposed to the caller</a>; <a href="https://github.com/w3c/manifest/pull/1175" target="_blank" rel="noopener">w3c/manifest#1175 algorithm</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="context">context and exposure</h2>
+    <ul>
+      <li><strong>Exposure:</strong> <code>Navigator</code> (window only — no worker exposure), secure contexts. Gated on the <code>WebAppInstallation</code> runtime feature (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>); absent otherwise — feature-detect with <code>'install' in navigator</code>.</li>
+      <li><strong>Frame requirements:</strong> primary top-level browsing context only. Subframes (even same-origin), prerendering documents, and fenced frames throw <code>InvalidStateError</code>; sandboxed documents throw <code>SecurityError</code>.</li>
+      <li><strong>Permissions policy:</strong> <code>web-app-installation</code>, default allowlist <code>self</code> — see the <a href="/v153/web-install-api/#permissions-policy">overview section</a>.</li>
+      <li><strong>User gesture:</strong> transient user activation is required and consumed by the call.</li>
+      <li><strong>Permission:</strong> background-document installs from origins without the <code>web-app-installation</code> permission trigger a permission prompt first (except current-document installs, which never do) — see the <a href="/v153/web-install-api/#permission">overview section</a>.</li>
+      <li><strong>Platforms:</strong> desktop only at this milestone (Windows, macOS, Linux, ChromeOS) — the runtime feature carries no Android status and the flags entry is desktop-only.</li>
+      <li><strong>Not available in private browsing</strong> (explainer: apps are not installable in off-the-record profiles).</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/web_install/navigator_web_install.cc" target="_blank" rel="noopener">navigator_web_install.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/about_flags.cc" target="_blank" rel="noopener">about_flags.cc</a>; <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/WebInstall/explainer.md" target="_blank" rel="noopener">explainer</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">lifecycle: the install algorithms</h2>
+    <p>Step sequences as specified by the <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/WebInstall/explainer.md" target="_blank" rel="noopener">explainer</a> (&ldquo;Steps to install the app&rdquo;), which is the normative source for every entry point while the spec PR covers only the no-argument form:</p>
+    <h3 id="lifecycle-current">current document — <code>install()</code></h3>
+    <ol>
+      <li>Reject/throw <code>NotAllowedError</code> without transient user activation; consume the activation.</li>
+      <li>Reject/throw <code>InvalidStateError</code> if sandboxed or not the top-level frame.</li>
+      <li>Reject with <code>DataError</code> if the document links no manifest, or the manifest declares no <code>id</code>.</li>
+      <li>Show install confirmation UI; user decline rejects with <code>AbortError</code>.</li>
+      <li>Resolve. (If already installed, the browser may offer launch UI with the same resolve/<code>AbortError</code> contract.)</li>
+    </ol>
+    <h3 id="lifecycle-background">background document — <code>install({ manifest [, manifestId] })</code></h3>
+    <ol>
+      <li>Activation and frame checks as above; invalid <code>manifest</code> URL rejects with <code>TypeError</code>.</li>
+      <li>If <code>manifest</code> is cross-origin to the calling document and the origin lacks the <code>web-app-installation</code> permission, prompt for it; denial rejects with <code>AbortError</code>.</li>
+      <li>Fetch the manifest with credentials mode <code>"omit"</code>; failure rejects with <code>DataError</code>.</li>
+      <li>Without <code>manifestId</code>: the fetched manifest must declare an <code>id</code>, else <code>DataError</code>. With <code>manifestId</code>: it must equal the computed id, else <code>DataError</code>.</li>
+      <li>Show install confirmation UI naming the requesting site and the target app; decline rejects with <code>AbortError</code>; acceptance installs and resolves.</li>
+    </ol>
+    <p>Concurrency and re-entry: the draft spec holds a single <code>[[installPromise]]</code> internal slot — a second call while one is pending rejects with <code>InvalidStateError</code>; the slot resets to <code>null</code> after settle, so the API is call-again-after-settle idempotent-safe. Because activation is consumed, retries always need a new user gesture. There is no cancellation surface (no <code>AbortSignal</code> parameter); the user closing the browser UI is the only way an in-flight call terminates early, surfacing as <code>AbortError</code>.</p>
+    <span class="citation">Source: <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/WebInstall/explainer.md" target="_blank" rel="noopener">explainer — Steps to install the app (all three signatures)</a>; <a href="https://github.com/w3c/manifest/pull/1175" target="_blank" rel="noopener">w3c/manifest#1175 — install() algorithm and [[installPromise]]</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/web_install/navigator_web_install.cc" target="_blank" rel="noopener">navigator_web_install.cc</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <p>Feature-detected install button for the current site:</p>
+    <pre><code>const btn = document.querySelector('#install-btn');
+btn.hidden = !('install' in navigator);
+
+btn.addEventListener('click', async () =&gt; {
+  try {
+    await navigator.install();
+    btn.textContent = 'Installed';
+  } catch (err) {
+    if (err.name === 'AbortError') return;      // user changed their mind
+    if (err.name === 'DataError') {
+      console.warn('Add an `id` member to manifest.json to use install().');
+    }
+  }
+});</code></pre>
+    <p>App catalog installing a third-party app, with a permission pre-check (note the <code>try/catch</code> around <code>permissions.query</code> — it throws <code>TypeError</code> where the feature is disabled):</p>
+    <pre><code>async function offerInstall(manifestUrl, expectedId) {
+  if (!('install' in navigator)) return false;
+
+  try {
+    const { state } = await navigator.permissions.query({
+      name: 'web-app-installation',
+    });
+    if (state === 'denied') return false;       // hide the install UI
+  } catch {
+    return false;                               // feature not enabled
+  }
+
+  try {
+    await navigator.install({ manifest: manifestUrl, manifestId: expectedId });
+    return true;
+  } catch (err) {
+    switch (err.name) {
+      case 'AbortError':      return false;     // user declined
+      case 'DataError':       throw new Error('manifest or id problem');
+      case 'TypeError':       throw new Error('bad manifest/manifestId URL');
+      case 'NotAllowedError': throw new Error('call from a click handler');
+      default:                throw err;
+    }
+  }
+}</code></pre>
+    <p>Runnable references: the <a href="https://microsoftedge.github.io/Demos/pwa-pwastore" target="_blank" rel="noopener">PWAmp store demo</a> and <a href="https://kbhlee2121.github.io/pwa/web-install/index.html" target="_blank" rel="noopener">Web Install sample</a> (ChromeStatus sample links; require the feature enabled). The <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v153/web-install-api/" target="_blank" rel="noopener">showcase route</a> was 404 on 2026-08-09, so no iframe embed here.</p>
+    <span class="citation">Source: patterns adapted from the <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/WebInstall/explainer.md" target="_blank" rel="noopener">explainer sample code</a> and <a href="https://github.com/MicrosoftEdge/Demos/blob/main/pwa-web-install-api/README.md" target="_blank" rel="noopener">origin-trial README</a>; error semantics per <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/web_install/navigator_web_install.cc" target="_blank" rel="noopener">navigator_web_install.cc</a> and <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/permissions/permission_utils.cc" target="_blank" rel="noopener">permission_utils.cc</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">browser compatibility</h2>
+    <p><em>Interim table</em> — no BCD entry for <code>Navigator.install</code> exists in <a href="https://raw.githubusercontent.com/mdn/browser-compat-data/main/api/Navigator.json" target="_blank" rel="noopener">api/Navigator.json</a> and <a href="https://api.webstatus.dev/v1/features/navigator-install" target="_blank" rel="noopener">webstatus.dev</a> records no implementations (verified 2026-08-09). Same sourcing as the <a href="/v153/web-install-api/#compatibility">overview table</a>.</p>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <thead><tr><th>Browser</th><th><code>navigator.install()</code></th></tr></thead>
+      <tr><td>Chrome</td><td>153 (desktop) per <a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">milestone listing</a>, with the <a href="/v153/web-install-api/#availability">flag-state caveat</a> (<code>WebAppInstallation</code> is <code>status: test</code> on the <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7978/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">M153 branch flag state</a>); <a href="https://developer.chrome.com/origintrials/#/view_trial/2367204554136616961" target="_blank" rel="noopener">origin trial</a> 143&ndash;150; unavailable on Android/WebView</td></tr>
+      <tr><td>Edge</td><td>Co-developer; same origin trial 143&ndash;150 (<a href="https://github.com/MicrosoftEdge/Demos/blob/main/pwa-web-install-api/README.md" target="_blank" rel="noopener">OT README</a>); no separate ship record found</td></tr>
+      <tr><td>Firefox</td><td>Not implemented; <a href="https://github.com/mozilla/standards-positions/issues/1179" target="_blank" rel="noopener">no position</a></td></tr>
+      <tr><td>Safari</td><td>Not implemented; <a href="https://github.com/WebKit/standards-positions/issues/463" target="_blank" rel="noopener">opposed</a></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: links in-row, all fetched 2026-08-09.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <ul>
+      <li><strong>Consent is unbypassable:</strong> every path ends in browser-rendered confirmation UI (which the explainer notes reuses existing accessible PWA install surfaces), and cross-origin targets additionally need the origin-scoped <code>web-app-installation</code> permission.</li>
+      <li><strong>Anti-probing:</strong> the credentials-omitted manifest fetch, the coarse <code>DataError</code>, and the withheld <code>manifestId</code> on background installs (<a href="https://issues.chromium.org/issues/520052963" target="_blank" rel="noopener">crbug.com/520052963</a>) all limit what a catalog site can learn about the target app or user state. Focus/blur side channels remain and are documented in the explainer.</li>
+      <li><strong>Use counters:</strong> calls are recorded under <code>WebDXFeature::kNavigatorInstall</code> (IDL <code>MeasureAs</code>) — usage is measurable but has no privacy payload.</li>
+      <li><strong>No permission inheritance</strong> between installing origin and installed app; private-browsing behavior must not create a detection channel — full analysis in the <a href="/v153/web-install-api/#security-and-privacy">overview security section</a> and the explainer's <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/WebInstall/explainer.md" target="_blank" rel="noopener">considerations chapter</a>.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/WebInstall/explainer.md" target="_blank" rel="noopener">explainer — Accessibility, Privacy, and Security Considerations</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/web_install/navigator_web_install.idl" target="_blank" rel="noopener">navigator_web_install.idl</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="/v153/web-install-api/">Web Install API overview</a> — model, permission, permissions policy, specifications</li>
+      <li><a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/web_install/navigator_web_install_test.cc" target="_blank" rel="noopener">navigator_web_install_test.cc</a> — Chromium's unit coverage of these code paths</li>
+      <li><a href="https://github.com/WICG/install-element" target="_blank" rel="noopener">WICG <code>&lt;install&gt;</code> element</a> — declarative entry point over the same algorithm</li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

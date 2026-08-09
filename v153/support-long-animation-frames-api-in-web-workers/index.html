@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Support Long Animation Frames API in Web Workers — Chrome 153 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code, h3 code, a code { overflow-wrap: anywhere; }
+    .route-card h3 { overflow-wrap: anywhere; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .baseline-banner { border: 2px solid var(--border-black); padding: 0.9rem 1.1rem; margin: 1.2rem 0; background: var(--bg-stone); }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.1rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    .baseline-banner p { margin: 0.35rem 0 0; font-size: 0.9rem; }
+    .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .warn-block > strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    .route-cards { display: grid; gap: 0.8rem; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); margin: 1rem 0 1.5rem; }
+    .route-card { border: 2px solid var(--border-black); padding: 0.8rem 1rem; background: var(--bg-paper); box-shadow: var(--thin-shadow); }
+    .route-card h3 { margin: 0 0 0.3rem; font-size: 1rem; }
+    .route-card p { margin: 0; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v153/">&larr; Chrome 153 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v153 · performance · dev trial</p>
+    <h1>Support Long Animation Frames API in Web Workers</h1>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability — worker exposure is Chrome-only, behind a flag</p>
+      <ul class="baseline-browsers">
+        <li>Chrome · 153 dedicated workers, developer trial behind a flag (milestone listing)</li>
+        <li class="limited">Edge · not separately reported (Chromium-based)</li>
+        <li class="limited">Firefox · no signal</li>
+        <li class="limited">Safari · no signal</li>
+      </ul>
+      <p>The <em>base</em> Long Animation Frames API is itself only &ldquo;Baseline Limited availability&rdquo; — Chrome/Edge 123, no Firefox or Safari support, per the <a href="https://api.webstatus.dev/v1/features?q=long-animation-frames" target="_blank" rel="noopener">webstatus.dev record for <code>long-animation-frames</code></a>. The worker exposure documented here has no web-features entry of its own, no <a href="https://github.com/mdn/browser-compat-data/blob/main/api/PerformanceLongAnimationFrameTiming.json" target="_blank" rel="noopener">BCD</a> <code>worker_support</code> subfeature, and the <a href="https://w3c.github.io/long-animation-frames/" target="_blank" rel="noopener">LoAF spec</a> still says <code>[Exposed=Window]</code> (all verified 2026-08-09).</p>
+    </div>
+
+    <p class="lede">Extends the <a href="https://developer.mozilla.org/en-US/docs/Web/API/Performance_API/Long_animation_frame_timing" target="_blank" rel="noopener">Long Animation Frames (LoAF) API</a> to <strong>dedicated Web Workers</strong>. LoAF today reports only on the main thread and is anchored to rendering frames, so it cannot observe work that blocks a worker&rsquo;s event loop. With this change, a long task that blocks a dedicated worker&rsquo;s event loop is reported as a <code>&quot;long-animation-frame&quot;</code> entry, observable <em>from inside the worker</em> via <code>PerformanceObserver</code>, with the usual per-script attribution — plus a new <a href="scriptcount/"><code>scriptCount</code></a> attribute. This page documents the <strong>delta</strong>: what becomes observable in workers and how worker entries differ from window entries. For the base API, see MDN&rsquo;s <a href="https://developer.mozilla.org/en-US/docs/Web/API/PerformanceLongAnimationFrameTiming" target="_blank" rel="noopener">PerformanceLongAnimationFrameTiming</a> reference.</p>
+  </header>
+
+  <div class="warn-block" id="status-caveats">
+    <strong>Developer trial — the API surface is actively moving</strong>
+    <ul>
+      <li><strong>Exact enable steps.</strong> The Blink feature <code>LongAnimationFrameWorker</code> has status <code>&quot;test&quot;</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener"><code>runtime_enabled_features.json5</code></a> at trunk <em>and</em> on the <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7978/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">M153 branch (7978)</a>, both fetched 2026-08-09. That means there is <em>no</em> <code>chrome://flags</code> entry and the &ldquo;Experimental Web Platform features&rdquo; toggle does <em>not</em> enable it (that toggle covers <code>experimental</code>-status features). Launch Chrome from the command line with:<br><code>--enable-blink-features=LongAnimationFrameWorker</code><br>— the same invocation Chromium&rsquo;s own <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7978/third_party/blink/web_tests/external/wpt/long-animation-frame/loaf-congested-moment-worker.html" target="_blank" rel="noopener">worker LoAF test</a> documents. There is no origin trial (<a href="https://chromestatus.com/api/v0/features/5387465121726464" target="_blank" rel="noopener">ChromeStatus API record</a>: <code>origintrial: false</code>).</li>
+      <li><strong>The reporting model has already changed after M153.</strong> On the M153 branch a worker entry is emitted for a <em>single task</em> that occupies the event loop for &ge; 200&nbsp;ms. Chromium trunk (fetched 2026-08-09) has since moved to a queuing-delay model that also coalesces <em>floods of short tasks</em> into one &ldquo;congested moment&rdquo; entry. See <a href="#reporting-model">when an entry is reported</a>. Do not ship production monitoring against either behavior yet.</li>
+      <li><strong>Most of the explainer is not implemented in 153.</strong> The <a href="https://github.com/WICG/delayed-message-timing/blob/main/loaf-congested-moments/explainer.md" target="_blank" rel="noopener">explainer</a> also proposes a <code>cadence</code> property, an <code>executionContext</code> property (<code>PerformanceExecutionContextInfo</code>), a configurable <code>durationThreshold</code>, an OffscreenCanvas frame-based cadence in workers, and main-thread congested moments. None of these exist in the Chromium sources read (trunk or M153 branch, 2026-08-09). Only <code>scriptCount</code> and the dedicated-worker exposure shipped in this prototype.</li>
+      <li><strong>No spec text yet.</strong> The <a href="https://w3c.github.io/long-animation-frames/" target="_blank" rel="noopener">Long Animation Frames spec</a> still declares both interfaces <code>[Exposed=Window]</code>; worker exposure is tracked in the open spec issue <a href="https://github.com/w3c/long-animation-frames/issues/38" target="_blank" rel="noopener">w3c/long-animation-frames#38</a> (opened 2026-07-15). The ChromeStatus record lists standards maturity &ldquo;Unknown status&rdquo; and no spec link.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7978/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">M153 runtime_enabled_features.json5</a>; <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7978/third_party/blink/renderer/core/frame/animation_frame_timing_monitor.cc" target="_blank" rel="noopener">M153 animation_frame_timing_monitor.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/frame/animation_frame_timing_monitor.h" target="_blank" rel="noopener">trunk animation_frame_timing_monitor.h</a>; <a href="https://chromestatus.com/api/v0/features/5387465121726464" target="_blank" rel="noopener">ChromeStatus API record</a> — all fetched 2026-08-09.</span>
+  </div>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">What it is</th><td>Exposure of the existing LoAF interfaces — <code>PerformanceLongAnimationFrameTiming</code> and <code>PerformanceScriptTiming</code> — to <strong>dedicated workers</strong>, so a long task blocking a worker&rsquo;s event loop is reported as a <code>&quot;long-animation-frame&quot;</code> entry inside that worker</td></tr>
+      <tr><th scope="row">Milestone listing</th><td>Chrome 153 — In developer trial (Behind a flag) (<a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">milestone=153 listing</a>, verified 2026-08-09; dev-trial stage records desktop_first = 153)</td></tr>
+      <tr><th scope="row">New API surface</th><td>No new interface. Two existing interfaces become visible in <code>DedicatedWorkerGlobalScope</code>, plus one new attribute: <a href="scriptcount/"><code>PerformanceLongAnimationFrameTiming.scriptCount</code></a></td></tr>
+      <tr><th scope="row">Contexts</th><td>Dedicated workers only. Shared and service workers are explicitly TODO (<a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7978/third_party/blink/renderer/core/workers/worker_global_scope.cc" target="_blank" rel="noopener">worker_global_scope.cc</a>: &ldquo;TODO(crbug.com/534893134): support shared and service workers&rdquo;)</td></tr>
+      <tr><th scope="row">Flag</th><td><code>--enable-blink-features=LongAnimationFrameWorker</code> (Blink feature status <code>test</code>; no chrome://flags entry)</td></tr>
+      <tr><th scope="row">Trigger (M153)</th><td>A single worker task occupying the event loop for &ge; 200&nbsp;ms (<code>kCongestionThreshold</code>); entries buffer up to 200 for <code>buffered: true</code></td></tr>
+      <tr><th scope="row">Explainer</th><td><a href="https://github.com/WICG/delayed-message-timing/blob/main/loaf-congested-moments/explainer.md" target="_blank" rel="noopener">Extending Long Animation Frames to Detect Congested Moments in Documents and Workers</a> (WICG/delayed-message-timing; authors Joone Hur, Microsoft &amp; Noam Rosenthal, Google)</td></tr>
+      <tr><th scope="row">Intent thread</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a5ac7f8.68e56e23.38c8c.019c.GAE%40google.com" target="_blank" rel="noopener">Intent to Prototype on blink-dev</a> (from the ChromeStatus record&rsquo;s prototype stage)</td></tr>
+      <tr><th scope="row">WPT</th><td><a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7978/third_party/blink/web_tests/external/wpt/long-animation-frame/loaf-congested-moment-worker.html" target="_blank" rel="noopener">long-animation-frame/loaf-congested-moment-worker.html</a> (M153 branch copy; the <a href="https://github.com/web-platform-tests/wpt/blob/master/long-animation-frame/loaf-congested-moment-worker.html" target="_blank" rel="noopener">upstream master version</a> already tests the newer coalescing model)</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5387465121726464" target="_blank" rel="noopener">5387465121726464 — Support Long Animation Frames API in Web Workers</a> (Blink component <code>Blink&gt;PerformanceAPIs</code>; tracking bug <a href="https://issues.chromium.org/issues/534893134" target="_blank" rel="noopener">crbug.com/534893134</a>)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5387465121726464" target="_blank" rel="noopener">chromestatus.com/feature/5387465121726464</a>; Chromium implementation files linked per-section, fetched 2026-08-09.</span>
+  </section>
+
+  <section>
+    <h2 id="reference-routes">reference routes</h2>
+    <div class="route-cards">
+      <div class="route-card">
+        <h3><a href="scriptcount/"><code>PerformanceLongAnimationFrameTiming.scriptCount</code></a></h3>
+        <p>The one new attribute this feature adds: every top-level JavaScript entry point in the reporting interval, including the short ones that never appear in <code>scripts</code>.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="syntax">syntax</h2>
+    <p>Registration is the ordinary <code>PerformanceObserver</code> pattern, run <strong>inside the worker</strong> (there is no way to observe a worker&rsquo;s entries from the window):</p>
+    <pre><code>// worker.js — with LongAnimationFrameWorker enabled
+const observer = new PerformanceObserver((list) =&gt; {
+  console.log(list.getEntries());
+});
+observer.observe({ type: "long-animation-frame", buffered: true });</code></pre>
+    <p>The exposure itself is expressed in Blink&rsquo;s IDL extended attributes — quoted verbatim from trunk and identical on the M153 branch (fetched 2026-08-09):</p>
+    <pre><code>// third_party/blink/renderer/core/timing/performance_long_animation_frame_timing.idl
+[Exposed(Window StableBlinkFeatures, DedicatedWorker LongAnimationFrameWorker)]
+interface PerformanceLongAnimationFrameTiming : PerformanceEntry {
+    [RuntimeEnabled=LongAnimationFrameWorker] readonly attribute unsigned long scriptCount;
+    ...
+};
+
+// third_party/blink/renderer/core/timing/performance_script_timing.idl
+[Exposed(Window StableBlinkFeatures, DedicatedWorker LongAnimationFrameWorker)]
+interface PerformanceScriptTiming : PerformanceEntry { ... };</code></pre>
+    <p>Meaning: both interfaces exist in <code>Window</code> unconditionally (that part is stable), and in <code>DedicatedWorker</code> only when the <code>LongAnimationFrameWorker</code> feature is on. Neither is exposed in shared or service workers. <code>PerformanceObserver.supportedEntryTypes</code> reflects the same gate — the M153 implementation adds <code>&quot;long-animation-frame&quot;</code> for a context that <code>IsDedicatedWorkerGlobalScope()</code> with the feature enabled, with the in-source comment: <em>&ldquo;Dedicated workers are supported first to validate the congested-moment reporting; shared and service workers will follow.&rdquo;</em> Feature-detect inside a worker with:</p>
+    <pre><code>const supported = PerformanceObserver.supportedEntryTypes
+    .includes("long-animation-frame");</code></pre>
+    <p>By contrast, the W3C spec&rsquo;s IDL still reads <code>[Exposed=Window]</code> for both interfaces — the worker exposure has no normative text yet (see <a href="#specifications">Specifications</a>).</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/timing/performance_long_animation_frame_timing.idl" target="_blank" rel="noopener">performance_long_animation_frame_timing.idl</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/timing/performance_script_timing.idl" target="_blank" rel="noopener">performance_script_timing.idl</a>; <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7978/third_party/blink/renderer/core/timing/performance_observer.cc" target="_blank" rel="noopener">performance_observer.cc (supportedEntryTypes gating)</a>; <a href="https://w3c.github.io/long-animation-frames/" target="_blank" rel="noopener">Long Animation Frames spec IDL</a> — fetched 2026-08-09.</span>
+  </section>
+
+  <section>
+    <h2 id="worker-entries">what a worker entry contains — attribute by attribute</h2>
+    <p>A worker entry is the same <code>PerformanceLongAnimationFrameTiming</code> interface, but a worker has no rendering lifecycle, no DOM, and no window, so several members behave differently. The table below is derived from the M153-branch implementation: the worker path constructs the entry from a task interval only, passing no paint-timing info, and Chromium&rsquo;s timestamp conversion returns <code>0</code> for timestamps that were never set (<a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7978/third_party/blink/renderer/core/timing/performance.cc" target="_blank" rel="noopener">performance.cc</a>: &ldquo;Avoid exposing raw platform timestamps&rdquo; — null monotonic time &rarr; <code>0.0</code>).</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Member</th><th>In a dedicated worker (M153)</th></tr></thead>
+      <tr><td><code>name</code> / <code>entryType</code></td><td><code>&quot;long-animation-frame&quot;</code> — unchanged</td></tr>
+      <tr><td><code>startTime</code></td><td>When the blocking task started, relative to the <em>worker&rsquo;s</em> time origin</td></tr>
+      <tr><td><code>duration</code></td><td>The blocking task&rsquo;s full duration (start to end), clamped to timer resolution. Only tasks &ge; 200&nbsp;ms produce entries at all</td></tr>
+      <tr><td><code>scriptCount</code> <em>(new)</em></td><td>Number of top-level JS entry points in the interval, counted <em>regardless of individual duration</em>. Gated on <code>LongAnimationFrameWorker</code>, so it also appears on window entries when the flag is on. Full reference: <a href="scriptcount/"><code>scriptCount</code></a></td></tr>
+      <tr><td><code>renderStart</code></td><td><code>0</code> — never set on the worker path (no rendering lifecycle)</td></tr>
+      <tr><td><code>styleAndLayoutStart</code></td><td><code>0</code> — never set (no style/layout in a worker)</td></tr>
+      <tr><td><code>firstUIEventTimestamp</code></td><td><code>0</code> — never set (no UI events on a worker&rsquo;s loop)</td></tr>
+      <tr><td><code>blockingDuration</code></td><td><code>duration &minus; 200&nbsp;ms</code>: the M153 worker path sets total blocking duration to the task duration minus the congestion threshold</td></tr>
+      <tr><td><code>scripts</code></td><td>Populated with per-script attribution, as on the main thread: only scripts whose individual duration is &ge; 5&nbsp;ms (<code>kLongScriptDuration</code>), and only scripts whose security origin the observing worker can access</td></tr>
+      <tr><td><code>paintTime</code> / <code>presentationTime</code></td><td><strong>Absent</strong> — the <code>PaintTimingMixin</code> members are <code>[Exposed=Window]</code>, with the in-source comment: &ldquo;Scoping the members to Window keeps the properties below out of PerformanceLongAnimationFrameTiming when it is exposed to web workers&rdquo;</td></tr>
+      <tr><td><code>styleDuration</code> / <code>layoutDuration</code></td><td>Separate feature (<code>LongAnimationFrameStyleDuration</code> origin trial) — see <a href="/v148/long-animation-frames-style-duration/">Long Animation Frames style duration</a>; not part of this worker prototype</td></tr>
+    </table>
+    </div>
+    <p>On each <code>PerformanceScriptTiming</code> object inside <code>scripts</code>:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Member</th><th>In a dedicated worker (M153)</th></tr></thead>
+      <tr><td><code>window</code>, <code>windowAttribution</code></td><td><strong>Absent</strong> — both are <code>[Exposed=Window]</code> in the IDL, with the in-source comment: &ldquo;window/windowAttribution describe same-origin windows and are only meaningful in document contexts&rdquo;</td></tr>
+      <tr><td><code>invokerType</code>, <code>invoker</code></td><td>Present — e.g. an <code>onmessage</code> handler reports as an event listener with its invoker string</td></tr>
+      <tr><td><code>sourceURL</code>, <code>sourceFunctionName</code>, <code>sourceCharPosition</code></td><td>Present for same-origin scripts — this is the per-script attribution that motivated extending LoAF rather than Long Tasks (Long Tasks has no attribution)</td></tr>
+      <tr><td><code>executionStart</code>, <code>pauseDuration</code></td><td>Present, same semantics as on the main thread</td></tr>
+      <tr><td><code>forcedStyleAndLayoutDuration</code></td><td>Present in the IDL for workers; a worker has no DOM style/layout to force, so no forced style/layout time is recorded on the worker path in the sources read</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7978/third_party/blink/renderer/core/frame/animation_frame_timing_monitor.cc" target="_blank" rel="noopener">animation_frame_timing_monitor.cc (OnWorkerTaskCompleted)</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/timing/performance_long_animation_frame_timing.cc" target="_blank" rel="noopener">performance_long_animation_frame_timing.cc</a> (&ldquo;Worker contexts have no window, so <code>source</code> is nullptr there&rdquo;); <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7978/third_party/blink/renderer/core/timing/paint_timing_mixin.idl" target="_blank" rel="noopener">paint_timing_mixin.idl</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/timing/performance_script_timing.idl" target="_blank" rel="noopener">performance_script_timing.idl</a> — fetched 2026-08-09.</span>
+  </section>
+
+  <section>
+    <h2 id="reporting-model">when an entry is reported</h2>
+    <p><strong>Chrome 153 (the dev-trial build this page is filed under):</strong> the worker&rsquo;s <code>AnimationFrameTimingMonitor</code> observes every task on the worker&rsquo;s event loop. When a task completes, if it occupied the loop for at least <code>kCongestionThreshold</code> = <strong>200&nbsp;ms</strong>, the monitor reports it as a &ldquo;congested moment&rdquo; and the worker&rsquo;s <code>performance</code> timeline queues a <code>&quot;long-animation-frame&quot;</code> entry. The in-source comment is explicit about the scope: <em>&ldquo;A worker task that occupies the event loop for at least this long is reported as a congested moment. TODO(crbug.com/534893134): Reporting a congested moment when many small tasks saturate the task queue is a future extension.&rdquo;</em> Entries are stored in a 200-entry buffer, so <code>buffered: true</code> observers registered after the fact still receive them. Note the threshold is <strong>200&nbsp;ms, not the 50&nbsp;ms</strong> that window LoAF uses, and there is no worker equivalent of the rendering-frame trigger: a worker running a <code>requestAnimationFrame</code> loop over an <code>OffscreenCanvas</code> gets no frame-anchored entries in this prototype (that cadence is explainer-stage).</p>
+    <p><strong>Chromium trunk has already moved on (2026-08-09):</strong> the monitor now tracks a <em>queuing-delay</em> model — an open &ldquo;congested moment&rdquo; interval during which the task queue stays saturated (a task was queued while an earlier task was still running, i.e. backlog depth &ge; 2), accumulating <code>scriptCount</code> and long scripts across <em>multiple</em> tasks and reporting one entry when the queue drains, if the run lasted at least the threshold. The <a href="https://github.com/web-platform-tests/wpt/blob/master/long-animation-frame/loaf-congested-moment-worker.html" target="_blank" rel="noopener">upstream WPT</a> exercises exactly this: a flood of twenty 15&nbsp;ms tasks coalesces into one entry, and a steady back-to-back iteration with backlog depth 1 must <em>not</em> be reported. Under the M153 build, only the first (single-long-task) scenario produces entries. Treat the M153 behavior as the floor, not the contract.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7978/third_party/blink/renderer/core/frame/animation_frame_timing_monitor.cc" target="_blank" rel="noopener">M153 animation_frame_timing_monitor.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/frame/animation_frame_timing_monitor.h" target="_blank" rel="noopener">trunk animation_frame_timing_monitor.h</a>; <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7978/third_party/blink/renderer/core/timing/worker_performance.cc" target="_blank" rel="noopener">worker_performance.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7978/third_party/blink/renderer/core/workers/worker_global_scope.cc" target="_blank" rel="noopener">worker_global_scope.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7978/third_party/blink/renderer/core/timing/performance.cc" target="_blank" rel="noopener">performance.cc (kDefaultLongAnimationFrameBufferSize = 200)</a> — fetched 2026-08-09.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <p>Observe long tasks from inside the worker they block. The observer lives in the worker; the main thread never sees these entries:</p>
+    <pre><code>// worker.js — run Chrome with --enable-blink-features=LongAnimationFrameWorker
+if (PerformanceObserver.supportedEntryTypes.includes("long-animation-frame")) {
+  const observer = new PerformanceObserver((list) =&gt; {
+    for (const entry of list.getEntries()) {
+      console.log(
+        `worker event loop blocked for ${entry.duration.toFixed(0)}ms ` +
+        `(${entry.scriptCount} script entry points, ` +
+        `blockingDuration ${entry.blockingDuration.toFixed(0)}ms)`,
+      );
+      // Same-origin per-script attribution, as on the main thread.
+      for (const script of entry.scripts) {
+        console.log(
+          `  ${script.sourceFunctionName || "(anonymous)"} in ` +
+          `${script.sourceURL}: ${script.duration.toFixed(0)}ms ` +
+          `via ${script.invoker}`,
+        );
+      }
+    }
+  });
+  observer.observe({ type: "long-animation-frame", buffered: true });
+}
+
+// A message handler that occasionally blocks the loop past 200ms
+// will now be reported — with the culprit function named.
+self.onmessage = (e) =&gt; {
+  const start = performance.now();
+  while (performance.now() - start &lt; e.data.busyMs) { /* simulate work */ }
+};</code></pre>
+    <p>The pattern of accumulating <code>entry.scripts</code> across callbacks and grouping by <code>sourceURL</code> — as recommended for main-thread LoAF in Chrome&rsquo;s <a href="https://developer.chrome.com/docs/web-platform/long-animation-frames" target="_blank" rel="noopener">LoAF guide</a> — works identically in a worker; the entries just describe the worker&rsquo;s own event loop. The explainer&rsquo;s <a href="https://wicg.github.io/delayed-message-timing/examples/long_task/" target="_blank" rel="noopener">live long-task demo</a> (verified 200, 2026-08-09) shows the manual-instrumentation problem this replaces.</p>
+    <p>The sister <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v153/support-long-animation-frames-api-in-web-workers/" target="_blank" rel="noopener">Chrome Platform Showcase route</a> for this feature returned 404 at fetch time (2026-08-09), so no live embed is included — the snippet above plus the WICG demo are the runnable path.</p>
+    <span class="citation">Source: snippet follows the observer pattern in the <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7978/third_party/blink/web_tests/external/wpt/long-animation-frame/loaf-congested-moment-worker.html" target="_blank" rel="noopener">M153 worker LoAF test</a> and the <a href="https://github.com/WICG/delayed-message-timing/blob/main/loaf-congested-moments/explainer.md" target="_blank" rel="noopener">explainer</a>&rsquo;s &ldquo;How to use the API&rdquo;.</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">browser compatibility</h2>
+    <p><em>Interim table.</em> <a href="https://github.com/mdn/browser-compat-data/blob/main/api/PerformanceLongAnimationFrameTiming.json" target="_blank" rel="noopener">BCD</a> records the base interfaces (Chrome 123) but has <strong>no <code>worker_support</code> subfeature</strong> for <code>PerformanceLongAnimationFrameTiming</code> or <code>PerformanceScriptTiming</code>, and no <code>scriptCount</code> member (full BCD dataset checked 2026-08-09). Rows below are compiled from the linked primary sources, not from BCD.</p>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <thead><tr><th>Browser</th><th>Base LoAF API (window)</th><th>This feature (dedicated workers)</th><th>Evidence</th></tr></thead>
+      <tr><td>Chrome</td><td>123</td><td>153, developer trial, behind <code>--enable-blink-features=LongAnimationFrameWorker</code></td><td><a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">milestone=153 listing</a>; <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7978/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">M153 flag state</a></td></tr>
+      <tr><td>Edge</td><td>123</td><td>Not separately reported (Chromium-based; feature co-owned by a Microsoft engineer per the <a href="https://chromestatus.com/api/v0/features/5387465121726464" target="_blank" rel="noopener">API record</a> owners)</td><td><a href="https://api.webstatus.dev/v1/features?q=long-animation-frames" target="_blank" rel="noopener">webstatus.dev</a></td></tr>
+      <tr><td>Firefox</td><td>No support; positive position on base LoAF</td><td>No signal</td><td><a href="https://github.com/mozilla/standards-positions/issues/929" target="_blank" rel="noopener">mozilla/standards-positions#929</a>; <a href="https://chromestatus.com/api/v0/features/5387465121726464" target="_blank" rel="noopener">API record vendor views</a></td></tr>
+      <tr><td>Safari</td><td>No support</td><td>No signal</td><td><a href="https://github.com/WebKit/standards-positions/issues/283" target="_blank" rel="noopener">WebKit/standards-positions#283</a> (base LoAF, no position stated); <a href="https://chromestatus.com/api/v0/features/5387465121726464" target="_blank" rel="noopener">API record vendor views</a></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://api.webstatus.dev/v1/features?q=long-animation-frames" target="_blank" rel="noopener">webstatus.dev feature record</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/PerformanceLongAnimationFrameTiming.json" target="_blank" rel="noopener">BCD PerformanceLongAnimationFrameTiming</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/PerformanceScriptTiming.json" target="_blank" rel="noopener">BCD PerformanceScriptTiming</a>; <a href="https://chromestatus.com/feature/5387465121726464" target="_blank" rel="noopener">ChromeStatus</a> — fetched 2026-08-09.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <ul>
+      <li><strong>Same-origin attribution only.</strong> The entry constructor filters <code>scripts</code> through the observing context&rsquo;s security origin: a script&rsquo;s timing object is only attached when the observer&rsquo;s origin can access the script&rsquo;s origin. This is the same rule as window LoAF, applied with the worker as the observer. The explainer commits to the same constraint: per-script details &ldquo;are exposed only for scripts that are same-origin with the observing context&rdquo;.</li>
+      <li><strong>Scope of observation.</strong> A worker observes only its <em>own</em> event loop. Worker entries do not surface in the parent document&rsquo;s timeline, and a document cannot use this API to time another context&rsquo;s tasks.</li>
+      <li><strong>Timestamp coarsening.</strong> All exposed timestamps go through Chromium&rsquo;s standard clamping (<code>ClampTimeResolution</code>, finer resolution only when cross-origin isolated), and never-set timestamps are reported as <code>0</code> rather than leaking raw platform values.</li>
+      <li><strong>New fingerprinting surface is one bit.</strong> Until the feature ships unflagged, <code>supportedEntryTypes</code> in a dedicated worker reveals whether the flag is on.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/timing/performance_long_animation_frame_timing.cc" target="_blank" rel="noopener">performance_long_animation_frame_timing.cc (origin filter)</a>; <a href="https://github.com/WICG/delayed-message-timing/blob/main/loaf-congested-moments/explainer.md" target="_blank" rel="noopener">explainer — Privacy and Security Considerations</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Document</th><th>Status</th></tr></thead>
+      <tr><td><a href="https://w3c.github.io/long-animation-frames/" target="_blank" rel="noopener">Long Animation Frames API</a> (W3C, base API)</td><td>Both interfaces still <code>[Exposed=Window]</code> — the worker exposure is <strong>not yet specified</strong>. ChromeStatus records standards maturity &ldquo;Unknown status&rdquo; with no spec link for this feature</td></tr>
+      <tr><td><a href="https://github.com/w3c/long-animation-frames/issues/38" target="_blank" rel="noopener">w3c/long-animation-frames#38 — Support Long Animation Frames API in Web Workers</a></td><td>Open spec issue (opened 2026-07-15) tracking the worker exposure</td></tr>
+      <tr><td><a href="https://github.com/WICG/delayed-message-timing/blob/main/loaf-congested-moments/explainer.md" target="_blank" rel="noopener">Extending Long Animation Frames to Detect Congested Moments — explainer</a></td><td>WICG incubation; describes the full intended design (congested moments, <code>cadence</code>, <code>executionContext</code>), of which Chrome 153 implements only the dedicated-worker single-long-task slice plus <code>scriptCount</code></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: documents fetched 2026-08-09.</span>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/5387465121726464" target="_blank" rel="noopener">Chrome Platform Status — Support Long Animation Frames API in Web Workers</a> (<a href="https://chromestatus.com/api/v0/features/5387465121726464" target="_blank" rel="noopener">API record</a>) · tracking bug <a href="https://issues.chromium.org/issues/534893134" target="_blank" rel="noopener">crbug.com/534893134</a></li>
+      <li>MDN base-API reference (window contexts; MDN does not yet document the worker exposure — checked 2026-08-09): <a href="https://developer.mozilla.org/en-US/docs/Web/API/PerformanceLongAnimationFrameTiming" target="_blank" rel="noopener">PerformanceLongAnimationFrameTiming</a> · <a href="https://developer.mozilla.org/en-US/docs/Web/API/PerformanceScriptTiming" target="_blank" rel="noopener">PerformanceScriptTiming</a> · <a href="https://developer.mozilla.org/en-US/docs/Web/API/Performance_API/Long_animation_frame_timing" target="_blank" rel="noopener">Long animation frame timing guide</a></li>
+      <li><a href="https://developer.chrome.com/docs/web-platform/long-animation-frames" target="_blank" rel="noopener">developer.chrome.com — Long Animation Frames API</a></li>
+      <li>Related gendn references: <a href="/v148/long-animation-frames-style-duration/">Long Animation Frames style duration</a> (the <code>styleDuration</code>/<code>layoutDuration</code> origin trial — main-thread rendering detail, complementary to this worker extension) · <a href="/v147/js-profiling-in-dedicated-workers/">JS Profiling in Dedicated Workers</a> (sampling profiler in the same context class this feature observes)</li>
+      <li><a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/LongTasks/explainer.md" target="_blank" rel="noopener">Extending Long Tasks API to Web Workers</a> — the earlier Microsoft explainer; LoAF-in-workers supersedes it with per-script attribution (referenced from the congested-moments explainer)</li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v153/support-long-animation-frames-api-in-web-workers/" target="_blank" rel="noopener">Chrome Platform Showcase feature route</a> (404 as of 2026-08-09 — demo not built yet)</li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
