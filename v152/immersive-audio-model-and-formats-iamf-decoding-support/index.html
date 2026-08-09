@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Immersive Audio Model and Formats (IAMF) decoding support — Chrome 152 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code { overflow-wrap: anywhere; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .baseline-banner { border: 2px solid var(--border-black); padding: 0.9rem 1.1rem; margin: 1.2rem 0; background: var(--bg-stone); }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.1rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    .baseline-banner p { margin: 0.35rem 0 0; font-size: 0.9rem; }
+    .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .warn-block > strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    .route-cards { display: grid; gap: 0.8rem; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); margin: 1rem 0 1.5rem; }
+    .route-card { border: 2px solid var(--border-black); padding: 0.8rem 1rem; background: var(--bg-paper); box-shadow: var(--thin-shadow); }
+    .route-card h3 { margin: 0 0 0.3rem; font-size: 1rem; }
+    .route-card p { margin: 0; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v152/">&larr; Chrome 152 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v152 · media · audio · developer trial</p>
+    <h1>Immersive Audio Model and Formats (IAMF) decoding support</h1>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome · 152 behind a flag (developer trial); listed as enabled by default from 153</li>
+        <li class="limited">Edge · not separately reported (Chromium-based)</li>
+        <li class="limited">Firefox · no signal</li>
+        <li class="limited">Safari · no signal</li>
+      </ul>
+      <p>Not on the Baseline register: a <a href="https://api.webstatus.dev/v1/features?q=iamf" target="_blank" rel="noopener">webstatus.dev query</a> returns zero matches, the <a href="https://chromestatus.com/api/v0/features/5113656292540416" target="_blank" rel="noopener">ChromeStatus API record</a> marks the Web Feature ID as &ldquo;Missing feature&rdquo;, and <a href="https://github.com/mdn/browser-compat-data" target="_blank" rel="noopener">MDN browser-compat-data</a> contains no IAMF entry (published <code>data.json</code> greps clean; all verified 2026-08-09).</p>
+    </div>
+
+    <p class="lede">Native decoding and playback of the <strong>Immersive Audio Model and Formats (IAMF)</strong> — the Alliance for Open Media's open, royalty-free spatial audio format — inside HTML media elements <strong>via Media Source Extensions (MSE)</strong>. In <strong>Chrome 152 this is a developer trial behind a flag</strong>: the decode path is compiled in, but the runtime feature that switches it on is disabled by default. There is <strong>no new JavaScript API</strong> — existing MSE workflows gain a new supported <code>codecs</code> string family, <code>iamf.*</code>, once the feature is enabled.</p>
+  </header>
+
+  <div class="warn-block" id="enable">
+    <strong>Developer trial in Chrome 152 — exact enable steps</strong>
+    <ul>
+      <li><strong>Behind a flag in 152, default in 153.</strong> This feature id appears in the <a href="https://chromestatus.com/api/v0/features?milestone=152" target="_blank" rel="noopener">milestone=152 listing</a> under &ldquo;In developer trial (Behind a flag)&rdquo; and in the <a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">milestone=153 listing</a> under &ldquo;Enabled by default&rdquo; (both verified 2026-08-09). The API surface and gating may still change before stable; do not ship production code that assumes IAMF support without feature-detecting it. The canonical gendn reference for the shipped behavior is the <a href="/v153/immersive-audio-model-and-formats-iamf-decoding-support/">v153 page</a>.</li>
+      <li><strong>How to enable in 152:</strong> launch Chrome with the command-line switch <code>--enable-features=IamfAudioDecoding</code>. The gate is the media runtime feature <code>kIamfAudioDecoding</code>, declared <code>FEATURE_DISABLED_BY_DEFAULT</code> on the M152 branch (<a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7977/media/base/media_switches.cc" target="_blank" rel="noopener">branch-heads/7977 media_switches.cc</a>, fetched 2026-08-09); the two-argument <code>BASE_FEATURE</code> macro derives the feature string <code>IamfAudioDecoding</code> from the identifier (<a href="https://chromium.googlesource.com/chromium/src/+/main/base/feature.h" target="_blank" rel="noopener">base/feature.h</a>).</li>
+      <li><strong>There is no chrome://flags entry and no Blink flag.</strong> <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/about_flags.cc" target="_blank" rel="noopener">about_flags.cc</a> has no IAMF entry, and Blink's <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a> contains no IAMF feature (both grepped 2026-08-09) — <code>--enable-blink-features</code> does not apply. The command-line switch above is the only local enable path; verify decode support in a running build via <code>MediaSource.isTypeSupported()</code> or <code>chrome://media-internals</code>.</li>
+      <li><strong>Build prerequisite already met in official builds:</strong> the <code>iamf_tools</code> software decoder is compiled in by default (<code>media_use_iamf_tools = true</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/media/media_options.gni" target="_blank" rel="noopener">media_options.gni</a>, which notes &ldquo;actual usage depends on the <code>kIamfAudioDecoding</code> feature flag&rdquo;); the platform/hardware path is off (<code>enable_platform_iamf_audio = false</code>).</li>
+      <li><strong>MSE only, no encrypted content.</strong> The IAMF path is wired through the MSE MP4 stream parser (<a href="https://chromium.googlesource.com/chromium/src/+/main/media/filters/stream_parser_factory.cc" target="_blank" rel="noopener">stream_parser_factory.cc</a>); direct <code>&lt;audio src&gt;</code> file playback has no IAMF handling in the sources read, and the decoder rejects encrypted configurations (<code>kUnsupportedEncryptionMode</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/media/filters/iamf_audio_decoder.cc" target="_blank" rel="noopener">iamf_audio_decoder.cc</a>) — no EME.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5113656292540416" target="_blank" rel="noopener">chromestatus.com/feature/5113656292540416</a>; <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7977/media/base/media_switches.cc" target="_blank" rel="noopener">M152 branch media_switches.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/base/feature.h" target="_blank" rel="noopener">base/feature.h</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/media/media_options.gni" target="_blank" rel="noopener">media_options.gni</a> — all fetched 2026-08-09.</span>
+  </div>
+
+  <section>
+    <h2 id="canonical">canonical reference (v153)</h2>
+    <p>The same feature id ships enabled by default in Chrome 153, where the canonical gendn reference and its member docs live. This v152 page documents the developer-trial stage; the deep reference routes are not duplicated here.</p>
+    <div class="route-cards">
+      <div class="route-card">
+        <h3><a href="/v153/immersive-audio-model-and-formats-iamf-decoding-support/">IAMF decoding support — v153 overview</a></h3>
+        <p>The canonical reference for the shipped (enabled-by-default) behavior: container path, decoder contract, compatibility, security.</p>
+      </div>
+      <div class="route-card">
+        <h3><a href="/v153/immersive-audio-model-and-formats-iamf-decoding-support/codecs-parameter/">the <code>iamf.*</code> codecs parameter</a></h3>
+        <p>Full grammar of the <code>codecs</code> string — field-by-field contract, Chromium parser rules, worked valid and invalid strings.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">What it is</th><td>Browser-native decoding of <a href="https://aomediacodec.github.io/iamf/latest-approved.html" target="_blank" rel="noopener">IAMF</a> (Immersive Audio Model and Formats) audio tracks packaged in ISO-BMFF (MP4), exposed through the standard MSE pipeline</td></tr>
+      <tr><th scope="row">Status in 152</th><td>Developer trial, behind <code>--enable-features=IamfAudioDecoding</code> (<a href="https://chromestatus.com/api/v0/features?milestone=152" target="_blank" rel="noopener">milestone=152 listing</a>, verified 2026-08-09); listed as enabled by default from <a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">153</a> — see the <a href="/v153/immersive-audio-model-and-formats-iamf-decoding-support/">canonical v153 page</a></td></tr>
+      <tr><th scope="row">Developer surface</th><td><strong>No new JS API.</strong> <code>MediaSource.isTypeSupported()</code> and <code>addSourceBuffer()</code> accept <code>audio/mp4</code>/<code>video/mp4</code> with an <a href="#syntax"><code>iamf.*</code> codecs parameter</a>; playback, controls, and events are the ordinary HTML media element ones</td></tr>
+      <tr><th scope="row">Container</th><td>ISO-BMFF MP4; the track's sample description carries an IA Sample Entry (<code>AudioSampleEntry('iamf')</code>) with a mandatory IA Configuration Box (<code>iacb</code>) holding the descriptor OBUs</td></tr>
+      <tr><th scope="row">Profiles</th><td>0 = Simple, 1 = Base (both per IAMF v1.0.0-errata), 2 = Base-Enhanced (added in v1.1.0); 3&ndash;255 reserved</td></tr>
+      <tr><th scope="row">Sub-codecs in IAMF</th><td>Opus (<code>opus</code>), AAC-LC (<code>mp4a.40.2</code>), FLAC (<code>fLaC</code>), LPCM (<code>ipcm</code>)</td></tr>
+      <tr><th scope="row">Rendering</th><td>Software decode via <a href="https://github.com/AOMediaCodec/iamf-tools" target="_blank" rel="noopener">iamf_tools</a>; output mixed for the device's layout — mono, stereo (incl. binaural for headphones), 5.1, 7.1; 5.1.4/7.1.4 only behind the separately-gated <code>kEnableHighChannelLayouts</code>, otherwise discrete 10/12-channel</td></tr>
+      <tr><th scope="row">Encrypted content</th><td>Not supported — encrypted configurations are rejected during decoder initialization</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5113656292540416" target="_blank" rel="noopener">5113656292540416 — Immersive Audio Model and Formats (IAMF) decoding support</a> (tracking bug <a href="https://crbug.com/535279329" target="_blank" rel="noopener">crbug.com/535279329</a>)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5113656292540416" target="_blank" rel="noopener">chromestatus.com/feature/5113656292540416</a>; <a href="https://aomediacodec.github.io/iamf/latest-approved.html" target="_blank" rel="noopener">AOM IAMF specification</a>; Chromium implementation files linked per-section — fetched 2026-08-09.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">syntax: the codecs parameter</h2>
+    <p>The developer-facing string is the <code>codecs</code> parameter of the MSE MIME type, defined by <a href="https://aomediacodec.github.io/iamf/latest-approved.html#codecsparameter" target="_blank" rel="noopener">IAMF §6.4</a> on top of <a href="https://www.rfc-editor.org/rfc/rfc6381" target="_blank" rel="noopener">RFC 6381</a>:</p>
+    <pre><code>iamf.&lt;primary_profile&gt;.&lt;additional_profile&gt;.&lt;sub-codec codecs elements&gt;
+
+# e.g. IAMF (simple profile only) carrying an Opus substream:
+audio/mp4; codecs="iamf.000.000.opus"</code></pre>
+    <p>The spec's own examples: <code>iamf.xxx.yyy.Opus</code>, <code>iamf.xxx.yyy.mp4a.40.2</code>, <code>iamf.xxx.yyy.fLaC</code>, <code>iamf.xxx.yyy.ipcm</code>, where <code>xxx</code>/<code>yyy</code> are the three-digit profile fields.</p>
+
+    <h3 id="syntax-fields">fields</h3>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Field</th><th scope="col">Contract</th></tr></thead>
+      <tr><td><code>primary_profile</code></td><td>Three decimal digits, 0&ndash;255: <code>0</code> = IA Simple Profile, <code>1</code> = IA Base Profile, <code>2</code> = IA Base-Enhanced Profile (added in IAMF v1.1.0), 3&ndash;255 reserved.</td></tr>
+      <tr><td><code>additional_profile</code></td><td>Same three-digit mapping; an additional profile the IA Sequence complies with. A sequence complying only with the primary profile repeats it (hence <code>iamf.000.000.opus</code>).</td></tr>
+      <tr><td>sub-codec element(s)</td><td>The codecs string the stream would carry in its own track, unencapsulated: <code>opus</code>, <code>mp4a.40.2</code> (AAC-LC), <code>fLaC</code>, <code>ipcm</code>.</td></tr>
+    </table>
+    </div>
+
+    <h3 id="syntax-parser">Chromium parser acceptance in 152</h3>
+    <p>Chromium's <a href="https://chromium.googlesource.com/chromium/src/+/main/media/base/audio_codecs.cc" target="_blank" rel="noopener"><code>ParseIamfCodecId</code></a> accepts a string as IAMF when it starts with <code>iamf</code> (the bare string <code>iamf</code> is accepted &ldquo;for test purposes only&rdquo;), splits into at least four period-delimited elements, both profile fields are exactly three digits with values &le; 255, and the lower-cased sub-codec element is exactly <code>opus</code>, <code>mp4a</code>, <code>flac</code>, or <code>ipcm</code> — with <code>mp4a</code> requiring the two further hex fields <code>40</code> (object type indication) and <code>2</code> (audio object type, i.e. AAC-LC). Over-long strings and anything else fail closed as an unrecognized codec id. Rejected examples: <code>iamf.0.0.opus</code> (profile fields must be three digits), <code>iamf.256.000.opus</code> (profile &gt; 255), <code>iamf.000.000.vorbis</code> (sub-codec not in the accepted set), <code>iamf.000.000.mp4a</code> (missing <code>40.2</code>). The full field-by-field walkthrough lives on the <a href="/v153/immersive-audio-model-and-formats-iamf-decoding-support/codecs-parameter/">v153 codecs-parameter reference</a>.</p>
+
+    <h3 id="syntax-usage">where the string appears</h3>
+    <p>Anywhere an MP4 MIME type is declared for MSE: <code>MediaSource.isTypeSupported(mime)</code> support queries and <code>MediaSource.addSourceBuffer(mime)</code>. Chromium registers the <code>iamf</code> and <code>iamf.*</code> codec patterns for both <code>audio/mp4</code> and <code>video/mp4</code> (<a href="https://chromium.googlesource.com/chromium/src/+/main/media/filters/stream_parser_factory.cc" target="_blank" rel="noopener">stream_parser_factory.cc</a>), so an IAMF audio track can ride alongside video or be delivered audio-only. In an un-flagged Chrome 152, <code>isTypeSupported()</code> returns <code>false</code> for these strings — <code>AudioCodec::kIAMF</code> support resolves through <code>IsIamfAudioDecodingSupported()</code>, which requires the <code>kIamfAudioDecoding</code> runtime feature (<a href="https://chromium.googlesource.com/chromium/src/+/main/media/base/supported_types.cc" target="_blank" rel="noopener">supported_types.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/media/base/media_switches.cc" target="_blank" rel="noopener">media_switches.cc</a>).</p>
+    <span class="citation">Source: <a href="https://aomediacodec.github.io/iamf/latest-approved.html#codecsparameter" target="_blank" rel="noopener">IAMF §6.4 Codecs Parameter String</a> (quoted); <a href="https://www.rfc-editor.org/rfc/rfc6381" target="_blank" rel="noopener">RFC 6381</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/media/base/audio_codecs.cc" target="_blank" rel="noopener">audio_codecs.cc — ParseIamfCodecId</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/media/base/supported_types.cc" target="_blank" rel="noopener">supported_types.cc</a> — fetched 2026-08-09.</span>
+  </section>
+
+  <section>
+    <h2 id="container">container and playback path</h2>
+    <p>IAMF reaches the renderer as an audio track inside a standard MP4 file, per <a href="https://aomediacodec.github.io/iamf/latest-approved.html#isobmff" target="_blank" rel="noopener">IAMF §6 (ISO-BMFF IAMF Encapsulation)</a>: the track's sample description box (<code>stsd</code>) carries an <strong>IA Sample Entry</strong> — <code>AudioSampleEntry('iamf')</code> — containing a mandatory <strong>IA Configuration Box</strong> (<code>iacb</code>, <code>configurationVersion = 1</code>) that holds the sequence's descriptor OBUs. The encapsulation in spec syntax (<a href="https://aomediacodec.github.io/iamf/latest-approved.html#isobmff" target="_blank" rel="noopener">IAMF §6.2</a>, quoted):</p>
+    <pre><code>class IASampleEntry extends AudioSampleEntry('iamf') {
+  IAConfigurationBox ia_configuration_box;
+}
+
+class IAConfigurationBox extends Box('iacb') {
+  unsigned int (8) configurationVersion = 1;
+  leb128() configOBUs_size;
+  unsigned int (8 x configOBUs_size) configOBUs;
+}</code></pre>
+    <p>End to end (in a 152 build with the flag enabled): the page appends MP4 segments through MSE — <code>isTypeSupported()</code> &rarr; <code>addSourceBuffer()</code> &rarr; <code>appendBuffer()</code>. When the declared codecs string matches <code>iamf</code>/<code>iamf.*</code>, Chromium's MSE stream-parser factory builds its MP4 stream parser with <code>has_iamf = true</code> (<a href="https://chromium.googlesource.com/chromium/src/+/main/media/filters/stream_parser_factory.cc" target="_blank" rel="noopener">stream_parser_factory.cc</a>). Demuxed IA Samples feed <code>IamfAudioDecoder</code>, a software decoder built on the bundled <code>iamf_tools</code> library, which renders to the device's output layout. Direct file playback (<code>&lt;audio src&gt;</code>) does not use this path — the FFmpeg demuxer has no IAMF handling in the sources read — so delivery is via MSE. A malformed or missing <code>iacb</code> configuration surfaces as decoder initialization failure (&ldquo;requires extra_data descriptors&rdquo;, <code>kUnsupportedConfig</code>) — the standard media <code>error</code> event on the element, not a silent stall.</p>
+    <span class="citation">Source: <a href="https://aomediacodec.github.io/iamf/latest-approved.html#isobmff" target="_blank" rel="noopener">IAMF §6 ISO-BMFF encapsulation</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/media/filters/stream_parser_factory.cc" target="_blank" rel="noopener">stream_parser_factory.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/media/filters/iamf_audio_decoder.cc" target="_blank" rel="noopener">iamf_audio_decoder.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/media/media_options.gni" target="_blank" rel="noopener">media_options.gni</a> — fetched 2026-08-09.</span>
+  </section>
+
+  <section>
+    <h2 id="decoding-rendering">decoding and rendering behavior</h2>
+    <p>Once a stream initializes, <code>IamfAudioDecoder</code> (<a href="https://chromium.googlesource.com/chromium/src/+/main/media/filters/iamf_audio_decoder.cc" target="_blank" rel="noopener">iamf_audio_decoder.cc</a>, trunk sources read 2026-08-09) imposes a concrete contract:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Aspect</th><th scope="col">Behavior (from source)</th></tr></thead>
+      <tr><td>Initialization rejects</td><td>Non-IAMF codec (<code>kUnsupportedCodec</code>); any encrypted configuration (<code>kUnsupportedEncryptionMode</code>); missing descriptor extra-data (<code>kUnsupportedConfig</code>, &ldquo;requires extra_data descriptors&rdquo;)</td></tr>
+      <tr><td>Output format</td><td>Signed 32-bit little-endian PCM (<code>kInt32LittleEndian</code> is verified at init)</td></tr>
+      <tr><td>Output layouts</td><td>Mono; stereo (including IAMF binaural — headphone rendering arrives as stereo); 5.1; 7.1</td></tr>
+      <tr><td>High channel counts</td><td>5.1.4 and 7.1.4 map to the high-channel layouts only when <code>kEnableHighChannelLayouts</code> is enabled (a separate feature); otherwise the stream falls back to <em>discrete</em> 10- or 12-channel output</td></tr>
+      <tr><td>Unsupported layouts</td><td>Other IAMF layouts resolve to <code>CHANNEL_LAYOUT_UNSUPPORTED</code> and fail initialization</td></tr>
+    </table>
+    </div>
+    <p>Decoder support for <code>AudioCodec::kIAMF</code> is compiled in with the <code>iamf_tools</code> build flag and gated at runtime by <code>kIamfAudioDecoding</code> via <code>IsIamfAudioDecodingSupported()</code> (<a href="https://chromium.googlesource.com/chromium/src/+/main/media/base/supported_types.cc" target="_blank" rel="noopener">supported_types.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/media/base/media_switches.cc" target="_blank" rel="noopener">media_switches.cc</a>) — in Chrome 152 that means the <a href="#enable">enable steps above</a> are a prerequisite for every row in this table.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/media/filters/iamf_audio_decoder.cc" target="_blank" rel="noopener">iamf_audio_decoder.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/media/base/supported_types.cc" target="_blank" rel="noopener">supported_types.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/media/base/media_switches.cc" target="_blank" rel="noopener">media_switches.cc</a> — fetched 2026-08-09.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <p>Feature-detect first — in an un-flagged Chrome 152 the check below fails, which is the honest signal to fall back to a flat stereo mix:</p>
+    <pre><code>const mime = 'audio/mp4; codecs="iamf.000.000.opus"';
+
+if (!MediaSource.isTypeSupported(mime)) {
+  // Chrome 152 without --enable-features=IamfAudioDecoding lands here.
+  // Serve a plain stereo (e.g. AAC or Opus) rendition instead.
+  playFallbackRendition();
+} else {
+  const mediaSource = new MediaSource();
+  const audio = document.querySelector('audio');
+  audio.src = URL.createObjectURL(mediaSource);
+
+  mediaSource.addEventListener('sourceopen', async () => {
+    const sourceBuffer = mediaSource.addSourceBuffer(mime);
+    const segment = await fetch('/media/immersive-segment.mp4');
+    sourceBuffer.appendBuffer(await segment.arrayBuffer());
+    sourceBuffer.addEventListener('updateend', () => audio.play(), { once: true });
+  }, { once: true });
+}</code></pre>
+    <p>Try real bitstreams in a flagged 152 build: Chromium's own test files include an <a href="https://crsrc.org/c/media/test/data/iamf_alternating_sine_waves_stereo.mp4" target="_blank" rel="noopener">IAMF stereo</a> and an <a href="https://crsrc.org/c/media/test/data/iamf_alternating_sine_waves_714.mp4" target="_blank" rel="noopener">IAMF 7.1.4</a> sample, and AOMedia hosts an <a href="https://aomediacodec.github.io/iamf-tools/web_demo/" target="_blank" rel="noopener">IAMF binaural web demo</a> (all three verified 200, 2026-08-09). The sister Chrome Platform Showcase routes for this feature (<a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v152/immersive-audio-model-and-formats-iamf-decoding-support/" target="_blank" rel="noopener">v152</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v153/immersive-audio-model-and-formats-iamf-decoding-support/" target="_blank" rel="noopener">v153</a>) both returned 404 at build time (2026-08-09), so no live iframe is embedded — the snippet above and the AOMedia demo are the runnable path.</p>
+    <span class="citation">Source: snippet follows the standard MSE flow per the <a href="https://github.com/SyedAbuTalib/iamf-explainer/blob/main/explainer.md" target="_blank" rel="noopener">explainer</a> (&ldquo;zero changes to existing MSE workflows&rdquo;); codec string per <a href="https://aomediacodec.github.io/iamf/latest-approved.html#codecsparameter" target="_blank" rel="noopener">IAMF §6.4</a>; sample links from the <a href="https://chromestatus.com/api/v0/features/5113656292540416" target="_blank" rel="noopener">ChromeStatus API record</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">browser compatibility</h2>
+    <p><em>Interim table.</em> There is no BCD entry for IAMF (the published <a href="https://github.com/mdn/browser-compat-data" target="_blank" rel="noopener">browser-compat-data</a> <code>data.json</code> contains zero IAMF matches) and no <a href="https://api.webstatus.dev/v1/features?q=iamf" target="_blank" rel="noopener">webstatus.dev</a> feature (zero matches) — both verified 2026-08-09. Rows below are compiled from the linked primary sources, not from BCD.</p>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <thead><tr><th scope="col">Browser</th><th scope="col">Support</th><th scope="col">Evidence</th></tr></thead>
+      <tr><td>Chrome 152</td><td>Developer trial — behind <code>--enable-features=IamfAudioDecoding</code></td><td><a href="https://chromestatus.com/api/v0/features?milestone=152" target="_blank" rel="noopener">milestone=152 listing</a>; <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7977/media/base/media_switches.cc" target="_blank" rel="noopener">M152 branch flag state</a></td></tr>
+      <tr><td>Chrome 153</td><td>Listed &ldquo;Enabled by default&rdquo; (desktop, Android, WebView) — see the <a href="/v153/immersive-audio-model-and-formats-iamf-decoding-support/">canonical v153 page</a> for its flag-state caveat</td><td><a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">milestone=153 listing</a>; <a href="https://chromestatus.com/api/v0/features/5113656292540416" target="_blank" rel="noopener">API record</a></td></tr>
+      <tr><td>Edge</td><td>Not separately reported</td><td>Chromium-based; no separate position on the ChromeStatus record</td></tr>
+      <tr><td>Firefox</td><td>No signal</td><td><a href="https://chromestatus.com/api/v0/features/5113656292540416" target="_blank" rel="noopener">ChromeStatus API record</a> vendor views</td></tr>
+      <tr><td>Safari</td><td>No signal</td><td><a href="https://chromestatus.com/api/v0/features/5113656292540416" target="_blank" rel="noopener">ChromeStatus API record</a> vendor views</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5113656292540416" target="_blank" rel="noopener">chromestatus.com/feature/5113656292540416</a>; queries linked above, fetched 2026-08-09.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <ul>
+      <li><strong>No new script-visible surface.</strong> The feature adds a codec family to the existing MSE support matrix — no new interfaces, methods, events, permissions, or storage. In the trial period, <code>isTypeSupported()</code> differences additionally reveal whether a user runs a flagged build — one more bit on the codec-support fingerprinting vector that already exists for every codec.</li>
+      <li><strong>Parser/decoder attack surface.</strong> Support introduces a new demux+decode path fed by remote media. The decoder is the AOM reference implementation (<a href="https://github.com/AOMediaCodec/iamf-tools" target="_blank" rel="noopener">iamf-tools</a>) running inside Chromium's sandboxed media pipeline; malformed-stream hardening is inherited from that project rather than specified for web developers.</li>
+      <li><strong>No encrypted content.</strong> Encrypted configurations are rejected at decoder initialization (<code>kUnsupportedEncryptionMode</code>), so IAMF playback cannot be combined with EME on this path — there is no DRM or license-handling surface to reason about.</li>
+      <li><strong>Playback policies unchanged.</strong> Autoplay, volume, and output-device selection keep their existing HTML-media semantics; the decoder renders to the device-selected output layout without exposing spatial scene contents to script.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/media/filters/iamf_audio_decoder.cc" target="_blank" rel="noopener">iamf_audio_decoder.cc</a>; <a href="https://github.com/SyedAbuTalib/iamf-explainer/blob/main/explainer.md" target="_blank" rel="noopener">explainer</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Document</th><th scope="col">Status</th></tr></thead>
+      <tr><td><a href="https://aomediacodec.github.io/iamf/latest-approved.html" target="_blank" rel="noopener">AOMedia — Immersive Audio Model and Formats (IAMF)</a></td><td>Latest approved version, v1.1.0 (canonical; adds the Base-Enhanced profile). The ChromeStatus record's spec link.</td></tr>
+      <tr><td><a href="https://aomediacodec.github.io/iamf/v1.0.0.html" target="_blank" rel="noopener">IAMF v1.0.0 (-errata)</a></td><td>The version Chromium's codec-string parser cites; Simple (0) and Base (1) profiles comply with it</td></tr>
+      <tr><td><a href="https://github.com/SyedAbuTalib/iamf-explainer/blob/main/explainer.md" target="_blank" rel="noopener">Native IAMF MP4 Playback — explainer</a></td><td>Motivation and MSE-delivery framing; short</td></tr>
+      <tr><td><a href="https://www.rfc-editor.org/rfc/rfc6381" target="_blank" rel="noopener">RFC 6381 — The 'Codecs' and 'Profiles' Parameters</a></td><td>Base grammar the IAMF codecs parameter builds on</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: documents fetched 2026-08-09.</span>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="/v153/immersive-audio-model-and-formats-iamf-decoding-support/">gendn — canonical v153 reference</a> · <a href="/v153/immersive-audio-model-and-formats-iamf-decoding-support/codecs-parameter/">the <code>iamf.*</code> codecs parameter</a></li>
+      <li><a href="https://chromestatus.com/feature/5113656292540416" target="_blank" rel="noopener">Chrome Platform Status — IAMF decoding support</a> (<a href="https://chromestatus.com/api/v0/features/5113656292540416" target="_blank" rel="noopener">API record</a>) · tracking bug <a href="https://crbug.com/535279329" target="_blank" rel="noopener">crbug.com/535279329</a></li>
+      <li><a href="https://github.com/AOMediaCodec/iamf-tools" target="_blank" rel="noopener">AOMediaCodec/iamf-tools</a> — encoder + reference decoder · <a href="https://aomediacodec.github.io/iamf-tools/web_demo/" target="_blank" rel="noopener">binaural web demo</a></li>
+      <li><a href="https://chromium.googlesource.com/chromium/src/+/main/media/filters/iamf_audio_decoder.cc" target="_blank" rel="noopener">Chromium IamfAudioDecoder</a> · <a href="https://chromium.googlesource.com/chromium/src/+/main/media/base/audio_codecs.cc" target="_blank" rel="noopener">codec-string parser</a> · <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7977/media/base/media_switches.cc" target="_blank" rel="noopener">kIamfAudioDecoding on the M152 branch</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Media_Source_Extensions_API" target="_blank" rel="noopener">MDN — Media Source Extensions API</a> (the host API; MDN has no IAMF coverage — zero search hits, 2026-08-09)</li>
+      <li>Test media: <a href="https://crsrc.org/c/media/test/data/iamf_alternating_sine_waves_stereo.mp4" target="_blank" rel="noopener">IAMF stereo</a> · <a href="https://crsrc.org/c/media/test/data/iamf_alternating_sine_waves_714.mp4" target="_blank" rel="noopener">IAMF 7.1.4</a> (Chromium test data)</li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
