@@ -1,0 +1,809 @@
+{
+  "schemaVersion": 1,
+  "id": "v147/js-profiling-in-dedicated-workers",
+  "route": "/v147/js-profiling-in-dedicated-workers/",
+  "kind": "web-api",
+  "completeness": "implementation-sufficient",
+  "assessedAt": "2026-08-16",
+  "assessor": "gendn weekly hardening writer (MDN-shape upgrade pass; independent integrator review pending)",
+  "sources": [
+    {
+      "id": "chromestatus",
+      "label": "ChromeStatus record — feature 5159559872249856 (dev-trial stage desktop_first 147; status 'Proposed'; updated 2026-03-06; summary notes Document Policy gating with worker policy support tracked separately; ff/safari 'No signal')",
+      "url": "https://chromestatus.com/feature/5159559872249856",
+      "kind": "browser-data"
+    },
+    {
+      "id": "wicg-spec",
+      "label": "WICG JS Self-Profiling API draft (fetched 2026-08-16) — processing model, samplebufferfull firing when samples reach the buffer limit, RangeError on negative sampleInterval, NotAllowedError when the js-profiling Document Policy disallows, js-profiling / js-profiling-mode configuration points",
+      "url": "https://wicg.github.io/js-self-profiling/",
+      "kind": "normative-spec"
+    },
+    {
+      "id": "wicg-idl",
+      "label": "WICG JS Self-Profiling — the Profiler interface section: verbatim IDL ([Exposed=(Window, Worker)] interface Profiler : EventTarget; ProfilerInitOptions with required sampleInterval + maxBufferSize; ProfilerTrace/Frame/Stack/Sample dictionaries)",
+      "url": "https://wicg.github.io/js-self-profiling/#the-profiler-interface",
+      "kind": "web-idl"
+    },
+    {
+      "id": "runtime-features",
+      "label": "Chromium runtime_enabled_features.json5 — ProfilerAPIForDedicatedWorker (status experimental, 'When enabled, dedicated workers can use profiler API'); ProfilerAPI (main thread) status stable (fetched 2026-08-16)",
+      "url": "https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5",
+      "kind": "implementation"
+    },
+    {
+      "id": "intent-prototype",
+      "label": "blink-dev Intent to Prototype thread (stage 120 intent_thread_url from the ChromeStatus record)",
+      "url": "https://groups.google.com/a/chromium.org/d/msgid/blink-dev/69975252.050a0220.1f729.0da6.GAE%40google.com",
+      "kind": "intent"
+    },
+    {
+      "id": "bcd",
+      "label": "BCD api/Profiler.json — main-thread Profiler chrome 94, experimental:true, subfeatures Profiler()/sampleInterval/stop/stopped; NO worker-support subfeature as of 2026-08-16 (worker rows are interim ChromeStatus data, labelled)",
+      "url": "https://github.com/mdn/browser-compat-data/blob/main/api/Profiler.json",
+      "kind": "browser-data"
+    },
+    {
+      "id": "webstatus",
+      "label": "webstatus.dev feature 'profiler' — Baseline limited; Chrome available since 94 (2021-09-21); no Firefox/Safari implementations (queried 2026-08-16)",
+      "url": "https://webstatus.dev/features/profiler",
+      "kind": "browser-data"
+    },
+    {
+      "id": "showcase",
+      "label": "chrome-platform-showcase v147/js-profiling-in-dedicated-workers — feature index + worker-profile and profiler-api-explorer concept routes (HTTP 200, checked 2026-08-16)",
+      "url": "https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/js-profiling-in-dedicated-workers/",
+      "kind": "other"
+    }
+  ],
+  "inventory": [
+    {
+      "id": "profiler-interface",
+      "name": "Profiler interface ([Exposed=(Window, Worker)], inherits EventTarget; sampling profiling session bound to the constructing global)",
+      "kind": "interface",
+      "sourceRefs": [
+        "wicg-idl",
+        "wicg-spec",
+        "chromestatus"
+      ]
+    },
+    {
+      "id": "profiler-constructor",
+      "name": "new Profiler(ProfilerInitOptions options) — starts sampling immediately; RangeError if sampleInterval < 0; NotAllowedError DOMException when the js-profiling Document Policy disallows profiling",
+      "kind": "constructor",
+      "sourceRefs": [
+        "wicg-idl",
+        "wicg-spec"
+      ]
+    },
+    {
+      "id": "sampleinterval-attribute",
+      "name": "Profiler.sampleInterval — readonly DOMHighResTimeStamp, the session's effective sampling interval (UA may round the requested value up)",
+      "kind": "property",
+      "sourceRefs": [
+        "wicg-idl",
+        "wicg-spec"
+      ]
+    },
+    {
+      "id": "stopped-attribute",
+      "name": "Profiler.stopped — readonly boolean, whether the profiling session has stopped",
+      "kind": "property",
+      "sourceRefs": [
+        "wicg-idl"
+      ]
+    },
+    {
+      "id": "stop-method",
+      "name": "Profiler.stop() -> Promise<ProfilerTrace> — stops sampling and resolves with the collected trace; rejects with InvalidStateError if the session is already stopped",
+      "kind": "method",
+      "sourceRefs": [
+        "wicg-idl",
+        "wicg-spec"
+      ]
+    },
+    {
+      "id": "samplebufferfull-event",
+      "name": "samplebufferfull event — fired at the Profiler when collected samples reach maxBufferSize; the session moves to stopped",
+      "kind": "event",
+      "sourceRefs": [
+        "wicg-spec"
+      ]
+    },
+    {
+      "id": "profiler-init-options",
+      "name": "ProfilerInitOptions dictionary — required sampleInterval (DOMHighResTimeStamp) + required maxBufferSize (unsigned long)",
+      "kind": "dictionary",
+      "sourceRefs": [
+        "wicg-idl"
+      ]
+    },
+    {
+      "id": "profiler-trace",
+      "name": "ProfilerTrace output family — ProfilerTrace {resources, frames, stacks, samples}, ProfilerFrame {name, resourceId?, line?, column?}, ProfilerStack {parentId?, frameId}, ProfilerSample {timestamp, stackId?}, ProfilerResource (DOMString)",
+      "kind": "dictionary",
+      "sourceRefs": [
+        "wicg-idl"
+      ]
+    },
+    {
+      "id": "worker-exposure",
+      "name": "Dedicated-worker exposure (the Chrome 147 change): Profiler usable inside DedicatedWorkerGlobalScope behind ProfilerAPIForDedicatedWorker, still gated by the js-profiling Document Policy; spec IDL already exposes (Window, Worker)",
+      "kind": "capability",
+      "sourceRefs": [
+        "chromestatus",
+        "runtime-features",
+        "wicg-idl",
+        "intent-prototype"
+      ]
+    }
+  ],
+  "documentation": [
+    {
+      "inventoryId": "profiler-interface",
+      "href": "#syntax",
+      "dimensions": {
+        "syntax": {
+          "status": "documented",
+          "selector": "#syntax",
+          "sourceRefs": [
+            "wicg-idl"
+          ]
+        },
+        "inputs": {
+          "status": "not-applicable",
+          "selector": "#syntax",
+          "rationale": "The interface is instantiated only through its constructor, whose parameters are documented under #constructor; it takes no inputs of its own (WICG IDL, fetched 2026-08-16).",
+          "sourceRefs": [
+            "wicg-idl"
+          ]
+        },
+        "outputs": {
+          "status": "not-applicable",
+          "selector": "#members",
+          "rationale": "Interface-level outputs are its members' values, each documented under #members (attributes, stop() promise) per the WICG IDL (fetched 2026-08-16).",
+          "sourceRefs": [
+            "wicg-idl"
+          ]
+        },
+        "errors": {
+          "status": "not-applicable",
+          "selector": "#constructor",
+          "rationale": "Exceptions live on members, not the interface container: construction throws RangeError/NotAllowedError (documented under #constructor) and stop() rejects with InvalidStateError on an already-stopped session (documented under #members); the interface itself defines no additional error surface (WICG draft, fetched 2026-08-16).",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        },
+        "context": {
+          "status": "documented",
+          "selector": "#syntax",
+          "sourceRefs": [
+            "wicg-idl",
+            "chromestatus"
+          ]
+        },
+        "lifecycle": {
+          "status": "documented",
+          "selector": "#members",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        },
+        "examples": {
+          "status": "documented",
+          "selector": "#example-worker",
+          "sourceRefs": [
+            "wicg-spec",
+            "showcase"
+          ]
+        },
+        "compatibility": {
+          "status": "documented",
+          "selector": "#browser-compatibility",
+          "sourceRefs": [
+            "bcd",
+            "webstatus",
+            "chromestatus"
+          ]
+        },
+        "securityPrivacy": {
+          "status": "documented",
+          "selector": "#why",
+          "sourceRefs": [
+            "wicg-spec",
+            "chromestatus"
+          ]
+        }
+      }
+    },
+    {
+      "inventoryId": "profiler-constructor",
+      "href": "#constructor",
+      "dimensions": {
+        "syntax": {
+          "status": "documented",
+          "selector": "#syntax",
+          "sourceRefs": [
+            "wicg-idl"
+          ]
+        },
+        "inputs": {
+          "status": "documented",
+          "selector": "#constructor",
+          "sourceRefs": [
+            "wicg-idl",
+            "wicg-spec"
+          ]
+        },
+        "outputs": {
+          "status": "documented",
+          "selector": "#constructor",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        },
+        "errors": {
+          "status": "documented",
+          "selector": "#constructor",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        },
+        "context": {
+          "status": "documented",
+          "selector": "#syntax",
+          "sourceRefs": [
+            "wicg-idl"
+          ]
+        },
+        "lifecycle": {
+          "status": "documented",
+          "selector": "#constructor",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        },
+        "examples": {
+          "status": "documented",
+          "selector": "#example-worker",
+          "sourceRefs": [
+            "wicg-spec",
+            "showcase"
+          ]
+        },
+        "compatibility": {
+          "status": "documented",
+          "selector": "#browser-compatibility",
+          "sourceRefs": [
+            "bcd",
+            "chromestatus"
+          ]
+        },
+        "securityPrivacy": {
+          "status": "documented",
+          "selector": "#constructor",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        }
+      }
+    },
+    {
+      "inventoryId": "sampleinterval-attribute",
+      "href": "#members",
+      "dimensions": {
+        "syntax": {
+          "status": "documented",
+          "selector": "#syntax",
+          "sourceRefs": [
+            "wicg-idl"
+          ]
+        },
+        "inputs": {
+          "status": "not-applicable",
+          "selector": "#members",
+          "rationale": "Readonly attribute: no writable inputs; the requested interval is supplied via ProfilerInitOptions at construction (WICG IDL, fetched 2026-08-16).",
+          "sourceRefs": [
+            "wicg-idl"
+          ]
+        },
+        "outputs": {
+          "status": "documented",
+          "selector": "#members",
+          "sourceRefs": [
+            "wicg-idl",
+            "wicg-spec"
+          ]
+        },
+        "errors": {
+          "status": "not-applicable",
+          "selector": "#members",
+          "rationale": "Reading a readonly DOMHighResTimeStamp attribute cannot throw per the WICG IDL and processing model (fetched 2026-08-16).",
+          "sourceRefs": [
+            "wicg-idl"
+          ]
+        },
+        "context": {
+          "status": "documented",
+          "selector": "#syntax",
+          "sourceRefs": [
+            "wicg-idl"
+          ]
+        },
+        "lifecycle": {
+          "status": "documented",
+          "selector": "#members",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        },
+        "examples": {
+          "status": "documented",
+          "selector": "#example-worker",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        },
+        "compatibility": {
+          "status": "documented",
+          "selector": "#browser-compatibility",
+          "sourceRefs": [
+            "bcd"
+          ]
+        },
+        "securityPrivacy": {
+          "status": "not-applicable",
+          "selector": "#members",
+          "rationale": "Exposes only the session's own sampling interval, already supplied by the caller; no cross-origin or ambient data (WICG draft, fetched 2026-08-16).",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        }
+      }
+    },
+    {
+      "inventoryId": "stopped-attribute",
+      "href": "#members",
+      "dimensions": {
+        "syntax": {
+          "status": "documented",
+          "selector": "#syntax",
+          "sourceRefs": [
+            "wicg-idl"
+          ]
+        },
+        "inputs": {
+          "status": "not-applicable",
+          "selector": "#members",
+          "rationale": "Readonly boolean attribute: no inputs; state is driven by stop() and the samplebufferfull transition (WICG IDL, fetched 2026-08-16).",
+          "sourceRefs": [
+            "wicg-idl"
+          ]
+        },
+        "outputs": {
+          "status": "documented",
+          "selector": "#members",
+          "sourceRefs": [
+            "wicg-idl"
+          ]
+        },
+        "errors": {
+          "status": "not-applicable",
+          "selector": "#members",
+          "rationale": "Reading a readonly boolean attribute cannot throw per the WICG IDL (fetched 2026-08-16).",
+          "sourceRefs": [
+            "wicg-idl"
+          ]
+        },
+        "context": {
+          "status": "documented",
+          "selector": "#syntax",
+          "sourceRefs": [
+            "wicg-idl"
+          ]
+        },
+        "lifecycle": {
+          "status": "documented",
+          "selector": "#members",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        },
+        "examples": {
+          "status": "documented",
+          "selector": "#example-worker",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        },
+        "compatibility": {
+          "status": "documented",
+          "selector": "#browser-compatibility",
+          "sourceRefs": [
+            "bcd"
+          ]
+        },
+        "securityPrivacy": {
+          "status": "not-applicable",
+          "selector": "#members",
+          "rationale": "A boolean about the caller's own session state; exposes no data beyond what the caller controls (WICG draft, fetched 2026-08-16).",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        }
+      }
+    },
+    {
+      "inventoryId": "stop-method",
+      "href": "#members",
+      "dimensions": {
+        "syntax": {
+          "status": "documented",
+          "selector": "#syntax",
+          "sourceRefs": [
+            "wicg-idl"
+          ]
+        },
+        "inputs": {
+          "status": "not-applicable",
+          "selector": "#members",
+          "rationale": "stop() takes no arguments per the WICG IDL (fetched 2026-08-16).",
+          "sourceRefs": [
+            "wicg-idl"
+          ]
+        },
+        "outputs": {
+          "status": "documented",
+          "selector": "#members",
+          "sourceRefs": [
+            "wicg-idl",
+            "wicg-spec"
+          ]
+        },
+        "errors": {
+          "status": "documented",
+          "selector": "#members",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        },
+        "context": {
+          "status": "documented",
+          "selector": "#syntax",
+          "sourceRefs": [
+            "wicg-idl"
+          ]
+        },
+        "lifecycle": {
+          "status": "documented",
+          "selector": "#members",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        },
+        "examples": {
+          "status": "documented",
+          "selector": "#example-worker",
+          "sourceRefs": [
+            "wicg-spec",
+            "showcase"
+          ]
+        },
+        "compatibility": {
+          "status": "documented",
+          "selector": "#browser-compatibility",
+          "sourceRefs": [
+            "bcd"
+          ]
+        },
+        "securityPrivacy": {
+          "status": "documented",
+          "selector": "#why",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        }
+      }
+    },
+    {
+      "inventoryId": "samplebufferfull-event",
+      "href": "#members",
+      "dimensions": {
+        "syntax": {
+          "status": "documented",
+          "selector": "#members",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        },
+        "inputs": {
+          "status": "not-applicable",
+          "selector": "#members",
+          "rationale": "A plain Event fired by the UA; listeners receive no event-specific payload per the WICG processing model (fetched 2026-08-16).",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        },
+        "outputs": {
+          "status": "documented",
+          "selector": "#members",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        },
+        "errors": {
+          "status": "not-applicable",
+          "selector": "#members",
+          "rationale": "Event dispatch defines no error surface; the transition it signals (session stopped) is documented in the same row (WICG draft, fetched 2026-08-16).",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        },
+        "context": {
+          "status": "documented",
+          "selector": "#syntax",
+          "sourceRefs": [
+            "wicg-idl"
+          ]
+        },
+        "lifecycle": {
+          "status": "documented",
+          "selector": "#members",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        },
+        "examples": {
+          "status": "documented",
+          "selector": "#example-worker",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        },
+        "compatibility": {
+          "status": "documented",
+          "selector": "#browser-compatibility",
+          "sourceRefs": [
+            "bcd",
+            "chromestatus"
+          ]
+        },
+        "securityPrivacy": {
+          "status": "not-applicable",
+          "selector": "#members",
+          "rationale": "Signals only that the caller's own buffer limit was reached; no additional data exposure (WICG draft, fetched 2026-08-16).",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        }
+      }
+    },
+    {
+      "inventoryId": "profiler-init-options",
+      "href": "#constructor",
+      "dimensions": {
+        "syntax": {
+          "status": "documented",
+          "selector": "#syntax",
+          "sourceRefs": [
+            "wicg-idl"
+          ]
+        },
+        "inputs": {
+          "status": "documented",
+          "selector": "#constructor",
+          "sourceRefs": [
+            "wicg-idl",
+            "wicg-spec"
+          ]
+        },
+        "outputs": {
+          "status": "not-applicable",
+          "selector": "#syntax",
+          "rationale": "WebIDL dictionaries are pure input values; nothing is returned through them (WICG IDL, fetched 2026-08-16).",
+          "sourceRefs": [
+            "wicg-idl"
+          ]
+        },
+        "errors": {
+          "status": "documented",
+          "selector": "#constructor",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        },
+        "context": {
+          "status": "not-applicable",
+          "selector": "#syntax",
+          "rationale": "Dictionaries carry no exposure of their own; usable wherever the Profiler constructor is exposed (Window, Worker) per the WICG IDL (fetched 2026-08-16).",
+          "sourceRefs": [
+            "wicg-idl"
+          ]
+        },
+        "lifecycle": {
+          "status": "not-applicable",
+          "selector": "#constructor",
+          "rationale": "Both members are required per-call values consumed at construction; the dictionary holds no state (WICG IDL, fetched 2026-08-16).",
+          "sourceRefs": [
+            "wicg-idl"
+          ]
+        },
+        "examples": {
+          "status": "documented",
+          "selector": "#example-worker",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        },
+        "compatibility": {
+          "status": "documented",
+          "selector": "#browser-compatibility",
+          "sourceRefs": [
+            "bcd"
+          ]
+        },
+        "securityPrivacy": {
+          "status": "not-applicable",
+          "selector": "#constructor",
+          "rationale": "Caller-supplied tuning values only; the privacy-relevant gate is the js-profiling Document Policy documented with the constructor (WICG draft, fetched 2026-08-16).",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        }
+      }
+    },
+    {
+      "inventoryId": "profiler-trace",
+      "href": "#syntax",
+      "dimensions": {
+        "syntax": {
+          "status": "documented",
+          "selector": "#syntax",
+          "sourceRefs": [
+            "wicg-idl"
+          ]
+        },
+        "inputs": {
+          "status": "not-applicable",
+          "selector": "#syntax",
+          "rationale": "Output-only data shapes returned by stop(); scripts never construct them as inputs (WICG IDL, fetched 2026-08-16).",
+          "sourceRefs": [
+            "wicg-idl"
+          ]
+        },
+        "outputs": {
+          "status": "documented",
+          "selector": "#trace-shape",
+          "sourceRefs": [
+            "wicg-idl",
+            "wicg-spec"
+          ]
+        },
+        "errors": {
+          "status": "not-applicable",
+          "selector": "#syntax",
+          "rationale": "Plain dictionary data with no algorithms of its own; no error surface (WICG IDL, fetched 2026-08-16).",
+          "sourceRefs": [
+            "wicg-idl"
+          ]
+        },
+        "context": {
+          "status": "not-applicable",
+          "selector": "#syntax",
+          "rationale": "Dictionaries carry no exposure; they are delivered wherever stop() resolves (Window, Worker) per the WICG IDL (fetched 2026-08-16).",
+          "sourceRefs": [
+            "wicg-idl"
+          ]
+        },
+        "lifecycle": {
+          "status": "documented",
+          "selector": "#members",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        },
+        "examples": {
+          "status": "documented",
+          "selector": "#trace-shape",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        },
+        "compatibility": {
+          "status": "documented",
+          "selector": "#browser-compatibility",
+          "sourceRefs": [
+            "bcd"
+          ]
+        },
+        "securityPrivacy": {
+          "status": "documented",
+          "selector": "#why",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        }
+      }
+    },
+    {
+      "inventoryId": "worker-exposure",
+      "href": "#at-a-glance",
+      "dimensions": {
+        "syntax": {
+          "status": "documented",
+          "selector": "#syntax",
+          "sourceRefs": [
+            "wicg-idl"
+          ]
+        },
+        "inputs": {
+          "status": "not-applicable",
+          "selector": "#at-a-glance",
+          "rationale": "An exposure/capability change, not a callable: it has no parameters; enabling is via the flag and Document Policy documented in the same table (chromestatus + runtime_enabled_features, fetched 2026-08-16).",
+          "sourceRefs": [
+            "chromestatus",
+            "runtime-features"
+          ]
+        },
+        "outputs": {
+          "status": "not-applicable",
+          "selector": "#at-a-glance",
+          "rationale": "No return values of its own; it makes the Profiler members (documented above) available inside dedicated workers (WICG IDL exposure, fetched 2026-08-16).",
+          "sourceRefs": [
+            "wicg-idl"
+          ]
+        },
+        "errors": {
+          "status": "documented",
+          "selector": "#constructor",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        },
+        "context": {
+          "status": "documented",
+          "selector": "#at-a-glance",
+          "sourceRefs": [
+            "chromestatus",
+            "runtime-features"
+          ]
+        },
+        "lifecycle": {
+          "status": "documented",
+          "selector": "#at-a-glance",
+          "sourceRefs": [
+            "chromestatus",
+            "intent-prototype",
+            "runtime-features"
+          ]
+        },
+        "examples": {
+          "status": "documented",
+          "selector": "#example-worker",
+          "sourceRefs": [
+            "wicg-spec",
+            "showcase"
+          ]
+        },
+        "compatibility": {
+          "status": "documented",
+          "selector": "#browser-compatibility",
+          "sourceRefs": [
+            "bcd",
+            "webstatus",
+            "chromestatus"
+          ]
+        },
+        "securityPrivacy": {
+          "status": "documented",
+          "selector": "#why",
+          "sourceRefs": [
+            "wicg-spec",
+            "chromestatus"
+          ]
+        }
+      }
+    }
+  ],
+  "notes": "MDN-shape upgrade of a pre-redesign page (2026-08-16), in place per the durable contract (same route, same chromestatus identity 5159559872249856, v147 dev-trial framing preserved). Added: Baseline banner (webstatus.dev 'profiler': limited, Chrome 94 main thread; worker exposure dev trial 147, no BCD subfeature — disclosed); verbatim spec IDL including the full ProfilerTrace dictionary family and the samplebufferfull event the old page omitted; constructor exception rows (RangeError, NotAllowedError with the js-profiling Document Policy gate); real flag name ProfilerAPIForDedicatedWorker (the page previously named only the generic experimental-web-platform-features flag); split BCD-vs-interim compat table (main thread from BCD, worker column labelled interim ChromeStatus); embedded live showcase worker-profile concept (HEAD 200); Intent to Prototype thread linked. Example updated to note the Document-Policy header and required options members. Round-3 review fix: stop()'s InvalidStateError rejection (draft stop() steps) is documented in the members table and the errors dimension mapping now points at it; the samplebufferfull/stopped divergence between the draft's algorithm and shipped Chromium (profiler.cc / profiler_group.cc) is disclosed with both sources linked. Round-5 review fixes: the compat table carries an explicit-unknown row for the samplebufferfull event and trace dictionaries (no per-version entry in BCD or anywhere public — unknown is stated, not implied); the interface-level errors rationale defers to the member error docs instead of claiming no member throws; the worker example funnels both stop paths through one idempotent finish() to avoid the samplebufferfull/completion race. Round-8 fix: the interface lifecycle dimension maps to #members (sampling starts on construction; transitions to stopped via stop() or buffer exhaustion, with the Chromium divergence note), not the release timeline."
+}

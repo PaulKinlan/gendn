@@ -15,12 +15,12 @@
     .table-wrap { overflow-x: auto; }
     .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
     .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
-    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--text-charcoal); display: block; margin-bottom: 0.4rem; }
     .warn-block p { font-size: 0.98rem; }
     .warn-block ul { font-family: var(--font-serif); font-size: 0.98rem; color: var(--text-charcoal); padding-left: 1.4rem; margin: 0.4rem 0 0.2rem; }
     .warn-block li { margin-bottom: 0.3rem; }
     .baseline-banner { border: 2px solid var(--border-black); background: var(--bg-paper); box-shadow: var(--thin-shadow); padding: 1rem 1.2rem; margin: 0 0 var(--space-5); }
-    .baseline-banner .baseline-status { font-family: var(--font-mono); font-weight: 500; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent-amber); margin: 0 0 0.6rem; }
+    .baseline-banner .baseline-status { font-family: var(--font-mono); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-charcoal); margin: 0 0 0.6rem; }
     .baseline-banner .baseline-browsers { display: flex; flex-wrap: wrap; gap: var(--space-2); list-style: none; padding: 0; margin: 0 0 0.6rem; }
     .baseline-banner .baseline-browsers li { font-family: var(--font-mono); font-size: 0.75rem; border: 1px solid var(--border-black); padding: 0.25rem 0.6rem; background: var(--bg-stone); }
     .baseline-banner .baseline-browsers li.limited { border-style: dashed; color: var(--text-muted); }
@@ -41,152 +41,180 @@
     <div class="baseline-banner" role="note" aria-label="Baseline status">
       <p class="baseline-status">Limited availability</p>
       <ul class="baseline-browsers">
-        <li>Chrome · origin trial 150&ndash;155</li>
+        <li>Chrome · origin trial 151&ndash;156</li>
         <li class="limited">Edge · not separately reported</li>
         <li class="limited">Firefox · no signal</li>
         <li class="limited">Safari · no signal</li>
       </ul>
-      <p>Not on the Baseline register (no web-features entry at webstatus.dev). Chrome-only origin trial on desktop (window: Chrome 150&ndash;155); the feature detail (chromestatus API, updated 2026-06-25) estimates desktop shipping at 156 with status text &ldquo;Proposed&rdquo;.</p>
+      <p>Not on the Baseline register &mdash; <a href="https://webstatus.dev/?q=webrtc%20diagnostic" target="_blank" rel="noopener">webstatus.dev search for &ldquo;webrtc diagnostic&rdquo;</a> returns no web-features entry for this API (queried 2026-08-16). Chrome-only origin trial on desktop. This feature entered the roadmap under Chrome&nbsp;150; the OT stage on the <a href="https://chromestatus.com/feature/5091582546149376" target="_blank" rel="noopener">chromestatus record</a> (updated 2026-08-12) now gives the desktop trial window as Chrome <strong>151&ndash;156</strong> (an earlier revision of this page recorded 150&ndash;155 from July&nbsp;2026 data), with the ship stage estimating desktop 156, status &ldquo;Proposed&rdquo;.</p>
     </div>
 
-    <p class="lede">The WebRTC Diagnostic Logging API lets an authorized application ask the browser to record internal WebRTC diagnostic logs for local debugging of hard-to-reproduce connectivity and media-quality issues. The app never sees the log contents &mdash; it only receives a session ID. With <code>allowUpload</code> and explicit user authorization, the collected log can also be shared with the browser vendor to help fix user-agent bugs.</p>
+    <p class="lede">The WebRTC Diagnostic Logging API lets an authorized application ask the browser to record internal WebRTC diagnostic logs for local debugging of hard-to-reproduce connectivity and media-quality issues. The app never sees the log contents &mdash; it only receives a session ID it can attach to a bug report. With <code>allowUpload</code> and explicit user authorization, the collected log can also be shared out of band with the browser vendor.</p>
   </header>
 
   <div class="warn-block">
     <strong>Origin trial — API surface may move</strong>
-    <p>In Chrome 150 this API is available through an origin trial on desktop (trial window: Chrome 150&ndash;155; ship estimate 156, status &ldquo;Proposed&rdquo;, per the chromestatus API as updated 2026-06-25). To use it:</p>
+    <p>This API is available through a desktop origin trial (window Chrome 151&ndash;156; ship estimate 156, status &ldquo;Proposed&rdquo;, per the chromestatus API as updated 2026-08-12). The spec draft has <em>already moved</em> relative to what Chrome implements &mdash; see <a href="#drift">Specification drift</a>. To use it:</p>
     <ul>
-      <li>Register your origin for the WebRTC Diagnostic Logging API trial at <a href="https://developer.chrome.com/origintrials/" target="_blank" rel="noopener">developer.chrome.com/origintrials</a> and serve the resulting token (<code>&lt;meta http-equiv=&quot;origin-trial&quot;&gt;</code> tag or <code>Origin-Trial</code> header).</li>
-      <li>Serve the page over HTTPS &mdash; the interface is exposed with <code>[SecureContext]</code>.</li>
-      <li>Collection and upload both require explicit user authorization; the authorization UI is implementation-defined (UI controls, prompts, and/or enterprise policies).</li>
+      <li>Register your origin for the <strong>WebRTC Diagnostic Logging API</strong> trial (Chromium trial name <code>RTCDiagnosticLogging</code>) at <a href="https://developer.chrome.com/origintrials/" target="_blank" rel="noopener">developer.chrome.com/origintrials</a> and serve the token via a <code>&lt;meta http-equiv=&quot;origin-trial&quot;&gt;</code> tag or the <code>Origin-Trial</code> response header.</li>
+      <li>Serve the page over HTTPS &mdash; the interface is <code>[SecureContext]</code>.</li>
+      <li>For local testing, <code>--enable-blink-features=RTCDiagnosticLogging</code> also enables the binding: the runtime-enabled feature is <code>RTCDiagnosticLogging</code> (<code>status: experimental</code>, <code>origin_trial_feature_name: RTCDiagnosticLogging</code> in <code>runtime_enabled_features.json5</code>).</li>
+      <li>Enterprises can enable collection without a token via the <a href="https://chromeenterprise.google/policies/#WebRtcDiagnosticLogCollectionAllowedForOrigins" target="_blank" rel="noopener"><code>WebRtcDiagnosticLogCollectionAllowedForOrigins</code></a> policy, which the chromestatus summary names as the diagnostic-log enable path.</li>
     </ul>
-    <p>Implementation/debug note: the runtime-enabled feature is <code>RTCDiagnosticLogging</code> (<code>status: experimental</code>, with <code>origin_trial_feature_name: RTCDiagnosticLogging</code>, in <code>runtime_enabled_features.json5</code>), so <code>--enable-blink-features=RTCDiagnosticLogging</code> also gates the binding &mdash; but the origin-trial token is the documented production path.</p>
-    <span class="citation">Source: <a href="https://chromestatus.com/feature/5091582546149376" target="_blank" rel="noopener">chromestatus.com/feature/5091582546149376</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium runtime_enabled_features.json5</a></span>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5091582546149376" target="_blank" rel="noopener">chromestatus.com/feature/5091582546149376</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium runtime_enabled_features.json5</a>; <a href="https://chromeenterprise.google/policies/#WebRtcDiagnosticLogCollectionAllowedForOrigins" target="_blank" rel="noopener">Chrome Enterprise policy list</a></span>
   </div>
 
   <section>
-    <h2>at a glance</h2>
+    <h2 id="at-a-glance">at a glance</h2>
     <div class="table-wrap">
     <table class="doc-table">
       <caption>At a glance</caption>
-      <tr><th scope="row">Milestone listing</th><td>Chrome 150 — Origin trial (trial window 150&ndash;155, desktop)</td></tr>
-      <tr><th scope="row">Ship estimate</th><td>Feature detail (chromestatus API, updated 2026-06-25): desktop 156, status text &ldquo;Proposed&rdquo;, active stage &ldquo;Prepare to ship&rdquo;</td></tr>
-      <tr><th scope="row">Interface</th><td><code>RTC</code>, reached via <code>navigator.rtc</code></td></tr>
-      <tr><th scope="row">Context</th><td>Secure contexts only; collection + upload require explicit user authorization</td></tr>
+      <tr><th scope="row">Roadmap listing</th><td>Chrome 150 &mdash; Origin trial (the OT stage now records the desktop window as 151&ndash;156)</td></tr>
+      <tr><th scope="row">Ship estimate</th><td>Feature detail (chromestatus API, updated 2026-08-12): desktop 156, status text &ldquo;Proposed&rdquo;</td></tr>
+      <tr><th scope="row">Entry point (shipped binding)</th><td><code>navigator.rtc</code> &rarr; <code>RTC</code> interface (per the Chromium IDL; the current spec draft instead puts static methods on <code>RTCPeerConnection</code> &mdash; see <a href="#drift">Specification drift</a>)</td></tr>
+      <tr><th scope="row">Context</th><td>Secure contexts, <code>Window</code> only; collection + upload require explicit user authorization</td></tr>
       <tr><th scope="row">Runtime flag</th><td><code>RTCDiagnosticLogging</code> in <code>runtime_enabled_features.json5</code> (status <code>experimental</code>, origin-trial feature)</td></tr>
-      <tr><th scope="row">Standards body</th><td><a href="https://wicg.github.io/webrtc-diagnostic-logging" target="_blank" rel="noopener">WICG — WebRTC Diagnostic Logging</a></td></tr>
+      <tr><th scope="row">Use counter</th><td><code>kV8RTC_StartDiagnosticLogging_Method</code> (recorded on the OT stage)</td></tr>
+      <tr><th scope="row">Standards body</th><td><a href="https://wicg.github.io/webrtc-diagnostic-logging" target="_blank" rel="noopener">WICG — WebRTC Diagnostic Logging</a> (incubation)</td></tr>
       <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5091582546149376" target="_blank" rel="noopener">5091582546149376 — WebRTC Diagnostic Logging API</a></td></tr>
     </table>
     </div>
-    <span class="citation">Source: <a href="https://chromestatus.com/feature/5091582546149376" target="_blank" rel="noopener">chromestatus.com/feature/5091582546149376</a></span>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5091582546149376" target="_blank" rel="noopener">chromestatus.com/feature/5091582546149376</a> (OT stage: origin trial id 352969620795162625, desktop 151&ndash;156); <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webrtc/rtc.idl" target="_blank" rel="noopener">Chromium rtc.idl</a></span>
   </section>
 
   <section>
-    <h2>Syntax</h2>
-    <p>The API hangs off <code>Navigator</code> as a single read-only <code>rtc</code> attribute returning an <code>RTC</code> instance with three asynchronous session methods. IDL from the WICG draft:</p>
-<pre><code>[Exposed=Window]
-partial interface Navigator {
-  [SameObject] readonly attribute RTC rtc;
+    <h2 id="syntax">Syntax</h2>
+    <p>What Chrome ships is defined by the Chromium IDL, not the (newer) spec draft. The API hangs off <code>Navigator</code> as a single <code>[SameObject]</code> read-only <code>rtc</code> attribute returning an <code>RTC</code> instance with three asynchronous session methods. <code>[SameObject]</code> is a lifetime contract: every read of <code>navigator.rtc</code> returns the <em>same</em> <code>RTC</code> instance for the lifetime of that <code>Navigator</code> (per WebIDL, the attribute must always return the same object), so listeners or state attached to it persist across reads. Verbatim from the three Chromium IDL files (extended attributes like <code>CallWith</code>/<code>Measure</code> elided):</p>
+<pre><code>// third_party/blink/renderer/modules/webrtc/navigator_rtc.idl
+[ImplementedAs=RTC] partial interface Navigator {
+  [SameObject, SecureContext, RuntimeEnabled=RTCDiagnosticLogging]
+  readonly attribute RTC rtc;
 };
 
-[Exposed=Window, SecureContext]
+// third_party/blink/renderer/modules/webrtc/rtc.idl
+[Exposed=Window, SecureContext, RuntimeEnabled=RTCDiagnosticLogging]
 interface RTC {
-  Promise&lt;DOMString&gt; startDiagnosticLogging(optional RTCDiagnosticLoggingOptions options = {});
-  Promise&lt;undefined&gt; finishDiagnosticLogging();
+  Promise&lt;DOMString&gt; startDiagnosticLogging(optional RTCStartDiagnosticLoggingOptions options = {});
+  Promise&lt;undefined&gt; finishDiagnosticLogging(optional RTCFinishDiagnosticLoggingOptions options = {});
   Promise&lt;undefined&gt; cancelDiagnosticLogging();
 };
 
+// third_party/blink/renderer/modules/webrtc/rtc_diagnostic_logging_options.idl
 dictionary RTCDiagnosticLoggingOptions {
+  record&lt;DOMString, DOMString&gt; metadata = {};
+};
+dictionary RTCStartDiagnosticLoggingOptions : RTCDiagnosticLoggingOptions {
   boolean allowUpload = false;
-  record&lt;DOMString, DOMString&gt; metadata;
+};
+dictionary RTCFinishDiagnosticLoggingOptions : RTCDiagnosticLoggingOptions {
 };</code></pre>
-    <span class="citation">Source: <a href="https://wicg.github.io/webrtc-diagnostic-logging" target="_blank" rel="noopener">WICG WebRTC Diagnostic Logging — IDL index</a></span>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webrtc/navigator_rtc.idl" target="_blank" rel="noopener">Chromium navigator_rtc.idl</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webrtc/rtc.idl" target="_blank" rel="noopener">rtc.idl</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webrtc/rtc_diagnostic_logging_options.idl" target="_blank" rel="noopener">rtc_diagnostic_logging_options.idl</a> (all fetched 2026-08-16)</span>
 
-    <h3><code>startDiagnosticLogging(options)</code></h3>
-    <p>Begins a logging session. The user agent starts recording internal WebRTC logs for the calling browsing context and its descendants. Resolves with a unique session ID (a UUID) &mdash; the only piece of diagnostic information the application ever receives.</p>
+    <h3 id="startdiagnosticlogging"><code>startDiagnosticLogging(options)</code></h3>
+    <p>Begins a logging session: the user agent starts recording internal WebRTC logs for the calling context. Resolves with a unique session ID (the spec&rsquo;s algorithm generates a UUID) &mdash; the only piece of diagnostic information the application ever receives.</p>
     <div class="table-wrap">
     <table class="doc-table">
       <caption>startDiagnosticLogging() — parameters, return value, exceptions</caption>
       <tr><th scope="col">Part</th><th scope="col">Detail</th></tr>
-      <tr><th scope="row">Parameters</th><td><code>options</code> (optional) — <code>allowUpload</code> (boolean, default <code>false</code>): allow sharing the collected log with the user agent, subject to explicit user authorization; <code>metadata</code> (record of string key&ndash;value pairs): custom metadata attached to the log</td></tr>
-      <tr><th scope="row">Metadata limits</th><td>At most 5 key&ndash;value pairs; each key and each value at most 100 characters</td></tr>
-      <tr><th scope="row">Returns</th><td><code>Promise&lt;DOMString&gt;</code> — resolves with the unique session ID (UUID)</td></tr>
-      <tr><th scope="row">Exceptions</th><td><code>TypeError</code> — metadata exceeds 5 entries, or any key or value exceeds 100 characters</td></tr>
+      <tr><th scope="row">Parameters</th><td><code>options</code> (optional <code>RTCStartDiagnosticLoggingOptions</code>, default <code>{}</code>) — <code>allowUpload</code> (boolean, default <code>false</code>): allow sharing the collected log with the user agent, subject to explicit user authorization; <code>metadata</code> (record of string key&ndash;value pairs, default <code>{}</code>): custom metadata attached to the log</td></tr>
+      <tr><th scope="row">Metadata limits</th><td>At most 5 entries; each key and each value at most 100 characters (spec algorithm text)</td></tr>
+      <tr><th scope="row">Returns</th><td><code>Promise&lt;DOMString&gt;</code> — resolves with the unique session ID</td></tr>
+      <tr><th scope="row">Exceptions</th><td>Promise rejected with a <code>TypeError</code> if <code>metadata</code> exceeds 5 entries, or any key or value exceeds 100 characters</td></tr>
     </table>
     </div>
 
-    <h3><code>finishDiagnosticLogging()</code></h3>
-    <p>Ends the session and finalizes the log file. The promise resolves when the session is successfully closed, and the user agent must not log WebRTC activity for the session afterwards. If the session was started with <code>allowUpload: true</code>, the user agent may upload the finalized log to a user-agent-defined endpoint &mdash; again, only with user authorization.</p>
+    <h3 id="finishdiagnosticlogging"><code>finishDiagnosticLogging(options)</code></h3>
+    <p>Ends the session and finalizes the log. The promise resolves when the session is successfully closed; the user agent must not log WebRTC activity for the session afterwards. Takes an optional <code>RTCFinishDiagnosticLoggingOptions</code> (a <code>metadata</code>-only dictionary, same 5&nbsp;&times;&nbsp;100-character limits and <code>TypeError</code> rejection), so metadata can also be attached at finish time &mdash; an update relative to the July&nbsp;2026 draft, whose <code>finishDiagnosticLogging()</code> took no arguments. If the session was started with <code>allowUpload: true</code>, the user agent may then upload the finalized log to a user-agent-defined endpoint &mdash; only with user authorization.</p>
 
-    <h3><code>cancelDiagnosticLogging()</code></h3>
-    <p>Stops the session and discards everything collected. The promise resolves when the session is terminated; the user agent must not log afterwards, and because the data is discarded it cannot be uploaded. (The explainer&#39;s example code calls this <code>cancelLogging()</code>, but the specification&#39;s IDL &mdash; the authoritative surface &mdash; names it <code>cancelDiagnosticLogging()</code>.)</p>
-    <span class="citation">Source: <a href="https://wicg.github.io/webrtc-diagnostic-logging" target="_blank" rel="noopener">WICG WebRTC Diagnostic Logging — Methods</a>; <a href="https://github.com/WICG/webrtc-diagnostic-logging/blob/main/explainer.md" target="_blank" rel="noopener">WICG explainer</a></span>
+    <h3 id="canceldiagnosticlogging"><code>cancelDiagnosticLogging()</code></h3>
+    <p>Stops the session and discards everything collected. The promise resolves when the session is terminated; the user agent must not log afterwards, and because the data is discarded it cannot be uploaded.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/webrtc-diagnostic-logging" target="_blank" rel="noopener">WICG WebRTC Diagnostic Logging — methods and algorithms</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webrtc/rtc.idl" target="_blank" rel="noopener">Chromium rtc.idl</a></span>
   </section>
 
   <section>
-    <h2>What the app can and cannot see</h2>
-    <p>The design deliberately keeps diagnostic content away from the application. The explainer states as an explicit non-goal that the API exposes nothing to the app beyond the session ID &mdash; the logs may contain internal information about user activity. The finished log is stored as a local file that the <em>user</em> can access, and the optional upload path shares it with the <em>user agent</em> (the browser vendor) &mdash; never with the site. The format of the log and the upload mechanism are intentionally unspecified; the only hard requirement is explicit user authorization. A site can attach small pieces of metadata (for example an app identifier) so a shared log can be matched to a bug report filed with the browser vendor.</p>
-    <span class="citation">Source: <a href="https://github.com/WICG/webrtc-diagnostic-logging/blob/main/explainer.md" target="_blank" rel="noopener">WICG explainer — goals, non-goals, privacy &amp; security</a></span>
+    <h2 id="drift">Specification drift — <code>navigator.rtc</code> vs <code>RTCPeerConnection</code> statics</h2>
+    <p>The current WICG editor&rsquo;s draft (fetched 2026-08-16) no longer defines the <code>RTC</code> interface. It moves the same three methods onto <code>RTCPeerConnection</code> as <strong>static</strong> members &mdash; <code>RTCPeerConnection.startDiagnosticLogging()</code>, <code>.finishDiagnosticLogging()</code>, <code>.cancelDiagnosticLogging()</code> &mdash; with the same three option dictionaries. Chromium <code>main</code> (and the origin-trial binding) still implements the <code>navigator.rtc</code> entry point; the Chromium IDL carries a TODO referencing <a href="https://crbug.com/481412281" target="_blank" rel="noopener">crbug.com/481412281</a> (&ldquo;Add spec link when available&rdquo;). Code written against the trial should feature-detect both shapes without assuming either global exists:</p>
+<pre><code>const pc = globalThis.RTCPeerConnection;   // may be undefined in non-WebRTC environments
+const rtcLogging =
+  navigator.rtc ??                          // Chrome origin-trial surface
+  (pc &amp;&amp; "startDiagnosticLogging" in pc ? pc : null);  // current draft shape (statics)
+if (!rtcLogging) {
+  // Neither surface available: trial token missing, flag off, or unsupported browser.
+}</code></pre>
+    <span class="citation">Source: <a href="https://wicg.github.io/webrtc-diagnostic-logging" target="_blank" rel="noopener">WICG draft — IDL index (RTCPeerConnection partial, static methods)</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webrtc/navigator_rtc.idl" target="_blank" rel="noopener">Chromium navigator_rtc.idl</a></span>
   </section>
 
   <section>
-    <h2>Examples</h2>
+    <h2 id="visibility">What the app can and cannot see</h2>
+    <p>The design deliberately keeps diagnostic content away from the application. The explainer states as an explicit non-goal that the API exposes anything to the app beyond the session ID &mdash; the logs may contain internal information about user activity. The finished log is stored as a local file the <em>user</em> can access, and the optional upload path shares it with the <em>user agent</em> (the browser vendor) &mdash; never with the site. The log format and upload mechanism are intentionally unspecified; the hard requirement is explicit user authorization for both collection and upload. A site can attach small pieces of metadata (for example an app identifier) so a shared log can be matched to a bug report filed with the browser vendor &mdash; the chromestatus summary compares the session-ID flow to crash-report IDs.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/webrtc-diagnostic-logging/blob/main/explainer.md" target="_blank" rel="noopener">WICG explainer — goals, non-goals, privacy &amp; security</a>; <a href="https://chromestatus.com/feature/5091582546149376" target="_blank" rel="noopener">chromestatus feature summary</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
     <figure class="example-embed">
       <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v150/webrtc-diagnostic-logging-api/logging-lifecycle/"
         title="Live example — Logging lifecycle (WebRTC Diagnostic Logging API)" loading="lazy" width="100%" height="520"
         style="border:2px solid var(--border-black)"></iframe>
-      <figcaption>Live example from the Chrome Platform Showcase: the start &rarr; finish / cancel session lifecycle with the real API surface. <span class="citation">Source: chrome-platform-showcase</span></figcaption>
+      <figcaption>Live example from the Chrome Platform Showcase: the start &rarr; finish / cancel session lifecycle with the real API surface. <span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v150/webrtc-diagnostic-logging-api/logging-lifecycle/" target="_blank" rel="noopener">chrome-platform-showcase — logging lifecycle</a></span></figcaption>
     </figure>
 
-<pre><code>// Before starting a call — begin a session (optionally allow upload + metadata)
+<pre><code>// Chrome origin-trial surface (navigator.rtc)
+// Before starting a call — begin a session (optionally allow upload + metadata)
 const sessionId = await navigator.rtc.startDiagnosticLogging({
   allowUpload: true,
   metadata: { app: "my-call-app" },   // &lt;= 5 pairs, &lt;= 100 chars each
 });
 // The app stores the session ID — it is the ONLY data it ever gets back.
 
-// When the call ends normally — finalize the log locally
-await navigator.rtc.finishDiagnosticLogging();
-
-// When the captured session is not useful — discard it entirely
-await navigator.rtc.cancelDiagnosticLogging();</code></pre>
-    <span class="citation">Source: <a href="https://github.com/WICG/webrtc-diagnostic-logging/blob/main/explainer.md" target="_blank" rel="noopener">WICG explainer — proposed approach</a></span>
+// A session ends in exactly ONE of two ways:
+if (callCompletedNormally) {
+  // Finalize the log locally (finish-time metadata is allowed too)
+  await navigator.rtc.finishDiagnosticLogging({
+    metadata: { outcome: "call-completed" },
+  });
+} else {
+  // Discard everything collected — nothing can be uploaded afterwards
+  await navigator.rtc.cancelDiagnosticLogging();
+}</code></pre>
+    <span class="citation">Source: <a href="https://github.com/WICG/webrtc-diagnostic-logging/blob/main/explainer.md" target="_blank" rel="noopener">WICG explainer — proposed approach</a>; surface per <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webrtc/rtc.idl" target="_blank" rel="noopener">Chromium rtc.idl</a></span>
   </section>
 
   <section>
-    <h2>Browser compatibility</h2>
-    <p>There is no browser-compat-data (BCD) entry for this API yet, so the table below is an <strong>interim</strong> view built from ChromeStatus ship data and public signals — not from BCD.</p>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <p>There is no browser-compat-data (BCD) entry for this API yet (no <code>api/RTC.json</code> in mdn/browser-compat-data as of 2026-08-16), so the table below is an <strong>interim</strong> view built from ChromeStatus ship data and public signals — not from BCD.</p>
     <div class="table-wrap">
     <table class="doc-table compat-table">
       <caption>Interim compatibility — from ChromeStatus, not BCD</caption>
       <thead><tr><th scope="col">Browser</th><th scope="col">Status</th><th scope="col">Notes</th></tr></thead>
-      <tr><td>Chrome</td><td>150&ndash;155 (origin trial)</td><td>Desktop origin trial; feature detail (API, 2026-06-25) estimates desktop shipping 156, status &ldquo;Proposed&rdquo;</td></tr>
+      <tr><td>Chrome</td><td>151&ndash;156 (origin trial)</td><td>Desktop origin trial; ship stage estimates desktop 156, status &ldquo;Proposed&rdquo; (chromestatus API, updated 2026-08-12); Android milestone not set</td></tr>
       <tr><td>Edge</td><td>Not separately reported</td><td>No Edge position is recorded on ChromeStatus; no public support evidence (Chromium engine equivalence is not a support commitment)</td></tr>
-      <tr><td>Firefox</td><td>No signal</td><td>Recorded on ChromeStatus</td></tr>
-      <tr><td>Safari</td><td>No signal</td><td>Recorded on ChromeStatus</td></tr>
+      <tr><td>Firefox</td><td>No signal</td><td>Recorded on ChromeStatus (<code>ff_views</code>: &ldquo;No signal&rdquo;, no position URL)</td></tr>
+      <tr><td>Safari</td><td>No signal</td><td>Recorded on ChromeStatus (<code>safari_views</code>: &ldquo;No signal&rdquo;, no position URL)</td></tr>
     </table>
     </div>
     <p>Beyond vendor signals, the explainer records stakeholder positions: Google (implementer) positive, and ByteDance positive (as a WebRTC application stakeholder, not a browser vendor).</p>
-    <span class="citation">Source: <a href="https://chromestatus.com/feature/5091582546149376" target="_blank" rel="noopener">chromestatus.com/feature/5091582546149376</a>; <a href="https://github.com/WICG/webrtc-diagnostic-logging/blob/main/explainer.md" target="_blank" rel="noopener">WICG explainer — stakeholder feedback</a>; <a href="https://github.com/mdn/browser-compat-data" target="_blank" rel="noopener">mdn/browser-compat-data</a> (no entry as of July 2026)</span>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5091582546149376" target="_blank" rel="noopener">chromestatus.com/feature/5091582546149376</a>; <a href="https://github.com/WICG/webrtc-diagnostic-logging/blob/main/explainer.md" target="_blank" rel="noopener">WICG explainer — stakeholder feedback</a>; <a href="https://github.com/mdn/browser-compat-data/tree/main/api" target="_blank" rel="noopener">mdn/browser-compat-data api/ directory</a> (no RTC entry as of 2026-08-16 &mdash; the listing is directly inspectable); <a href="https://webstatus.dev/?q=webrtc%20diagnostic" target="_blank" rel="noopener">webstatus.dev &mdash; &ldquo;webrtc diagnostic&rdquo; query</a> (no web-features entry, queried 2026-08-16)</span>
   </section>
 
   <section>
-    <h2>Specifications</h2>
+    <h2 id="specifications">Specifications</h2>
     <div class="table-wrap">
     <table class="doc-table">
       <caption>Specifications</caption>
       <thead><tr><th scope="col">Specification</th><th scope="col">Status</th></tr></thead>
-      <tr><td><a href="https://wicg.github.io/webrtc-diagnostic-logging" target="_blank" rel="noopener">WebRTC Diagnostic Logging API</a></td><td>WICG draft (incubation)</td></tr>
+      <tr><td><a href="https://wicg.github.io/webrtc-diagnostic-logging" target="_blank" rel="noopener">WebRTC Diagnostic Logging API</a></td><td>WICG draft (incubation) &mdash; current draft uses <code>RTCPeerConnection</code> statics, ahead of the shipped binding</td></tr>
       <tr><td><a href="https://github.com/w3c/webrtc-extensions/issues/124" target="_blank" rel="noopener">W3C WebRTC Extensions — proposal issue #124</a></td><td>Public discussion</td></tr>
     </table>
     </div>
-    <span class="citation">Source: spec links recorded on <a href="https://chromestatus.com/feature/5091582546149376" target="_blank" rel="noopener">chromestatus.com/feature/5091582546149376</a></span>
+    <span class="citation">Source: spec link recorded on <a href="https://chromestatus.com/feature/5091582546149376" target="_blank" rel="noopener">chromestatus.com/feature/5091582546149376</a></span>
   </section>
 
   <section>
-    <h2>See also</h2>
+    <h2 id="see-also">See also</h2>
     <ul>
       <li><a href="https://github.com/WICG/webrtc-diagnostic-logging/blob/main/explainer.md" target="_blank" rel="noopener">WICG — WebRTC Diagnostic Logging explainer</a></li>
+      <li><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a3a6980.3af95f39.2b348.0333.GAE%40google.com" target="_blank" rel="noopener">blink-dev — Intent to Experiment (OT stage intent thread)</a></li>
       <li><a href="https://github.com/w3c/webrtc-extensions/issues/124" target="_blank" rel="noopener">W3C webrtc-extensions proposal — diagnostic logging</a></li>
       <li><a href="https://developer.chrome.com/origintrials/" target="_blank" rel="noopener">Chrome origin trials — registration</a></li>
       <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v150/webrtc-diagnostic-logging-api/" target="_blank" rel="noopener">Chrome Platform Showcase — WebRTC Diagnostic Logging API</a> (also: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v150/webrtc-diagnostic-logging-api/capability-policy-probe/" target="_blank" rel="noopener">capability &amp; policy probe</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v150/webrtc-diagnostic-logging-api/bug-report-companion/" target="_blank" rel="noopener">bug-report companion</a>)</li>

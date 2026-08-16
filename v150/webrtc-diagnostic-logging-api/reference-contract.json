@@ -1,0 +1,883 @@
+{
+  "schemaVersion": 1,
+  "id": "v150/webrtc-diagnostic-logging-api",
+  "route": "/v150/webrtc-diagnostic-logging-api/",
+  "kind": "web-api",
+  "completeness": "implementation-sufficient",
+  "assessedAt": "2026-08-16",
+  "assessor": "gendn weekly hardening writer (coverage pass; independent integrator review pending)",
+  "sources": [
+    {
+      "id": "chromestatus",
+      "label": "ChromeStatus record — feature 5091582546149376 (updated 2026-08-12: OT stage desktop 151-156, origin trial id 352969620795162625, ship stage desktop 156 'Proposed', ff/safari 'No signal', enterprise-policy summary)",
+      "url": "https://chromestatus.com/feature/5091582546149376",
+      "kind": "browser-data"
+    },
+    {
+      "id": "listing",
+      "label": "ChromeStatus milestone listings (the feature entered the roadmap under Chrome 150; the OT stage now records desktop 151-156 — identity + slug remain from the original v150 listing)",
+      "url": "https://chromestatus.com/api/v0/features?milestone=150",
+      "kind": "browser-data"
+    },
+    {
+      "id": "wicg-spec",
+      "label": "WICG WebRTC Diagnostic Logging editor's draft (fetched 2026-08-16) — algorithms, 5-entry/100-char metadata limits, TypeError rejections, UUID session id; current IDL relocates the methods to static RTCPeerConnection members",
+      "url": "https://wicg.github.io/webrtc-diagnostic-logging",
+      "kind": "normative-spec"
+    },
+    {
+      "id": "explainer",
+      "label": "WICG explainer — goals/non-goals, app sees only the session id, upload goes to the user agent with user authorization",
+      "url": "https://github.com/WICG/webrtc-diagnostic-logging/blob/main/explainer.md",
+      "kind": "explainer"
+    },
+    {
+      "id": "chromium-rtc-idl",
+      "label": "Chromium third_party/blink/renderer/modules/webrtc/rtc.idl (fetched 2026-08-16) — RTC interface, three promise-returning methods, Exposed=Window SecureContext RuntimeEnabled=RTCDiagnosticLogging",
+      "url": "https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webrtc/rtc.idl",
+      "kind": "web-idl"
+    },
+    {
+      "id": "chromium-navigator-idl",
+      "label": "Chromium navigator_rtc.idl (fetched 2026-08-16) — [SameObject, SecureContext, RuntimeEnabled=RTCDiagnosticLogging] readonly attribute RTC rtc on Navigator",
+      "url": "https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webrtc/navigator_rtc.idl",
+      "kind": "web-idl"
+    },
+    {
+      "id": "chromium-options-idl",
+      "label": "Chromium rtc_diagnostic_logging_options.idl (fetched 2026-08-16) — RTCDiagnosticLoggingOptions {metadata = {}}, RTCStartDiagnosticLoggingOptions : ... {allowUpload = false}, RTCFinishDiagnosticLoggingOptions : ... {}",
+      "url": "https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webrtc/rtc_diagnostic_logging_options.idl",
+      "kind": "web-idl"
+    },
+    {
+      "id": "runtime-features",
+      "label": "Chromium runtime_enabled_features.json5 — RTCDiagnosticLogging (status experimental, origin_trial_feature_name RTCDiagnosticLogging)",
+      "url": "https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5",
+      "kind": "implementation"
+    },
+    {
+      "id": "crbug",
+      "label": "crbug.com/481412281 — Chromium tracking bug referenced by the IDL TODO ('Add spec link when available'), evidence the binding predates the draft's RTCPeerConnection relocation",
+      "url": "https://crbug.com/481412281",
+      "kind": "implementation"
+    },
+    {
+      "id": "intent-experiment",
+      "label": "blink-dev Intent to Experiment thread (OT stage intent_thread_url from the ChromeStatus record)",
+      "url": "https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a3a6980.3af95f39.2b348.0333.GAE%40google.com",
+      "kind": "intent"
+    },
+    {
+      "id": "enterprise-policy",
+      "label": "Chrome Enterprise policy WebRtcDiagnosticLogCollectionAllowedForOrigins — the enable path named in the chromestatus summary",
+      "url": "https://chromeenterprise.google/policies/#WebRtcDiagnosticLogCollectionAllowedForOrigins",
+      "kind": "release-doc"
+    },
+    {
+      "id": "bcd",
+      "label": "mdn/browser-compat-data api/ directory listing — directly inspectable: no api/RTC entry as of 2026-08-16 (compat table is an interim ChromeStatus view, labelled as such)",
+      "url": "https://github.com/mdn/browser-compat-data/tree/main/api",
+      "kind": "browser-data"
+    },
+    {
+      "id": "webstatus",
+      "label": "webstatus.dev query for 'webrtc diagnostic' — zero web-features results (queried 2026-08-16); not on the Baseline register",
+      "url": "https://webstatus.dev/?q=webrtc%20diagnostic",
+      "kind": "browser-data"
+    },
+    {
+      "id": "showcase",
+      "label": "chrome-platform-showcase v150/webrtc-diagnostic-logging-api — canonical demo for this feature id (logging-lifecycle concept route HTTP 200, checked 2026-08-16)",
+      "url": "https://chrome-platform-showcase.paulkinlan-ea.deno.net/v150/webrtc-diagnostic-logging-api/",
+      "kind": "other"
+    }
+  ],
+  "inventory": [
+    {
+      "id": "navigator-rtc",
+      "name": "Navigator.rtc read-only attribute ([SameObject, SecureContext, RuntimeEnabled=RTCDiagnosticLogging]; returns the RTC instance; the Chrome 151 origin-trial entry point)",
+      "kind": "property",
+      "sourceRefs": [
+        "chromium-navigator-idl",
+        "chromestatus",
+        "runtime-features"
+      ]
+    },
+    {
+      "id": "rtc-interface",
+      "name": "RTC interface (Exposed=Window, SecureContext, RuntimeEnabled=RTCDiagnosticLogging; container for the three diagnostic-logging session methods)",
+      "kind": "interface",
+      "sourceRefs": [
+        "chromium-rtc-idl",
+        "chromestatus"
+      ]
+    },
+    {
+      "id": "startdiagnosticlogging",
+      "name": "RTC.startDiagnosticLogging(optional RTCStartDiagnosticLoggingOptions = {}) -> Promise<DOMString> (session id; TypeError rejection on metadata over 5 entries or over-100-char key/value)",
+      "kind": "method",
+      "sourceRefs": [
+        "chromium-rtc-idl",
+        "wicg-spec",
+        "explainer"
+      ]
+    },
+    {
+      "id": "finishdiagnosticlogging",
+      "name": "RTC.finishDiagnosticLogging(optional RTCFinishDiagnosticLoggingOptions = {}) -> Promise<undefined> (finalizes the log; optional upload only with allowUpload + user authorization)",
+      "kind": "method",
+      "sourceRefs": [
+        "chromium-rtc-idl",
+        "wicg-spec",
+        "explainer"
+      ]
+    },
+    {
+      "id": "canceldiagnosticlogging",
+      "name": "RTC.cancelDiagnosticLogging() -> Promise<undefined> (terminates the session and discards collected data; nothing can be uploaded afterwards)",
+      "kind": "method",
+      "sourceRefs": [
+        "chromium-rtc-idl",
+        "wicg-spec",
+        "explainer"
+      ]
+    },
+    {
+      "id": "diagnostic-logging-options",
+      "name": "RTCDiagnosticLoggingOptions dictionary (metadata: record<DOMString, DOMString> = {}; at most 5 entries, keys/values at most 100 characters)",
+      "kind": "dictionary",
+      "sourceRefs": [
+        "chromium-options-idl",
+        "wicg-spec"
+      ]
+    },
+    {
+      "id": "start-diagnostic-logging-options",
+      "name": "RTCStartDiagnosticLoggingOptions : RTCDiagnosticLoggingOptions dictionary (allowUpload: boolean = false)",
+      "kind": "dictionary",
+      "sourceRefs": [
+        "chromium-options-idl",
+        "wicg-spec",
+        "explainer"
+      ]
+    },
+    {
+      "id": "finish-diagnostic-logging-options",
+      "name": "RTCFinishDiagnosticLoggingOptions : RTCDiagnosticLoggingOptions dictionary (metadata-only; allows finish-time metadata)",
+      "kind": "dictionary",
+      "sourceRefs": [
+        "chromium-options-idl",
+        "wicg-spec"
+      ]
+    },
+    {
+      "id": "spec-drift",
+      "name": "Specification drift contract: current WICG draft relocates the three methods to static RTCPeerConnection members while Chrome 151 ships navigator.rtc; feature-detection covers both shapes",
+      "kind": "migration",
+      "sourceRefs": [
+        "wicg-spec",
+        "chromium-navigator-idl",
+        "crbug"
+      ]
+    }
+  ],
+  "documentation": [
+    {
+      "inventoryId": "navigator-rtc",
+      "href": "#syntax",
+      "dimensions": {
+        "syntax": {
+          "status": "documented",
+          "selector": "#syntax",
+          "sourceRefs": [
+            "chromium-navigator-idl"
+          ]
+        },
+        "inputs": {
+          "status": "not-applicable",
+          "selector": "#syntax",
+          "rationale": "A readonly attribute takes no arguments; navigator_rtc.idl (fetched 2026-08-16) defines no setter and no parameters.",
+          "sourceRefs": [
+            "chromium-navigator-idl"
+          ]
+        },
+        "outputs": {
+          "status": "documented",
+          "selector": "#syntax",
+          "sourceRefs": [
+            "chromium-navigator-idl"
+          ]
+        },
+        "errors": {
+          "status": "not-applicable",
+          "selector": "#at-a-glance",
+          "rationale": "Attribute access does not throw: when RTCDiagnosticLogging is not enabled the binding is absent (undefined), per the RuntimeEnabled gate in navigator_rtc.idl and runtime_enabled_features.json5.",
+          "sourceRefs": [
+            "chromium-navigator-idl",
+            "runtime-features"
+          ]
+        },
+        "context": {
+          "status": "documented",
+          "selector": "#at-a-glance",
+          "sourceRefs": [
+            "chromium-navigator-idl",
+            "runtime-features"
+          ]
+        },
+        "lifecycle": {
+          "status": "documented",
+          "selector": "#syntax",
+          "sourceRefs": [
+            "chromium-navigator-idl"
+          ]
+        },
+        "examples": {
+          "status": "documented",
+          "selector": "#examples",
+          "sourceRefs": [
+            "explainer",
+            "chromium-rtc-idl",
+            "showcase"
+          ]
+        },
+        "compatibility": {
+          "status": "documented",
+          "selector": "#browser-compatibility",
+          "sourceRefs": [
+            "chromestatus",
+            "bcd",
+            "webstatus"
+          ]
+        },
+        "securityPrivacy": {
+          "status": "documented",
+          "selector": "#visibility",
+          "sourceRefs": [
+            "explainer",
+            "chromestatus"
+          ]
+        }
+      }
+    },
+    {
+      "inventoryId": "rtc-interface",
+      "href": "#syntax",
+      "dimensions": {
+        "syntax": {
+          "status": "documented",
+          "selector": "#syntax",
+          "sourceRefs": [
+            "chromium-rtc-idl"
+          ]
+        },
+        "inputs": {
+          "status": "not-applicable",
+          "selector": "#syntax",
+          "rationale": "The interface is a method container with no constructor; parameters belong to its three methods, each documented under its own fragment (rtc.idl, fetched 2026-08-16).",
+          "sourceRefs": [
+            "chromium-rtc-idl"
+          ]
+        },
+        "outputs": {
+          "status": "not-applicable",
+          "selector": "#syntax",
+          "rationale": "The interface itself returns nothing; per-method return values are documented under each method fragment (rtc.idl, fetched 2026-08-16).",
+          "sourceRefs": [
+            "chromium-rtc-idl"
+          ]
+        },
+        "errors": {
+          "status": "not-applicable",
+          "selector": "#syntax",
+          "rationale": "No interface-level exceptions are defined; the only specified rejection is the per-method metadata TypeError, documented under startDiagnosticLogging/finishDiagnosticLogging.",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        },
+        "context": {
+          "status": "documented",
+          "selector": "#syntax",
+          "sourceRefs": [
+            "chromium-rtc-idl"
+          ]
+        },
+        "lifecycle": {
+          "status": "documented",
+          "selector": "#examples",
+          "sourceRefs": [
+            "explainer",
+            "wicg-spec"
+          ]
+        },
+        "examples": {
+          "status": "documented",
+          "selector": "#examples",
+          "sourceRefs": [
+            "explainer",
+            "showcase"
+          ]
+        },
+        "compatibility": {
+          "status": "documented",
+          "selector": "#browser-compatibility",
+          "sourceRefs": [
+            "chromestatus",
+            "bcd",
+            "webstatus"
+          ]
+        },
+        "securityPrivacy": {
+          "status": "documented",
+          "selector": "#visibility",
+          "sourceRefs": [
+            "explainer"
+          ]
+        }
+      }
+    },
+    {
+      "inventoryId": "startdiagnosticlogging",
+      "href": "#startdiagnosticlogging",
+      "dimensions": {
+        "syntax": {
+          "status": "documented",
+          "selector": "#syntax",
+          "sourceRefs": [
+            "chromium-rtc-idl",
+            "wicg-spec"
+          ]
+        },
+        "inputs": {
+          "status": "documented",
+          "selector": "#startdiagnosticlogging",
+          "sourceRefs": [
+            "chromium-options-idl",
+            "wicg-spec"
+          ]
+        },
+        "outputs": {
+          "status": "documented",
+          "selector": "#startdiagnosticlogging",
+          "sourceRefs": [
+            "wicg-spec",
+            "chromium-rtc-idl"
+          ]
+        },
+        "errors": {
+          "status": "documented",
+          "selector": "#startdiagnosticlogging",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        },
+        "context": {
+          "status": "documented",
+          "selector": "#syntax",
+          "sourceRefs": [
+            "chromium-rtc-idl"
+          ]
+        },
+        "lifecycle": {
+          "status": "documented",
+          "selector": "#startdiagnosticlogging",
+          "sourceRefs": [
+            "wicg-spec",
+            "explainer"
+          ]
+        },
+        "examples": {
+          "status": "documented",
+          "selector": "#examples",
+          "sourceRefs": [
+            "explainer",
+            "showcase"
+          ]
+        },
+        "compatibility": {
+          "status": "documented",
+          "selector": "#browser-compatibility",
+          "sourceRefs": [
+            "chromestatus",
+            "bcd"
+          ]
+        },
+        "securityPrivacy": {
+          "status": "documented",
+          "selector": "#visibility",
+          "sourceRefs": [
+            "explainer"
+          ]
+        }
+      }
+    },
+    {
+      "inventoryId": "finishdiagnosticlogging",
+      "href": "#finishdiagnosticlogging",
+      "dimensions": {
+        "syntax": {
+          "status": "documented",
+          "selector": "#syntax",
+          "sourceRefs": [
+            "chromium-rtc-idl",
+            "wicg-spec"
+          ]
+        },
+        "inputs": {
+          "status": "documented",
+          "selector": "#finishdiagnosticlogging",
+          "sourceRefs": [
+            "chromium-options-idl",
+            "wicg-spec"
+          ]
+        },
+        "outputs": {
+          "status": "documented",
+          "selector": "#finishdiagnosticlogging",
+          "sourceRefs": [
+            "wicg-spec",
+            "chromium-rtc-idl"
+          ]
+        },
+        "errors": {
+          "status": "documented",
+          "selector": "#finishdiagnosticlogging",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        },
+        "context": {
+          "status": "documented",
+          "selector": "#syntax",
+          "sourceRefs": [
+            "chromium-rtc-idl"
+          ]
+        },
+        "lifecycle": {
+          "status": "documented",
+          "selector": "#finishdiagnosticlogging",
+          "sourceRefs": [
+            "wicg-spec",
+            "explainer"
+          ]
+        },
+        "examples": {
+          "status": "documented",
+          "selector": "#examples",
+          "sourceRefs": [
+            "explainer",
+            "showcase"
+          ]
+        },
+        "compatibility": {
+          "status": "documented",
+          "selector": "#browser-compatibility",
+          "sourceRefs": [
+            "chromestatus",
+            "bcd"
+          ]
+        },
+        "securityPrivacy": {
+          "status": "documented",
+          "selector": "#visibility",
+          "sourceRefs": [
+            "explainer"
+          ]
+        }
+      }
+    },
+    {
+      "inventoryId": "canceldiagnosticlogging",
+      "href": "#canceldiagnosticlogging",
+      "dimensions": {
+        "syntax": {
+          "status": "documented",
+          "selector": "#syntax",
+          "sourceRefs": [
+            "chromium-rtc-idl",
+            "wicg-spec"
+          ]
+        },
+        "inputs": {
+          "status": "not-applicable",
+          "selector": "#canceldiagnosticlogging",
+          "rationale": "cancelDiagnosticLogging() takes no arguments in both the Chromium rtc.idl binding and the current WICG draft (both fetched 2026-08-16).",
+          "sourceRefs": [
+            "chromium-rtc-idl",
+            "wicg-spec"
+          ]
+        },
+        "outputs": {
+          "status": "documented",
+          "selector": "#canceldiagnosticlogging",
+          "sourceRefs": [
+            "wicg-spec",
+            "chromium-rtc-idl"
+          ]
+        },
+        "errors": {
+          "status": "not-applicable",
+          "selector": "#canceldiagnosticlogging",
+          "rationale": "The spec's cancel algorithm defines no rejection path: it terminates the session, discards data, and resolves; only the metadata-taking methods specify a TypeError (WICG draft, fetched 2026-08-16).",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        },
+        "context": {
+          "status": "documented",
+          "selector": "#syntax",
+          "sourceRefs": [
+            "chromium-rtc-idl"
+          ]
+        },
+        "lifecycle": {
+          "status": "documented",
+          "selector": "#canceldiagnosticlogging",
+          "sourceRefs": [
+            "wicg-spec",
+            "explainer"
+          ]
+        },
+        "examples": {
+          "status": "documented",
+          "selector": "#examples",
+          "sourceRefs": [
+            "explainer",
+            "showcase"
+          ]
+        },
+        "compatibility": {
+          "status": "documented",
+          "selector": "#browser-compatibility",
+          "sourceRefs": [
+            "chromestatus",
+            "bcd"
+          ]
+        },
+        "securityPrivacy": {
+          "status": "documented",
+          "selector": "#visibility",
+          "sourceRefs": [
+            "explainer"
+          ]
+        }
+      }
+    },
+    {
+      "inventoryId": "diagnostic-logging-options",
+      "href": "#syntax",
+      "dimensions": {
+        "syntax": {
+          "status": "documented",
+          "selector": "#syntax",
+          "sourceRefs": [
+            "chromium-options-idl",
+            "wicg-spec"
+          ]
+        },
+        "inputs": {
+          "status": "documented",
+          "selector": "#startdiagnosticlogging",
+          "sourceRefs": [
+            "wicg-spec",
+            "chromium-options-idl"
+          ]
+        },
+        "outputs": {
+          "status": "not-applicable",
+          "selector": "#syntax",
+          "rationale": "WebIDL dictionaries are pure input values; nothing is returned through them (rtc_diagnostic_logging_options.idl, fetched 2026-08-16).",
+          "sourceRefs": [
+            "chromium-options-idl"
+          ]
+        },
+        "errors": {
+          "status": "documented",
+          "selector": "#startdiagnosticlogging",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        },
+        "context": {
+          "status": "not-applicable",
+          "selector": "#syntax",
+          "rationale": "Dictionaries carry no exposure of their own; they are usable wherever the RTC methods are exposed (Window, SecureContext), per rtc.idl (fetched 2026-08-16).",
+          "sourceRefs": [
+            "chromium-rtc-idl",
+            "chromium-options-idl"
+          ]
+        },
+        "lifecycle": {
+          "status": "not-applicable",
+          "selector": "#startdiagnosticlogging",
+          "rationale": "Dictionary defaults (metadata = {}) are applied per call; the dictionary holds no state and has no transitions (rtc_diagnostic_logging_options.idl, fetched 2026-08-16).",
+          "sourceRefs": [
+            "chromium-options-idl"
+          ]
+        },
+        "examples": {
+          "status": "documented",
+          "selector": "#examples",
+          "sourceRefs": [
+            "explainer",
+            "chromium-options-idl"
+          ]
+        },
+        "compatibility": {
+          "status": "documented",
+          "selector": "#browser-compatibility",
+          "sourceRefs": [
+            "chromestatus",
+            "bcd"
+          ]
+        },
+        "securityPrivacy": {
+          "status": "documented",
+          "selector": "#visibility",
+          "sourceRefs": [
+            "explainer"
+          ]
+        }
+      }
+    },
+    {
+      "inventoryId": "start-diagnostic-logging-options",
+      "href": "#syntax",
+      "dimensions": {
+        "syntax": {
+          "status": "documented",
+          "selector": "#syntax",
+          "sourceRefs": [
+            "chromium-options-idl",
+            "wicg-spec"
+          ]
+        },
+        "inputs": {
+          "status": "documented",
+          "selector": "#startdiagnosticlogging",
+          "sourceRefs": [
+            "wicg-spec",
+            "chromium-options-idl"
+          ]
+        },
+        "outputs": {
+          "status": "not-applicable",
+          "selector": "#syntax",
+          "rationale": "WebIDL dictionaries are pure input values; nothing is returned through them (rtc_diagnostic_logging_options.idl, fetched 2026-08-16).",
+          "sourceRefs": [
+            "chromium-options-idl"
+          ]
+        },
+        "errors": {
+          "status": "documented",
+          "selector": "#startdiagnosticlogging",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        },
+        "context": {
+          "status": "not-applicable",
+          "selector": "#syntax",
+          "rationale": "Dictionaries carry no exposure of their own; they are usable wherever the RTC methods are exposed (Window, SecureContext), per rtc.idl (fetched 2026-08-16).",
+          "sourceRefs": [
+            "chromium-rtc-idl",
+            "chromium-options-idl"
+          ]
+        },
+        "lifecycle": {
+          "status": "not-applicable",
+          "selector": "#startdiagnosticlogging",
+          "rationale": "allowUpload = false is a per-call default with no persisted state; the upload decision it feeds is resolved at finish time by the user agent (WICG draft, fetched 2026-08-16).",
+          "sourceRefs": [
+            "wicg-spec",
+            "chromium-options-idl"
+          ]
+        },
+        "examples": {
+          "status": "documented",
+          "selector": "#examples",
+          "sourceRefs": [
+            "explainer",
+            "chromium-options-idl"
+          ]
+        },
+        "compatibility": {
+          "status": "documented",
+          "selector": "#browser-compatibility",
+          "sourceRefs": [
+            "chromestatus",
+            "bcd"
+          ]
+        },
+        "securityPrivacy": {
+          "status": "documented",
+          "selector": "#visibility",
+          "sourceRefs": [
+            "explainer"
+          ]
+        }
+      }
+    },
+    {
+      "inventoryId": "finish-diagnostic-logging-options",
+      "href": "#syntax",
+      "dimensions": {
+        "syntax": {
+          "status": "documented",
+          "selector": "#syntax",
+          "sourceRefs": [
+            "chromium-options-idl",
+            "wicg-spec"
+          ]
+        },
+        "inputs": {
+          "status": "documented",
+          "selector": "#finishdiagnosticlogging",
+          "sourceRefs": [
+            "wicg-spec",
+            "chromium-options-idl"
+          ]
+        },
+        "outputs": {
+          "status": "not-applicable",
+          "selector": "#syntax",
+          "rationale": "WebIDL dictionaries are pure input values; nothing is returned through them (rtc_diagnostic_logging_options.idl, fetched 2026-08-16).",
+          "sourceRefs": [
+            "chromium-options-idl"
+          ]
+        },
+        "errors": {
+          "status": "documented",
+          "selector": "#finishdiagnosticlogging",
+          "sourceRefs": [
+            "wicg-spec"
+          ]
+        },
+        "context": {
+          "status": "not-applicable",
+          "selector": "#syntax",
+          "rationale": "Dictionaries carry no exposure of their own; they are usable wherever the RTC methods are exposed (Window, SecureContext), per rtc.idl (fetched 2026-08-16).",
+          "sourceRefs": [
+            "chromium-rtc-idl",
+            "chromium-options-idl"
+          ]
+        },
+        "lifecycle": {
+          "status": "not-applicable",
+          "selector": "#finishdiagnosticlogging",
+          "rationale": "A metadata-only per-call bag with no state of its own; finish-time metadata is merged into the finalized log by the finish algorithm (WICG draft, fetched 2026-08-16).",
+          "sourceRefs": [
+            "wicg-spec",
+            "chromium-options-idl"
+          ]
+        },
+        "examples": {
+          "status": "documented",
+          "selector": "#examples",
+          "sourceRefs": [
+            "explainer",
+            "chromium-options-idl"
+          ]
+        },
+        "compatibility": {
+          "status": "documented",
+          "selector": "#browser-compatibility",
+          "sourceRefs": [
+            "chromestatus",
+            "bcd"
+          ]
+        },
+        "securityPrivacy": {
+          "status": "documented",
+          "selector": "#visibility",
+          "sourceRefs": [
+            "explainer"
+          ]
+        }
+      }
+    },
+    {
+      "inventoryId": "spec-drift",
+      "href": "#drift",
+      "dimensions": {
+        "syntax": {
+          "status": "documented",
+          "selector": "#drift",
+          "sourceRefs": [
+            "wicg-spec",
+            "chromium-navigator-idl"
+          ]
+        },
+        "inputs": {
+          "status": "not-applicable",
+          "selector": "#drift",
+          "rationale": "The drift is a spec-level surface relocation, not a callable; the methods' parameters are identical in both shapes and documented under each method fragment.",
+          "sourceRefs": [
+            "wicg-spec",
+            "chromium-rtc-idl"
+          ]
+        },
+        "outputs": {
+          "status": "not-applicable",
+          "selector": "#drift",
+          "rationale": "No return values of its own; both shapes return the same promises, documented under each method fragment (WICG draft + rtc.idl, fetched 2026-08-16).",
+          "sourceRefs": [
+            "wicg-spec",
+            "chromium-rtc-idl"
+          ]
+        },
+        "errors": {
+          "status": "not-applicable",
+          "selector": "#drift",
+          "rationale": "The relocation defines no error surface; feature-detecting both shapes (documented with example code) is the migration-safe pattern.",
+          "sourceRefs": [
+            "wicg-spec",
+            "crbug"
+          ]
+        },
+        "context": {
+          "status": "documented",
+          "selector": "#drift",
+          "sourceRefs": [
+            "wicg-spec",
+            "chromium-navigator-idl"
+          ]
+        },
+        "lifecycle": {
+          "status": "documented",
+          "selector": "#drift",
+          "sourceRefs": [
+            "crbug",
+            "wicg-spec"
+          ]
+        },
+        "examples": {
+          "status": "documented",
+          "selector": "#drift",
+          "sourceRefs": [
+            "wicg-spec",
+            "chromium-navigator-idl"
+          ]
+        },
+        "compatibility": {
+          "status": "documented",
+          "selector": "#browser-compatibility",
+          "sourceRefs": [
+            "chromestatus",
+            "bcd"
+          ]
+        },
+        "securityPrivacy": {
+          "status": "not-applicable",
+          "selector": "#visibility",
+          "rationale": "Surface relocation only: both shapes gate on the same secure-context and explicit user-authorization model; no privacy delta between navigator.rtc and RTCPeerConnection statics (WICG draft + explainer, fetched 2026-08-16).",
+          "sourceRefs": [
+            "wicg-spec",
+            "explainer"
+          ]
+        }
+      }
+    }
+  ],
+  "notes": "In-place update of the canonical reference for feature 5091582546149376 (2026-08-16), per the cross-release identity rule in server.ts (the earlier page is canonical when a feature's OT window drifts to later milestones). Corrections against the 2026-08-12 chromestatus data and current sources: OT window 151-156 (was 150-155 from July 2026 data); finishDiagnosticLogging now takes an optional metadata options bag (Chromium IDL + current draft); added the Specification-drift section — the current WICG draft relocates the methods to static RTCPeerConnection members while Chromium ships navigator.rtc — with a copy/paste-safe both-shapes feature-detection example (globalThis-guarded). No BCD entry and no webstatus.dev entry exist (checked 2026-08-16); the compat table is an interim ChromeStatus view labelled as such. The embedded showcase demo is the canonical CPS route for this feature id. Round-8 fix: the RTC interface lifecycle dimension maps to #examples (the start -> finish/cancel mutually-exclusive session lifecycle), not the availability metadata in #at-a-glance; the navigator.rtc attribute's lifecycle mapping stays on #at-a-glance because that attribute's lifecycle IS its origin-trial/flag-gated availability. Round-9 fix: the navigator.rtc lifecycle dimension maps to #syntax, which now states the [SameObject] instance-lifetime contract (every read returns the same RTC instance for the Navigator's lifetime) rather than release metadata."
+}

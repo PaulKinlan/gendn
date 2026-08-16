@@ -7,13 +7,24 @@
   <link rel="stylesheet" href="/public/styles.css">
   <style>
     .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
-    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
     .doc-table th { background: var(--bg-stone); font-weight: 600; }
     .doc-table tr:last-child td { border-bottom: none; }
     .doc-table code { background: transparent; border: none; padding: 0; }
+    .doc-table caption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); text-align: left; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .table-wrap { overflow-x: auto; }
     .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
     .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
-    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--text-charcoal); display: block; margin-bottom: 0.4rem; }
+    .baseline-banner { border: 2px solid var(--border-black); background: var(--bg-paper); box-shadow: var(--thin-shadow); padding: 1rem 1.2rem; margin: 0 0 var(--space-5); }
+    .baseline-banner .baseline-status { font-family: var(--font-mono); font-weight: 500; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-charcoal); margin: 0 0 0.6rem; }
+    .baseline-banner .baseline-browsers { display: flex; flex-wrap: wrap; gap: var(--space-2); list-style: none; padding: 0; margin: 0 0 0.6rem; }
+    .baseline-banner .baseline-browsers li { font-family: var(--font-mono); font-size: 0.75rem; border: 1px solid var(--border-black); padding: 0.25rem 0.6rem; background: var(--bg-stone); }
+    .baseline-banner .baseline-browsers li.limited { border-style: dashed; color: var(--text-muted); }
+    .baseline-banner p { font-size: 0.9rem; margin: 0; }
+    .example-embed { margin: var(--space-4) 0; }
+    .example-embed iframe { display: block; max-width: 100%; }
+    .example-embed figcaption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); margin-top: 0.5rem; }
   </style>
 </head>
 <body>
@@ -23,55 +34,212 @@
   <header class="lede-block">
     <p class="eyebrow">v147 · developer trial · workers · performance</p>
     <h1>JS Profiling in Dedicated Workers</h1>
-    <p class="lede">Chrome 147 adds developer trial support for the JavaScript Self-Profiling API (<code>Profiler</code>) inside dedicated workers. Previously only available on the main thread, this lets worker scripts collect their own JavaScript call-stack samples, enabling fine-grained profiling of CPU-intensive work that's already been offloaded to a worker.</p>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome 94+ (main thread)</li>
+        <li>Chrome 147 &middot; workers, dev trial</li>
+        <li class="limited">Firefox &middot; no signal</li>
+        <li class="limited">Safari &middot; no signal</li>
+      </ul>
+      <p>Baseline: <strong>Limited availability</strong>. The underlying JS Self-Profiling API is Chromium-only &mdash; the <a href="https://webstatus.dev/features/profiler" target="_blank" rel="noopener">webstatus.dev entry <code>profiler</code></a> (queried 2026-08-16) records Chrome availability since 94 (2021-09-21) with no Firefox or Safari implementation. The <em>dedicated-worker</em> exposure this page documents is a Chrome 147 developer trial; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Profiler.json" target="_blank" rel="noopener">BCD <code>api.Profiler</code></a> has no worker-support subfeature yet.</p>
+    </div>
+
+    <p class="lede">Chrome 147 adds developer trial support for the JavaScript Self-Profiling API (<code>Profiler</code>) inside dedicated workers. Previously only available on the main thread in Chrome, this lets worker scripts collect their own JavaScript call-stack samples, enabling fine-grained profiling of CPU-intensive work that&rsquo;s already been offloaded to a worker.</p>
   </header>
 
   <div class="warn-block">
-    <strong>Developer trial</strong>
-    This API is behind a flag in Chrome 147. Enable <code>chrome://flags/#enable-experimental-web-platform-features</code> to try it. The API surface may change before it ships. Do not use in production.
+    <strong>Developer trial in Chrome 147</strong>
+    <p>The worker exposure is behind a flag in Chrome 147: enable <code>chrome://flags/#enable-experimental-web-platform-features</code>, or launch with <code>--enable-blink-features=ProfilerAPIForDedicatedWorker</code> &mdash; the runtime-enabled feature is <code>ProfilerAPIForDedicatedWorker</code> (status <code>experimental</code>; the main-thread <code>ProfilerAPI</code> is <code>stable</code>) in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener"><code>runtime_enabled_features.json5</code></a>. Profiling also remains gated by the <code>js-profiling</code> Document Policy (the <a href="https://chromestatus.com/feature/5159559872249856" target="_blank" rel="noopener">chromestatus summary</a> notes Document Policy support <em>for workers</em> is tracked separately). The API surface may change before it ships &mdash; do not rely on it in production.</p>
   </div>
 
   <section>
-    <h2>at a glance</h2>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
     <table class="doc-table">
-      <tr><th>Status in Chrome 147</th><td>Developer trial (behind a flag)</td></tr>
-      <tr><th>Extends</th><td>JS Self-Profiling API (<code>Profiler</code>), available on main thread since Chrome 94</td></tr>
-      <tr><th>Flag</th><td><code>enable-experimental-web-platform-features</code></td></tr>
-      <tr><th>Spec</th><td><a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">WICG JS Self-Profiling API</a></td></tr>
-      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5159559872249856" target="_blank" rel="noopener">5159559872249856 — JS Profiling in Dedicated Workers</a></td></tr>
+      <caption>At a glance</caption>
+      <tr><th scope="row">Status in Chrome 147</th><td>Developer trial (behind a flag); dev-trial stage <code>desktop_first</code> 147, status &ldquo;Proposed&rdquo; (chromestatus, updated 2026-03-06)</td></tr>
+      <tr><th scope="row">Extends</th><td>JS Self-Profiling API (<code>Profiler</code>), available on the main thread since Chrome 94</td></tr>
+      <tr><th scope="row">Flag (147)</th><td><code>chrome://flags/#enable-experimental-web-platform-features</code> or <code>--enable-blink-features=ProfilerAPIForDedicatedWorker</code></td></tr>
+      <tr><th scope="row">Policy gate</th><td><code>Document-Policy: js-profiling</code> (spec configuration point; worker policy propagation tracked separately per chromestatus)</td></tr>
+      <tr><th scope="row">Spec</th><td><a href="https://wicg.github.io/js-self-profiling/#the-profiler-interface" target="_blank" rel="noopener">WICG JS Self-Profiling API — the Profiler interface</a> (IDL already <code>[Exposed=(Window, Worker)]</code>)</td></tr>
+      <tr><th scope="row">Intent to Prototype</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/69975252.050a0220.1f729.0da6.GAE%40google.com" target="_blank" rel="noopener">blink-dev thread</a> (stage URL from the chromestatus record)</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5159559872249856" target="_blank" rel="noopener">5159559872249856 — JS Profiling in Dedicated Workers</a></td></tr>
     </table>
-    <span class="citation">Source: <a href="https://chromestatus.com/feature/5159559872249856" target="_blank" rel="noopener">chromestatus.com/feature/5159559872249856</a></span>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5159559872249856" target="_blank" rel="noopener">chromestatus.com/feature/5159559872249856</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium runtime_enabled_features.json5</a> (both fetched 2026-08-16)</span>
   </section>
 
   <section>
-    <h2>why it exists</h2>
-    <p>Many performance-sensitive applications move heavy computation into dedicated workers to keep the main thread responsive — data processing, cryptography, image manipulation, WebAssembly wasm calls, etc. Without profiling support in workers, developers had to rely on external DevTools profiling or indirect measurement.</p>
-    <p>The JS Self-Profiling API allows scripts to collect statistical call-stack samples of their own execution and report them as structured JSON-compatible traces. Extending this to dedicated workers lets performance engineers measure exactly where worker CPU time is spent without special DevTools attachment.</p>
-    <span class="citation">Source: <a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">WICG JS Self-Profiling API</a></span>
+    <h2 id="syntax">Syntax</h2>
+    <p>Verbatim from the WICG draft (fetched 2026-08-16) &mdash; note the exposure is already <code>(Window, Worker)</code> in the spec; Chrome 147&rsquo;s dev trial brings the implementation in line for dedicated workers:</p>
+<pre><code>[Exposed=(Window, Worker)]
+interface Profiler : EventTarget {
+  readonly attribute DOMHighResTimeStamp sampleInterval;
+  readonly attribute boolean stopped;
+
+  constructor(ProfilerInitOptions options);
+  Promise&lt;ProfilerTrace&gt; stop();
+};
+
+dictionary ProfilerInitOptions {
+  required DOMHighResTimeStamp sampleInterval;
+  required unsigned long maxBufferSize;
+};
+
+typedef DOMString ProfilerResource;
+
+dictionary ProfilerTrace {
+  required sequence&lt;ProfilerResource&gt; resources;
+  required sequence&lt;ProfilerFrame&gt; frames;
+  required sequence&lt;ProfilerStack&gt; stacks;
+  required sequence&lt;ProfilerSample&gt; samples;
+};
+
+dictionary ProfilerFrame {
+  required DOMString name;
+  unsigned long long resourceId;
+  unsigned long long line;
+  unsigned long long column;
+};
+
+dictionary ProfilerStack {
+  unsigned long long parentId;
+  required unsigned long long frameId;
+};
+
+dictionary ProfilerSample {
+  required DOMHighResTimeStamp timestamp;
+  unsigned long long stackId;
+};</code></pre>
+    <span class="citation">Source: <a href="https://wicg.github.io/js-self-profiling/#the-profiler-interface" target="_blank" rel="noopener">WICG JS Self-Profiling — IDL</a></span>
+
+    <h3 id="constructor"><code>new Profiler(options)</code></h3>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>Constructor — parameters and exceptions</caption>
+      <tr><th scope="col">Part</th><th scope="col">Detail</th></tr>
+      <tr><th scope="row">Parameters</th><td><code>options</code> (required <code>ProfilerInitOptions</code>) &mdash; <code>sampleInterval</code> (required, <code>DOMHighResTimeStamp</code>, ms between samples; the UA may round it up) and <code>maxBufferSize</code> (required, <code>unsigned long</code>, sample-buffer size limit)</td></tr>
+      <tr><th scope="row">Behavior</th><td>Sampling starts immediately on construction; the profiling session is associated with the constructing global (window <em>or</em> dedicated worker)</td></tr>
+      <tr><th scope="row">Exceptions</th><td><code>TypeError</code> if the required <code>options</code> argument is omitted, or if either required member (<code>sampleInterval</code>, <code>maxBufferSize</code>) is missing &mdash; standard WebIDL conversion of a required dictionary, before the profiling algorithm runs; <code>RangeError</code> if <code>sampleInterval</code> is less than 0; <code>NotAllowedError</code> DOMException if the <code>js-profiling</code> Document Policy does not allow profiling for the global</td></tr>
+    </table>
+    </div>
+
+    <h3 id="members">Attributes, <code>stop()</code>, and the <code>samplebufferfull</code> event</h3>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>Members</caption>
+      <tr><th scope="col">Member</th><th scope="col">Detail</th></tr>
+      <tr><th scope="row"><code>sampleInterval</code></th><td>Read-only <code>DOMHighResTimeStamp</code> &mdash; the effective sampling interval of the session</td></tr>
+      <tr><th scope="row"><code>stopped</code></th><td>Read-only boolean &mdash; whether the session has stopped (explicitly or by filling the buffer)</td></tr>
+      <tr><th scope="row"><code>stop()</code></th><td>Stops sampling; returns <code>Promise&lt;ProfilerTrace&gt;</code> resolving with the collected trace (<code>resources</code> / <code>frames</code> / <code>stacks</code> / <code>samples</code>). If the session state is already stopped, the promise rejects with an <code>InvalidStateError</code> DOMException</td></tr>
+      <tr><th scope="row"><code>samplebufferfull</code> event</th><td>Fired at the <code>Profiler</code> (an <code>EventTarget</code>) when collected samples reach <code>maxBufferSize</code>; per the draft&rsquo;s algorithm the session moves to stopped and collects no further samples. <em>Implementation note:</em> in shipped Chromium, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/timing/profiler_group.cc" target="_blank" rel="noopener"><code>profiler_group.cc</code></a> only dispatches the event &mdash; <code>stopped</code> flips when <code>stop()</code> runs (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/timing/profiler.cc" target="_blank" rel="noopener"><code>profiler.cc</code></a>), so calling <code>stop()</code> from the event handler retrieves the collected trace</td></tr>
+    </table>
+    </div>
+    <h3 id="trace-shape">Decoding a <code>ProfilerTrace</code></h3>
+    <p>The four arrays are linked by <em>indices</em>: each ID field is the position of the referenced record in its array (the spec&rsquo;s &ldquo;get an element ID&rdquo; returns the element&rsquo;s index). <code>sample.stackId</code> indexes <code>trace.stacks</code> (absent when no JavaScript was executing at that sample); <code>stack.frameId</code> indexes <code>trace.frames</code> (the function at this node); <code>stack.parentId</code> indexes <code>trace.stacks</code> (absent at the stack root); <code>frame.resourceId</code> indexes <code>trace.resources</code> (the script URL; absent for frames with no attributable resource), with <code>line</code>/<code>column</code> optional in the same way.</p>
+<pre><code>// Reconstruct the full call stack for one sample
+function stackOf(trace, sample) {
+  const frames = [];
+  for (let id = sample.stackId; id !== undefined; id = trace.stacks[id].parentId) {
+    const frame = trace.frames[trace.stacks[id].frameId];
+    const resource = frame.resourceId !== undefined ? trace.resources[frame.resourceId] : "(native)";
+    frames.push(`${frame.name} @ ${resource}:${frame.line ?? "?"}:${frame.column ?? "?"}`);
+  }
+  return frames; // innermost (leaf) first, root last
+}</code></pre>
+    <span class="citation">Source: <a href="https://wicg.github.io/js-self-profiling/#the-profiler-interface" target="_blank" rel="noopener">WICG JS Self-Profiling — Profiler interface and processing model</a> (trace dictionaries; get-a-stack-ID / get-a-frame-ID / get-an-element-ID algorithms)</span>
   </section>
 
   <section>
-    <h2>example</h2>
-<pre><code>// Inside a dedicated worker script (requires flag in Chrome 147)
+    <h2 id="why">why it exists</h2>
+    <p>Many performance-sensitive applications move heavy computation into dedicated workers to keep the main thread responsive &mdash; data processing, cryptography, image manipulation, WebAssembly calls, etc. Without profiling support in workers, developers had to rely on external DevTools profiling or indirect measurement.</p>
+    <p>The JS Self-Profiling API allows scripts to collect statistical call-stack samples of their own execution and report them as structured JSON-compatible traces. Extending this to dedicated workers lets performance engineers measure exactly where worker CPU time is spent without special DevTools attachment &mdash; with the capability still gated by the <code>js-profiling</code> Document Policy.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">WICG JS Self-Profiling API</a>; <a href="https://chromestatus.com/feature/5159559872249856" target="_blank" rel="noopener">chromestatus feature summary</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">example</h2>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/js-profiling-in-dedicated-workers/worker-profile/"
+        title="Live example — Worker profile (JS Profiling in Dedicated Workers)" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase: profiling a dedicated worker&rsquo;s computation with the real <code>Profiler</code> surface (degrades honestly when the flag is off). <span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/js-profiling-in-dedicated-workers/worker-profile/" target="_blank" rel="noopener">chrome-platform-showcase — worker profile</a></span></figcaption>
+    </figure>
+
+    <h3 id="example-worker">Profiling inside a dedicated worker</h3>
+<pre><code>// Serve the document with:  Document-Policy: js-profiling
+// (profiling is policy-gated; worker policy propagation is tracked separately)
+
+// Inside a dedicated worker script (requires the flag in Chrome 147)
 const profiler = new Profiler({
-  sampleInterval: 10,     // ms between samples
-  maxBufferSize: 10_000,  // max samples before auto-stop
+  sampleInterval: 10,     // required — requested ms between samples
+  maxBufferSize: 10_000,  // required — max samples before auto-stop
 });
+
+// The UA may round the requested interval up — read back the EFFECTIVE rate
+console.log(`sampling every ${profiler.sampleInterval} ms`);
+
+// A session ends exactly once. stop() rejects with InvalidStateError on a
+// second call, and the samplebufferfull callback can race the completion
+// path — so both paths funnel through one idempotent finish().
+let finished = false;
+async function finish(truncated) {
+  if (finished || profiler.stopped) return;   // stopped: e.g. externally disposed
+  finished = true;
+  const trace = await profiler.stop();
+  postMessage({ trace, truncated }); // trace: { resources, frames, stacks, samples }
+}
+
+// If the buffer fills first, sampling ends early — deliver what was collected.
+// (In shipped Chromium, stopped stays false here and stop() succeeds; see the
+// samplebufferfull note above.)
+profiler.addEventListener("samplebufferfull", () => finish(true));
 
 // ... run your computation ...
 await doHeavyWork();
 
-const trace = await profiler.stop();
-// trace is a ProfilerTrace object with stacks and frames
-postMessage({ trace });</code></pre>
-    <span class="citation">Source: <a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">WICG JS Self-Profiling API</a></span>
+await finish(false);</code></pre>
+    <span class="citation">Source: <a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">WICG JS Self-Profiling API</a> (constructor requirements, samplebufferfull, ProfilerTrace shape)</span>
   </section>
 
   <section>
-    <h2>see also</h2>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <p><a href="https://github.com/mdn/browser-compat-data/blob/main/api/Profiler.json" target="_blank" rel="noopener">BCD <code>api.Profiler</code></a> covers the main-thread API (Chrome 94, marked <em>experimental</em>; subfeatures <code>Profiler()</code>, <code>sampleInterval</code>, <code>stop</code>, <code>stopped</code>) and has <strong>no entry yet for worker exposure</strong> &mdash; the worker rows below are an <strong>interim</strong> view from ChromeStatus, labelled as such:</p>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <caption>Compatibility — BCD (main thread) + interim ChromeStatus (workers)</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col"><code>Profiler</code> (main thread)</th><th scope="col"><code>Profiler</code> in dedicated workers</th></tr></thead>
+      <tr><td>Chrome</td><td>94 (BCD; experimental)</td><td>147 dev trial behind a flag (ChromeStatus; not shipped)</td></tr>
+      <tr><td>Edge</td><td>94 (BCD mirror)</td><td>Not separately reported</td></tr>
+      <tr><td>Firefox</td><td>No (BCD)</td><td>No signal (ChromeStatus <code>ff_views</code>)</td></tr>
+      <tr><td>Safari</td><td>No (BCD)</td><td>No signal (ChromeStatus <code>safari_views</code>)</td></tr>
+      <tr><td colspan="3"><em>Per-member data:</em> BCD's subfeatures cover <code>Profiler()</code>, <code>sampleInterval</code>, <code>stop</code>, and <code>stopped</code> (same versions as the interface). The <code>samplebufferfull</code> event and the trace dictionaries have <strong>no per-version entry anywhere</strong> &mdash; explicitly unknown; the interface-level rows above are the only available signal.</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Profiler.json" target="_blank" rel="noopener">BCD api/Profiler.json</a>; <a href="https://webstatus.dev/features/profiler" target="_blank" rel="noopener">webstatus.dev — profiler</a>; <a href="https://chromestatus.com/feature/5159559872249856" target="_blank" rel="noopener">chromestatus.com/feature/5159559872249856</a> (all fetched 2026-08-16)</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>Specifications</caption>
+      <thead><tr><th scope="col">Specification</th><th scope="col">Status</th></tr></thead>
+      <tr><td><a href="https://wicg.github.io/js-self-profiling/#the-profiler-interface" target="_blank" rel="noopener">JS Self-Profiling API — the Profiler interface</a></td><td>WICG draft (incubation); IDL exposure <code>(Window, Worker)</code></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">wicg.github.io/js-self-profiling</a> (fetched 2026-08-16)</span>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
     <ul>
       <li><a href="https://chromestatus.com/feature/5159559872249856" target="_blank" rel="noopener">Chrome Platform Status — JS Profiling in Dedicated Workers</a></li>
       <li><a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">WICG JS Self-Profiling API specification</a></li>
+      <li><a href="https://webstatus.dev/features/profiler" target="_blank" rel="noopener">webstatus.dev — <code>profiler</code></a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/js-profiling-in-dedicated-workers/" target="_blank" rel="noopener">chrome-platform-showcase: JS Profiling in Dedicated Workers</a> (concepts: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/js-profiling-in-dedicated-workers/worker-profile/" target="_blank" rel="noopener">worker profile</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/js-profiling-in-dedicated-workers/profiler-api-explorer/" target="_blank" rel="noopener">profiler API explorer</a>)</li>
     </ul>
   </section>
 
