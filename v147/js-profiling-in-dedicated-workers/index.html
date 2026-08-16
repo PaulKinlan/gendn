@@ -181,23 +181,26 @@ const profiler = new Profiler({
 // The UA may round the requested interval up — read back the EFFECTIVE rate
 console.log(`sampling every ${profiler.sampleInterval} ms`);
 
-// If the buffer fills first, sampling ends early — retrieve the trace then.
-// (In the shipped Chromium implementation, stopped stays false here and
-// stop() succeeds; see the samplebufferfull note above.)
-profiler.addEventListener("samplebufferfull", async () => {
+// A session ends exactly once. stop() rejects with InvalidStateError on a
+// second call, and the samplebufferfull callback can race the completion
+// path — so both paths funnel through one idempotent finish().
+let finished = false;
+async function finish(truncated) {
+  if (finished || profiler.stopped) return;   // stopped: e.g. externally disposed
+  finished = true;
   const trace = await profiler.stop();
-  postMessage({ trace, truncated: true });
-});
+  postMessage({ trace, truncated }); // trace: { resources, frames, stacks, samples }
+}
+
+// If the buffer fills first, sampling ends early — deliver what was collected.
+// (In shipped Chromium, stopped stays false here and stop() succeeds; see the
+// samplebufferfull note above.)
+profiler.addEventListener("samplebufferfull", () => finish(true));
 
 // ... run your computation ...
 await doHeavyWork();
 
-// A stop() on an already-stopped session would reject with
-// InvalidStateError — the guard keeps this path to a single stop().
-if (!profiler.stopped) {
-  const trace = await profiler.stop();
-  postMessage({ trace }); // trace: { resources, frames, stacks, samples }
-}</code></pre>
+await finish(false);</code></pre>
     <span class="citation">Source: <a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">WICG JS Self-Profiling API</a> (constructor requirements, samplebufferfull, ProfilerTrace shape)</span>
   </section>
 
@@ -212,6 +215,7 @@ if (!profiler.stopped) {
       <tr><td>Edge</td><td>94 (BCD mirror)</td><td>Not separately reported</td></tr>
       <tr><td>Firefox</td><td>No (BCD)</td><td>No signal (ChromeStatus <code>ff_views</code>)</td></tr>
       <tr><td>Safari</td><td>No (BCD)</td><td>No signal (ChromeStatus <code>safari_views</code>)</td></tr>
+      <tr><td colspan="3"><em>Per-member data:</em> BCD's subfeatures cover <code>Profiler()</code>, <code>sampleInterval</code>, <code>stop</code>, and <code>stopped</code> (same versions as the interface). The <code>samplebufferfull</code> event and the trace dictionaries have <strong>no per-version entry anywhere</strong> &mdash; explicitly unknown; the interface-level rows above are the only available signal.</td></tr>
     </table>
     </div>
     <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Profiler.json" target="_blank" rel="noopener">BCD api/Profiler.json</a>; <a href="https://webstatus.dev/features/profiler" target="_blank" rel="noopener">webstatus.dev — profiler</a>; <a href="https://chromestatus.com/feature/5159559872249856" target="_blank" rel="noopener">chromestatus.com/feature/5159559872249856</a> (all fetched 2026-08-16)</span>
