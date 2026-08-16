@@ -137,7 +137,19 @@ dictionary ProfilerSample {
       <tr><th scope="row"><code>samplebufferfull</code> event</th><td>Fired at the <code>Profiler</code> (an <code>EventTarget</code>) when collected samples reach <code>maxBufferSize</code>; per the draft&rsquo;s algorithm the session moves to stopped and collects no further samples. <em>Implementation note:</em> in shipped Chromium, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/timing/profiler_group.cc" target="_blank" rel="noopener"><code>profiler_group.cc</code></a> only dispatches the event &mdash; <code>stopped</code> flips when <code>stop()</code> runs (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/timing/profiler.cc" target="_blank" rel="noopener"><code>profiler.cc</code></a>), so calling <code>stop()</code> from the event handler retrieves the collected trace</td></tr>
     </table>
     </div>
-    <span class="citation">Source: <a href="https://wicg.github.io/js-self-profiling/#the-profiler-interface" target="_blank" rel="noopener">WICG JS Self-Profiling — Profiler interface and processing model</a></span>
+    <h3 id="trace-shape">Decoding a <code>ProfilerTrace</code></h3>
+    <p>The four arrays are linked by <em>indices</em>: each ID field is the position of the referenced record in its array (the spec&rsquo;s &ldquo;get an element ID&rdquo; returns the element&rsquo;s index). <code>sample.stackId</code> indexes <code>trace.stacks</code> (absent when no JavaScript was executing at that sample); <code>stack.frameId</code> indexes <code>trace.frames</code> (the function at this node); <code>stack.parentId</code> indexes <code>trace.stacks</code> (absent at the stack root); <code>frame.resourceId</code> indexes <code>trace.resources</code> (the script URL; absent for frames with no attributable resource), with <code>line</code>/<code>column</code> optional in the same way.</p>
+<pre><code>// Reconstruct the full call stack for one sample
+function stackOf(trace, sample) {
+  const frames = [];
+  for (let id = sample.stackId; id !== undefined; id = trace.stacks[id].parentId) {
+    const frame = trace.frames[trace.stacks[id].frameId];
+    const resource = frame.resourceId !== undefined ? trace.resources[frame.resourceId] : "(native)";
+    frames.push(`${frame.name} @ ${resource}:${frame.line ?? "?"}:${frame.column ?? "?"}`);
+  }
+  return frames; // innermost (leaf) first, root last
+}</code></pre>
+    <span class="citation">Source: <a href="https://wicg.github.io/js-self-profiling/#the-profiler-interface" target="_blank" rel="noopener">WICG JS Self-Profiling — Profiler interface and processing model</a> (trace dictionaries; get-a-stack-ID / get-a-frame-ID / get-an-element-ID algorithms)</span>
   </section>
 
   <section>
@@ -180,8 +192,10 @@ profiler.addEventListener("samplebufferfull", async () => {
 // ... run your computation ...
 await doHeavyWork();
 
-if (!profiler.stopped) {   // guard against double-stop: a second stop()
-  const trace = await profiler.stop();  // rejects with InvalidStateError
+// A stop() on an already-stopped session would reject with
+// InvalidStateError — the guard keeps this path to a single stop().
+if (!profiler.stopped) {
+  const trace = await profiler.stop();
   postMessage({ trace }); // trace: { resources, frames, stacks, samples }
 }</code></pre>
     <span class="citation">Source: <a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">WICG JS Self-Profiling API</a> (constructor requirements, samplebufferfull, ProfilerTrace shape)</span>
