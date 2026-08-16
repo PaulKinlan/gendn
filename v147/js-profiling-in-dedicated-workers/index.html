@@ -133,8 +133,8 @@ dictionary ProfilerSample {
       <tr><th scope="col">Member</th><th scope="col">Detail</th></tr>
       <tr><th scope="row"><code>sampleInterval</code></th><td>Read-only <code>DOMHighResTimeStamp</code> &mdash; the effective sampling interval of the session</td></tr>
       <tr><th scope="row"><code>stopped</code></th><td>Read-only boolean &mdash; whether the session has stopped (explicitly or by filling the buffer)</td></tr>
-      <tr><th scope="row"><code>stop()</code></th><td>Stops sampling; returns <code>Promise&lt;ProfilerTrace&gt;</code> resolving with the collected trace (<code>resources</code> / <code>frames</code> / <code>stacks</code> / <code>samples</code>)</td></tr>
-      <tr><th scope="row"><code>samplebufferfull</code> event</th><td>Fired at the <code>Profiler</code> (an <code>EventTarget</code>) when collected samples reach <code>maxBufferSize</code>; the session moves to stopped and collects no further samples</td></tr>
+      <tr><th scope="row"><code>stop()</code></th><td>Stops sampling; returns <code>Promise&lt;ProfilerTrace&gt;</code> resolving with the collected trace (<code>resources</code> / <code>frames</code> / <code>stacks</code> / <code>samples</code>). If the session state is already stopped, the promise rejects with an <code>InvalidStateError</code> DOMException</td></tr>
+      <tr><th scope="row"><code>samplebufferfull</code> event</th><td>Fired at the <code>Profiler</code> (an <code>EventTarget</code>) when collected samples reach <code>maxBufferSize</code>; per the draft&rsquo;s algorithm the session moves to stopped and collects no further samples. <em>Implementation note:</em> in shipped Chromium, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/timing/profiler_group.cc" target="_blank" rel="noopener"><code>profiler_group.cc</code></a> only dispatches the event &mdash; <code>stopped</code> flips when <code>stop()</code> runs (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/timing/profiler.cc" target="_blank" rel="noopener"><code>profiler.cc</code></a>), so calling <code>stop()</code> from the event handler retrieves the collected trace</td></tr>
     </table>
     </div>
     <span class="citation">Source: <a href="https://wicg.github.io/js-self-profiling/#the-profiler-interface" target="_blank" rel="noopener">WICG JS Self-Profiling — Profiler interface and processing model</a></span>
@@ -162,23 +162,27 @@ dictionary ProfilerSample {
 
 // Inside a dedicated worker script (requires the flag in Chrome 147)
 const profiler = new Profiler({
-  sampleInterval: 10,     // required — ms between samples (UA may round up)
+  sampleInterval: 10,     // required — requested ms between samples
   maxBufferSize: 10_000,  // required — max samples before auto-stop
 });
 
-profiler.addEventListener("samplebufferfull", () => {
-  // Buffer filled before stop(): the session has already stopped.
-  console.assert(profiler.stopped === true);
+// The UA may round the requested interval up — read back the EFFECTIVE rate
+console.log(`sampling every ${profiler.sampleInterval} ms`);
+
+// If the buffer fills first, sampling ends early — retrieve the trace then.
+// (In the shipped Chromium implementation, stopped stays false here and
+// stop() succeeds; see the samplebufferfull note above.)
+profiler.addEventListener("samplebufferfull", async () => {
+  const trace = await profiler.stop();
+  postMessage({ trace, truncated: true });
 });
 
 // ... run your computation ...
 await doHeavyWork();
 
-// profiler.stopped is false here unless the buffer filled during the work
-if (!profiler.stopped) {
-  const trace = await profiler.stop();
-  // trace: { resources, frames, stacks, samples } — JSON-serializable
-  postMessage({ trace });
+if (!profiler.stopped) {   // guard against double-stop: a second stop()
+  const trace = await profiler.stop();  // rejects with InvalidStateError
+  postMessage({ trace }); // trace: { resources, frames, stacks, samples }
 }</code></pre>
     <span class="citation">Source: <a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">WICG JS Self-Profiling API</a> (constructor requirements, samplebufferfull, ProfilerTrace shape)</span>
   </section>
