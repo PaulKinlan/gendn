@@ -208,10 +208,12 @@ if ("subApps" in window) {
   }
 
   // If /calc was ALREADY installed, add() reported InvalidStateError in
-  // failedApps and returned no id — recover it from the registry.
-  // appName is the only sub-app metadata list() exposes, so match on it.
-  calcId ??= Object.keys(installed)
-    .find((id) =&gt; installed[id].appName === "Calculator");
+  // failedApps and returned no id. The parent ships its own sub apps, so
+  // it KNOWS their manifest ids (a manifest without an explicit id gets
+  // start_url sans fragment — here "/calc"): recover by direct registry
+  // membership, never by display name, which is neither stable nor unique.
+  const CALC_ID = "/calc";
+  calcId ??= CALC_ID in installed ? CALC_ID : undefined;
 
   // Uninstall by manifest id — behind its OWN labelled action: consent
   // to install does not imply consent to undo it, and the spec's
@@ -264,7 +266,7 @@ if ("subApps" in window) {
 
   <section>
     <h2 id="security-privacy">Security and privacy</h2>
-    <p>The spec&rsquo;s <a href="https://wicg.github.io/sub-apps/#security-and-privacy-considerations" target="_blank" rel="noopener">&sect;5 Security and Privacy Considerations</a> is normative about the threat model: a sub app has <strong>no separate origin</strong> &mdash; parent and sub apps are one entity to the same-origin policy and share cookies, IndexedDB, LocalStorage, and Cache Storage (&sect;5.1); permissions are inherited bidirectionally (&sect;5.2); installation requires express user consent through a unified prompt naming the requesting origin (&sect;5.3); name/icon spoofing risk is mitigated by restricting the API to isolated contexts with signature verification (&sect;5.4); OS-integration reach is bounded by per-integration user approval (&sect;5.5); and launcher exhaustion is bounded by the 50-installed / 20-per-prompt quotas (&sect;5.6).</p>
+    <p>The spec&rsquo;s <a href="https://wicg.github.io/sub-apps/#security-and-privacy-considerations" target="_blank" rel="noopener">&sect;5 Security and Privacy Considerations</a> is normative about the threat model: a sub app has <strong>no separate origin</strong> &mdash; parent and sub apps are one entity to the same-origin policy and share cookies, IndexedDB, LocalStorage, and Cache Storage (&sect;5.1); permissions are inherited bidirectionally (&sect;5.2); installation requires express user consent through a unified prompt naming the requesting origin (&sect;5.3) &mdash; except under managed enterprise deployments, where the <a href="https://chromeenterprise.google/policies/#DefaultSubAppsWithoutPromptsSetting" target="_blank" rel="noopener">prompt-suppression policies</a> documented in the Lifecycle section install without that prompt; name/icon spoofing risk is mitigated by restricting the API to isolated contexts with signature verification (&sect;5.4); OS-integration reach is bounded by per-integration user approval (&sect;5.5); and launcher exhaustion is bounded by the 50-installed / 20-per-prompt quotas (&sect;5.6).</p>
     <span class="citation">Source: <a href="https://wicg.github.io/sub-apps/#security-and-privacy-considerations" target="_blank" rel="noopener">spec &sect;5</a>, fetched 2026-08-30</span>
   </section>
 
