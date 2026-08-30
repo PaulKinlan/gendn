@@ -95,13 +95,22 @@ dictionary SubAppsAddResponse {
      (Permissions-Policy: sub-apps=(self) served from the Signed Web
      Bundle). type="module" gives the snippet top-level await. --&gt;
 &lt;script type="module"&gt;
-const { installedApps, failedApps } =
-    await window.subApps.add(["/calc", "/docs"]);
+try {
+  const { installedApps, failedApps } =
+      await window.subApps.add(["/calc", "/docs"]);
 
-// Partial success is normal: guard before using a manifest id.
-const calcId = installedApps["/calc"];
-for (const [path, err] of Object.entries(failedApps)) {
-  console.warn(`${path} failed: ${err.name}`); // DataError, ConstraintError, ...
+  // Partial success is normal: guard before using a manifest id.
+  const calcId = installedApps["/calc"];
+  for (const [path, err] of Object.entries(failedApps)) {
+    console.warn(`${path} failed: ${err.name}`); // DataError, ConstraintError, ...
+  }
+} catch (err) {
+  // Whole-batch rejection — nothing was installed. NotAllowedError when
+  // the user declines the unified prompt (a NORMAL path, not a bug), or
+  // SecurityError / NotSupportedError / TypeError / QuotaExceededError
+  // per the errors table above. Uncaught, this would surface as an
+  // unhandledrejection since nothing consumes a module's promise.
+  console.warn(`add() rejected: ${err.name}`);
 }
 &lt;/script&gt;</code></pre>
     <span class="citation">Source: adapted from the <a href="https://github.com/WICG/sub-apps" target="_blank" rel="noopener">WICG explainer&rsquo;s examples</a> (fetched 2026-08-30)</span>

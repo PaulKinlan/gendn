@@ -163,26 +163,35 @@ interface SubApps {
 
   <section>
     <h2 id="examples">Examples</h2>
-    <p>Install two sub apps, keep their manifest ids, enumerate, then uninstall &mdash; adapted from the <a href="https://github.com/WICG/sub-apps#examples" target="_blank" rel="noopener">WICG explainer&rsquo;s examples</a> (fetched 2026-08-30), which use exactly this <code>window.subApps</code> surface:</p>
+    <p>Install two sub apps, keep their manifest ids, enumerate, and offer an explicit uninstall action &mdash; adapted from the <a href="https://github.com/WICG/sub-apps#examples" target="_blank" rel="noopener">WICG explainer&rsquo;s examples</a> (fetched 2026-08-30), which use exactly this <code>window.subApps</code> surface:</p>
     <pre><code>&lt;!-- Prerequisites: running inside an installed IWA, and the parent
      document declares the "sub-apps" permissions policy (its default
      allowlist is 'none', so undeclared = SecurityError on every call).
      type="module" gives the snippet top-level-adjacent await. --&gt;
+&lt;button id="undo-calc" hidden&gt;Uninstall calculator&lt;/button&gt;
+
 &lt;script type="module"&gt;
 // Feature-detect: only exists in an installed IWA (IsolatedContext)
 if ("subApps" in window) {
-  // Install: relative paths to each sub app's start page.
-  // One unified permission prompt covers both.
-  const { installedApps, failedApps } =
-      await window.subApps.add(["/calc", "/docs"]);
+  let calcId;
+  try {
+    // Install: relative paths to each sub app's start page.
+    // One unified permission prompt covers both.
+    const { installedApps, failedApps } =
+        await window.subApps.add(["/calc", "/docs"]);
 
-  // installedApps maps install path -> manifest id; keep the ids.
-  // Partial success is normal: a path in failedApps has NO installedApps
-  // entry, so guard before using its id.
-  const calcId = installedApps["/calc"];
+    // installedApps maps install path -> manifest id; keep the ids.
+    // Partial success is normal: a path in failedApps has NO installedApps
+    // entry, so guard before using its id.
+    calcId = installedApps["/calc"];
 
-  for (const [path, err] of Object.entries(failedApps)) {
-    console.warn(`${path} failed: ${err.name}`); // e.g. DataError, ConstraintError
+    for (const [path, err] of Object.entries(failedApps)) {
+      console.warn(`${path} failed: ${err.name}`); // e.g. DataError, ConstraintError
+    }
+  } catch (err) {
+    // Whole-batch rejection — e.g. NotAllowedError when the user
+    // declines the unified prompt. Nothing was installed.
+    console.warn(`add() rejected: ${err.name}`);
   }
 
   // Enumerate: manifest id -> { appName }
@@ -191,9 +200,17 @@ if ("subApps" in window) {
     console.log(`${appName} (${id})`);
   }
 
-  // Uninstall by manifest id — only if that install actually succeeded.
+  // Uninstall by manifest id — behind its OWN labelled action: consent
+  // to install does not imply consent to undo it, and the spec's
+  // remove() steps show no browser prompt (§4.2).
+  const undo = document.querySelector("#undo-calc");
   if (calcId !== undefined) {
-    const { removedApps } = await window.subApps.remove([calcId]);
+    undo.hidden = false;
+    undo.addEventListener("click", async () =&gt; {
+      if (!confirm("Uninstall the calculator sub app?")) return;
+      const { removedApps } = await window.subApps.remove([calcId]);
+      console.log(`removed: ${removedApps.join(", ")}`);
+    });
   }
 }
 &lt;/script&gt;</code></pre>
