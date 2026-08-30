@@ -135,6 +135,7 @@ typedef sequence&lt;any&gt; AutofillValueEntry;
     <h3 id="example-basic">Adapting a form before the fill lands</h3>
     <pre><code>// The event fires at the document, BEFORE values are committed.
 document.addEventListener("autofill", async (event) =&gt; {
+  let reshaped = false;
   for (const entry of event.autofillValues) {
     // Blink today: { field, value } dictionary; spec draft: [field, value] tuple.
     const field = entry.field ?? entry[0];
@@ -145,6 +146,7 @@ document.addEventListener("autofill", async (event) =&gt; {
     const hasPrefecture = [...(field.form?.elements ?? [])].some((el) =&gt;
       (el.autocomplete || "").trim().split(/\s+/).includes("address-level1"));
     if (tokens.includes("country") &amp;&amp; value === "JP" &amp;&amp; !hasPrefecture) {
+      reshaped = true;
       // Reshape the form for the incoming data — e.g. a prefecture field.
       // The absence guard matters: the retry event after refill() carries
       // the same country value, and must not append a second field.
@@ -156,9 +158,11 @@ document.addEventListener("autofill", async (event) =&gt; {
   }
 
   // One-shot: ask the browser to re-run autofill against the modified form.
-  // Null on retry dispatches, and rejects with InvalidStateError after the
-  // implementation-defined timeout or if a refill is already pending.
-  if (event.refill) {
+  // Only when the form was actually reshaped — a no-op refill just makes
+  // every listener observe the fill twice. Null on retry dispatches, and
+  // rejects with InvalidStateError after the implementation-defined
+  // timeout or if a refill is already pending.
+  if (reshaped &amp;&amp; event.refill) {
     await event.refill();
   }
 });</code></pre>
@@ -182,7 +186,7 @@ document.addEventListener("autofill", async (event) =&gt; {
 // this is the draft's defined constructor surface, verbatim semantics.
 const emailField = document.createElement("input");
 emailField.autocomplete = "email";
-document.forms[0]?.append(emailField) ?? document.body.append(emailField);
+(document.forms[0] ?? document.body).append(emailField);
 const event = new AutofillEvent("autofill", {
   bubbles: true, // match the browser-fired contract (bubbles, not cancelable)
   autofillValues: [[emailField, "user@example.com"]], // default []
