@@ -96,11 +96,19 @@ dictionary SubAppsRemoveResponse {
 document.querySelector("#remove-legacy").addEventListener("click", async () =&gt; {
   if (!confirm("Uninstall the legacy tool sub app?")) return;
 
-  // Uninstall one known sub app; inspect per-id outcomes.
-  const { removedApps, failedApps } = await window.subApps.remove(["/legacy-tool"]);
-  console.log(`removed: ${removedApps.join(", ")}`);
-  for (const [id, err] of Object.entries(failedApps)) {
-    console.warn(`${id}: ${err.name}`); // e.g. NotFoundError if already gone
+  try {
+    // Uninstall one known sub app; inspect per-id outcomes.
+    const { removedApps, failedApps } = await window.subApps.remove(["/legacy-tool"]);
+    console.log(`removed: ${removedApps.join(", ")}`);
+    for (const [id, err] of Object.entries(failedApps)) {
+      console.warn(`${id}: ${err.name}`); // e.g. NotFoundError if already gone
+    }
+  } catch (err) {
+    // Whole-promise rejection — SecurityError (sub-apps policy not
+    // declared) or NotSupportedError (called from a sub-app document).
+    // EventTarget ignores an async listener's promise, so an uncaught
+    // rejection here would go unhandled.
+    console.warn(`remove() rejected: ${err.name}`);
   }
 });
 &lt;/script&gt;</code></pre>
