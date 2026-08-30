@@ -43,7 +43,7 @@
     <div class="baseline-banner" role="note" aria-label="Baseline status">
       <p class="baseline-status">Limited availability</p>
       <ul class="baseline-browsers">
-        <li>Chrome &middot; origin trial (147+, experimental)</li>
+        <li>Chrome &middot; origin trial (started 147; current window unrecorded)</li>
         <li class="limited">Edge &middot; unknown</li>
         <li class="limited">Firefox &middot; no signal</li>
         <li class="limited">Safari &middot; no signal</li>
@@ -57,7 +57,7 @@
 
   <div class="warn-block">
     <strong>Origin trial &mdash; surface may change, and this page&rsquo;s earlier revision is superseded</strong>
-    The event entered origin trial in Chrome 147 (this page&rsquo;s milestone listing category) and remains experimental at trunk: Blink&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener"><code>runtime_enabled_features.json5</code></a> lists <code>AutofillEvent</code> with <code>status: "experimental"</code>, <code>origin_trial_feature_name: "AutofillEvent"</code>, and third-party tokens allowed (fetched 2026-08-30). A token from <a href="https://developer.chrome.com/origintrials/" target="_blank" rel="noopener">developer.chrome.com/origintrials</a> is required in production; without one, test behind <code>chrome://flags/#enable-experimental-web-platform-features</code>. The specification is a WICG <em>Draft Community Group Report</em> (2026-03-04) and has changed materially since this page was first written &mdash; the event was previously described here as firing on individual form controls after autofill completed; the current draft and the Blink implementation fire it at the document <em>before</em> values are committed. Everything below reflects the 2026-08-30 sources.
+    The event entered origin trial in Chrome 147 (this page&rsquo;s milestone listing category) and remains experimental at trunk: Blink&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener"><code>runtime_enabled_features.json5</code></a> lists <code>AutofillEvent</code> with <code>status: "experimental"</code>, <code>origin_trial_feature_name: "AutofillEvent"</code>, and third-party tokens allowed (fetched 2026-08-30). A token from <a href="https://developer.chrome.com/origintrials/" target="_blank" rel="noopener">developer.chrome.com/origintrials</a> is required in production &mdash; and the ChromeStatus record lists no trial end milestone, so check the origin-trial console for the currently accepted window before relying on a token; without one, test behind <code>chrome://flags/#enable-experimental-web-platform-features</code>. The specification is a WICG <em>Draft Community Group Report</em> (2026-03-04) and has changed materially since this page was first written &mdash; the event was previously described here as firing on individual form controls after autofill completed; the current draft and the Blink implementation fire it at the document <em>before</em> values are committed. Everything below reflects the 2026-08-30 sources.
   </div>
 
   <section>
@@ -145,15 +145,16 @@ document.addEventListener("autofill", async (event) =&gt; {
     const tokens = (field.autocomplete || "").trim().split(/\s+/);
     const hasPrefecture = [...(field.form?.elements ?? [])].some((el) =&gt;
       (el.autocomplete || "").trim().split(/\s+/).includes("address-level1"));
-    if (tokens.includes("country") &amp;&amp; value === "JP" &amp;&amp; !hasPrefecture) {
-      reshaped = true;
+    if (tokens.includes("country") &amp;&amp; value === "JP" &amp;&amp; field.form &amp;&amp; !hasPrefecture) {
       // Reshape the form for the incoming data — e.g. a prefecture field.
       // The absence guard matters: the retry event after refill() carries
-      // the same country value, and must not append a second field.
+      // the same country value, and must not append a second field. The
+      // reshaped flag is set only after the insertion actually happens.
       const prefecture = document.createElement("input");
       prefecture.autocomplete = "address-level1";
       prefecture.placeholder = "Prefecture";
-      field.form?.append(prefecture);
+      field.form.append(prefecture);
+      reshaped = true;
     }
   }
 
