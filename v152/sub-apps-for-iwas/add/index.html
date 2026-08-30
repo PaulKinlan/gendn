@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>subApps.add() — Chrome 152 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; overflow-wrap: normal; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .lede-block h1, .lede { overflow-wrap: anywhere; }
+    p code, li code { overflow-wrap: anywhere; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v152/sub-apps-for-iwas/">&larr; Sub apps for IWAs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v152 &middot; method &middot; subapps interface</p>
+    <h1><code>subApps.add(install_paths)</code></h1>
+    <p class="lede">Requests installation of one or more sub apps under the calling parent Isolated Web App. Takes relative paths to each sub app&rsquo;s start HTML page, shows the user one unified consent prompt for the whole batch, then installs each entry independently &mdash; partial success is a normal outcome, reported per path.</p>
+  </header>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <pre><code>const response = await window.subApps.add(install_paths);
+// Promise&lt;SubAppsAddResponse&gt; add(sequence&lt;USVString&gt; install_paths);</code></pre>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/subapps/sub_apps.idl" target="_blank" rel="noopener">Blink sub_apps.idl at trunk</a> and <a href="https://wicg.github.io/sub-apps/#add-method" target="_blank" rel="noopener">spec &sect;4.1</a>, fetched 2026-08-30</span>
+  </section>
+
+  <section>
+    <h2 id="inputs">Inputs</h2>
+    <p><code>install_paths</code> &mdash; a <code>sequence&lt;USVString&gt;</code> of <em>relative paths</em>, each pointing at a sub app&rsquo;s start HTML page (the page must link a web app manifest). Each path must be a <a href="https://wicg.github.io/sub-apps/#valid-relative-path" target="_blank" rel="noopener">valid relative path</a>: not a valid absolute URL, starts with <code>/</code> but not <code>//</code>, non-empty, and parses against the document&rsquo;s base URL. At most 20 paths per call, and the parent may hold at most 50 installed sub apps in total (spec &sect;5.6 quotas).</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/sub-apps/#add-method" target="_blank" rel="noopener">spec &sect;4.1</a> and <a href="https://wicg.github.io/sub-apps/#security-and-privacy-considerations" target="_blank" rel="noopener">&sect;5.6</a>, fetched 2026-08-30</span>
+  </section>
+
+  <section>
+    <h2 id="outputs">Outputs</h2>
+    <p>A <code>Promise&lt;SubAppsAddResponse&gt;</code>. The dictionary splits per-path results so one bad entry does not fail the batch:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row"><code>installedApps</code></th><td><code>record&lt;USVString, ManifestId&gt;</code> &mdash; each successfully installed install path mapped to the sub app&rsquo;s manifest id (the manifest&rsquo;s <code>id</code>, falling back to <code>start_url</code> without fragment). These ids are the handles <a href="../remove/"><code>remove()</code></a> takes and the keys <a href="../list/"><code>list()</code></a> returns</td></tr>
+      <tr><th scope="row"><code>failedApps</code></th><td><code>record&lt;USVString, DOMException&gt;</code> &mdash; each failed install path mapped to the <code>DOMException</code> naming why (see Errors)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://wicg.github.io/sub-apps/#add-method" target="_blank" rel="noopener">spec &sect;4.1</a>, fetched 2026-08-30</span>
+  </section>
+
+  <section>
+    <h2 id="errors">Errors</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row"><code>SecurityError</code></th><td>Rejects the promise: the document is not allowed to use the <code>sub-apps</code> policy-controlled feature</td></tr>
+      <tr><th scope="row"><code>NotSupportedError</code></th><td>Rejects the promise: called from a sub-app document (sub apps cannot nest)</td></tr>
+      <tr><th scope="row"><code>TypeError</code></th><td>Rejects the promise: an entry is not a valid relative path, or fails to parse against the base URL</td></tr>
+      <tr><th scope="row"><code>QuotaExceededError</code></th><td>Rejects the promise: more than 20 paths in this call, or the call would push the parent past 50 installed sub apps</td></tr>
+      <tr><th scope="row"><code>NotAllowedError</code></th><td>Rejects the promise: the user denied the unified installation prompt</td></tr>
+      <tr><th scope="row"><code>DataError</code></th><td>Per-path in <code>failedApps</code>: fetching/processing that sub app&rsquo;s manifest failed</td></tr>
+      <tr><th scope="row"><code>InvalidStateError</code></th><td>Per-path in <code>failedApps</code>: a sub app with the same manifest id is already installed</td></tr>
+      <tr><th scope="row"><code>ConstraintError</code></th><td>Per-path in <code>failedApps</code>: scope overlap with the parent or an installed sub app, or the path points at the parent&rsquo;s own manifest</td></tr>
+      <tr><th scope="row"><code>OperationError</code></th><td>Per-path in <code>failedApps</code>: the platform install failed with a system or database error</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://wicg.github.io/sub-apps/#add-method" target="_blank" rel="noopener">spec &sect;4.1 method steps</a>, fetched 2026-08-30</span>
+  </section>
+  <section>
+    <h2 id="context">Context and exposure</h2>
+    <p>Callable only on the <code>SubApps</code> instance at <code>window.subApps</code>: <code>[Exposed=Window, SecureContext, IsolatedContext]</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/subapps/sub_apps.idl" target="_blank" rel="noopener">Blink&rsquo;s <code>sub_apps.idl</code></a> and the <a href="https://wicg.github.io/sub-apps/#subapps-interface" target="_blank" rel="noopener">spec</a> &mdash; an installed Isolated Web App on desktop Chrome, never an ordinary tab. Every call additionally requires the <a href="/v152/sub-apps-for-iwas/#permissions-policy"><code>sub-apps</code> policy-controlled feature</a> (default allowlist <code>&#39;none&#39;</code>; <code>Permissions-Policy: sub-apps=(self)</code> on the parent document) and rejects with <code>NotSupportedError</code> when called from a sub-app document &mdash; sub apps cannot manage sub apps.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/sub-apps/#subapps-interface" target="_blank" rel="noopener">spec &sect;4</a>, <a href="https://wicg.github.io/sub-apps/#permissions-policy" target="_blank" rel="noopener">&sect;6.1</a>; Blink IDL &mdash; all fetched 2026-08-30</span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">Lifecycle</h2>
+    <p>Path and quota validation happen up front; then, in parallel: the user agent requests consent through <strong>one unified installation dialog</strong> covering every requested sub app (spec &sect;5.3 &mdash; one prompt, not one per app; deniable as a whole with <code>NotAllowedError</code>), then for each path fetches and processes the manifest, derives the manifest id, checks duplicate-id and scope constraints, and registers the sub app with the platform launcher. The promise resolves once every entry has landed in <code>installedApps</code> or <code>failedApps</code>. Enterprise policies (<a href="https://chromeenterprise.google/policies/#DefaultSubAppsWithoutPromptsSetting" target="_blank" rel="noopener">DefaultSubAppsWithoutPromptsSetting</a> and the per-origin allow/block lists) can suppress the prompt. One disclosed ambiguity, preserved rather than invented: the spec&rsquo;s <a href="https://wicg.github.io/sub-apps/#fetch-and-process-the-manifest" target="_blank" rel="noopener">&ldquo;fetch and process the manifest&rdquo; algorithm is an explicit stub</a> (&ldquo;write the &lsquo;fetch and process the manifest&rsquo; algorithm&rdquo;, Issue #2), so the detailed manifest fetching/validation rules behind the <code>DataError</code> path are not yet normatively defined &mdash; everything else above is specified today.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/sub-apps/#add-method" target="_blank" rel="noopener">spec &sect;4.1</a>, <a href="https://wicg.github.io/sub-apps/#security-and-privacy-considerations" target="_blank" rel="noopener">&sect;5.3</a>, <a href="https://wicg.github.io/sub-apps/#fetch-and-process-the-manifest" target="_blank" rel="noopener">&sect;4.4 (stub)</a>; policies from the <a href="https://chromestatus.com/api/v0/features/6260680824061952" target="_blank" rel="noopener">ChromeStatus record</a> &mdash; fetched 2026-08-30</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+    <pre><code>// Parent IWA document; "sub-apps" permissions policy declared
+// (Permissions-Policy: sub-apps=(self) served from the Signed Web Bundle).
+const { installedApps, failedApps } =
+    await window.subApps.add(["/calc", "/docs"]);
+
+// Partial success is normal: guard before using a manifest id.
+const calcId = installedApps["/calc"];
+for (const [path, err] of Object.entries(failedApps)) {
+  console.warn(`${path} failed: ${err.name}`); // DataError, ConstraintError, ...
+}</code></pre>
+    <span class="citation">Source: adapted from the <a href="https://github.com/WICG/sub-apps" target="_blank" rel="noopener">WICG explainer&rsquo;s examples</a> (fetched 2026-08-30)</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">Compatibility</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Chrome (desktop)</th><td>152, inside Isolated Web Apps only &mdash; per the <a href="https://chromestatus.com/api/v0/features?milestone=152" target="_blank" rel="noopener">milestone=152 listing</a> and <a href="https://chromestatus.com/api/v0/features/6260680824061952" target="_blank" rel="noopener">ChromeStatus record</a> (2026-08-30); no BCD entry exists. Full interim table on the <a href="/v152/sub-apps-for-iwas/#compatibility">parent reference</a></td></tr>
+      <tr><th scope="row">Other browsers</th><td>unknown &mdash; no signal (see the <a href="/v152/sub-apps-for-iwas/#compatibility">parent compatibility table</a>)</td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="security-privacy">Security and privacy</h2>
+    <p>The unified consent prompt names the requesting origin and shows each sub app being installed (spec &sect;5.3); installation extends the app&rsquo;s OS reach only after that express permission. The shared threat model &mdash; single origin identity, bidirectional permission inheritance, explicit consent, quota limits &mdash; is documented in the <a href="/v152/sub-apps-for-iwas/#security-privacy">parent reference&rsquo;s security section</a> from <a href="https://wicg.github.io/sub-apps/#security-and-privacy-considerations" target="_blank" rel="noopener">spec &sect;5</a>.</p>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
