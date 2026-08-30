@@ -116,6 +116,7 @@ typedef sequence&lt;any&gt; AutofillValueEntry;
       <tr><th><code>refill</code></th><td>Nullable one-shot callback. Calling it returns a promise; the browser re-matches autofill data against the <em>modified</em> form, fires a retry <code>autofill</code> event (whose <code>refill</code> is <code>null</code>), and performs the fill (&sect;4.2). <code>refill</code> is <code>null</code> on retry dispatches and whenever the user agent deems refilling inappropriate &mdash; the null-on-retry rule prevents infinite modify/refill loops (&sect;3.1).</td></tr>
       <tr><th>Refill errors</th><td>The refill promise rejects with an <code>InvalidStateError</code> DOMException if called after the implementation-defined timeout since dispatch, if the event&rsquo;s allow-refill flag is false, or if a refill is already pending (&sect;4.2).</td></tr>
       <tr><th><code>full-address</code></th><td>New autofill field name: a control with <code>autocomplete="full-address"</code> asks the user agent (with permission) for the complete address data set, so the event can deliver fields the current form doesn&rsquo;t yet show (&sect;5).</td></tr>
+      <tr><th>Synthetic construction</th><td>The spec IDL defines <code>constructor(type, AutofillEventInit)</code> with init members <code>autofillValues</code> (default <code>[]</code>) and <code>allowRefill</code> (default <code>true</code>) so third-party autofill providers (password managers, extensions) can construct and dispatch structurally identical events (&sect;3, &sect;6.1). A synthetic event&rsquo;s <code>refill</code> reflects <code>allowRefill</code>; entries follow the same element/value shape. Blink does <strong>not</strong> expose this constructor today (see the Syntax divergence note) &mdash; in Chrome&rsquo;s origin trial only browser-fired events exist.</td></tr>
       <tr><th>Consent &amp; third parties</th><td>The event SHOULD fire only after explicit user consent to autofill (picking a suggestion). Password managers and extensions can dispatch structurally identical <code>AutofillEvent</code>s so pages behave consistently regardless of autofill source (&sect;6, &sect;6.1).</td></tr>
     </table>
     </div>
@@ -158,10 +159,24 @@ document.addEventListener("autofill", async (event) =&gt; {
      permission, for the user's COMPLETE address data — including fields
      this form doesn't show yet — so the autofill event can deliver them
      and the page can build the right fields before the fill lands. --&gt;
-&lt;form autocomplete="full-address"&gt;
+&lt;form&gt;
+  &lt;input name="address" autocomplete="full-address"&gt;
   &lt;input name="country" autocomplete="country"&gt;
   &lt;div id="dynamic-address-fields"&gt;&lt;/div&gt;
 &lt;/form&gt;</code></pre>
+    <p>Placement note, disclosed: the spec&rsquo;s normative sentence says &ldquo;when a <em>form control</em> has the <code>autocomplete</code> attribute set to <code>full-address</code>&rdquo;, so the token is shown on a control here &mdash; a <code>&lt;form&gt;</code> element&rsquo;s own <code>autocomplete</code> attribute only accepts <code>on</code>/<code>off</code> in <a href="https://html.spec.whatwg.org/multipage/form-control-infrastructure.html#autofill" target="_blank" rel="noopener">HTML&rsquo;s autofill section</a>. The <a href="https://wicg.github.io/autofill-event/#full-address" target="_blank" rel="noopener">draft&rsquo;s own &sect;5 example</a> places it on the <code>&lt;form&gt;</code>, contradicting its normative text &mdash; a draft inconsistency, not a documented second syntax.</p>
+
+    <h3 id="example-synthetic">Synthetic construction (third-party autofill providers)</h3>
+    <pre><code>// Spec &sect;3 + &sect;6.1: a password manager or extension can construct and
+// dispatch a structurally identical event so pages behave the same
+// regardless of autofill source. NOT runnable against Chrome today —
+// Blink's IDL exposes no constructor (divergence disclosed above);
+// this is the draft's defined constructor surface, verbatim semantics.
+const event = new AutofillEvent("autofill", {
+  autofillValues: [[emailField, "user@example.com"]], // default []
+  allowRefill: false,                                 // default true
+});
+document.dispatchEvent(event);</code></pre>
 
     <p>The <a href="https://chromestatus.com/api/v0/features/5137581018841088" target="_blank" rel="noopener">ChromeStatus record</a>&rsquo;s own runnable samples are Yoav Weiss&rsquo;s <a href="https://yoavweiss.github.io/autofill_demo/autofill_event_demo.html" target="_blank" rel="noopener">autofill event demo</a> and <a href="https://yoavweiss.github.io/autofill_demo/credit_card_autofill_demo.html" target="_blank" rel="noopener">credit-card autofill demo</a> (both HTTP&nbsp;200, 2026-08-30).</p>
     <span class="citation">Source: adapted from <a href="https://wicg.github.io/autofill-event/#example" target="_blank" rel="noopener">spec &sect;1.2 Example</a> with the Blink/spec shape divergence handled explicitly; sample links from the <a href="https://chromestatus.com/api/v0/features/5137581018841088" target="_blank" rel="noopener">ChromeStatus record</a>.</span>
