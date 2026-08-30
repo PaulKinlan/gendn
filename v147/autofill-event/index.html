@@ -145,11 +145,18 @@ document.addEventListener("autofill", async (event) =&gt; {
     // keep the grouping prefix (section-* / shipping / billing) — a
     // "shipping address-level1" control must not suppress the billing one,
     // and the inserted control must join the country field's group so
-    // refill can associate it with the right address.
-    const tokens = (field.autocomplete || "").trim().split(/\s+/);
+    // refill can associate it with the right address. HTML's grammar also
+    // allows a trailing "webauthn" token ("shipping country webauthn"):
+    // strip it first, or it masquerades as the field token.
+    const parseTokens = (list) =&gt; {
+      const t = (list || "").trim().split(/\s+/);
+      if (t.at(-1) === "webauthn") t.pop();
+      return t;
+    };
+    const tokens = parseTokens(field.autocomplete);
     const group = tokens.slice(0, -1).join(" ");
     const hasPrefecture = [...(field.form?.elements ?? [])].some((el) =&gt; {
-      const t = (el.autocomplete || "").trim().split(/\s+/);
+      const t = parseTokens(el.autocomplete);
       return t.at(-1) === "address-level1" &amp;&amp; t.slice(0, -1).join(" ") === group;
     });
     if (tokens.at(-1) === "country" &amp;&amp; value === "JP" &amp;&amp; field.form &amp;&amp; !hasPrefecture) {
