@@ -173,6 +173,7 @@ interface SubApps {
 
 &lt;script type="module"&gt;
 // Feature-detect: only exists in an installed IWA (IsolatedContext)
+const status = document.querySelector("#subapps-status");
 if ("subApps" in window) {
   let calcId;
   try {
@@ -191,8 +192,13 @@ if ("subApps" in window) {
     }
   } catch (err) {
     // Whole-batch rejection — e.g. NotAllowedError when the user
-    // declines the unified prompt. Nothing was installed.
-    console.warn(`add() rejected: ${err.name}`);
+    // declines the unified prompt, or SecurityError when the sub-apps
+    // permissions policy (default 'none') is not declared even though
+    // window.subApps exists. Nothing was installed — say so visibly.
+    status.textContent = `add() rejected: ${err.name}` +
+      (err.name === "SecurityError"
+        ? " — declare Permissions-Policy: sub-apps=(self) on the parent document."
+        : "");
   }
 
   // Enumerate: manifest id -> { appName }. list() can reject whole-promise
@@ -202,7 +208,7 @@ if ("subApps" in window) {
   try {
     installed = await window.subApps.list();
   } catch (err) {
-    console.warn(`list() rejected: ${err.name}`);
+    status.textContent = `list() rejected: ${err.name}`; // SecurityError / OperationError
   }
   for (const [id, { appName }] of Object.entries(installed)) {
     console.log(`${appName} (${id})`);
@@ -233,7 +239,7 @@ if ("subApps" in window) {
       } catch (err) {
         // SecurityError / NotSupportedError — EventTarget ignores an
         // async listener's promise, so catch it here.
-        console.warn(`remove() rejected: ${err.name}`);
+        status.textContent = `remove() rejected: ${err.name}`;
       }
     });
   }
@@ -241,7 +247,7 @@ if ("subApps" in window) {
   // Honest unsupported path: in an ordinary tab (or any non-IWA
   // context) window.subApps does not exist — say so instead of
   // rendering nothing.
-  document.querySelector("#subapps-status").textContent =
+  status.textContent =
     "window.subApps is unavailable here: this API requires an installed " +
     "Isolated Web App with the sub-apps permissions policy declared.";
 }
