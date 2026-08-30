@@ -58,7 +58,7 @@
 
   <div class="warn-block" id="iwa-only">
     <strong>Isolated Web Apps only &mdash; this API does not exist on the open web</strong>
-    <p>The entire API surface is annotated <code>[SecureContext, IsolatedContext]</code> in both the <a href="https://wicg.github.io/sub-apps/#extensions-to-window" target="_blank" rel="noopener">spec IDL</a> and Blink&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/subapps/sub_apps.idl" target="_blank" rel="noopener"><code>sub_apps.idl</code> at trunk</a> (fetched 2026-08-30): <code>window.subApps</code> is <code>undefined</code> in a normal browser tab or an ordinary installed PWA. It is exposed only inside an installed Isolated Web App (Chrome ships IWAs on desktop today; mobile exposure unknown &mdash; see the compatibility table), and even there each call is further gated by the <a href="#permissions-policy"><code>sub-apps</code> permissions-policy feature</a>, whose default allowlist is <code>'none'</code>. The spec is a WICG unofficial draft and its <a href="https://wicg.github.io/sub-apps/#fetch-and-process-the-manifest" target="_blank" rel="noopener">&ldquo;fetch and process the manifest&rdquo; algorithm is still a stub</a> (&ldquo;write the &lsquo;fetch and process the manifest&rsquo; algorithm&rdquo;, Issue #2) &mdash; details may still move.</p>
+    <p>The entire API surface is annotated <code>[SecureContext, IsolatedContext]</code> in both the <a href="https://wicg.github.io/sub-apps/#extensions-to-window" target="_blank" rel="noopener">spec IDL</a> and Blink&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/subapps/sub_apps.idl" target="_blank" rel="noopener"><code>sub_apps.idl</code> at trunk</a> (fetched 2026-08-30): <code>window.subApps</code> is <code>undefined</code> in a normal browser tab or an ordinary installed PWA. It is exposed only inside an installed Isolated Web App (Chrome ships IWAs on desktop today; mobile exposure unknown &mdash; see the compatibility table), and even there each call is further gated by the <a href="#permissions-policy"><code>sub-apps</code> permissions-policy feature</a>, whose default allowlist is <code>'none'</code>. The spec is a WICG unofficial draft and its <a href="https://wicg.github.io/sub-apps/#fetch-and-process-the-manifest" target="_blank" rel="noopener">&ldquo;fetch and process the manifest&rdquo; algorithm is still a stub</a> (&ldquo;write the &lsquo;fetch and process the manifest&rsquo; algorithm&rdquo;, <a href="https://github.com/WICG/sub-apps/issues/2" target="_blank" rel="noopener">Issue #2</a>) &mdash; details may still move.</p>
   </div>
 
   <section>
@@ -216,8 +216,11 @@ if ("subApps" in window) {
     undo.addEventListener("click", async () =&gt; {
       if (!confirm("Uninstall the calculator sub app?")) return;
       try {
-        const { removedApps } = await window.subApps.remove([calcId]);
+        const { removedApps, failedApps } = await window.subApps.remove([calcId]);
         console.log(`removed: ${removedApps.join(", ")}`);
+        for (const [id, err] of Object.entries(failedApps)) {
+          console.warn(`${id}: ${err.name}`); // e.g. NotFoundError, OperationError
+        }
       } catch (err) {
         // SecurityError / NotSupportedError — EventTarget ignores an
         // async listener's promise, so catch it here.
