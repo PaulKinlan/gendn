@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>subApps.remove() — Chrome 152 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; overflow-wrap: normal; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .lede-block h1, .lede { overflow-wrap: anywhere; }
+    p code, li code { overflow-wrap: anywhere; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v152/sub-apps-for-iwas/">&larr; Sub apps for IWAs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v152 &middot; method &middot; subapps interface</p>
+    <h1><code>subApps.remove(manifest_ids)</code></h1>
+    <p class="lede">Uninstalls one or more previously installed sub apps of the calling parent Isolated Web App, addressed by the manifest ids that <a href="/v152/sub-apps-for-iwas/add/"><code>add()</code></a> returned. Per-id results are reported independently &mdash; a missing id does not fail the batch.</p>
+  </header>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <pre><code>const response = await window.subApps.remove(manifest_ids);
+// Promise&lt;SubAppsRemoveResponse&gt; remove(sequence&lt;USVString&gt; manifest_ids);
+
+dictionary SubAppsRemoveResponse {
+  sequence&lt;USVString&gt; removedApps;             // uninstalled manifest ids
+  record&lt;USVString, DOMException&gt; failedApps;  // manifest id -&gt; failure
+};</code></pre>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/subapps/sub_apps.idl" target="_blank" rel="noopener">Blink sub_apps.idl at trunk</a> and <a href="https://wicg.github.io/sub-apps/#remove-method" target="_blank" rel="noopener">spec &sect;4.2</a>, fetched 2026-08-30</span>
+  </section>
+
+  <section>
+    <h2 id="inputs">Inputs</h2>
+    <p><code>manifest_ids</code> &mdash; a <code>sequence&lt;USVString&gt;</code> of manifest ids of the sub apps to uninstall: the values <a href="/v152/sub-apps-for-iwas/add/"><code>add()</code></a> returned in <code>installedApps</code>, or the keys of <a href="/v152/sub-apps-for-iwas/list/"><code>list()</code></a>&rsquo;s result. Each id must satisfy the same <a href="https://wicg.github.io/sub-apps/#valid-relative-path" target="_blank" rel="noopener">valid-relative-path</a> rules as <code>add()</code> paths (a manifest id is a path under the shared origin).</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/sub-apps/#remove-method" target="_blank" rel="noopener">spec &sect;4.2</a>, fetched 2026-08-30</span>
+  </section>
+
+  <section>
+    <h2 id="outputs">Outputs</h2>
+    <p>A <code>Promise&lt;SubAppsRemoveResponse&gt;</code>:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row"><code>removedApps</code></th><td><code>sequence&lt;ManifestId&gt;</code> &mdash; the ids successfully uninstalled from the system launcher and registry</td></tr>
+      <tr><th scope="row"><code>failedApps</code></th><td><code>record&lt;USVString, DOMException&gt;</code> &mdash; each failed id mapped to the <code>DOMException</code> naming why (see Errors)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://wicg.github.io/sub-apps/#remove-method" target="_blank" rel="noopener">spec &sect;4.2</a>, fetched 2026-08-30</span>
+  </section>
+
+  <section>
+    <h2 id="errors">Errors</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row"><code>SecurityError</code></th><td>Rejects the promise: <code>sub-apps</code> policy-controlled feature not allowed</td></tr>
+      <tr><th scope="row"><code>NotSupportedError</code></th><td>Rejects the promise: called from a sub-app document</td></tr>
+      <tr><th scope="row"><code>TypeError</code></th><td>Rejects the promise: an id is not a valid relative path or fails to parse</td></tr>
+      <tr><th scope="row"><code>NotFoundError</code></th><td>Per-id in <code>failedApps</code>: no installed sub app of this parent has the manifest id</td></tr>
+      <tr><th scope="row"><code>OperationError</code></th><td>Per-id in <code>failedApps</code>: platform uninstall failed with a system error</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://wicg.github.io/sub-apps/#remove-method" target="_blank" rel="noopener">spec &sect;4.2 method steps</a>, fetched 2026-08-30</span>
+  </section>
+  <section>
+    <h2 id="context">Context and exposure</h2>
+    <p>Callable only on the <code>SubApps</code> instance at <code>window.subApps</code>: <code>[Exposed=Window, SecureContext, IsolatedContext]</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/subapps/sub_apps.idl" target="_blank" rel="noopener">Blink&rsquo;s <code>sub_apps.idl</code></a> and the <a href="https://wicg.github.io/sub-apps/#subapps-interface" target="_blank" rel="noopener">spec</a> &mdash; an installed Isolated Web App, never an ordinary tab (Chrome ships IWAs on desktop today; the record lists no Android/WebView/iOS milestone, so mobile exposure is unknown &mdash; see the <a href="/v152/sub-apps-for-iwas/#compatibility">parent compatibility table</a>). Every call additionally requires the <a href="/v152/sub-apps-for-iwas/#permissions-policy"><code>sub-apps</code> policy-controlled feature</a> (default allowlist <code>&#39;none&#39;</code>; <code>Permissions-Policy: sub-apps=(self)</code> on the parent document) and rejects with <code>NotSupportedError</code> when called from a sub-app document &mdash; sub apps cannot manage sub apps.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/sub-apps/#subapps-interface" target="_blank" rel="noopener">spec &sect;4</a>, <a href="https://wicg.github.io/sub-apps/#permissions-policy" target="_blank" rel="noopener">&sect;6.1</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/subapps/sub_apps.idl" target="_blank" rel="noopener">Blink IDL</a> &mdash; all fetched 2026-08-30</span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">Lifecycle</h2>
+    <p>Ids are validated synchronously, then uninstallation runs in parallel with <strong>no user prompt</strong> in the spec&rsquo;s steps: each sub app is removed from the system launcher and platform registry, its id appended to <code>removedApps</code> (or an exception recorded in <code>failedApps</code>), and the promise resolves once every id is accounted for. Shared origin data (cookies, storage) belongs to the parent and is not deleted by removing a sub app.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/sub-apps/#remove-method" target="_blank" rel="noopener">spec &sect;4.2</a> and <a href="https://wicg.github.io/sub-apps/#shared-origin" target="_blank" rel="noopener">&sect;5.1</a>, fetched 2026-08-30</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+    <pre><code>&lt;button id="remove-legacy"&gt;Uninstall legacy tool&lt;/button&gt;
+
+&lt;script type="module"&gt;
+// Removal is destructive and the spec's steps show NO browser prompt
+// (§4.2), so the call belongs behind an explicit user action targeting
+// a known id — never an on-load sweep of everything list() returns.
+document.querySelector("#remove-legacy").addEventListener("click", async () =&gt; {
+  if (!confirm("Uninstall the legacy tool sub app?")) return;
+
+  try {
+    // Uninstall one known sub app; inspect per-id outcomes.
+    const { removedApps, failedApps } = await window.subApps.remove(["/legacy-tool"]);
+    console.log(`removed: ${removedApps.join(", ")}`);
+    for (const [id, err] of Object.entries(failedApps)) {
+      console.warn(`${id}: ${err.name}`); // e.g. NotFoundError if already gone
+    }
+  } catch (err) {
+    // Whole-promise rejection — SecurityError (sub-apps policy not
+    // declared) or NotSupportedError (called from a sub-app document).
+    // EventTarget ignores an async listener's promise, so an uncaught
+    // rejection here would go unhandled.
+    console.warn(`remove() rejected: ${err.name}`);
+  }
+});
+&lt;/script&gt;</code></pre>
+    <span class="citation">Source: adapted from the <a href="https://github.com/WICG/sub-apps" target="_blank" rel="noopener">WICG explainer&rsquo;s examples</a> (fetched 2026-08-30)</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">Compatibility</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Feature identity</th><td><a href="https://chromestatus.com/feature/6260680824061952" target="_blank" rel="noopener">chromestatus.com/feature/6260680824061952 &mdash; Sub apps for IWAs</a> (the canonical feature descriptor every gendn page carries)</td></tr>
+      <tr><th scope="row">Chrome (desktop)</th><td>152, inside Isolated Web Apps only &mdash; per the <a href="https://chromestatus.com/api/v0/features?milestone=152" target="_blank" rel="noopener">milestone=152 listing</a> and <a href="https://chromestatus.com/api/v0/features/6260680824061952" target="_blank" rel="noopener">ChromeStatus record</a> (2026-08-30); no BCD entry exists. Full interim table on the <a href="/v152/sub-apps-for-iwas/#compatibility">parent reference</a></td></tr>
+      <tr><th scope="row">Other browsers</th><td>unknown &mdash; no signal (see the <a href="/v152/sub-apps-for-iwas/#compatibility">parent compatibility table</a>)</td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="security-privacy">Security and privacy</h2>
+    <p>Removal needs no per-call consent in the spec&rsquo;s steps (it reduces, not extends, OS integration); it is still gated by the policy and IWA context like every method. The shared threat model &mdash; single origin identity, bidirectional permission inheritance, explicit consent, quota limits &mdash; is documented in the <a href="/v152/sub-apps-for-iwas/#security-privacy">parent reference&rsquo;s security section</a> from <a href="https://wicg.github.io/sub-apps/#security-and-privacy-considerations" target="_blank" rel="noopener">spec &sect;5</a>.</p>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
