@@ -42,7 +42,7 @@
       <p class="baseline-status">Limited availability</p>
       <ul class="baseline-browsers">
         <li>Chrome &middot; 152 (desktop only, inside Isolated Web Apps)</li>
-        <li class="limited">Edge &middot; not shipped</li>
+        <li class="limited">Edge &middot; unknown</li>
         <li class="limited">Firefox &middot; no signal</li>
         <li class="limited">Safari &middot; no signal</li>
       </ul>
@@ -149,7 +149,9 @@ interface SubApps {
 
   <section>
     <h2 id="permissions-policy">Permissions policy: <code>sub-apps</code></h2>
-    <p>The API is gated by a policy-controlled feature named <code>sub-apps</code> with a default allowlist of <code>'none'</code> &mdash; even inside an IWA, every method rejects with <code>SecurityError</code> unless the parent app&rsquo;s document explicitly declares the policy (the spec notes user agents MAY override the default to <code>'self'</code> for particular origins, for example on user decision). Declaring the policy inside a sub app has no effect: sub-app documents cannot use the API at all (<code>NotSupportedError</code>), so sub apps cannot install further sub apps. Permission state is otherwise shared bidirectionally: any permission (camera, USB, file system&hellip;) granted to a sub app is granted to the parent and vice versa (spec &sect;5.2).</p>
+    <p>The API is gated by a policy-controlled feature named <code>sub-apps</code> with a default allowlist of <code>'none'</code> &mdash; even inside an IWA, every method rejects with <code>SecurityError</code> unless the parent app&rsquo;s document explicitly declares the policy (the spec notes user agents MAY override the default to <code>'self'</code> for particular origins, for example on user decision). Concretely, the declaration is a <code>Permissions-Policy</code> response header on the parent document &mdash; the <a href="https://github.com/WICG/sub-apps" target="_blank" rel="noopener">explainer&rsquo;s own example</a> is:</p>
+    <pre><code>Permissions-Policy: sub-apps=(self)</code></pre>
+    <p>In an IWA, response headers are served from the app&rsquo;s Signed Web Bundle, so this header ships inside the bundle with the parent document&rsquo;s response. Declaring the policy inside a sub app has no effect: sub-app documents cannot use the API at all (<code>NotSupportedError</code>), so sub apps cannot install further sub apps. Permission state is otherwise shared bidirectionally: any permission (camera, USB, file system&hellip;) granted to a sub app is granted to the parent and vice versa (spec &sect;5.2).</p>
     <span class="citation">Source: <a href="https://wicg.github.io/sub-apps/#permissions-policy" target="_blank" rel="noopener">spec &sect;6.1 Permissions Policy</a> and <a href="https://wicg.github.io/sub-apps/#permission-inheritance" target="_blank" rel="noopener">&sect;5.2 Permission Inheritance</a>, fetched 2026-08-30</span>
   </section>
 
@@ -168,6 +170,8 @@ if ("subApps" in window) {
       await window.subApps.add(["/calc", "/docs"]);
 
   // installedApps maps install path -> manifest id; keep the ids.
+  // Partial success is normal: a path in failedApps has NO installedApps
+  // entry, so guard before using its id.
   const calcId = installedApps["/calc"];
 
   for (const [path, err] of Object.entries(failedApps)) {
@@ -180,8 +184,10 @@ if ("subApps" in window) {
     console.log(`${appName} (${id})`);
   }
 
-  // Uninstall by manifest id.
-  const { removedApps } = await window.subApps.remove([calcId]);
+  // Uninstall by manifest id — only if that install actually succeeded.
+  if (calcId !== undefined) {
+    const { removedApps } = await window.subApps.remove([calcId]);
+  }
 }</code></pre>
     <p>No Chrome Platform Showcase demo exists for this feature yet &mdash; the expected route <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v152/sub-apps-for-iwas/" target="_blank" rel="noopener">/v152/sub-apps-for-iwas/</a> returned 404 on 2026-08-30, so no iframe is embedded (a showcase demo could not run in an ordinary browser tab anyway: the API needs an installed IWA). The ChromeStatus record&rsquo;s sample is <a href="https://github.com/vkrot-cell/subapps-demo" target="_blank" rel="noopener">vkrot-cell/subapps-demo</a>, a runnable IWA demonstrating the API.</p>
     <span class="citation">Source: <a href="https://github.com/WICG/sub-apps#examples" target="_blank" rel="noopener">WICG/sub-apps explainer Examples</a>; <a href="https://github.com/vkrot-cell/subapps-demo" target="_blank" rel="noopener">vkrot-cell/subapps-demo</a> (linked from the <a href="https://chromestatus.com/api/v0/features/6260680824061952" target="_blank" rel="noopener">ChromeStatus record&rsquo;s sample_links</a>)</span>
@@ -197,8 +203,8 @@ if ("subApps" in window) {
       <tr><th scope="row">Chrome (desktop)</th><td>152</td><td>&ldquo;Enabled by default&rdquo; per the <a href="https://chromestatus.com/api/v0/features?milestone=152" target="_blank" rel="noopener">milestone=152 listing</a> (authoritative); IWA contexts only; runtime feature <code>SubApps</code> is <code>stable</code> at trunk. The record&rsquo;s own status text (&ldquo;Proposed&rdquo;) is stale and disclosed here</td></tr>
       <tr><th scope="row">Chrome (Android / WebView / iOS)</th><td>no</td><td>Record lists no Android/WebView/iOS milestone &mdash; IWAs are a desktop (including ChromeOS) surface</td></tr>
       <tr><th scope="row">Edge</th><td>unknown</td><td>No public signal found; not recorded in BCD</td></tr>
-      <tr><th scope="row">Firefox</th><td>no</td><td>&ldquo;No signal&rdquo; on the ChromeStatus record</td></tr>
-      <tr><th scope="row">Safari</th><td>no</td><td>&ldquo;No signal&rdquo; on the ChromeStatus record</td></tr>
+      <tr><th scope="row">Firefox</th><td>unknown &mdash; no signal</td><td>&ldquo;No signal&rdquo; on the ChromeStatus record is a standards-position field, not implementation evidence; no BCD entry exists to prove non-support either way</td></tr>
+      <tr><th scope="row">Safari</th><td>unknown &mdash; no signal</td><td>&ldquo;No signal&rdquo; on the ChromeStatus record is a standards-position field, not implementation evidence; no BCD entry exists to prove non-support either way</td></tr>
     </table>
     </div>
     <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/6260680824061952" target="_blank" rel="noopener">ChromeStatus API record</a> and <a href="https://chromestatus.com/api/v0/features?milestone=152" target="_blank" rel="noopener">milestone=152 listing</a>, fetched 2026-08-30</span>
