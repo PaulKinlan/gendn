@@ -142,8 +142,11 @@ document.addEventListener("autofill", async (event) =&gt; {
     // field.autocomplete reflects the WHOLE token list (e.g. "shipping country"),
     // so test for the terminal field token, not string equality.
     const tokens = (field.autocomplete || "").trim().split(/\s+/);
-    if (tokens.includes("country") &amp;&amp; value === "JP") {
-      // Reshape the form for the incoming data — e.g. a prefecture field:
+    if (tokens.includes("country") &amp;&amp; value === "JP" &amp;&amp;
+        !field.form?.querySelector('input[autocomplete="address-level1"]')) {
+      // Reshape the form for the incoming data — e.g. a prefecture field.
+      // The absence guard matters: the retry event after refill() carries
+      // the same country value, and must not append a second field.
       const prefecture = document.createElement("input");
       prefecture.autocomplete = "address-level1";
       prefecture.placeholder = "Prefecture";
@@ -180,6 +183,7 @@ const emailField = document.createElement("input");
 emailField.autocomplete = "email";
 document.forms[0]?.append(emailField) ?? document.body.append(emailField);
 const event = new AutofillEvent("autofill", {
+  bubbles: true, // match the browser-fired contract (bubbles, not cancelable)
   autofillValues: [[emailField, "user@example.com"]], // default []
   allowRefill: false,                                 // default true
 });
