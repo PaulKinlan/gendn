@@ -48,7 +48,7 @@
         <li class="limited">Firefox &middot; no signal</li>
         <li class="limited">Safari &middot; no signal</li>
       </ul>
-      <p>This API is <strong>not Baseline</strong>: it is a Chrome origin trial with no cross-browser implementation. webstatus.dev has no web-feature entry for the autofill <em>event</em> (the <a href="https://webstatus.dev/features/autofill" target="_blank" rel="noopener">autofill web-feature</a> there covers the general <code>autocomplete</code> mechanism, not this event; <a href="https://api.webstatus.dev/v1/features?q=autofill" target="_blank" rel="noopener">features API</a> checked 2026-08-30), <a href="https://github.com/mdn/browser-compat-data/tree/main/api" target="_blank" rel="noopener">BCD</a> has no <code>AutofillEvent</code> entry (raw path 404, 2026-08-30), MDN has no page, and the <a href="https://chromestatus.com/api/v0/features/5137581018841088" target="_blank" rel="noopener">ChromeStatus record</a> reports &ldquo;No signal&rdquo; from Firefox and Safari.</p>
+      <p>This API is <strong>not Baseline</strong>: it is a Chrome origin trial with no publicly recorded implementation elsewhere (other-browser state unknown &mdash; see the compatibility table). webstatus.dev has no web-feature entry for the autofill <em>event</em> (the <a href="https://webstatus.dev/features/autofill" target="_blank" rel="noopener">autofill web-feature</a> there covers the general <code>autocomplete</code> mechanism, not this event; <a href="https://api.webstatus.dev/v1/features?q=autofill" target="_blank" rel="noopener">features API</a> checked 2026-08-30), <a href="https://github.com/mdn/browser-compat-data/tree/main/api" target="_blank" rel="noopener">BCD</a> has no <code>AutofillEvent</code> entry (raw path 404, 2026-08-30), MDN has no page, and the <a href="https://chromestatus.com/api/v0/features/5137581018841088" target="_blank" rel="noopener">ChromeStatus record</a> reports &ldquo;No signal&rdquo; from Firefox and Safari.</p>
     </div>
 
     <p class="lede">The <code>autofill</code> event fires at the <code>Document</code> when the browser is <em>about to</em> autofill form fields &mdash; before the values are committed. The event carries the list of element/value pairs the browser intends to fill (<code>autofillValues</code>) and, when permitted, a one-shot <code>refill</code> callback: the page can reshape its form to fit the incoming data (say, country-specific address fields) and ask the browser to run autofill again against the modified form.</p>
@@ -142,8 +142,9 @@ document.addEventListener("autofill", async (event) =&gt; {
     // field.autocomplete reflects the WHOLE token list (e.g. "shipping country"),
     // so test for the terminal field token, not string equality.
     const tokens = (field.autocomplete || "").trim().split(/\s+/);
-    if (tokens.includes("country") &amp;&amp; value === "JP" &amp;&amp;
-        !field.form?.querySelector('input[autocomplete="address-level1"]')) {
+    const hasPrefecture = [...(field.form?.elements ?? [])].some((el) =&gt;
+      (el.autocomplete || "").trim().split(/\s+/).includes("address-level1"));
+    if (tokens.includes("country") &amp;&amp; value === "JP" &amp;&amp; !hasPrefecture) {
       // Reshape the form for the incoming data — e.g. a prefecture field.
       // The absence guard matters: the retry event after refill() carries
       // the same country value, and must not append a second field.
