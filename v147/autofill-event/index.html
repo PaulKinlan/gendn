@@ -140,19 +140,27 @@ document.addEventListener("autofill", async (event) =&gt; {
     // Blink today: { field, value } dictionary; spec draft: [field, value] tuple.
     const field = entry.field ?? entry[0];
     const value = entry.value ?? entry[1];
-    // field.autocomplete reflects the WHOLE token list (e.g. "shipping country"),
-    // so test for the terminal field token, not string equality.
+    // field.autocomplete reflects the WHOLE token list (e.g.
+    // "section-blue shipping country"): test the TERMINAL field token, and
+    // keep the grouping prefix (section-* / shipping / billing) — a
+    // "shipping address-level1" control must not suppress the billing one,
+    // and the inserted control must join the country field's group so
+    // refill can associate it with the right address.
     const tokens = (field.autocomplete || "").trim().split(/\s+/);
-    const hasPrefecture = [...(field.form?.elements ?? [])].some((el) =&gt;
-      (el.autocomplete || "").trim().split(/\s+/).includes("address-level1"));
-    if (tokens.includes("country") &amp;&amp; value === "JP" &amp;&amp; field.form &amp;&amp; !hasPrefecture) {
+    const group = tokens.slice(0, -1).join(" ");
+    const hasPrefecture = [...(field.form?.elements ?? [])].some((el) =&gt; {
+      const t = (el.autocomplete || "").trim().split(/\s+/);
+      return t.at(-1) === "address-level1" &amp;&amp; t.slice(0, -1).join(" ") === group;
+    });
+    if (tokens.at(-1) === "country" &amp;&amp; value === "JP" &amp;&amp; field.form &amp;&amp; !hasPrefecture) {
       // Reshape the form for the incoming data — e.g. a prefecture field.
       // The absence guard matters: the retry event after refill() carries
       // the same country value, and must not append a second field. The
       // reshaped flag is set only after the insertion actually happens.
       const prefecture = document.createElement("input");
-      prefecture.name = "address-level1"; // submits with the form, not just autofill-visible
-      prefecture.autocomplete = "address-level1";
+      const autofillName = group ? group + " address-level1" : "address-level1";
+      prefecture.autocomplete = autofillName; // carries the group tokens
+      prefecture.name = autofillName.replaceAll(" ", "-"); // submits with the form, unique per group
       prefecture.placeholder = "Prefecture";
       field.form.append(prefecture);
       reshaped = true;
