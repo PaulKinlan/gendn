@@ -162,6 +162,7 @@ document.addEventListener("autofill", async (event) =&gt; {
       prefecture.autocomplete = autofillName; // carries the group tokens
       prefecture.name = autofillName.replaceAll(" ", "-"); // submits with the form, unique per group
       prefecture.placeholder = "Prefecture";
+      prefecture.setAttribute("aria-label", "Prefecture"); // accessible name — placeholder alone is not one
       field.form.append(prefecture);
       reshaped = true;
     }
@@ -169,11 +170,18 @@ document.addEventListener("autofill", async (event) =&gt; {
 
   // One-shot: ask the browser to re-run autofill against the modified form.
   // Only when the form was actually reshaped — a no-op refill just makes
-  // every listener observe the fill twice. Null on retry dispatches, and
-  // rejects with InvalidStateError after the implementation-defined
-  // timeout or if a refill is already pending.
+  // every listener observe the fill twice. Null on retry dispatches. The
+  // promise rejects with InvalidStateError after the implementation-defined
+  // timeout, when allow-refill is false, or when a refill is already
+  // pending — and EventTarget never consumes an async listener's promise,
+  // so an uncaught rejection here would surface as unhandledrejection.
   if (reshaped &amp;&amp; event.refill) {
-    await event.refill();
+    try {
+      await event.refill();
+    } catch (err) {
+      // The initial fill still landed; only the re-run was declined.
+      console.warn(`refill unavailable (${err.name}): ${err.message}`);
+    }
   }
 });</code></pre>
     <h3 id="example-full-address">Requesting the complete address with <code>full-address</code></h3>
@@ -182,8 +190,10 @@ document.addEventListener("autofill", async (event) =&gt; {
      this form doesn't show yet — so the autofill event can deliver them
      and the page can build the right fields before the fill lands. --&gt;
 &lt;form&gt;
-  &lt;input name="address" autocomplete="full-address"&gt;
-  &lt;input name="country" autocomplete="country"&gt;
+  &lt;label for="address-field"&gt;Address&lt;/label&gt;
+  &lt;input id="address-field" name="address" autocomplete="full-address"&gt;
+  &lt;label for="country-field"&gt;Country&lt;/label&gt;
+  &lt;input id="country-field" name="country" autocomplete="country"&gt;
   &lt;div id="dynamic-address-fields"&gt;&lt;/div&gt;
 &lt;/form&gt;</code></pre>
     <p>Placement note, disclosed: the spec&rsquo;s normative sentence says &ldquo;when a <em>form control</em> has the <code>autocomplete</code> attribute set to <code>full-address</code>&rdquo;, so the token is shown on a control here &mdash; a <code>&lt;form&gt;</code> element&rsquo;s own <code>autocomplete</code> attribute only accepts <code>on</code>/<code>off</code> in <a href="https://html.spec.whatwg.org/multipage/form-control-infrastructure.html#autofill" target="_blank" rel="noopener">HTML&rsquo;s autofill section</a>. The <a href="https://wicg.github.io/autofill-event/#full-address" target="_blank" rel="noopener">draft&rsquo;s own &sect;5 example</a> places it on the <code>&lt;form&gt;</code>, contradicting its normative text &mdash; a draft inconsistency, not a documented second syntax.</p>

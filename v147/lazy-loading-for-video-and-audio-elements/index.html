@@ -172,11 +172,36 @@
   });
 &lt;/script&gt;</code></pre>
 
-    <h3>Detecting support</h3>
-<pre><code>const supportsLazyMedia = 'loading' in HTMLVideoElement.prototype;
-if (!supportsLazyMedia) {
-  // Fall back to IntersectionObserver-based lazy loading
-}</code></pre>
+    <h3>Detecting support and falling back</h3>
+<pre><code>&lt;!-- A fallback can only work if the URL stays OUT of src until needed:
+     a browser without media loading support (see the compatibility
+     table) starts fetching a real src at parse time, and no observer
+     added afterwards can undo that fetch. Markup written with a plain
+     src simply loads eagerly on those browsers — that is the honest
+     no-fallback outcome. --&gt;
+&lt;video data-src="explainer.mp4" controls&gt;&lt;/video&gt;
+
+&lt;script&gt;
+  const videos = document.querySelectorAll("video[data-src]");
+  if ("loading" in HTMLVideoElement.prototype) {
+    // Native support: mark lazy FIRST, then promote data-src to src —
+    // the Lazy state defers the fetch that setting src would start.
+    for (const video of videos) {
+      video.loading = "lazy";
+      video.src = video.dataset.src;
+    }
+  } else {
+    // Fallback: assign src only when the element nears the viewport.
+    const io = new IntersectionObserver((entries) =&gt; {
+      for (const { isIntersecting, target } of entries) {
+        if (!isIntersecting) continue;
+        target.src = target.dataset.src;
+        io.unobserve(target);
+      }
+    }, { rootMargin: "500px" });
+    videos.forEach((video) =&gt; io.observe(video));
+  }
+&lt;/script&gt;</code></pre>
     <span class="citation">Source: snippets written for the then-open <a href="https://github.com/whatwg/html/pull/11980" target="_blank" rel="noopener">WHATWG HTML PR #11980</a> (May 2026) and re-verified against the <a href="https://html.spec.whatwg.org/multipage/media.html#attr-media-loading" target="_blank" rel="noopener">merged spec text</a> (reflection + eager-switch resumption), 2026-08-30.</span>
   </section>
 
