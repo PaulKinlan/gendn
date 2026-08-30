@@ -5,7 +5,7 @@
   "identity": "6260680824061952",
   "milestone": 152,
   "status": "built",
-  "revision": 4,
+  "revision": 5,
   "reviewedAt": "2026-08-30",
   "reviewer": "weekly-hardening routine (coverage pass)",
   "frontendTouched": true,
@@ -63,7 +63,7 @@
       "dimension": "responsive-ux",
       "score": 5,
       "severity": "info",
-      "evidence": "Initial auto-scan (pre-iframe page): desktop and mobile all checks true; writer read the 360px-emulated mobile + 1280px desktop screenshots (reports/conformance/shots/v152__sub-apps-for-iwas.*.png) plus a full-page 1280x7600 capture cropped into three sections: IDL pre scrolls in its own box, all five tables contained in .table-wrap, no clipped text. The final aggregated full-site scan (reports/conformance/responsive.json, 2026-08-30) records mobile.controlsInView=false for this route. Reviewed cause, identified by re-running the scan's exact selector+rect predicate on the live page at 360x740 (a previous revision misattributed this to the embedded iframe, which the heuristic's a,button,input,select,summary,[tabindex] selector cannot match — corrected per Codex round 18): the three flagged elements are the source links inside the interim compatibility table's .table-wrap (the ChromeStatus record link, the milestone=152 listing link, and the chromeos.dev IWA-documentation link), whose initial rects extend past the 360px viewport because that table is intentionally wider than the viewport and scrolls inside its own overflow-x:auto container. Each is reachable by scrolling the table horizontally — the same containment the reviewed screenshots show — so mobile ok stands with this disclosure per the support record's method field.",
+      "evidence": "Initial auto-scan (pre-iframe page): desktop and mobile all checks true; writer read the 360px-emulated mobile + 1280px desktop screenshots (reports/conformance/shots/v152__sub-apps-for-iwas.*.png) plus a full-page 1280x7600 capture cropped into three sections: IDL pre scrolls in its own box, all five tables contained in .table-wrap, no clipped text. The final aggregated full-site scan (reports/conformance/responsive.json, 2026-08-30) records mobile.controlsInView=false for this route. Reviewed cause, identified by re-running the scan's exact selector+rect predicate on the live page at 360x740 (a previous revision misattributed this to the embedded iframe, which the heuristic's a,button,input,select,summary,[tabindex] selector cannot match — corrected per Codex round 18): the three flagged elements are the source links inside the interim compatibility table's .table-wrap (the ChromeStatus record link, the milestone=152 listing link, and the chromeos.dev IWA-documentation link), whose initial rects extend past the 360px viewport because that table is intentionally wider than the viewport and scrolls inside its own overflow-x:auto container. Each is reachable by scrolling the table horizontally — the same containment the reviewed screenshots show — so mobile ok stands with this disclosure per the support record's method field. Member routes (add/, remove/, list/) were matrix-tested separately (Codex round 20): the run-all scan's exact predicates re-run per class at 360x740 (DPR 3) and 1280x800 — noOverflow, controlsInView (zero flagged controls), console and same-origin network all clean on every route and class — and all six screenshots read by the writer (single column on mobile, syntax pre scrolls in its own box, crumb links back to this page, no clipped text; the remove/ page's example button renders at full tap-target width). responsive-support.json cannot carry these results — its schema only admits catalogue routes (member routes fail 'additional property not allowed' / 'maps to no page') — so this critique is the record, and the schema gap is filed as an infrastructure goal.",
       "notes": "If a future scan flags a control that is NOT reachable by scrolling its own container, downgrade the support record and fix the layout."
     },
     {
@@ -141,6 +141,16 @@
     },
     {
       "goal": "Infrastructure: server.ts serves /v<N>/<slug> (no trailing slash) in place instead of redirecting to the canonical /v<N>/<slug>/, which breaks relative links on any page served that way — member pages across the site (e.g. unframed-display-mode's app-region/) still use relative cross-links. Canonicalize with a 301 to the trailing-slash form (Codex, PR #7); the sub-apps-for-iwas pages were switched to root-relative links as the local mitigation. server.ts is off-limits to the routine.",
+      "kind": "targeted-fix",
+      "priority": "medium"
+    },
+    {
+      "goal": "Exercise the embedded chrome-platform-showcase iframes visually from a network-capable environment (real egress): the CI sandbox blocks external iframe paint, so embed verification currently rests on route HTTP 200 + framing headers + CPS's own conformance contract (cpsFeature). Review bots repeatedly ask for needs-review on this (PR #7 rounds 6/16/20); the support records disclose the limitation instead because check-conformance hard-fails touched pages that are not ok/unsupported. A one-time visual pass from outside the sandbox closes the loop.",
+      "kind": "targeted-fix",
+      "priority": "medium"
+    },
+    {
+      "goal": "Infrastructure: responsive-support.json's schema only admits top-level catalogue routes, so member/child routes (e.g. /v152/sub-apps-for-iwas/add/) cannot carry their own mobile+desktop support records even when matrix-tested — the evidence has to live in the parent critique instead (Codex round 20, PR #7). Extend the schema + route-manifest merge to accept child routes of a published page. schema/ and scripts/ are off-limits to the routine.",
       "kind": "targeted-fix",
       "priority": "medium"
     }
