@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Suspicious site warnings — Chrome 152 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code { overflow-wrap: anywhere; }
+    p a, li a, td a, figcaption a { overflow-wrap: anywhere; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 9.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .doc-table caption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); text-align: left; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .table-wrap .doc-table.fixed3 { min-width: 34rem; table-layout: fixed; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .baseline-banner { border: 2px solid var(--border-black); padding: 1rem 1.2rem; margin: 1.5rem 0; background: var(--bg-paper); box-shadow: var(--thin-shadow); }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    .example-embed { margin: 1.5rem 0; }
+    .example-embed iframe { display: block; width: 100%; }
+    .example-embed figcaption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); margin-top: 0.5rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v152/">&larr; Chrome 152 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v152 &middot; security &middot; browser ui &middot; enabled by default</p>
+    <h1>Suspicious site warnings</h1>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Not a web-platform API &mdash; Chrome-only browser security UI</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 152 (milestone listing; Enhanced protection users)</li>
+        <li class="limited">Edge &middot; not applicable (Chrome&rsquo;s Safe Browsing UI)</li>
+        <li class="limited">Firefox &middot; not applicable</li>
+        <li class="limited">Safari &middot; not applicable</li>
+      </ul>
+      <p>Baseline does not apply: this feature ships no web-exposed interface, so it has no web-features entry (a <a href="https://api.webstatus.dev/v1/features?q=suspicious%20site" target="_blank" rel="noopener">webstatus.dev query</a> returns zero matches), no BCD key, no entry in Blink&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>, and no MDN page (an <a href="https://developer.mozilla.org/api/v1/search?q=Suspicious+site+warnings&amp;locale=en-US" target="_blank" rel="noopener">MDN search</a> returns no matching document) &mdash; all verified 2026-09-06. What this page documents is the observable behavior contract: when the warning triggers, what users and admins can do about it, and what &mdash; if anything &mdash; a page or site owner can observe.</p>
+    </div>
+
+    <p class="lede">Starting in Chrome 152, users enrolled in <strong>Safe Browsing &gt; Enhanced protection</strong> who visit a site whose signals indicate it is <em>potentially</em> malicious get a warning in a by-passable pop-up, which must be addressed before they continue. It sits below the confidence threshold of the existing full-page red interstitials, which continue to appear on <em>confirmed</em> malicious sites. There is no author-facing API: the warning is browser UI, driven by Safe Browsing&rsquo;s real-time URL lookup verdicts, controllable by users via their protection level and by administrators via two existing enterprise policies.</p>
+  </header>
+
+  <div class="warn-block" id="rollout-warning">
+    <strong>Rollout nuance &mdash; verify on your own build before relying on the fine print</strong>
+    <p>The <a href="https://chromestatus.com/api/v0/features?milestone=152" target="_blank" rel="noopener">milestone=152 listing</a> files this feature under &ldquo;Enabled by default&rdquo; (the listing is authoritative for gendn), and it only ever activates for users who opted into Enhanced protection. Three caveats as of 2026-09-06:</p>
+    <ul>
+      <li>At Chromium trunk the gating flag is <code>BASE_FEATURE(kSuspiciousSiteWarnings, base::FEATURE_DISABLED_BY_DEFAULT)</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/components/safe_browsing/core/common/features.cc" target="_blank" rel="noopener">components/safe_browsing/core/common/features.cc</a> &mdash; the on-by-default state on release builds is a server-side (Finch) rollout, not a compiled-in default.</li>
+      <li>To test deterministically, enable <code>chrome://flags/#suspicious-site-warnings</code> (registered for Desktop and Android in <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/about_flags.cc" target="_blank" rel="noopener">about_flags.cc</a>, flag expiry milestone 155 per <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/flag-metadata.json" target="_blank" rel="noopener">flag-metadata.json</a>) or launch with <code>--enable-features=SuspiciousSiteWarnings</code> &mdash; and set Safe Browsing to Enhanced protection.</li>
+      <li>The <a href="https://chromestatus.com/api/v0/features/5427561449521152" target="_blank" rel="noopener">ChromeStatus API record</a> carries stale/partial metadata: status text &ldquo;Proposed&rdquo;, an Android-only shipping milestone (<code>android: 152</code>, <code>desktop: null</code>), while the Chromium tree contains both a desktop bubble and an Android dialog implementation. Disclosed here rather than resolved by fiat.</li>
+    </ul>
+  </div>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">What it is</th><td>A by-passable Safe Browsing warning pop-up (desktop: bubble; Android: modal dialog) shown to Enhanced-protection users on sites with signals of <em>potential</em> maliciousness &mdash; one confidence tier below the red interstitial for confirmed threats</td></tr>
+      <tr><th scope="row">Developer surface</th><td>None in the web platform. The observable contract is: the trigger conditions, the user choices, a 30-day local bypass allowlist, and two enterprise policies (<a href="#policy-protection-level"><code>SafeBrowsingProtectionLevel</code></a>, <a href="#policy-allowlist-domains"><code>SafeBrowsingAllowlistDomains</code></a>)</td></tr>
+      <tr><th scope="row">Trigger</th><td>Real-time URL lookup verdict <code>SOCIAL_ENGINEERING</code> with verdict type <code>WARN</code> &rarr; <code>SB_THREAT_TYPE_WARNABLE_SUSPICIOUS_SITE</code> (<a href="#verdict-contract">verbatim contract</a>)</td></tr>
+      <tr><th scope="row">Milestone listing</th><td>Chrome 152 &mdash; Enabled by default (<a href="https://chromestatus.com/api/v0/features?milestone=152" target="_blank" rel="noopener">listing</a>, verified 2026-09-06); enterprise-notification milestone 152 on the record</td></tr>
+      <tr><th scope="row">Chromium implementation</th><td>Feature flag <code>SuspiciousSiteWarnings</code> (<a href="https://chromium.googlesource.com/chromium/src/+/main/components/safe_browsing/core/common/features.h" target="_blank" rel="noopener">features.h</a>: &ldquo;Enables warnings on sites that Safe Browsing deems suspicious.&rdquo;); desktop controller in <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/safe_browsing/suspicious_site_warnings/suspicious_site_controller_desktop.h" target="_blank" rel="noopener">chrome/browser/safe_browsing/suspicious_site_warnings/</a>, Android controller in <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/safe_browsing/android/suspicious_site_controller_android.h" target="_blank" rel="noopener">chrome/browser/safe_browsing/android/</a></td></tr>
+      <tr><th scope="row">Spec status</th><td>No specification &mdash; browser security UI, not standards-track (see <a href="#specifications">specifications</a>)</td></tr>
+      <tr><th scope="row">Blink component</th><td><code>UI&gt;Browser&gt;SafeBrowsing</code></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5427561449521152" target="_blank" rel="noopener">5427561449521152 &mdash; Suspicious site warnings</a></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5427561449521152" target="_blank" rel="noopener">chromestatus.com/feature/5427561449521152</a>; <a href="https://chromestatus.com/api/v0/features/5427561449521152" target="_blank" rel="noopener">API record</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/safe_browsing/core/common/features.h" target="_blank" rel="noopener">features.h</a></span>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>Safe Browsing&rsquo;s red interstitials fire on <em>confirmed</em> malicious sites. That leaves a gap: sites Google&rsquo;s systems consider <em>potentially</em> malicious &mdash; signals present, confirmation absent. Enhanced protection exists precisely to close that gap: per Google&rsquo;s Safe Browsing documentation, it &ldquo;sends more information about your activity to Google in real time to offer stronger, more customized protection&rdquo;, analyzing data from visited sites to &ldquo;detect and warn you about potentially risky sites and iframes, even if Google didn&rsquo;t know about them before&rdquo;.</p>
+    <p>Suspicious site warnings are the visible half of that promise in Chrome 152: instead of either blocking outright or staying silent, Chrome interposes a lighter-weight, by-passable pop-up for the uncertain middle tier. The warning must be addressed before the user continues, but &mdash; unlike the interstitial &mdash; it is designed to be dismissed and remembered (a 30-day per-site bypass), because a &ldquo;suspicious&rdquo; verdict is expected to include false positives.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5427561449521152" target="_blank" rel="noopener">ChromeStatus summary</a>; <a href="https://support.google.com/chrome/answer/13844634" target="_blank" rel="noopener">Google Chrome Help &mdash; Safe Browsing protection levels</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/safe_browsing/core/browser/suspicious_site_warning_allowlist.h" target="_blank" rel="noopener">suspicious_site_warning_allowlist.h</a></span>
+  </section>
+
+  <section>
+    <h2 id="no-api">there is no web-exposed API</h2>
+    <p>Nothing about this feature is visible to page script, markup, or headers. The verdict is computed and consumed entirely in Chrome&rsquo;s browser process; the warning renders in browser chrome (a bubble anchored to the window on desktop, a modal dialog on Android), not in the page. Evidence, each independently checkable: Blink&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a> has no entry for it (it is a <code>base::Feature</code> in the browser-side Safe Browsing component, not a Blink runtime feature); the <a href="https://api.webstatus.dev/v1/features?q=suspicious%20site" target="_blank" rel="noopener">web-features register has no entry</a>; and no IDL, event, header, or DOM surface appears anywhere in the implementation directories linked on this page. Consequently there is nothing for a page to feature-detect, no event on bypass, and no signal to the site that a warning was shown &mdash; the site sees an ordinary visit (or, if the user heeds the warning before commit-time content loads are consumed, an abandoned one).</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a> (no entry, verified 2026-09-06); <a href="https://api.webstatus.dev/v1/features?q=suspicious%20site" target="_blank" rel="noopener">webstatus.dev query</a> (zero matches); <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/safe_browsing/suspicious_site_warnings/suspicious_site_ui.h" target="_blank" rel="noopener">suspicious_site_ui.h</a></span>
+  </section>
+
+  <section>
+    <h2 id="verdict">how a warning triggers &mdash; the verdict contract</h2>
+
+    <h3 id="verdict-contract">the contract, verbatim</h3>
+    <p>The decision point is in the real-time URL lookup service &mdash; the Safe Browsing mechanism behind Enhanced protection&rsquo;s &ldquo;in real time&rdquo; checks. From <a href="https://chromium.googlesource.com/chromium/src/+/main/components/safe_browsing/core/browser/realtime/url_lookup_service_base.cc" target="_blank" rel="noopener"><code>components/safe_browsing/core/browser/realtime/url_lookup_service_base.cc</code></a> at trunk (fetched 2026-09-06):</p>
+    <pre><code>if (rt_threat_type == RTLookupResponse::ThreatInfo::SOCIAL_ENGINEERING &amp;&amp;
+    rt_verdict_type == RTLookupResponse::ThreatInfo::WARN) {
+  return base::FeatureList::IsEnabled(kSuspiciousSiteWarnings)
+             ? SB_THREAT_TYPE_WARNABLE_SUSPICIOUS_SITE
+             : SB_THREAT_TYPE_SAFE;
+}</code></pre>
+    <p>Read as a contract: a Safe Browsing real-time lookup response whose threat type is <code>SOCIAL_ENGINEERING</code> <em>and</em> whose verdict type is <code>WARN</code> (rather than <code>DANGEROUS</code>, which drives the interstitial path) maps to the threat type <code>SB_THREAT_TYPE_WARNABLE_SUSPICIOUS_SITE</code> when the feature is enabled &mdash; and is treated as <code>SB_THREAT_TYPE_SAFE</code> (no warning at all) when it is not. The server-side signals that produce the <code>WARN</code> verdict are not public; Google&rsquo;s help documentation describes them only as analysis of site data to detect &ldquo;potentially risky sites&rdquo;. This page does not speculate about them.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/components/safe_browsing/core/browser/realtime/url_lookup_service_base.cc" target="_blank" rel="noopener">url_lookup_service_base.cc (verbatim)</a>; <a href="https://support.google.com/chrome/answer/13844634" target="_blank" rel="noopener">Safe Browsing protection levels</a></span>
+
+    <h3 id="verdict-inputs">inputs: who and what is checked</h3>
+    <p>Three conditions must all hold before the contract above is even evaluated:</p>
+    <ul>
+      <li><strong>Enhanced protection enrollment.</strong> The feature is defined for &ldquo;users of Safe Browsing &gt; Enhanced protection&rdquo; (ChromeStatus summary). Standard-protection and no-protection users are outside its scope; real-time lookups with page-content signals are the Enhanced-protection mechanism.</li>
+      <li><strong>A real-time URL lookup actually runs</strong> for the navigation and returns a <code>ThreatInfo</code> with the threat/verdict pair above.</li>
+      <li><strong>The <code>SuspiciousSiteWarnings</code> feature is enabled</strong> on the client (Finch rollout in Chrome 152, or the flag/switch in the <a href="#rollout-warning">rollout note</a>).</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5427561449521152" target="_blank" rel="noopener">ChromeStatus summary</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/safe_browsing/core/browser/realtime/url_lookup_service_base.cc" target="_blank" rel="noopener">url_lookup_service_base.cc</a>; <a href="https://support.google.com/chrome/answer/13844634" target="_blank" rel="noopener">Safe Browsing protection levels</a></span>
+
+    <h3 id="verdict-outputs">outputs: what the verdict produces</h3>
+    <p>A <code>SB_THREAT_TYPE_WARNABLE_SUSPICIOUS_SITE</code> verdict does <em>not</em> block the navigation the way interstitial-class threats do. The navigation proceeds; the platform controller (<a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/safe_browsing/suspicious_site_warnings/suspicious_site_controller_desktop.h" target="_blank" rel="noopener">desktop</a> / <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/safe_browsing/android/suspicious_site_controller_android.h" target="_blank" rel="noopener">Android</a>) stages a warning for that navigation ID and shows it once the navigation commits and Safe Browsing checks complete &mdash; &ldquo;while prioritizing full-page interstitials&rdquo; (both controllers&rsquo; class comment, verbatim): if the same navigation also earns an interstitial, the interstitial wins. The ChromeStatus summary states the same layering from the user&rsquo;s side: the pop-up warning &ldquo;is in addition to the red interstitial warnings, which will continue to be shown on confirmed malicious websites.&rdquo;</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/safe_browsing/suspicious_site_warnings/suspicious_site_controller_desktop.h" target="_blank" rel="noopener">suspicious_site_controller_desktop.h</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/safe_browsing/android/suspicious_site_controller_android.h" target="_blank" rel="noopener">suspicious_site_controller_android.h</a>; <a href="https://chromestatus.com/feature/5427561449521152" target="_blank" rel="noopener">ChromeStatus summary</a></span>
+
+    <h3 id="verdict-errors">suppression and failure modes</h3>
+    <p>Ways a would-be warning does <em>not</em> appear &mdash; the feature&rsquo;s error/edge surface. Each row traces to a linked source; nothing here is inferred beyond it.</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Condition</th><th>Result</th></tr></thead>
+      <tr><td>Feature disabled (<code>kSuspiciousSiteWarnings</code> off &mdash; e.g. rollout has not reached the client)</td><td>The verdict maps to <code>SB_THREAT_TYPE_SAFE</code>: fails open, silently &mdash; no warning, no record (<a href="https://chromium.googlesource.com/chromium/src/+/main/components/safe_browsing/core/browser/realtime/url_lookup_service_base.cc" target="_blank" rel="noopener">url_lookup_service_base.cc</a>)</td></tr>
+      <tr><td>User not in Enhanced protection</td><td>Out of scope by definition (<a href="https://chromestatus.com/feature/5427561449521152" target="_blank" rel="noopener">ChromeStatus summary</a>); Standard protection continues to produce only the established warning surfaces</td></tr>
+      <tr><td>Host on the user&rsquo;s local bypass allowlist (a prior &ldquo;Mark as safe&rdquo; / &ldquo;Continue anyway&rdquo; within 30 days)</td><td>&ldquo;While allowlisted, SSW warnings for that host will not be displayed&rdquo; (<a href="https://chromium.googlesource.com/chromium/src/+/main/components/safe_browsing/core/browser/suspicious_site_warning_allowlist.h" target="_blank" rel="noopener">allowlist header, verbatim</a>; see <a href="#allowlist">the allowlist</a>)</td></tr>
+      <tr><td>Domain on the enterprise <code>SafeBrowsingAllowlistDomains</code> policy</td><td>Safe Browsing &ldquo;won&rsquo;t check them for dangerous resources&rdquo; at all, so no suspicious-site verdict can arise (<a href="https://chromium.googlesource.com/chromium/src/+/main/components/policy/resources/templates/policy_definitions/SafeBrowsing/SafeBrowsingAllowlistDomains.yaml" target="_blank" rel="noopener">policy definition</a>; the <a href="https://chromestatus.com/feature/5427561449521152" target="_blank" rel="noopener">ChromeStatus summary</a> names this policy as the admin exclusion mechanism)</td></tr>
+      <tr><td>Same navigation also triggers a full-page interstitial</td><td>Interstitial takes priority over the pop-up (controller class comments, both platforms)</td></tr>
+      <tr><td>Real-time lookup unavailable for the navigation</td><td>No <code>ThreatInfo</code> with the required pair &rarr; no warning. The sources on this page do not enumerate lookup-failure handling further; treat details beyond this as undocumented</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: linked per row, all fetched 2026-09-06</span>
+  </section>
+
+  <section>
+    <h2 id="warning-ui">the warning UI and the user&rsquo;s choices</h2>
+    <p>The warning is a <strong>bubble</strong> on desktop and a <strong>modal dialog</strong> on Android, both implemented behind the shared entry points <code>ShowSuspiciousSiteWarning(web_contents, navigation_id)</code> and <code>ShowSuspiciousSiteBubble(web_contents)</code> declared in <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/safe_browsing/suspicious_site_warnings/suspicious_site_ui.h" target="_blank" rel="noopener"><code>suspicious_site_ui.h</code></a> (&ldquo;Implemented by platform-specific controllers&rdquo;). The desktop controller exposes exactly three UI event handlers &mdash; <code>OnBackToSafetyClicked()</code>, <code>OnMarkAsSafeClicked()</code>, <code>OnLearnMoreClicked()</code> &mdash; plus <code>OnBubbleDestroyed()</code>; the Android dialog&rsquo;s handlers are <code>OnContinueButtonClicked()</code>, <code>OnHelpCenterLinkClicked()</code>, and <code>HandleBackNavigation()</code>, with dialog dismissal routed through <code>CloseDialog()</code>. That is the complete choice surface.</p>
+
+    <h3 id="warning-choices">choices per platform</h3>
+    <div class="table-wrap">
+    <table class="doc-table fixed3">
+      <thead><tr><th>Choice</th><th>Desktop bubble</th><th>Android dialog</th></tr></thead>
+      <tr><td>Heed the warning</td><td><code>OnBackToSafetyClicked()</code> &mdash; &ldquo;Back to safety&rdquo; button</td><td><code>HandleBackNavigation()</code> &mdash; back button in the dialog, or the system back gesture</td></tr>
+      <tr><td>Bypass and remember</td><td><code>OnMarkAsSafeClicked()</code> &mdash; &ldquo;Mark as safe&rdquo;; adds the host to the <a href="#allowlist">30-day local allowlist</a></td><td><code>OnContinueButtonClicked()</code> &mdash; &ldquo;Continue anyway&rdquo;; same allowlist path per the <a href="https://chromium.googlesource.com/chromium/src/+/main/components/safe_browsing/core/browser/suspicious_site_warning_allowlist.h" target="_blank" rel="noopener">allowlist header</a> (&ldquo;Mark as Safe (or Continue anyway)&rdquo;)</td></tr>
+      <tr><td>Learn more</td><td><code>OnLearnMoreClicked()</code></td><td><code>OnHelpCenterLinkClicked()</code> &mdash; opens the <a href="https://support.google.com/chrome/answer/13844634" target="_blank" rel="noopener">Safe Browsing help article</a></td></tr>
+      <tr><td>Dismiss without deciding</td><td>Bubble destroyed (<code>OnBubbleDestroyed()</code>)</td><td><code>CloseDialog(dismissal_cause)</code>; manual navigation away and closing the tab are also recorded interactions</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/safe_browsing/suspicious_site_warnings/suspicious_site_controller_desktop.h" target="_blank" rel="noopener">suspicious_site_controller_desktop.h</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/safe_browsing/android/suspicious_site_controller_android.h" target="_blank" rel="noopener">suspicious_site_controller_android.h</a> (both verbatim member lists, fetched 2026-09-06)</span>
+
+    <h3 id="warning-outcomes">recorded outcomes and interactions</h3>
+    <p>Every warning resolves to one <code>SuspiciousSiteWarningOutcome</code>, and each user gesture maps to a <code>SuspiciousSiteWarningUserInteraction</code> &mdash; both enums are defined, verbatim below, in the <a href="https://chromium.googlesource.com/chromium/src/+/main/components/safe_browsing/core/browser/suspicious_site_warning_allowlist.h" target="_blank" rel="noopener">allowlist header</a> and recorded to the UMA histogram <code>SafeBrowsing.SuspiciousSiteWarning.WarningOutcome</code> (<a href="https://chromium.googlesource.com/chromium/src/+/main/tools/metrics/histograms/metadata/safe_browsing/histograms.xml" target="_blank" rel="noopener">histograms.xml</a>). These are internal metrics, not web-exposed values &mdash; listed because they are the authoritative statement of which endings the warning can have.</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Enum</th><th>Values (verbatim)</th></tr></thead>
+      <tr><td><code>SuspiciousSiteWarningOutcome</code></td><td><code>kUnknown</code> = 0, <code>kBypassed</code> = 1, <code>kAdhered</code> = 2, <code>kDismissedBySystem</code> = 3</td></tr>
+      <tr><td><code>SuspiciousSiteWarningUserInteraction</code></td><td><code>kUnknown</code> = 0, <code>kShown</code> = 1, <code>kMarkAsSafe</code> = 2, <code>kBackToSafetyButton</code> = 3, <code>kDismissed</code> = 4, <code>kManualNavigation</code> = 5, <code>kCloseTab</code> = 6, <code>kLearnMore</code> = 7, <code>kSystemBack</code> = 8, <code>kDestroyed</code> = 9</td></tr>
+    </table>
+    </div>
+    <p>Chrome may additionally show a HaTS satisfaction survey after a warning (feature <code>kSuspiciousSiteWarningSurvey</code>, disabled by default, with separate survey triggers for users who proceeded vs. heeded &mdash; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/safe_browsing/core/common/features.cc" target="_blank" rel="noopener">features.cc</a>).</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/components/safe_browsing/core/browser/suspicious_site_warning_allowlist.h" target="_blank" rel="noopener">suspicious_site_warning_allowlist.h (verbatim enums)</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/tools/metrics/histograms/metadata/safe_browsing/histograms.xml" target="_blank" rel="noopener">histograms.xml</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/safe_browsing/core/common/features.cc" target="_blank" rel="noopener">features.cc</a></span>
+
+    <h3 id="warning-lifecycle">lifecycle: from verdict to outcome</h3>
+    <ol>
+      <li><strong>Stage.</strong> <code>ShowForWebContents(web_contents, navigation_id)</code> attaches the controller to the tab for one specific main-frame navigation ID.</li>
+      <li><strong>Defer.</strong> The controller observes the <code>WebContents</code> and the <code>AsyncCheckTracker</code>, and holds the warning &ldquo;until Safe Browsing checks complete and the navigation commits, while prioritizing full-page interstitials&rdquo; (class comment, verbatim on both platforms). Tab visibility changes also gate display (<code>OnVisibilityChanged</code>; the controller tracks an <code>is_suspended_</code> state).</li>
+      <li><strong>Show.</strong> The bubble/dialog appears (<code>ShowBubble()</code>; interaction <code>kShown</code>). During the warning, the suspicious URL is tracked by the controller (<code>current_suspicious_url_</code>, &ldquo;the suspicious URL currently added to the allowlist for this warning&rdquo;).</li>
+      <li><strong>Resolve.</strong> The user heeds (<code>kAdhered</code>), bypasses (<code>kBypassed</code> &mdash; host allowlisted for 30 days), or the system dismisses the warning (<code>kDismissedBySystem</code>). One outcome per warning; the tracked outcome starts at <code>kUnknown</code> and is finalized as the user interacts.</li>
+    </ol>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/safe_browsing/suspicious_site_warnings/suspicious_site_controller_desktop.h" target="_blank" rel="noopener">suspicious_site_controller_desktop.h</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/safe_browsing/android/suspicious_site_controller_android.h" target="_blank" rel="noopener">suspicious_site_controller_android.h</a></span>
+  </section>
+
+  <section>
+    <h2 id="allowlist">the 30-day local bypass allowlist</h2>
+    <p>Bypassing a warning is remembered locally. The contract, from the header comment of <a href="https://chromium.googlesource.com/chromium/src/+/main/components/safe_browsing/core/browser/suspicious_site_warning_allowlist.h" target="_blank" rel="noopener"><code>SuspiciousSiteWarningAllowlist</code></a>, verbatim: &ldquo;When a user clicks &lsquo;Mark as Safe&rsquo; (or &lsquo;Continue anyway&rsquo;) on an SSW warning, the host is added to this local allowlist for a 30-day TTL. While allowlisted, SSW warnings for that host will not be displayed.&rdquo; The TTL constant is <code>kDefaultExpirationTimeout = base::Days(30)</code>. The class API is small and host-keyed: <code>AllowSiteForHost(host)</code>, <code>IsSiteAllowedForHost(host)</code>, <code>RevokeUserAllowException(host)</code>, and two <code>Clear(&hellip;)</code> overloads taking a time range (and optionally a pattern filter).</p>
+
+    <h3 id="allowlist-behavior">storage and scope</h3>
+    <ul>
+      <li><strong>Keyed by host</strong>, not by full URL or origin scheme &mdash; every method takes a <code>host</code> string.</li>
+      <li><strong>Stored in the profile&rsquo;s <code>HostContentSettingsMap</code></strong>: &ldquo;a host is marked as allowlisted &hellip; if a dictionary value is present&rdquo;, so the entry lives with the profile&rsquo;s content-settings storage.</li>
+      <li><strong>Auto-expiring</strong>: &ldquo;expired entries are automatically filtered out by the framework via <code>ContentSettingConstraints</code>&rdquo; &mdash; no cleanup action needed after 30 days; the warning becomes eligible again.</li>
+      <li><strong>Deletable</strong>: individual revocation (<code>RevokeUserAllowException</code>) and time-ranged clearing (<code>Clear(delete_begin, delete_end, &hellip;)</code>) exist &mdash; the time-range signature matches Chrome&rsquo;s browsing-data deletion pattern. Whether the entries sync across a user&rsquo;s devices is not stated in these sources; treat it as undocumented.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/components/safe_browsing/core/browser/suspicious_site_warning_allowlist.h" target="_blank" rel="noopener">suspicious_site_warning_allowlist.h (verbatim comments and member list, fetched 2026-09-06)</a></span>
+  </section>
+
+  <section>
+    <h2 id="site-owners">what site owners can do</h2>
+    <p>If Chrome shows suspicious-site warnings on your site, nothing in the page tells you so &mdash; there is no header, console message, or API (see <a href="#no-api">above</a>). The public, owner-facing paths are the standard Safe Browsing ones:</p>
+    <ul>
+      <li><strong>Check your site&rsquo;s current Safe Browsing status</strong> in the <a href="https://transparencyreport.google.com/safe-browsing/search" target="_blank" rel="noopener">Google Transparency Report site-status checker</a>.</li>
+      <li><strong>Diagnose and request review</strong> through <a href="https://developers.google.com/search/docs/monitor-debug/security/security-issues" target="_blank" rel="noopener">Search Console&rsquo;s Security Issues report</a>, which is Google&rsquo;s documented flow for identifying flagged content and requesting re-evaluation.</li>
+      <li><strong>General background</strong> on what Safe Browsing flags and why: <a href="https://safebrowsing.google.com/" target="_blank" rel="noopener">safebrowsing.google.com</a>.</li>
+    </ul>
+    <p>Honesty note: those flows are documented for Safe Browsing&rsquo;s <em>confirmed</em>-threat listings. As of 2026-09-06, none of the public sources on this page documents a dedicated review path for the sub-threshold &ldquo;suspicious&rdquo; verdict specifically &mdash; whether the Search Console flow surfaces or clears it is not publicly specified. This gap is recorded rather than papered over.</p>
+    <span class="citation">Source: <a href="https://transparencyreport.google.com/safe-browsing/search" target="_blank" rel="noopener">Google Transparency Report</a>; <a href="https://developers.google.com/search/docs/monitor-debug/security/security-issues" target="_blank" rel="noopener">Search Console security issues documentation</a>; <a href="https://safebrowsing.google.com/" target="_blank" rel="noopener">Google Safe Browsing</a></span>
+  </section>
+
+  <section>
+    <h2 id="policies">enterprise policy controls</h2>
+    <p>The admin-facing surface is two <em>existing</em> policies, named by the <a href="https://chromestatus.com/feature/5427561449521152" target="_blank" rel="noopener">ChromeStatus record</a> as the controls for this warning. Their contracts below are quoted from the canonical policy definitions in the Chromium tree; the rendered documentation lives in the <a href="https://chromeenterprise.google/policies/#SafeBrowsingProtectionLevel" target="_blank" rel="noopener">Chrome Enterprise policy list</a>.</p>
+
+    <h3 id="policy-protection-level">SafeBrowsingProtectionLevel</h3>
+    <p>Controls whether Safe Browsing is on and in which mode &mdash; and therefore whether suspicious site warnings can appear at all, since they require Enhanced protection. Type <code>int-enum</code>; values, verbatim from the <a href="https://chromium.googlesource.com/chromium/src/+/main/components/policy/resources/templates/policy_definitions/SafeBrowsing/SafeBrowsingProtectionLevel.yaml" target="_blank" rel="noopener">policy definition</a>:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Value</th><th>Meaning</th><th>Effect on this feature</th></tr></thead>
+      <tr><td><code>0</code> &mdash; <code>NoProtection</code></td><td>&ldquo;Safe Browsing is never active.&rdquo;</td><td>No suspicious site warnings (no Safe Browsing at all)</td></tr>
+      <tr><td><code>1</code> &mdash; <code>StandardProtection</code> (default)</td><td>&ldquo;Safe Browsing is always active in the standard mode.&rdquo;</td><td>No suspicious site warnings &mdash; the feature is Enhanced-protection-only</td></tr>
+      <tr><td><code>2</code> &mdash; <code>EnhancedProtection</code></td><td>&ldquo;Safe Browsing is always active in the enhanced mode&hellip; requires sharing more browsing information with Google.&rdquo;</td><td>Suspicious site warnings active (Chrome 152+, subject to rollout)</td></tr>
+    </table>
+    </div>
+    <p>Contract details from the same definition: if set as <strong>mandatory</strong>, users cannot change the Safe Browsing setting; it can also be set as <strong>recommended</strong> (<code>can_be_recommended: true</code>), leaving the user in control; unset means Standard protection with user choice. <code>dynamic_refresh: true</code> (applies without restart), <code>per_profile: true</code>.</p>
+
+    <h4 id="policy-protection-level-support">supported platforms</h4>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <thead><tr><th>Platform</th><th>Since (per <code>supported_on</code>)</th></tr></thead>
+      <tr><td>Chrome (desktop, all OSes)</td><td>83+</td></tr>
+      <tr><td>ChromeOS</td><td>83+</td></tr>
+      <tr><td>Android</td><td>87+</td></tr>
+      <tr><td>iOS</td><td>88+</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/components/policy/resources/templates/policy_definitions/SafeBrowsing/SafeBrowsingProtectionLevel.yaml" target="_blank" rel="noopener">SafeBrowsingProtectionLevel.yaml (verbatim, fetched 2026-09-06)</a>; <a href="https://chromeenterprise.google/policies/#SafeBrowsingProtectionLevel" target="_blank" rel="noopener">Chrome Enterprise policy list</a></span>
+
+    <h3 id="policy-allowlist-domains">SafeBrowsingAllowlistDomains</h3>
+    <p>Excludes specific domains from Safe Browsing checks entirely &mdash; the ChromeStatus record names it as the way for admins &ldquo;to exclude specific sites from triggering the warning&rdquo;. Type: list of strings. The matching contract, verbatim from the <a href="https://chromium.googlesource.com/chromium/src/+/main/components/policy/resources/templates/policy_definitions/SafeBrowsing/SafeBrowsingAllowlistDomains.yaml" target="_blank" rel="noopener">policy definition</a>: &ldquo;Safe Browsing will trust the domains you designate. It won&rsquo;t check them for dangerous resources such as phishing, malware, or unwanted software&hellip; This policy does not support regular expressions; however, subdomains of a given domain are allowlisted. Fully qualified domain names (FQDNs) are not required.&rdquo; Example value from the definition: <code>["mydomain.com", "myuniversity.edu"]</code>. Marked <code>sensitive: true</code> (it weakens a security boundary); <code>dynamic_refresh: true</code>, <code>per_profile: true</code>. Note the blast radius: it does not suppress only this pop-up &mdash; it turns off Safe Browsing checks (including download and password-reuse protection) for those domains.</p>
+
+    <h4 id="policy-allowlist-support">supported platforms</h4>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <thead><tr><th>Platform</th><th>Since (per <code>supported_on</code>)</th></tr></thead>
+      <tr><td>Chrome (desktop, all OSes)</td><td>86+</td></tr>
+      <tr><td>ChromeOS</td><td>86+</td></tr>
+      <tr><td>Android</td><td>133+</td></tr>
+      <tr><td>iOS</td><td>not listed in <code>supported_on</code> (unsupported)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/components/policy/resources/templates/policy_definitions/SafeBrowsing/SafeBrowsingAllowlistDomains.yaml" target="_blank" rel="noopener">SafeBrowsingAllowlistDomains.yaml (verbatim, fetched 2026-09-06)</a>; <a href="https://chromeenterprise.google/policies/#SafeBrowsingAllowlistDomains" target="_blank" rel="noopener">Chrome Enterprise policy list</a>; <a href="https://chromestatus.com/feature/5427561449521152" target="_blank" rel="noopener">ChromeStatus record</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <p>Because a page cannot trigger, detect, or demo the warning itself, the live example explores the boundary honestly &mdash; it probes every plausible place a Safe Browsing verdict might be exposed to script and demonstrates that the answer is &ldquo;nothing&rdquo;, with controls that prove the probing works:</p>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v152/suspicious-site-warnings/what-a-page-can-observe/"
+        title="Live example &mdash; What a page can observe" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase (route returned 200, 2026-09-06). Two more concept demos: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v152/suspicious-site-warnings/signals-audit/" target="_blank" rel="noopener">Audit your own markup</a> and <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v152/suspicious-site-warnings/if-you-are-flagged/" target="_blank" rel="noopener">If you are flagged</a>.<span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v152/suspicious-site-warnings/" target="_blank" rel="noopener">chrome-platform-showcase</a></span></figcaption>
+    </figure>
+
+    <p>Reproduce the feature state locally (test builds where the Finch rollout has not reached you):</p>
+    <pre><code># Enable the client-side feature explicitly, then turn on
+# Enhanced protection in chrome://settings/security
+chrome --enable-features=SuspiciousSiteWarnings
+
+# or flip the flag UI equivalent:
+#   chrome://flags/#suspicious-site-warnings</code></pre>
+
+    <p>Enterprise: force Enhanced protection (which activates the warnings) while exempting internal domains from Safe Browsing checks &mdash; a Linux <code>managed policies</code> JSON example; the same two values map to Windows registry / macOS plist / Google Admin console equivalents documented in the <a href="https://chromeenterprise.google/policies/#SafeBrowsingProtectionLevel" target="_blank" rel="noopener">policy list</a>:</p>
+    <pre><code>// /etc/opt/chrome/policies/managed/safebrowsing.json
+{
+  "SafeBrowsingProtectionLevel": 2,
+  "SafeBrowsingAllowlistDomains": ["intranet.example.com"]
+}</code></pre>
+    <p>And the inverse &mdash; an admin who wants no suspicious-site pop-ups at all pins the protection level at or below Standard:</p>
+    <pre><code>{
+  "SafeBrowsingProtectionLevel": 1
+}</code></pre>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/about_flags.cc" target="_blank" rel="noopener">about_flags.cc (flag name and feature mapping)</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/policy/resources/templates/policy_definitions/SafeBrowsing/SafeBrowsingProtectionLevel.yaml" target="_blank" rel="noopener">SafeBrowsingProtectionLevel.yaml</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/policy/resources/templates/policy_definitions/SafeBrowsing/SafeBrowsingAllowlistDomains.yaml" target="_blank" rel="noopener">SafeBrowsingAllowlistDomains.yaml</a></span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">browser compatibility</h2>
+    <p><em>Interim table.</em> Browser-compat data (BCD) and the web-features register cover web-exposed APIs; this browser-UI feature has no key in either (the <a href="https://api.webstatus.dev/v1/features?q=suspicious%20site" target="_blank" rel="noopener">webstatus.dev query</a> returns zero matches, verified 2026-09-06). Rows compiled from the linked primary sources.</p>
+    <div class="table-wrap">
+    <table class="doc-table compat-table fixed3">
+      <thead><tr><th>Browser / platform</th><th>Support</th><th>Evidence</th></tr></thead>
+      <tr><td>Chrome (desktop)</td><td>152 &mdash; Enabled by default per the listing, for Enhanced-protection users; client flag Finch-rolled (trunk default: disabled). Desktop bubble implementation present in-tree; the API record&rsquo;s <code>desktop</code> milestone field is <code>null</code> (stale/partial metadata, disclosed in the <a href="#rollout-warning">rollout note</a>)</td><td><a href="https://chromestatus.com/api/v0/features?milestone=152" target="_blank" rel="noopener">milestone listing</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/safe_browsing/suspicious_site_warnings/suspicious_site_controller_desktop.h" target="_blank" rel="noopener">desktop controller</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/safe_browsing/core/common/features.cc" target="_blank" rel="noopener">features.cc</a></td></tr>
+      <tr><td>Chrome (Android)</td><td>152 &mdash; the API record lists <code>android: 152</code>; modal-dialog implementation present in-tree; flag registered for Android</td><td><a href="https://chromestatus.com/api/v0/features/5427561449521152" target="_blank" rel="noopener">API record</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/safe_browsing/android/suspicious_site_controller_android.h" target="_blank" rel="noopener">Android controller</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/flag-metadata.json" target="_blank" rel="noopener">flag-metadata.json</a></td></tr>
+      <tr><td>Chrome (iOS / WebView)</td><td>Not shipped per the record (<code>ios: null</code>, <code>webview: null</code>); no iOS/WebView implementation among the linked sources</td><td><a href="https://chromestatus.com/api/v0/features/5427561449521152" target="_blank" rel="noopener">API record</a></td></tr>
+      <tr><td>Edge / Firefox / Safari</td><td>Not applicable &mdash; the feature is Chrome&rsquo;s Safe Browsing UI, not a web standard; the record logs &ldquo;No signal&rdquo; from other vendors and there is nothing to implement interoperably</td><td><a href="https://chromestatus.com/api/v0/features/5427561449521152" target="_blank" rel="noopener">API record (ff/safari views)</a></td></tr>
+    </table>
+    </div>
+    <p>There are no web-platform tests: WPT covers web-exposed behavior, and this feature has none. In-tree coverage is Chromium browser tests on both platforms (<a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/safe_browsing/suspicious_site_warnings/suspicious_site_desktop_browsertest.cc" target="_blank" rel="noopener">desktop</a>, <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/safe_browsing/android/suspicious_site_browsertest.cc" target="_blank" rel="noopener">Android</a>).</p>
+    <span class="citation">Source: linked per row, all fetched 2026-09-06</span>
+  </section>
+
+  <section>
+    <h2 id="security-privacy">security and privacy</h2>
+    <ul>
+      <li><strong>The feature is itself a security control</strong>: it surfaces sub-threshold Safe Browsing verdicts that previously produced no user-visible signal, narrowing the window in which an Enhanced-protection user interacts with a probably-deceptive site.</li>
+      <li><strong>Privacy cost lives in the prerequisite, not the warning.</strong> Warnings only exist under Enhanced protection, which &ldquo;sends more information about your activity to Google in real time&rdquo;, including &ldquo;the URLs you visit and a small sample of page content&rdquo; (Google&rsquo;s Safe Browsing help, verbatim). The warning adds no new data collection of its own in the sources here; the verdicts arrive on the already-running real-time lookup.</li>
+      <li><strong>Bypass state is stored locally</strong> in the profile&rsquo;s content settings with a 30-day auto-expiry, and is revocable/clearable (see <a href="#allowlist">the allowlist</a>). Interaction outcomes are recorded to UMA histograms as anonymous enumerations.</li>
+      <li><strong>Enterprise allowlisting is deliberately blunt</strong>: <code>SafeBrowsingAllowlistDomains</code> is flagged <code>sensitive: true</code> in its definition because it exempts domains from all Safe Browsing checks, not just this pop-up &mdash; admins trading warning fatigue for coverage should know the trade.</li>
+      <li><strong>Nothing is exposed to the web</strong>: no page can learn that a warning was shown, bypassed, or heeded (see <a href="#no-api">no web-exposed API</a>) &mdash; so the warning leaks no browsing-state signal to the site being warned about.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://support.google.com/chrome/answer/13844634" target="_blank" rel="noopener">Safe Browsing protection levels (verbatim quotes)</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/safe_browsing/core/browser/suspicious_site_warning_allowlist.h" target="_blank" rel="noopener">allowlist header</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/policy/resources/templates/policy_definitions/SafeBrowsing/SafeBrowsingAllowlistDomains.yaml" target="_blank" rel="noopener">SafeBrowsingAllowlistDomains.yaml</a></span>
+  </section>
+
+  <section>
+    <h2 id="specifications">specifications</h2>
+    <p>There is no specification: this is Chrome product behavior (browser security UI), not a standards-track web-platform feature. No W3C/WHATWG/WICG document, explainer, intent thread, or TAG review exists for it in the ChromeStatus record (spec, explainer, and intent fields are all empty, verified 2026-09-06). The governing public artifacts are:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Document</th><th>Role</th></tr></thead>
+      <tr><td><a href="https://chromestatus.com/feature/5427561449521152" target="_blank" rel="noopener">ChromeStatus &mdash; Suspicious site warnings (5427561449521152)</a></td><td>The feature&rsquo;s public record: scope, milestone, admin controls (marked enterprise-release-notes reviewed, notification milestone 152)</td></tr>
+      <tr><td><a href="https://support.google.com/chrome/answer/13844634" target="_blank" rel="noopener">Google Chrome Help &mdash; Safe Browsing protection levels</a></td><td>The user-facing definition of Standard vs. Enhanced protection this feature builds on (linked from the feature summary and from the warning&rsquo;s own help-center link)</td></tr>
+      <tr><td><a href="https://chromium.googlesource.com/chromium/src/+/main/components/policy/resources/templates/policy_definitions/SafeBrowsing/SafeBrowsingProtectionLevel.yaml" target="_blank" rel="noopener">SafeBrowsingProtectionLevel.yaml</a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/policy/resources/templates/policy_definitions/SafeBrowsing/SafeBrowsingAllowlistDomains.yaml" target="_blank" rel="noopener">SafeBrowsingAllowlistDomains.yaml</a></td><td>Canonical admin-policy contracts (rendered at <a href="https://chromeenterprise.google/policies/#SafeBrowsingProtectionLevel" target="_blank" rel="noopener">chromeenterprise.google/policies</a>)</td></tr>
+      <tr><td>Chromium source (linked throughout this page)</td><td>The behavior contract of record: verdict mapping, controllers, allowlist, flags, metrics</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5427561449521152" target="_blank" rel="noopener">ChromeStatus API record (empty spec/explainer/intent fields)</a></span>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/5427561449521152" target="_blank" rel="noopener">Chrome Platform Status &mdash; Suspicious site warnings</a> (<a href="https://chromestatus.com/api/v0/features/5427561449521152" target="_blank" rel="noopener">API record</a>)</li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v152/suspicious-site-warnings/" target="_blank" rel="noopener">Chrome Platform Showcase &mdash; Suspicious site warnings</a> (three live concept demos)</li>
+      <li><a href="https://support.google.com/chrome/answer/13844634" target="_blank" rel="noopener">Choose your Safe Browsing protection level in Chrome</a> &mdash; the help article the warning itself links to</li>
+      <li><a href="https://chromeenterprise.google/policies/#SafeBrowsingProtectionLevel" target="_blank" rel="noopener">SafeBrowsingProtectionLevel</a> &middot; <a href="https://chromeenterprise.google/policies/#SafeBrowsingAllowlistDomains" target="_blank" rel="noopener">SafeBrowsingAllowlistDomains</a> &mdash; Chrome Enterprise policy documentation</li>
+      <li><a href="https://transparencyreport.google.com/safe-browsing/search" target="_blank" rel="noopener">Safe Browsing site status</a> and <a href="https://developers.google.com/search/docs/monitor-debug/security/security-issues" target="_blank" rel="noopener">Search Console security issues</a> &mdash; the site-owner paths</li>
+      <li>Disambiguation: the Chromium tree also contains an older, unrelated <code>SafeBrowsingSuspiciousSiteTriggerQuota</code> feature (a 2019-era <em>reporting</em> trigger, not this warning UI) in the same <a href="https://chromium.googlesource.com/chromium/src/+/main/components/safe_browsing/core/common/features.cc" target="_blank" rel="noopener">features.cc</a> &mdash; searching the codebase for &ldquo;suspicious site&rdquo; finds both</li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
