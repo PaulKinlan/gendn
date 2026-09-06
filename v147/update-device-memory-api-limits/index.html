@@ -6,12 +6,28 @@
   <title>Update Device Memory API limits — Chrome 147 — gendn</title>
   <link rel="stylesheet" href="/public/styles.css">
   <style>
-    .doc-table { width: 100%; table-layout: fixed; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code, th code { overflow-wrap: anywhere; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
     .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
     .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 9.5rem; }
+    .doc-table thead th { width: auto; min-width: 0; }
     .doc-table tr:last-child td { border-bottom: none; }
     .doc-table code { background: transparent; border: none; padding: 0; }
+    .doc-table caption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); text-align: left; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .table-wrap { overflow-x: auto; }
+    .table-wrap .doc-table.fixed3 { min-width: 34rem; }
     .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .baseline-banner { border: 2px solid var(--border-black); padding: 1rem 1.2rem; margin: 1.5rem 0; background: var(--bg-paper); box-shadow: var(--thin-shadow); }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    .example-embed { margin: 1.5rem 0; }
+    .example-embed iframe { display: block; width: 100%; border: 2px solid var(--border-black); background: var(--bg-paper); }
+    .example-embed figcaption { font-size: 0.85rem; margin-top: 0.5rem; }
   </style>
 </head>
 <body>
@@ -19,64 +35,226 @@
   <p class="crumbs"><a href="/v147/">&larr; Chrome 147 reference</a></p>
 
   <header class="lede-block">
-    <p class="eyebrow">v147 · device memory api · privacy · shipped</p>
+    <p class="eyebrow">v147 · device memory api · performance · privacy · shipped</p>
     <h1>Update Device Memory API limits</h1>
-    <p class="lede">Chrome 147 updates the memory buckets reported by the Device Memory API (<code>navigator.deviceMemory</code> and the <code>Device-Memory</code> client hint), expanding the upper range on desktop and removing low-end Android buckets to better reflect today's device landscape. Ships in Chrome 147 on all platforms.</p>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome · new limits from 147 (API since 63)</li>
+        <li>Edge · Chromium-based (API since 79)</li>
+        <li class="limited">Firefox · not supported</li>
+        <li class="limited">Safari · not supported</li>
+      </ul>
+      <p>The underlying Device Memory API is <strong>not Baseline</strong>: the <a href="https://webstatus.dev/features/device-memory" target="_blank" rel="noopener">webstatus.dev entry for <code>device-memory</code></a> reports Baseline status &ldquo;limited&rdquo; with Chromium-only implementations (verified 2026-09-06), and <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Navigator.json" target="_blank" rel="noopener">BCD <code>api.Navigator.deviceMemory</code></a> records no Firefox or Safari support. The limits change documented here is Chromium-specific behavior shipping in Chrome 147 on desktop, Android, and WebView per the <a href="https://chromestatus.com/feature/6330376953921536" target="_blank" rel="noopener">ChromeStatus record</a>.</p>
+    </div>
+
+    <p class="lede">Chrome 147 updates the privacy-preserving memory buckets reported by the Device Memory API &mdash; <code>navigator.deviceMemory</code> and the <code>Device-Memory</code> / <code>Sec-CH-Device-Memory</code> client hint headers. The floor rises on every platform (dropping the outdated 0.25 and 0.5&nbsp;GiB buckets) and the ceiling on desktop expands to 32&nbsp;GiB, so the possible values become <strong>1, 2, 4, 8</strong> on Android and <strong>2, 4, 8, 16, 32</strong> everywhere else, replacing the old 0.25&ndash;8 range on all platforms.</p>
   </header>
 
   <section>
-    <h2>at a glance</h2>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
     <table class="doc-table">
-      <tr><th>Shipped in</th><td>Chrome 147 (desktop, Android, WebView)</td></tr>
-      <tr><th>Status</th><td>Enabled by default</td></tr>
-      <tr><th>Finch flag</th><td>kUpdatedDeviceMemoryLimitsFor2026</td></tr>
-      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/6330376953921536" target="_blank" rel="noopener">6330376953921536 — Update Device Memory API limits</a></td></tr>
+      <tr><th scope="row">What it is</th><td>A behavior change (not new API surface) to the clamping bounds the Device Memory API applies before reporting a value &mdash; affecting <code>navigator.deviceMemory</code> on <code>Window</code> and workers, and the <code>Device-Memory</code> / <code>Sec-CH-Device-Memory</code> client hint headers</td></tr>
+      <tr><th scope="row">Shipped in</th><td>Chrome 147 &mdash; desktop, Android, and WebView (<a href="https://chromestatus.com/api/v0/features?milestone=147" target="_blank" rel="noopener">milestone=147 listing</a>, category &ldquo;Enabled by default&rdquo;, verified 2026-09-06). The <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/vXtAmrVZeDk" target="_blank" rel="noopener">Intent to Ship</a> originally targeted M146; the listing files it under 147, which is authoritative for gendn</td></tr>
+      <tr><th scope="row">Kill switch</th><td><code>kUpdatedDeviceMemoryLimitsFor2026</code> &mdash; a reversion feature flag, not an opt-in: no Finch rollout was planned given the low risk (<a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/vXtAmrVZeDk" target="_blank" rel="noopener">intent thread</a>; <a href="https://chromestatus.com/feature/6330376953921536" target="_blank" rel="noopener">ChromeStatus &ldquo;WebView application risks&rdquo;</a>)</td></tr>
+      <tr><th scope="row">Spec change</th><td><a href="https://github.com/w3c/device-memory/pull/53" target="_blank" rel="noopener">w3c/device-memory PR #53</a> &mdash; merged 2026-01-19; removes the fixed recommended bounds (8&nbsp;GiB upper / 0.25&nbsp;GiB lower) in favor of implementation-defined, adjustable, per-device-type bounds</td></tr>
+      <tr><th scope="row">Tracking bug</th><td><a href="https://issues.chromium.org/issues/454354290" target="_blank" rel="noopener">issues.chromium.org/454354290</a></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/6330376953921536" target="_blank" rel="noopener">6330376953921536 &mdash; Update Device Memory API limits</a> (Blink component <code>Blink&gt;JavaScript&gt;API</code>, owner Barry Pollard)</td></tr>
     </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6330376953921536" target="_blank" rel="noopener">chromestatus.com/feature/6330376953921536</a>; <a href="https://chromestatus.com/api/v0/features/6330376953921536" target="_blank" rel="noopener">API record</a> (fetched 2026-09-06)</span>
   </section>
 
   <section>
-    <h2>what changed</h2>
-    <p>The Device Memory API reports RAM in privacy-preserving buckets rather than the exact amount. Chrome 147 updates these buckets to reflect current hardware in 2026:</p>
-    <table class="doc-table">
-      <tr><th>Platform</th><th>Before Chrome 147</th><th>Chrome 147+</th></tr>
-      <tr><td>Android</td><td>0.25, 0.5, 1, 2, 4, 8</td><td>1, 2, 4, 8</td></tr>
-      <tr><td>Desktop (Windows, Mac, Linux)</td><td>0.25, 0.5, 1, 2, 4, 8</td><td>2, 4, 8, 16, 32</td></tr>
+    <h2 id="what-changed">what changed</h2>
+    <p>The Device Memory API reports RAM in privacy-preserving buckets rather than the exact amount: the physical memory is rounded to the nearest power of two, then clamped to an implementation-defined range. Chrome 147 changes only the clamping bounds:</p>
+    <div class="table-wrap">
+    <table class="doc-table fixed3">
+      <caption>Possible reported values (GiB)</caption>
+      <thead><tr><th scope="col">Platform</th><th scope="col">Before Chrome 147</th><th scope="col">Chrome 147+</th></tr></thead>
+      <tr><td>Android</td><td><code>0.25, 0.5, 1, 2, 4, 8</code></td><td><code>1, 2, 4, 8</code></td></tr>
+      <tr><td>Desktop (Windows, macOS, Linux, ChromeOS)</td><td><code>0.25, 0.5, 1, 2, 4, 8</code></td><td><code>2, 4, 8, 16, 32</code></td></tr>
     </table>
-    <p>The low-end buckets (0.25 GB and 0.5 GB) are removed on Android — virtually no current Android device ships with less than 1 GB RAM. The upper range on desktop expands to 16 GB and 32 GB to accommodate high-end workstations.</p>
-    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/vXtAmrVZeDk" target="_blank" rel="noopener">blink-dev Intent to Ship: Update Device Memory API limits</a> (mail-archive msg15601), Chrome 147.</span>
+    </div>
+    <ul>
+      <li><strong>Higher floor.</strong> The 0.25 and 0.5&nbsp;GiB buckets disappear everywhere; desktop additionally loses the 1&nbsp;GiB bucket. Internal Chrome stats and external RUM-provider review confirmed the low buckets were rarely reported, so they had become a fingerprinting vector rather than a capability signal.</li>
+      <li><strong>Higher desktop ceiling.</strong> 16 and 32&nbsp;GiB let sites segment high-end machines &mdash; the change developers requested in <a href="https://github.com/w3c/device-memory/issues/50" target="_blank" rel="noopener">w3c/device-memory #50</a> (closed), motivated in part by memory-hungry workloads such as on-device AI.</li>
+      <li><strong>Android ceiling unchanged at 8&nbsp;GiB</strong> &mdash; deliberately not raised yet, because &gt;8&nbsp;GiB remains rare on mobile devices (per the ChromeStatus security-risks review).</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6330376953921536" target="_blank" rel="noopener">ChromeStatus summary + security risks</a>; <a href="https://github.com/w3c/device-memory/issues/50" target="_blank" rel="noopener">w3c/device-memory #50 (proposal)</a>; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/vXtAmrVZeDk" target="_blank" rel="noopener">blink-dev Intent to Ship</a></span>
   </section>
 
   <section>
-    <h2>reading device memory</h2>
-<pre><code>// navigator.deviceMemory returns one of the new bucket values
+    <h2 id="syntax">syntax</h2>
+    <p>The change adds no new surface; these are the affected contracts. The Web IDL, verbatim from the <a href="https://www.w3.org/TR/device-memory/" target="_blank" rel="noopener">Device Memory 1 specification</a> (W3C Working Draft, 2026-03-30, &sect;&nbsp;4):</p>
+    <pre><code>[
+  SecureContext,
+  Exposed=(Window,Worker)
+] interface mixin NavigatorDeviceMemory {
+  readonly attribute double deviceMemory;
+};
+
+Navigator includes NavigatorDeviceMemory;
+WorkerNavigator includes NavigatorDeviceMemory;</code></pre>
+    <p>The <code>deviceMemory</code> getter returns the user agent&rsquo;s coarsened device memory in GiB &mdash; from Chrome 147, always one of the values in the <a href="#what-changed">table above</a>.</p>
+    <p>The client hint header, with its ABNF verbatim from the same spec (&sect;&nbsp;3 &mdash; a <a href="https://www.rfc-editor.org/rfc/rfc8941" target="_blank" rel="noopener">Structured Fields</a> decimal):</p>
+    <pre><code>Sec-CH-Device-Memory = sf-decimal</code></pre>
+    <p>Chrome sends <code>Sec-CH-Device-Memory</code> (since Chrome 97) and also the legacy pre-<code>Sec-CH-</code> spelling <code>Device-Memory</code> (since Chrome 61), which <a href="https://github.com/mdn/browser-compat-data/blob/main/http/headers/Device-Memory.json" target="_blank" rel="noopener">BCD marks deprecated and non-standard</a>. Both carry the same clamped value, and both are opt-in via <code>Accept-CH</code>:</p>
+    <pre><code>Accept-CH: Sec-CH-Device-Memory
+
+GET /example HTTP/1.1
+Sec-CH-Device-Memory: 8</code></pre>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/device-memory/" target="_blank" rel="noopener">Device Memory 1, W3C WD 2026-03-30</a> (IDL &sect;&nbsp;4, header &sect;&nbsp;3, examples &sect;&nbsp;3.1, verbatim); <a href="https://raw.githubusercontent.com/mdn/browser-compat-data/main/http/headers/Sec-CH-Device-Memory.json" target="_blank" rel="noopener">BCD <code>http.headers.Sec-CH-Device-Memory</code></a></span>
+  </section>
+
+  <section>
+    <h2 id="algorithm">how the reported value is computed</h2>
+    <p>The spec&rsquo;s algorithm (&sect;&nbsp;2.1) rounds physical memory to the nearest power of two, then clamps: <em>&ldquo;If deviceMemory &lt; minimumLowerBound, then deviceMemory is minimumLowerBound. If deviceMemory &gt; maximumUpperBound, then deviceMemory is maximumUpperBound.&rdquo;</em> After <a href="https://github.com/w3c/device-memory/pull/53" target="_blank" rel="noopener">PR #53</a> both bounds are <em>implementation-defined</em>: &ldquo;Implementations may adjust these bounds over time. These bounds may differ on different device types.&rdquo; That spec change is what allowed Chrome to move its bounds without a spec violation (the TAG review was recorded &ldquo;Not applicable&rdquo; because the values were always documented as subject to change).</p>
+    <p>Chrome&rsquo;s bounds now live in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/common/device_memory/approximated_device_memory.cc" target="_blank" rel="noopener"><code>approximated_device_memory.cc</code></a> (trunk, fetched 2026-09-06):</p>
+    <pre><code>// Limit the values to reduce fingerprintability.
+// See: https://crbug.com/454354290 for updated limits.
+float kMinMemory = 2.0f;
+float kMaxMemory = 32.0f;
+
+#if BUILDFLAG(IS_ANDROID)
+  // Allow smaller lower limits on Android where lower RAM is still common.
+  kMinMemory = 1.0f;
+  kMaxMemory = 8.0f;
+#endif</code></pre>
+    <p>Because rounding happens before clamping, every reported value is a power of two within the platform&rsquo;s [min,&nbsp;max] range &mdash; which yields exactly the value sets in <a href="#what-changed">what changed</a>.</p>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/device-memory/" target="_blank" rel="noopener">Device Memory 1 &sect;&nbsp;2.1 (algorithm, quoted verbatim)</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/common/device_memory/approximated_device_memory.cc" target="_blank" rel="noopener">Chromium <code>approximated_device_memory.cc</code> (excerpt verbatim, comment abridged)</a>; <a href="https://github.com/w3c/device-memory/pull/53" target="_blank" rel="noopener">w3c/device-memory PR #53 (merged 2026-01-19)</a></span>
+  </section>
+
+  <section>
+    <h2 id="context">context and exposure</h2>
+    <ul>
+      <li><strong>Secure contexts only.</strong> The IDL is <code>[SecureContext]</code>; the headers are likewise restricted to HTTPS (spec &sect;&nbsp;5). On insecure pages <code>navigator.deviceMemory</code> is <code>undefined</code>.</li>
+      <li><strong>Window and workers.</strong> <code>Exposed=(Window,Worker)</code> &mdash; the same clamped value is readable from <code>Navigator</code> and <code>WorkerNavigator</code>.</li>
+      <li><strong>Headers are opt-in.</strong> <code>Sec-CH-Device-Memory</code> / <code>Device-Memory</code> are only sent after the server opts in via <code>Accept-CH</code> (or the equivalent <code>&lt;meta http-equiv&gt;</code>), per the Client Hints model.</li>
+      <li><strong>No feature-detecting the new limits.</strong> Nothing announces which bucket set a browser uses. Code can detect the API (<code>'deviceMemory' in navigator</code>) but not the bounds; infer them only from the reported value&rsquo;s range, or from the UA version via the compat table below.</li>
+      <li><strong>Migration impact.</strong> From Chrome 147, comparisons against retired buckets are dead code: on Android <code>navigator.deviceMemory &lt; 1</code> is never true, on desktop <code>&lt; 2</code> is never true &mdash; and a desktop machine with 512&nbsp;MiB RAM now reports <code>2</code>. Low-memory heuristics keyed on <code>0.25</code>/<code>0.5</code> must be re-thresholded. Conversely RUM segmentation can now distinguish 8 vs 16 vs 32&nbsp;GiB desktops.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/device-memory/" target="_blank" rel="noopener">Device Memory 1 &sect;&sect;&nbsp;3&ndash;5</a>; <a href="https://chromestatus.com/feature/6330376953921536" target="_blank" rel="noopener">ChromeStatus adoption expectation</a></span>
+  </section>
+
+  <section>
+    <h2 id="errors">errors and edge behavior</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Situation</th><th scope="col">Behavior</th></tr></thead>
+      <tr><td>Reading <code>navigator.deviceMemory</code></td><td>Never throws; the getter returns a cached <code>double</code>. There is no promise, no permission prompt, and no rejection path.</td></tr>
+      <tr><td>Insecure (non-HTTPS) context</td><td>The attribute is absent (<code>undefined</code>); the client hints are not sent. Guard with <code>'deviceMemory' in navigator</code>.</td></tr>
+      <tr><td>Unsupported browser (Firefox, Safari)</td><td><code>navigator.deviceMemory</code> is <code>undefined</code>; the headers are never sent. Treat memory-based tiering as progressive enhancement.</td></tr>
+      <tr><td>Physical RAM outside the range</td><td>Silently clamped &mdash; a 64&nbsp;GiB workstation reports <code>32</code>; a 512&nbsp;MiB desktop VM reports <code>2</code>. No error, no indication that clamping occurred.</td></tr>
+      <tr><td>Header received more than once</td><td>&ldquo;the last value overrides all previous occurrences&rdquo; (spec &sect;&nbsp;3).</td></tr>
+      <tr><td>Chrome 147 rollout reverted</td><td>The <code>kUpdatedDeviceMemoryLimitsFor2026</code> kill switch would restore the old 0.25&ndash;8 buckets; servers must tolerate both value sets during the transition.</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/device-memory/" target="_blank" rel="noopener">Device Memory 1 &sect;&sect;&nbsp;2&ndash;5</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/common/device_memory/approximated_device_memory.cc" target="_blank" rel="noopener">Chromium clamping implementation</a>; <a href="https://chromestatus.com/feature/6330376953921536" target="_blank" rel="noopener">ChromeStatus WebView risks (kill switch)</a></span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">lifecycle</h2>
+    <ol>
+      <li><strong>Computed once, then constant.</strong> Chromium caches physical memory at initialization (<code>ApproximatedDeviceMemory::Initialize()</code>) and derives the clamped value from it; <code>navigator.deviceMemory</code> does not change while a page runs, and there is no change event.</li>
+      <li><strong>Headers per request, after opt-in.</strong> Once a server&rsquo;s <code>Accept-CH: Sec-CH-Device-Memory</code> preference is registered, subsequent eligible requests carry the hint with the same clamped value.</li>
+      <li><strong>Rollout.</strong> The new bounds ship enabled by default in Chrome 147 on all platforms (desktop, Android, WebView) with no origin trial and no flag to flip; the kill switch exists only for emergency reversion. A user updating from 146 to 147 may observe the reported value change (e.g. a 0.5&nbsp;GiB Android device jumping to <code>1</code>) with no page-visible notification.</li>
+    </ol>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/common/device_memory/approximated_device_memory.cc" target="_blank" rel="noopener">Chromium <code>ApproximatedDeviceMemory</code> (cached static)</a>; <a href="https://www.w3.org/TR/device-memory/" target="_blank" rel="noopener">Device Memory 1 &sect;&nbsp;3</a>; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/vXtAmrVZeDk" target="_blank" rel="noopener">intent thread (rollout plan)</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <p>Reading the coarsened value, with the post-147 buckets and a migration-safe threshold:</p>
+    <pre><code>// navigator.deviceMemory returns one of the new bucket values (GiB)
 console.log(navigator.deviceMemory);
 // Android: 1, 2, 4, or 8
 // Desktop: 2, 4, 8, 16, or 32
 
-// Code that relied on values below 1 will never match on Android in Chrome 147+
-if (navigator.deviceMemory < 1) {
-  // This branch is now unreachable on Android
+// Code that relied on values below 1 will never match in Chrome 147+
+if (navigator.deviceMemory &lt; 1) {
+  // Unreachable on Android from 147 (and &lt; 2 is unreachable on desktop)
   showLowMemoryMode();
-}</code></pre>
+}
+
+// Migration-safe tiering: threshold against the surviving buckets,
+// and treat the API as absent in Firefox/Safari
+const mem = navigator.deviceMemory ?? 4; // fallback guess
+const tier = mem &lt;= 2 ? "lite" : mem &lt;= 8 ? "standard" : "premium";</code></pre>
+    <p>Opting in to the client hint on the server, then adapting the response:</p>
+    <pre><code>HTTP/1.1 200 OK
+Accept-CH: Sec-CH-Device-Memory
+
+// A later request from Chrome 147 on a 16 GiB laptop:
+GET /app HTTP/1.1
+Sec-CH-Device-Memory: 16
+Device-Memory: 16</code></pre>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/update-device-memory-api-limits/memory-inspector/"
+        title="Live example — Memory Inspector: reads navigator.deviceMemory and shows the Chrome 147 bucket it falls in" loading="lazy" width="100%" height="520"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase (route HEAD-checked 200, 2026-09-06).<span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/update-device-memory-api-limits/memory-inspector/" target="_blank" rel="noopener">chrome-platform-showcase — Memory Inspector</a></span></figcaption>
+    </figure>
+    <p>Further interactive demos on the <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/update-device-memory-api-limits/" target="_blank" rel="noopener">showcase feature page</a>: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/update-device-memory-api-limits/adaptive-loading-demo/" target="_blank" rel="noopener">Adaptive Loading Demo</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/update-device-memory-api-limits/quality-tier-picker/" target="_blank" rel="noopener">Quality Tier Picker</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/update-device-memory-api-limits/memory-budget-optimizer/" target="_blank" rel="noopener">Memory Budget Optimizer</a>, and <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/update-device-memory-api-limits/compatibility-lab/" target="_blank" rel="noopener">Compatibility Lab</a> (all HEAD-checked 200, 2026-09-06).</p>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/device-memory/" target="_blank" rel="noopener">Device Memory 1 &sect;&sect;&nbsp;3.1, 4.1 (example patterns)</a>; buckets per <a href="https://chromestatus.com/feature/6330376953921536" target="_blank" rel="noopener">ChromeStatus 6330376953921536</a></span>
   </section>
 
   <section>
-    <h2>browser support</h2>
-    <table class="doc-table">
-      <tr><th>Chrome / Edge</th><td>147 (all platforms)</td></tr>
-      <tr><th>Firefox</th><td>Not supported</td></tr>
-      <tr><th>Safari</th><td>Not supported</td></tr>
+    <h2 id="wpt">web platform tests</h2>
+    <p>Upstream coverage lives in <a href="https://github.com/web-platform-tests/wpt/tree/master/device-memory" target="_blank" rel="noopener"><code>wpt/device-memory/</code></a>: <code>device-memory.https.any.html</code> (window + worker variants, asserting the reported value is in the legal set) and <code>idlharness.https.any.html</code>. The ChromeStatus record notes these tests are being updated for the new limits in <a href="https://chromium-review.googlesource.com/c/chromium/src/+/7410045" target="_blank" rel="noopener">CL 7410045</a>. On <a href="https://wpt.fyi/results/device-memory?label=master&amp;label=stable" target="_blank" rel="noopener">wpt.fyi</a> (runs fetched 2026-09-06: Chrome dev 155 / Edge 154 / Firefox 157.0a1 / Safari 251&nbsp;preview) the value tests pass in Edge 1/1 (the Chrome run in that set reported no results for them), idlharness passes 19/19 in Chrome and Edge, and Firefox and Safari lack the API &mdash; consistent with the compat table below.</p>
+    <span class="citation">Source: <a href="https://wpt.fyi/results/device-memory?label=master&amp;label=stable" target="_blank" rel="noopener">wpt.fyi results for device-memory/</a>; <a href="https://chromestatus.com/feature/6330376953921536" target="_blank" rel="noopener">ChromeStatus WPT notes</a>; <a href="https://chromium-review.googlesource.com/c/chromium/src/+/7410045" target="_blank" rel="noopener">chromium-review CL 7410045</a></span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">browser compatibility</h2>
+    <p>Per-version data from <a href="https://github.com/mdn/browser-compat-data" target="_blank" rel="noopener">MDN browser-compat-data</a> (main branch, fetched 2026-09-06), which already records this limits change in its Chrome 147 notes. &ldquo;No&rdquo; means the surface has never been supported.</p>
+    <div class="table-wrap">
+    <table class="doc-table fixed3">
+      <caption>Affected surfaces (BCD keys linked per row)</caption>
+      <thead><tr><th scope="col">Surface</th><th scope="col">Chrome</th><th scope="col">Chrome Android</th><th scope="col">Edge</th><th scope="col">Firefox</th><th scope="col">Safari</th></tr></thead>
+      <tr><td><a href="https://raw.githubusercontent.com/mdn/browser-compat-data/main/api/Navigator.json" target="_blank" rel="noopener"><code>api.Navigator.deviceMemory</code></a></td><td>63; new values from 147</td><td>63; new values from 147</td><td>79 (mirrors Chrome)</td><td>No</td><td>No</td></tr>
+      <tr><td><a href="https://raw.githubusercontent.com/mdn/browser-compat-data/main/api/WorkerNavigator.json" target="_blank" rel="noopener"><code>api.WorkerNavigator.deviceMemory</code></a></td><td>65; new values from 147</td><td>65; new values from 147</td><td>79 (mirrors Chrome)</td><td>No</td><td>No</td></tr>
+      <tr><td><a href="https://raw.githubusercontent.com/mdn/browser-compat-data/main/http/headers/Sec-CH-Device-Memory.json" target="_blank" rel="noopener"><code>http.headers.Sec-CH-Device-Memory</code></a></td><td>97; new values from 147</td><td>97; new values from 147</td><td>79 (mirrors Chrome)</td><td>No</td><td>No</td></tr>
+      <tr><td><a href="https://raw.githubusercontent.com/mdn/browser-compat-data/main/http/headers/Device-Memory.json" target="_blank" rel="noopener"><code>http.headers.Device-Memory</code></a> (legacy, BCD: deprecated)</td><td>61; new values from 147</td><td>61; new values from 147</td><td>79 (mirrors Chrome)</td><td>No</td><td>No</td></tr>
     </table>
-    <span class="citation">Source: <a href="https://chromestatus.com/feature/6330376953921536" target="_blank" rel="noopener">ChromeStatus feature 6330376953921536</a> browser positions, April 2026.</span>
+    </div>
+    <p>BCD&rsquo;s per-key notes read, verbatim: &ldquo;From Chrome 147, reported values are 2, 4, 8, 16, and 32.&rdquo; (desktop keys) and &ldquo;From Chrome 147, reported values are 1, 2, 4, and 8.&rdquo; (<code>chrome_android</code>), with &ldquo;Before Chrome 147, reported values were 0.25, 0.5, 1, 2, 4, and 8.&rdquo; on both. Standards positions on the change: Mozilla raised concerns but did not object (<a href="https://groups.google.com/g/mozilla.dev.platform/c/cfydu35XdnY/m/3IqYn0oJAQAJ" target="_blank" rel="noopener">mozilla.dev.platform thread</a> &mdash; recorded &ldquo;No signal&rdquo; on ChromeStatus); WebKit remains negative on the underlying API (<a href="https://github.com/w3c/device-memory/issues/24" target="_blank" rel="noopener">w3c/device-memory #24</a>) without blocking the limits update; web-developer signal is positive (<a href="https://github.com/w3c/device-memory/issues/50" target="_blank" rel="noopener">#50</a>).</p>
+    <span class="citation">Source: <a href="https://raw.githubusercontent.com/mdn/browser-compat-data/main/api/Navigator.json" target="_blank" rel="noopener">BCD api/Navigator.json</a>; <a href="https://raw.githubusercontent.com/mdn/browser-compat-data/main/api/WorkerNavigator.json" target="_blank" rel="noopener">api/WorkerNavigator.json</a>; <a href="https://raw.githubusercontent.com/mdn/browser-compat-data/main/http/headers/Sec-CH-Device-Memory.json" target="_blank" rel="noopener">http/headers/Sec-CH-Device-Memory.json</a>; <a href="https://raw.githubusercontent.com/mdn/browser-compat-data/main/http/headers/Device-Memory.json" target="_blank" rel="noopener">http/headers/Device-Memory.json</a>; <a href="https://chromestatus.com/feature/6330376953921536" target="_blank" rel="noopener">ChromeStatus vendor views</a></span>
   </section>
 
   <section>
-    <h2>see also</h2>
+    <h2 id="security-privacy">security and privacy</h2>
     <ul>
+      <li><strong>This change is itself a privacy mitigation.</strong> As device capabilities improved, the 0.25 and 0.5&nbsp;GiB buckets came to identify rare devices &mdash; internal stats and external RUM providers confirmed they were seldom reported, making them a fingerprinting signal. Raising the floor shrinks the identifying power of the low end.</li>
+      <li><strong>The new high-end buckets add entropy at the top.</strong> The desktop set moves from six buckets capped at 8&nbsp;GiB to five buckets reaching 32&nbsp;GiB; the 16/32&nbsp;GiB segmentation was judged acceptable after (internal-only) data review, and the spec&rsquo;s general mitigation (single-significant-bit rounding + bounds, &sect;&nbsp;5) still applies. The spec directs implementations to keep reviewing bounds as hardware shifts &mdash; exactly what this change does.</li>
+      <li><strong>Trust boundaries unchanged.</strong> Secure-context-only exposure and the opt-in client hints model are untouched; no new information category is revealed, only the granularity at the extremes changes.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/device-memory/" target="_blank" rel="noopener">Device Memory 1 &sect;&nbsp;5 (Security Considerations)</a>; <a href="https://chromestatus.com/feature/6330376953921536" target="_blank" rel="noopener">ChromeStatus security risks (data review, quoted findings)</a>; <a href="https://github.com/w3c/device-memory/issues/50" target="_blank" rel="noopener">w3c/device-memory #50</a></span>
+  </section>
+
+  <section>
+    <h2 id="specifications">specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Document</th><th scope="col">Status</th></tr></thead>
+      <tr><td><a href="https://www.w3.org/TR/device-memory/" target="_blank" rel="noopener">Device Memory 1</a> (&sect;&nbsp;2.1 value computation; &sect;&nbsp;3 <code>Sec-CH-Device-Memory</code>; &sect;&nbsp;4 JavaScript API)</td><td>W3C Working Draft, 2026-03-30 &mdash; includes the merged bounds change</td></tr>
+      <tr><td><a href="https://github.com/w3c/device-memory/pull/53" target="_blank" rel="noopener">w3c/device-memory PR #53 &mdash; emphasize that the bounds can be dynamically adjusted by implementations</a></td><td><strong>Merged 2026-01-19</strong> &mdash; the normative change enabling implementation-defined bounds (this is the ChromeStatus record&rsquo;s spec link)</td></tr>
+      <tr><td><a href="https://github.com/w3c/device-memory/issues/50" target="_blank" rel="noopener">w3c/device-memory #50 &mdash; &ldquo;Update recommended upper and lower bounds&rdquo;</a></td><td>Closed &mdash; the initial public proposal (filed by tomayac, 2025-10-23); discussed and agreed in the WebPerf WG on 2026-01-15 per ChromeStatus</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: documents fetched and states verified 2026-09-06</span>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Device_Memory_API" target="_blank" rel="noopener">MDN: Device Memory API</a> &mdash; the base API this change tunes (MDN documents the API; this page documents the Chrome 147 limits change)</li>
       <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Navigator/deviceMemory" target="_blank" rel="noopener">MDN: Navigator.deviceMemory</a></li>
-      <li><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Device-Memory" target="_blank" rel="noopener">MDN: Device-Memory header</a></li>
-      <li><a href="https://chromestatus.com/feature/6330376953921536" target="_blank" rel="noopener">ChromeStatus — Update Device Memory API limits (6330376953921536)</a></li>
-      <li><a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/vXtAmrVZeDk" target="_blank" rel="noopener">blink-dev Intent to Ship — Update Device Memory API limits</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Device-Memory" target="_blank" rel="noopener">MDN: Device-Memory header</a></li>
+      <li><a href="https://chromestatus.com/feature/6330376953921536" target="_blank" rel="noopener">ChromeStatus &mdash; Update Device Memory API limits (6330376953921536)</a></li>
+      <li><a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/vXtAmrVZeDk" target="_blank" rel="noopener">blink-dev &mdash; Intent to Ship: Update Device Memory API limits</a> (Barry Pollard; LGTMs incl. Alex Russell)</li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/update-device-memory-api-limits/" target="_blank" rel="noopener">Chrome Platform Showcase &mdash; Update Device Memory API limits</a> (five live demos)</li>
     </ul>
   </section>
 
