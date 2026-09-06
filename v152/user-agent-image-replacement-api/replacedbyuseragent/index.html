@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>replacedByUserAgent property — User Agent Image Replacement API — Chrome 152 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 32%; min-width: 7.5rem; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .compat-table tr > *:nth-child(2) { min-width: 6.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .doc-table caption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); text-align: left; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .table-wrap { overflow-x: auto; }
+    .table-wrap .doc-table { min-width: 36rem; table-layout: fixed; }
+    main { overflow-wrap: anywhere; }
+    .lede-block h1 { overflow-wrap: anywhere; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block {
+      border: 2px solid var(--accent-amber);
+      background: var(--bg-paper);
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      box-shadow: var(--thin-shadow);
+    }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v152/user-agent-image-replacement-api/">&larr; User Agent Image Replacement API</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v152 · web api · property reference · origin trial</p>
+    <h1>HTMLImageElement<wbr>.replacedByUserAgent</h1>
+    <p class="lede">Read-only boolean on <code>HTMLImageElement</code>: <code>true</code> while the element currently displays substitute content provided by the user agent, <code>false</code> otherwise. It is the synchronous complement to the <a href="../events/"><code>uareplacestart</code> / <code>uareplaceend</code> events</a> — use it to catch a replacement that happened before your script ran.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Origin trial — API surface may change</strong>
+    Available only in the Chrome 152&ndash;157 desktop <a href="https://developer.chrome.com/origintrials/#/view_trial/1722063907515793409" target="_blank" rel="noopener">origin trial</a> (token via <code>Origin-Trial</code> header or meta tag) or locally with <code>--enable-blink-features=UAImageReplacementAPI</code>. There is no <code>chrome://flags</code> entry. Full enable steps are on the <a href="../">feature overview</a>.
+  </div>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>Verbatim from Chromium's <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_image_element.idl" target="_blank" rel="noopener">html_image_element.idl</a> (fetched 2026-09-06; the <a href="https://github.com/explainers-by-googlers/ua-image-replacement" target="_blank" rel="noopener">explainer</a> describes the same member in prose — there is no formal spec):</p>
+<pre><code>[RuntimeEnabled=UAImageReplacementAPI, Measure] readonly attribute boolean replacedByUserAgent;</code></pre>
+<pre><code>// Usage
+const isReplaced = imgElement.replacedByUserAgent; // boolean</code></pre>
+    <p>The <code>[Measure]</code> extended attribute means Chromium records a use counter each time the getter is read. The property has no setter — assignment is ignored (or throws in strict mode).</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_image_element.idl" target="_blank" rel="noopener">Chromium html_image_element.idl</a>; <a href="https://github.com/explainers-by-googlers/ua-image-replacement" target="_blank" rel="noopener">Explainer — proposed approach</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="inputs">Inputs</h2>
+    <p>None. This is a parameterless read-only attribute getter; it takes no arguments and there is no way to write it from script. The state it reflects is set exclusively by the user agent's own image-replacement machinery.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_image_element.idl" target="_blank" rel="noopener">Chromium html_image_element.idl — <code>readonly attribute</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="outputs">Outputs</h2>
+    <p>A <code>boolean</code>. In the Chromium implementation the getter returns whether the element's layout disposition is currently the image-replacement state — the same condition that gates the substitute rendering:</p>
+<pre><code>// Chromium html_image_element.cc (verbatim, fetched 2026-09-06)
+bool HTMLImageElement::replacedByUserAgent() const {
+  return HasImageReplacement();
+}
+
+bool HTMLImageElement::HasImageReplacement() const {
+  return layout_disposition_ == LayoutDisposition::kImageReplacement;
+}</code></pre>
+    <p>The value is <code>true</code> from the moment replacement starts (before the queued <code>uareplacestart</code> event has even fired — the state flips synchronously, the event is asynchronous) until the replacement ends. It reports current state, not history: after a replacement is reverted it is <code>false</code> again, indistinguishable from never-replaced.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_image_element.cc" target="_blank" rel="noopener">Chromium html_image_element.cc — replacedByUserAgent(), HasImageReplacement()</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="errors">Errors</h2>
+    <p>The getter never throws. The only failure mode is absence: on a build or context where the <code>UAImageReplacementAPI</code> runtime feature is not enabled, the property does not exist on <code>HTMLImageElement.prototype</code> and reads as <code>undefined</code> — which is falsy, so naive <code>if (img.replacedByUserAgent)</code> code degrades safely to the &ldquo;not replaced&rdquo; branch. Feature-detect explicitly when you need to distinguish &ldquo;not replaced&rdquo; from &ldquo;API unavailable&rdquo;: <code>&quot;replacedByUserAgent&quot; in HTMLImageElement.prototype</code>.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_image_element.idl" target="_blank" rel="noopener">Chromium html_image_element.idl — [RuntimeEnabled=UAImageReplacementAPI]</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium runtime_enabled_features.json5</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="context">Context</h2>
+    <p>Exposed on <code>HTMLImageElement</code> (<code>&lt;img&gt;</code> elements) in <code>Window</code> contexts, only where the <code>UAImageReplacementAPI</code> runtime feature is enabled — by origin-trial token during the Chrome 152&ndash;157 trial, or the <code>--enable-blink-features=UAImageReplacementAPI</code> switch. The explainer's privacy goal applies to this property exactly as to the events: a user agent may withhold the fact of replacement (keeping the property <code>false</code>) when disclosing it is sensitive, so <code>false</code> means &ldquo;not observably replaced&rdquo;, not a guarantee about what is on screen.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium runtime_enabled_features.json5 — origin_trial_feature_name: &quot;UAImageReplacementAPI&quot;</a>; <a href="https://github.com/explainers-by-googlers/ua-image-replacement" target="_blank" rel="noopener">Explainer — privacy goal</a>; <a href="https://chromestatus.com/api/v0/features/5076374013476864" target="_blank" rel="noopener">ChromeStatus API record — origin-trial stage 152&ndash;157</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">Lifecycle</h2>
+    <p>The value tracks the element's replacement disposition one-to-one:</p>
+    <ol>
+      <li><code>false</code> — element shows its own content (initial state).</li>
+      <li>Flips to <code>true</code> synchronously when the user agent starts replacement; the <code>uareplacestart</code> event that announces the same transition is queued asynchronously, so inside that event handler the property is already <code>true</code>.</li>
+      <li>Flips to <code>false</code> synchronously when replacement ends — finish, failure, revert, element removal from a connected document, document move, or a source change away from the replaced original (current Chromium behavior; what ends a replacement is ultimately user-agent-specific). The queued <code>uareplaceend</code> handler observes <code>false</code>.</li>
+    </ol>
+    <p>Because events are asynchronous and replacement can predate script execution, the property is the reliable way to initialize UI state on load — the explainer's own example ends with exactly this check.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_image_element.cc" target="_blank" rel="noopener">Chromium html_image_element.cc — StartImageReplacement, ResetImageReplacement</a>; <a href="https://github.com/explainers-by-googlers/ua-image-replacement" target="_blank" rel="noopener">Explainer — example</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+    <p>Initialize UI correctly whether or not replacement happened before your script ran, then keep it in sync with the events:</p>
+<pre><code>function syncTryOnUI(img) {
+  const sizeCaption = img.closest("figure")?.querySelector(".size-caption");
+  if (!sizeCaption) return;
+  // Hide the "model is wearing size M" caption while the user sees
+  // a generated image of themselves instead of the model.
+  sizeCaption.hidden = img.replacedByUserAgent === true;
+}
+
+const img = document.querySelector("img.product-view");
+
+if ("replacedByUserAgent" in HTMLImageElement.prototype) {
+  syncTryOnUI(img);                                   // catch pre-script replacement
+  img.addEventListener("uareplacestart", () =&gt; syncTryOnUI(img));
+  img.addEventListener("uareplaceend", () =&gt; syncTryOnUI(img));
+}</code></pre>
+    <span class="citation">Source: pattern derived from the <a href="https://github.com/explainers-by-googlers/ua-image-replacement" target="_blank" rel="noopener">explainer's example</a> (which hides a zoom lens the same way).</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">Compatibility</h2>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <caption>replacedByUserAgent — checked 2026-09-06</caption>
+      <thead><tr><th scope="col">Engine / runtime</th><th scope="col">Support</th><th scope="col">Notes</th></tr></thead>
+      <tr><td>Chrome (desktop)</td><td>Origin trial 152&ndash;157</td><td>Requires token or <code>--enable-blink-features=UAImageReplacementAPI</code>; feature status &ldquo;Proposed&rdquo; (<a href="https://chromestatus.com/api/v0/features/5076374013476864" target="_blank" rel="noopener">ChromeStatus API record</a>; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/oe7phmFsyy8" target="_blank" rel="noopener">Intent to Experiment</a>)</td></tr>
+      <tr><td>Chrome (Android / WebView / iOS)</td><td>Unknown</td><td>Origin-trial stage lists desktop milestones only</td></tr>
+      <tr><td>Firefox / Safari</td><td>Not supported</td><td>Vendor positions &ldquo;No signal&rdquo; (<a href="https://chromestatus.com/feature/5076374013476864" target="_blank" rel="noopener">ChromeStatus record</a>)</td></tr>
+      <tr><td>BCD / MDN</td><td>No entry</td><td>No BCD key, MDN page 404 (2026-09-06) — interim table from ChromeStatus + Chromium source</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5076374013476864" target="_blank" rel="noopener">ChromeStatus API feature record</a>; MDN/BCD checks 2026-09-06.</span>
+  </section>
+
+  <section>
+    <h2 id="security-privacy">Security and privacy</h2>
+    <p>The property discloses one bit — &ldquo;this image is currently replaced&rdquo; — and only when a replacement was actually initiated by explicit user intent or user-configured policy; pages must not be able to probe for replacement <em>capability</em> through it. The user agent may keep it <code>false</code> for replacements it considers sensitive to disclose. It never exposes the replacement media, which in Chromium renders in an isolated UA shadow-root iframe.</p>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/ua-image-replacement" target="_blank" rel="noopener">Explainer — privacy &amp; security considerations</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_image_element.cc" target="_blank" rel="noopener">Chromium html_image_element.cc</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="see-also">See also</h2>
+    <ul>
+      <li><a href="../">User Agent Image Replacement API — overview</a></li>
+      <li><a href="../events/"><code>uareplacestart</code> / <code>uareplaceend</code> events</a></li>
+      <li><a href="https://chromestatus.com/feature/5076374013476864" target="_blank" rel="noopener">chromestatus.com — feature 5076374013476864</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
