@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sec-CH-Device-Memory — Update Device Memory API limits — Chrome 147 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code { overflow-wrap: anywhere; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .compat-table { min-width: 38rem; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .compat-table tr > *:nth-child(2) { min-width: 6.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .baseline-banner { border: 2px solid var(--border-black); padding: 1rem 1.2rem; margin: 1.5rem 0; background: var(--bg-paper); box-shadow: var(--thin-shadow); }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v147/update-device-memory-api-limits/">&larr; Update Device Memory API limits</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v147 · device memory api · http client hint</p>
+    <h1>Sec-CH-Device-<wbr>Memory</h1>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome · 97+ (legacy <code>Device-Memory</code> alias since 61); new buckets from 147</li>
+        <li>Edge · 97+ (mirrors Chrome per BCD)</li>
+        <li class="limited">Firefox · not implemented</li>
+        <li class="limited">Safari · not implemented</li>
+      </ul>
+      <p>Part of the <a href="https://webstatus.dev/features/device-memory" target="_blank" rel="noopener"><code>device-memory</code></a> web feature, Baseline status <strong>limited</strong> (Chromium-only); BCD marks the header experimental. Chrome 147 changes the <em>values</em> the hint can carry &mdash; see the <a href="/v147/update-device-memory-api-limits/">feature overview</a>.</p>
+    </div>
+
+    <p class="lede"><code>Sec-CH-Device-Memory</code> is an HTTP Client Hint request header that advertises the device's approximate RAM in GiB &mdash; the same bucketed value as <code>navigator.deviceMemory</code> &mdash; to servers that opt in with <code>Accept-CH</code>. From Chrome 147 the possible values are <strong>1, 2, 4, 8</strong> on Android and <strong>2, 4, 8, 16, 32</strong> everywhere else.</p>
+  </header>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+<pre><code># ABNF (specification, verbatim) — a structured-field decimal:
+Sec-CH-Device-Memory = sf-decimal
+
+# On the wire:
+Sec-CH-Device-Memory: 8</code></pre>
+    <p>If the header occurs in a message more than once, the last value overrides all previous occurrences.</p>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/device-memory/#sec-device-memory-client-hint-header" target="_blank" rel="noopener">spec &sect;3 Sec-CH-Device-Memory (Client Hint) Header Field</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="opt-in">Opting in (server side)</h2>
+    <p>Like all high-entropy client hints, the header is not sent by default. A server requests it with the <code>Accept-CH</code> response header, or the equivalent HTML <code>&lt;meta http-equiv&gt;</code> element:</p>
+<pre><code>Accept-CH: Sec-CH-Device-Memory</code></pre>
+    <p>On subsequent requests to that (secure) origin, a compatible browser then advertises the device memory bucket. There is nothing to configure client-side; the page cannot alter the value.</p>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/device-memory/#client-hint-examples" target="_blank" rel="noopener">spec &sect;3.1 Client Hint examples</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="value">Value</h2>
+    <p>A structured-field decimal set to the user agent's <code>deviceMemory</code>: physical RAM in GiB rounded to the nearest power of two and clamped to implementation-defined bounds. In Chrome 147+ that means <code>1</code>, <code>2</code>, <code>4</code>, or <code>8</code> on Android and <code>2</code>, <code>4</code>, <code>8</code>, <code>16</code>, or <code>32</code> elsewhere (previously <code>0.25</code>&ndash;<code>8</code> on all platforms). Servers must parse it as a decimal &mdash; historic values are fractional &mdash; and must not reject values outside today's set: the bounds change over time, and mis-handling unexpected values is exactly what broke x.com logins during this change's beta rollout.</p>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/device-memory/#sec-device-memory-client-hint-header" target="_blank" rel="noopener">spec &sect;3</a>; <a href="https://www.w3.org/TR/device-memory/#computing-device-memory" target="_blank" rel="noopener">spec &sect;2</a>; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/vXtAmrVZeDk" target="_blank" rel="noopener">Intent to Ship thread (x.com incident, 2026-02-13)</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="failure-modes">Failure modes</h2>
+    <p>There is no error channel: the hint is simply <strong>absent</strong> when the server has not opted in, when the connection is not HTTPS, when the browser does not implement the API (Firefox, Safari), or on a first request before <code>Accept-CH</code> has been seen. Server logic must therefore treat the header as optional and fall back to a default experience &mdash; never gate a response on its presence or on a closed set of values.</p>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/device-memory/#sec-device-memory-client-hint-header" target="_blank" rel="noopener">spec &sect;3</a>; <a href="https://www.w3.org/TR/device-memory/#security-and-privacy" target="_blank" rel="noopener">spec &sect;5</a> (HTTPS-only); <a href="https://raw.githubusercontent.com/mdn/browser-compat-data/main/http/headers/Sec-CH-Device-Memory.json" target="_blank" rel="noopener">BCD http/headers/Sec-CH-Device-Memory.json</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="requirements">Context</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Direction</th><td>Request header only, sent by the browser. The <code>Sec-</code> prefix marks it as a forbidden header name &mdash; page JavaScript cannot set or spoof it.</td></tr>
+      <tr><th scope="row">Transport</th><td>HTTPS secure contexts only, per the spec's security section.</td></tr>
+      <tr><th scope="row">Opt-in</th><td>Required, via <code>Accept-CH</code> (see <a href="#opt-in">opting in</a>).</td></tr>
+      <tr><th scope="row">Registration</th><td>Registered in the permanent message header field registry (spec &sect;6 IANA considerations).</td></tr>
+      <tr><th scope="row">Availability</th><td>Chromium browsers only: Chrome/Edge 97+ for this name; the deprecated <code>Device-Memory</code> name since Chrome 61 (see <a href="#legacy">below</a>).</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/device-memory/#iana-device-memory" target="_blank" rel="noopener">spec &sect;6.1 Sec-CH-Device-Memory header field</a>; <a href="https://www.w3.org/TR/device-memory/#security-and-privacy" target="_blank" rel="noopener">spec &sect;5</a>; <a href="https://raw.githubusercontent.com/mdn/browser-compat-data/main/http/headers/Sec-CH-Device-Memory.json" target="_blank" rel="noopener">BCD http/headers/Sec-CH-Device-Memory.json</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">Lifecycle</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">First request</th><td>No hint &mdash; the browser has not yet seen the origin's <code>Accept-CH</code>.</td></tr>
+      <tr><th scope="row">After opt-in</th><td>The browser remembers the origin's hint preferences and attaches the header to subsequent secure requests for as long as the preference is retained.</td></tr>
+      <tr><th scope="row">Value stability</th><td>The value mirrors <code>navigator.deviceMemory</code>: computed once per session from installed RAM, constant thereafter.</td></tr>
+      <tr><th scope="row">Duplicates</th><td>If the field occurs more than once in a message, the last occurrence wins (spec &sect;3).</td></tr>
+      <tr><th scope="row">Across versions</th><td>The value a given device sends changes when the browser's bounds change &mdash; as in Chrome 147. Cached server-side assumptions about the value set must tolerate new values appearing.</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/device-memory/#sec-device-memory-client-hint-header" target="_blank" rel="noopener">spec &sect;3</a>; <a href="https://chromestatus.com/feature/6330376953921536" target="_blank" rel="noopener">ChromeStatus &mdash; Update Device Memory API limits</a>.</span>
+  </section>
+
+  <section id="legacy">
+    <h2>the legacy <code>Device-Memory</code> header</h2>
+    <p>Chrome has sent this hint under the unprefixed name <code>Device-Memory</code> since Chrome 61 &mdash; before the <code>Sec-CH-</code> convention existed. BCD records it as deprecated and non-standard (the current spec defines only <code>Sec-CH-Device-Memory</code>), but Chrome still supports it, and its values changed in Chrome 147 identically:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr id="legacy-syntax"><th scope="row">Syntax</th><td><code>Device-Memory: 8</code> &mdash; same decimal value as <code>Sec-CH-Device-Memory</code>, under the legacy name. Not defined in the current specification text.</td></tr>
+      <tr id="legacy-inputs"><th scope="row">Opt-in</th><td>Same client-hints mechanism: the server requests it by name, <code>Accept-CH: Device-Memory</code>, over HTTPS.</td></tr>
+      <tr id="legacy-outputs"><th scope="row">Value</th><td>The user agent's bucketed <code>deviceMemory</code>: from Chrome 147, <code>1</code>&ndash;<code>8</code> on Android and <code>2</code>&ndash;<code>32</code> elsewhere; <code>0.25</code>&ndash;<code>8</code> before (BCD notes record the same 147 change on this key).</td></tr>
+      <tr id="legacy-errors"><th scope="row">Failure modes</th><td>Same as the prefixed header: absent without opt-in, on insecure transport, or in non-Chromium browsers; no error channel. Lacking the <code>Sec-</code> prefix, it is not a forbidden header name, so it is spoofable in scripted requests &mdash; another reason not to trust it for anti-abuse decisions.</td></tr>
+      <tr id="legacy-context"><th scope="row">Status</th><td>Deprecated, non-standard (BCD <code>"deprecated": true</code>, <code>"standard_track": false</code>). Chrome 61+, Edge 79+, never in Firefox/Safari. Tracked by its own use counter as the &ldquo;deprecated name&rdquo;.</td></tr>
+      <tr id="legacy-lifecycle"><th scope="row">Migration</th><td>Prefer <code>Sec-CH-Device-Memory</code> for new code (Chrome 97+). Servers currently reading <code>Device-Memory</code> keep working, but should accept both names and expect the value set to keep evolving. No removal milestone is announced.</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://raw.githubusercontent.com/mdn/browser-compat-data/main/http/headers/Device-Memory.json" target="_blank" rel="noopener">BCD http/headers/Device-Memory.json</a> (fetched 2026-09-13); <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Device-Memory" target="_blank" rel="noopener">MDN: Device-Memory header</a>; <a href="https://chromestatus.com/metrics/feature/timeline/popularity/2017" target="_blank" rel="noopener">Chrome use counter &mdash; Client Hints (deprecated name)</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+    <p>The specification's opt-in exchange, verbatim (values updated to a Chrome 147 desktop bucket):</p>
+<pre><code># Server response — opt in to the hint (or use an equivalent
+# &lt;meta http-equiv="Accept-CH" content="Sec-CH-Device-Memory"&gt;):
+HTTP/1.1 200 OK
+Accept-CH: Sec-CH-Device-Memory
+
+# Subsequent browser request:
+GET /example HTTP/1.1
+Sec-CH-Device-Memory: 32</code></pre>
+    <p>Accepting both the current and the legacy <code>Device-Memory</code> name robustly on the server (values are decimals; the set changes over time):</p>
+<pre><code>// Node.js / Express
+function deviceMemoryGiB(req) {
+  const raw = req.get("Sec-CH-Device-Memory") ?? req.get("Device-Memory");
+  const mem = Number.parseFloat(raw);
+  return Number.isFinite(mem) &amp;&amp; mem &gt; 0 ? mem : undefined;
+}
+
+app.get("/example", (req, res) =&gt; {
+  res.set("Accept-CH", "Sec-CH-Device-Memory");
+  const mem = deviceMemoryGiB(req);
+  // Threshold logic only — never an allowlist of known values.
+  res.render(mem !== undefined &amp;&amp; mem &lt;= 2 ? "lite" : "full");
+});</code></pre>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/device-memory/#client-hint-examples" target="_blank" rel="noopener">spec &sect;3.1 Client Hint examples</a> (exchange verbatim; server snippet is this reference's own, applying the spec's parsing rules).</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">Browser compatibility</h2>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <thead><tr><th>Header</th><th>Chrome</th><th>Edge</th><th>Firefox</th><th>Safari</th><th>Status</th></tr></thead>
+      <tr><td><code>Sec-CH-Device-Memory</code></td><td>97</td><td>97</td><td>No</td><td>No</td><td>Experimental (BCD); on the standards track</td></tr>
+      <tr><td><code>Device-Memory</code></td><td>61</td><td>79</td><td>No</td><td>No</td><td>Deprecated, non-standard (BCD)</td></tr>
+    </table>
+    </div>
+    <p>Both keys carry the same BCD version notes for this change: from Chrome 147 reported values are <code>2, 4, 8, 16, 32</code> (desktop) / <code>1, 2, 4, 8</code> (Android); before Chrome 147 they were <code>0.25, 0.5, 1, 2, 4, 8</code>.</p>
+    <span class="citation">Source: <a href="https://raw.githubusercontent.com/mdn/browser-compat-data/main/http/headers/Sec-CH-Device-Memory.json" target="_blank" rel="noopener">BCD http/headers/Sec-CH-Device-Memory.json</a>; <a href="https://raw.githubusercontent.com/mdn/browser-compat-data/main/http/headers/Device-Memory.json" target="_blank" rel="noopener">BCD http/headers/Device-Memory.json</a> (both fetched 2026-09-13).</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <ul>
+      <li><strong>HTTPS only.</strong> The hint is never sent over insecure transport (spec &sect;5).</li>
+      <li><strong>Opt-in by design.</strong> Servers must explicitly request it via <code>Accept-CH</code>; it is not broadcast by default, which limits passive fingerprinting.</li>
+      <li><strong>Coarsened value.</strong> Same single-significant-bit rounding and clamped bounds as the JavaScript API; Chrome 147's bound changes reduce low-end fingerprinting entropy.</li>
+      <li><strong><code>Sec-</code> prefix.</strong> The prefixed name cannot be set by page JavaScript, so servers can trust it was produced by the browser &mdash; unlike the legacy <code>Device-Memory</code> name (see <a href="#legacy">above</a>).</li>
+    </ul>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/device-memory/#security-and-privacy" target="_blank" rel="noopener">spec &sect;5 Security &amp; privacy considerations</a>; <a href="https://www.w3.org/TR/device-memory/#iana-device-memory" target="_blank" rel="noopener">spec &sect;6.1</a>.</span>
+  </section>
+
+  <section id="sources">
+    <h2>Sources</h2>
+    <ul>
+      <li><a href="https://www.w3.org/TR/device-memory/" target="_blank" rel="noopener">Device Memory API</a> &mdash; W3C Working Draft defining this header (&sect;3, &sect;6)</li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Sec-CH-Device-Memory" target="_blank" rel="noopener">MDN: Sec-CH-Device-Memory</a> · <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Device-Memory" target="_blank" rel="noopener">MDN: Device-Memory</a></li>
+      <li><a href="https://chromestatus.com/feature/6330376953921536" target="_blank" rel="noopener">ChromeStatus &mdash; Update Device Memory API limits</a> (the Chrome 147 bucket change)</li>
+      <li><a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/vXtAmrVZeDk" target="_blank" rel="noopener">blink-dev &mdash; Intent to Ship thread</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
