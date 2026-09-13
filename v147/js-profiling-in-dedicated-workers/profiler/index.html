@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Profiler in dedicated workers — JS Profiling in Dedicated Workers — Chrome 147 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code { overflow-wrap: anywhere; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .compat-table tr > *:nth-child(2) { min-width: 6.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .baseline-banner { border: 2px solid var(--border-black); padding: 1rem 1.2rem; margin: 1.5rem 0; background: var(--bg-paper); box-shadow: var(--thin-shadow); }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v147/js-profiling-in-dedicated-workers/">&larr; JS Profiling in Dedicated Workers</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v147 · js profiling in dedicated workers · interface</p>
+    <h1>Profiler (in dedicated workers)</h1>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome · main thread since 94; dedicated workers: developer trial, behind a flag</li>
+        <li>Edge · main thread since 94; no shipped worker signal</li>
+        <li class="limited">Firefox · not implemented</li>
+        <li class="limited">Safari · not implemented</li>
+      </ul>
+      <p>Baseline status of the underlying API is <strong>limited</strong> (<a href="https://webstatus.dev/features/profiler" target="_blank" rel="noopener">web-features entry &ldquo;Profiler&rdquo;</a>); the worker exposure has no web-features entry and is not Baseline (verified 2026-09-13).</p>
+    </div>
+
+    <p class="lede">The <code>Profiler</code> interface of the JS Self-Profiling API is a sampling profiler for the realm it is constructed in. This page documents its complete surface as exposed inside <code>DedicatedWorkerGlobalScope</code> under Chrome's developer trial: the <a href="#constructor">constructor</a>, the <a href="#sampleinterval"><code>sampleInterval</code></a> and <a href="#stopped"><code>stopped</code></a> attributes, the <a href="#stop"><code>stop()</code></a> method, the <a href="#samplebufferfull-event"><code>samplebufferfull</code></a> event, and the <a href="#profilertrace">trace dictionaries</a>.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Developer trial &mdash; behind a flag</strong>
+    <p>In dedicated workers this interface is behind <code>chrome://flags/#enable-experimental-web-platform-features</code> (Blink runtime features <code>ProfilerAPIForDedicatedWorker</code>, <code>DocumentPolicyInDedicatedWorker</code>, <code>DocumentPolicyJSProfilingMode</code>, per <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>, fetched 2026-09-13). The surface may change before it ships; do not use in production. On the main thread the interface has shipped since Chrome 94 and is documented on <a href="https://developer.mozilla.org/en-US/docs/Web/API/JS_Self-Profiling_API" target="_blank" rel="noopener">MDN</a>.</p>
+  </div>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>Verbatim WebIDL from the specification (exposure widened to workers by <a href="https://github.com/WICG/js-self-profiling/commit/e603c27100c96b3ae34762c7af504713f6da4dd9" target="_blank" rel="noopener">commit e603c27, PR #88</a>):</p>
+<pre><code>[Exposed=(Window, Worker)]
+interface Profiler : EventTarget {
+  readonly attribute DOMHighResTimeStamp sampleInterval;
+  readonly attribute boolean stopped;
+
+  constructor(ProfilerInitOptions options);
+  Promise&lt;ProfilerTrace&gt; stop();
+};
+
+dictionary ProfilerInitOptions {
+  required DOMHighResTimeStamp sampleInterval;
+  required unsigned long maxBufferSize;
+};
+
+typedef DOMString ProfilerResource;
+
+dictionary ProfilerTrace {
+  required sequence&lt;ProfilerResource&gt; resources;
+  required sequence&lt;ProfilerFrame&gt; frames;
+  required sequence&lt;ProfilerStack&gt; stacks;
+  required sequence&lt;ProfilerSample&gt; samples;
+};
+
+dictionary ProfilerSample {
+  required DOMHighResTimeStamp timestamp;
+  unsigned long long stackId;
+};
+
+dictionary ProfilerStack {
+  unsigned long long parentId;
+  required unsigned long long frameId;
+};
+
+dictionary ProfilerFrame {
+  required DOMString name;
+  unsigned long long resourceId;
+  unsigned long long line;
+  unsigned long long column;
+};</code></pre>
+    <p>Each <code>Profiler</code> is associated with exactly one <em>profiling session</em> &mdash; an abstract producer of samples with a state (<code>started</code> / <code>paused</code> / <code>stopped</code>), a sample interval, an agent and realm to profile, a time origin, a sample buffer size limit, and a <code>ProfilerTrace</code>. Sessions begin in <code>started</code>; a <code>stopped</code> session never restarts. Note the specification defines no <code>sample()</code> method &mdash; sampling is automatic at the session's interval; on-demand sampling exists only as the <em>Force Sample</em> WebDriver extension command for test automation.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/js-self-profiling/#the-profiler-interface" target="_blank" rel="noopener">spec &mdash; The Profiler Interface</a>; <a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">spec &mdash; Profiling Sessions, Automation</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="constructor"><code>new Profiler(options)</code></h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr id="ctor-syntax"><th scope="row">Syntax</th><td><code>constructor(ProfilerInitOptions options)</code> &mdash; called as <code>new Profiler({ sampleInterval, maxBufferSize })</code> in any global where the interface is exposed; in this trial, a <code>DedicatedWorkerGlobalScope</code>. Construction starts the profiling session immediately (sessions begin in the <code>started</code> state).</td></tr>
+      <tr id="ctor-inputs"><th scope="row">Parameters</th><td><code>options</code>, a required <a href="#profilerinitoptions"><code>ProfilerInitOptions</code></a>: <code>sampleInterval</code> (required <code>DOMHighResTimeStamp</code>, desired milliseconds between samples, MUST be &ge; 0) and <code>maxBufferSize</code> (required <code>unsigned long</code>, sample buffer size limit in samples).</td></tr>
+      <tr id="ctor-outputs"><th scope="row">Return value</th><td>A new <code>Profiler</code> whose session's sample interval is set to either <code>options.sampleInterval</code> or &ldquo;the next lowest interval supported by the UA&rdquo; (read the effective value back from <a href="#sampleinterval"><code>sampleInterval</code></a>); time origin equal to the global object's time origin (in a worker, the worker's time origin); agent and realm set to the surrounding agent and current realm; an empty trace <code>{ resources: [], frames: [], stacks: [], samples: [] }</code>.</td></tr>
+      <tr id="ctor-errors"><th scope="row">Exceptions</th><td><code>RangeError</code> &mdash; <code>options.sampleInterval &lt; 0</code>. <code>&quot;NotAllowedError&quot;</code> <code>DOMException</code> &mdash; the global's Document Policy value for <code>js-profiling-mode</code> is neither <code>&quot;eager&quot;</code> nor <code>&quot;lazy&quot;</code> AND the deprecated <code>js-profiling</code> boolean is <code>false</code>; also thrown when the global is neither a <code>Window</code> nor a <code>WorkerGlobalScope</code>.</td></tr>
+      <tr id="ctor-context"><th scope="row">Context &amp; exposure</th><td><code>[Exposed=(Window, Worker)]</code> per spec; Chrome's trial enables it in dedicated workers only (<code>ProfilerAPIForDedicatedWorker</code>). The worker obtains its authorizing policy from its own script response's <code>Document-Policy</code> header (network workers) or by inheritance from the creator document (<code>blob:</code>/<code>data:</code> workers). Feature-detect with <code>typeof Profiler !== &quot;undefined&quot;</code>.</td></tr>
+      <tr id="ctor-lifecycle"><th scope="row">Lifecycle</th><td>Constructing starts sampling; the UA makes a best effort to take a sample each time the interval elapses (and MAY pause a session, e.g. for a backgrounded context; the spec recommends pausing when the browsing context is not foreground). Multiple concurrent profilers in one page SHOULD be supported. The session ends via <a href="#stop"><code>stop()</code></a> or automatically when the buffer fills (<a href="#samplebufferfull-event"><code>samplebufferfull</code></a>).</td></tr>
+      <tr id="ctor-examples"><th scope="row">Example</th><td><code>const p = new Profiler({ sampleInterval: 10, maxBufferSize: 10_000 });</code> &mdash; see <a href="#examples">examples</a>.</td></tr>
+      <tr id="ctor-compat"><th scope="row">Compatibility</th><td>Main thread: Chrome/Edge 94+. Dedicated workers: Chrome developer trial only &mdash; see <a href="#compatibility">browser compatibility</a>.</td></tr>
+      <tr id="ctor-security"><th scope="row">Security &amp; privacy</th><td>Gated by explicit Document Policy opt-in; without it construction throws. See <a href="#security-and-privacy">security and privacy</a>.</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://wicg.github.io/js-self-profiling/#the-profiler-interface" target="_blank" rel="noopener">spec &mdash; new Profiler(options)</a>; <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/DocumentPolicy/DocumentPolicyInWorkers.md" target="_blank" rel="noopener">Document Policy in Workers explainer</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="sampleinterval"><code>Profiler.sampleInterval</code></h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr id="si-syntax"><th scope="row">Syntax</th><td><code>readonly attribute DOMHighResTimeStamp sampleInterval;</code> &mdash; read as <code>profiler.sampleInterval</code>.</td></tr>
+      <tr id="si-inputs"><th scope="row">Parameters</th><td>None &mdash; a read-only IDL attribute takes no inputs; the requested interval is supplied at construction via <a href="#profilerinitoptions"><code>ProfilerInitOptions.sampleInterval</code></a>.</td></tr>
+      <tr id="si-outputs"><th scope="row">Value</th><td>A <code>DOMHighResTimeStamp</code> that MUST reflect the session's <em>effective</em> sample interval in milliseconds &mdash; the constructor may have rounded the requested value to the next lowest UA-supported interval, so this can differ from what was requested.</td></tr>
+      <tr id="si-errors"><th scope="row">Exceptions</th><td>None &mdash; reading the attribute has no failure path defined by the specification.</td></tr>
+      <tr id="si-context"><th scope="row">Context &amp; exposure</th><td>Available wherever the interface is exposed (here: dedicated workers under the trial); value is per-profiler, not global.</td></tr>
+      <tr id="si-lifecycle"><th scope="row">Lifecycle</th><td>Constant for the lifetime of the profiler; the spec defines no mechanism that changes a session's sample interval after construction.</td></tr>
+      <tr id="si-examples"><th scope="row">Example</th><td><code>console.log(profiler.sampleInterval);</code> &mdash; log the effective interval; see <a href="#examples">examples</a>.</td></tr>
+      <tr id="si-compat"><th scope="row">Compatibility</th><td>As the interface: see <a href="#compatibility">browser compatibility</a> (BCD tracks <code>sampleInterval</code> from Chrome 94 on the main thread).</td></tr>
+      <tr id="si-security"><th scope="row">Security &amp; privacy</th><td>Reveals only the UA's chosen sampling granularity; UAs are encouraged to be careful with extremely low intervals (&lt; 1 ms) &mdash; see <a href="#security-and-privacy">security and privacy</a>.</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://wicg.github.io/js-self-profiling/#the-profiler-interface" target="_blank" rel="noopener">spec &mdash; The Profiler Interface</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="stopped"><code>Profiler.stopped</code></h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr id="st-syntax"><th scope="row">Syntax</th><td><code>readonly attribute boolean stopped;</code> &mdash; read as <code>profiler.stopped</code>.</td></tr>
+      <tr id="st-inputs"><th scope="row">Parameters</th><td>None &mdash; a read-only IDL attribute takes no inputs; its value is derived entirely from the session state.</td></tr>
+      <tr id="st-outputs"><th scope="row">Value</th><td>MUST be <code>true</code> if and only if the profiling session has state <code>stopped</code>. <code>false</code> covers both <code>started</code> and <code>paused</code> (pausing, e.g. in a background context, is not observable through this attribute).</td></tr>
+      <tr id="st-errors"><th scope="row">Exceptions</th><td>None &mdash; reading the attribute has no failure path defined by the specification.</td></tr>
+      <tr id="st-context"><th scope="row">Context &amp; exposure</th><td>Available wherever the interface is exposed (here: dedicated workers under the trial).</td></tr>
+      <tr id="st-lifecycle"><th scope="row">Lifecycle</th><td>Transitions to <code>true</code> exactly once &mdash; when <a href="#stop"><code>stop()</code></a> is called or the buffer fills (<a href="#samplebufferfull-event"><code>samplebufferfull</code></a>). A <code>stopped</code> session MUST NOT return to <code>started</code> or <code>paused</code>.</td></tr>
+      <tr id="st-examples"><th scope="row">Example</th><td><code>if (!profiler.stopped) await profiler.stop();</code> &mdash; see <a href="#examples">examples</a>.</td></tr>
+      <tr id="st-compat"><th scope="row">Compatibility</th><td>As the interface: see <a href="#compatibility">browser compatibility</a> (BCD tracks <code>stopped</code> from Chrome 94 on the main thread).</td></tr>
+      <tr id="st-security"><th scope="row">Security &amp; privacy</th><td>Exposes only the profiler's own state; no cross-context information &mdash; see <a href="#security-and-privacy">security and privacy</a>.</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://wicg.github.io/js-self-profiling/#the-profiler-interface" target="_blank" rel="noopener">spec &mdash; The Profiler Interface</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="stop"><code>Profiler.stop()</code></h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr id="stop-syntax"><th scope="row">Syntax</th><td><code>Promise&lt;ProfilerTrace&gt; stop();</code> &mdash; called as <code>const trace = await profiler.stop();</code>.</td></tr>
+      <tr id="stop-inputs"><th scope="row">Parameters</th><td>None &mdash; the method takes no arguments; which samples are included is determined by the session's history up to the call.</td></tr>
+      <tr id="stop-outputs"><th scope="row">Return value</th><td>A promise resolved with the session's <a href="#profilertrace"><code>ProfilerTrace</code></a> after the UA performs any implementation-defined work to stop the session (in parallel). Samples taken after <code>stop()</code> is invoked SHOULD NOT be included.</td></tr>
+      <tr id="stop-errors"><th scope="row">Exceptions</th><td>Returns <em>a promise rejected with</em> an <code>&quot;InvalidStateError&quot;</code> <code>DOMException</code> if the session is already <code>stopped</code> (including after <code>samplebufferfull</code> auto-stop). No synchronous throw is specified.</td></tr>
+      <tr id="stop-context"><th scope="row">Context &amp; exposure</th><td>Available wherever the interface is exposed (here: dedicated workers under the trial). The returned trace is an ordinary dictionary value &mdash; JSON-serializable and safe to <code>postMessage()</code> to the page.</td></tr>
+      <tr id="stop-lifecycle"><th scope="row">Lifecycle</th><td>Sets the session state to <code>stopped</code> synchronously (step 2), then resolves in parallel; <a href="#stopped"><code>stopped</code></a> reads <code>true</code> immediately after the call. Terminal: the session cannot be restarted &mdash; construct a new <code>Profiler</code> to sample again.</td></tr>
+      <tr id="stop-examples"><th scope="row">Example</th><td><code>const trace = await profiler.stop();</code> then <code>postMessage({ trace })</code> &mdash; see <a href="#examples">examples</a>.</td></tr>
+      <tr id="stop-compat"><th scope="row">Compatibility</th><td>As the interface: see <a href="#compatibility">browser compatibility</a> (BCD tracks <code>stop()</code> from Chrome 94 on the main thread; MDN documents it at <a href="https://developer.mozilla.org/en-US/docs/Web/API/Profiler/stop" target="_blank" rel="noopener">Profiler.stop()</a>).</td></tr>
+      <tr id="stop-security"><th scope="row">Security &amp; privacy</th><td>The resolved trace contains only same-realm, CORS-same-origin-attributable frames &mdash; see <a href="#security-and-privacy">security and privacy</a>.</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://wicg.github.io/js-self-profiling/#the-profiler-interface" target="_blank" rel="noopener">spec &mdash; stop() method</a>; <a href="https://developer.mozilla.org/en-US/docs/Web/API/Profiler/stop" target="_blank" rel="noopener">MDN &mdash; Profiler.stop()</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="samplebufferfull-event"><code>samplebufferfull</code> event</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr id="sbf-syntax"><th scope="row">Syntax</th><td><code>profiler.addEventListener(&quot;samplebufferfull&quot;, handler)</code> &mdash; <code>Profiler</code> inherits from <code>EventTarget</code>; the spec fires &ldquo;a new event of type <code>samplebufferfull</code>&rdquo; at the profiler (a plain <code>Event</code>; no specialized event interface or <code>onsamplebufferfull</code> IDL attribute is defined in the specification).</td></tr>
+      <tr id="sbf-inputs"><th scope="row">Parameters</th><td>None &mdash; the event carries no payload fields; retrieve the collected samples by calling <a href="#stop"><code>stop()</code></a> from the handler.</td></tr>
+      <tr id="sbf-outputs"><th scope="row">Effect</th><td>Signals that <code>ProfilerTrace.samples</code> reached the session's sample buffer size limit (<code>maxBufferSize</code>). The take-a-sample algorithm fires the event, moves the session state to <code>stopped</code>, and returns without recording a further sample.</td></tr>
+      <tr id="sbf-errors"><th scope="row">Exceptions</th><td>None &mdash; event dispatch has no error surface; a subsequent <code>stop()</code> on the auto-stopped session rejects with <code>InvalidStateError</code> (see <a href="#stop"><code>stop()</code></a>).</td></tr>
+      <tr id="sbf-context"><th scope="row">Context &amp; exposure</th><td>Fires on the <code>Profiler</code> object in the global it was constructed in &mdash; inside the worker for a worker-constructed profiler; the page never observes it directly.</td></tr>
+      <tr id="sbf-lifecycle"><th scope="row">Lifecycle</th><td>Fires at most once per session, at the sampling step that finds the buffer full; afterwards <a href="#stopped"><code>stopped</code></a> is <code>true</code> and the session is terminal.</td></tr>
+      <tr id="sbf-examples"><th scope="row">Example</th><td>See the buffer-full handler in <a href="#examples">examples</a>.</td></tr>
+      <tr id="sbf-compat"><th scope="row">Compatibility</th><td>As the interface: see <a href="#compatibility">browser compatibility</a>. BCD's <code>api/Profiler.json</code> has no separate entry for the event (checked 2026-09-13); MDN documents it at <a href="https://developer.mozilla.org/en-US/docs/Web/API/Profiler/samplebufferfull_event" target="_blank" rel="noopener">samplebufferfull event</a>.</td></tr>
+      <tr id="sbf-security"><th scope="row">Security &amp; privacy</th><td>Reveals only that the profiler's own buffer filled; no timing beyond the sampling the caller already opted into &mdash; see <a href="#security-and-privacy">security and privacy</a>.</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">spec &mdash; Processing Model (take a sample)</a>; <a href="https://developer.mozilla.org/en-US/docs/Web/API/Profiler/samplebufferfull_event" target="_blank" rel="noopener">MDN &mdash; samplebufferfull event</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="profilerinitoptions"><code>ProfilerInitOptions</code></h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr id="pio-syntax"><th scope="row">Syntax</th><td><code>dictionary ProfilerInitOptions { required DOMHighResTimeStamp sampleInterval; required unsigned long maxBufferSize; };</code></td></tr>
+      <tr id="pio-inputs"><th scope="row">Fields</th><td><code>sampleInterval</code> &mdash; the application's desired sample interval in milliseconds; MUST be &ge; 0 (0 requests the fastest supported rate). <code>maxBufferSize</code> &mdash; the desired sample buffer size limit, in number of samples. Both are required; omitting either is a <code>TypeError</code> per WebIDL required-member conversion.</td></tr>
+      <tr id="pio-outputs"><th scope="row">Result</th><td>Consumed by the <a href="#constructor">constructor</a> to configure the profiling session; the effective interval is readable back via <a href="#sampleinterval"><code>sampleInterval</code></a>.</td></tr>
+      <tr id="pio-errors"><th scope="row">Errors</th><td><code>RangeError</code> from the constructor when <code>sampleInterval &lt; 0</code> (see <a href="#constructor">constructor exceptions</a>).</td></tr>
+      <tr id="pio-context"><th scope="row">Context</th><td>Plain dictionary argument; any object with the two properties converts (no <code>ProfilerInitOptions</code> global exists to construct).</td></tr>
+      <tr id="pio-lifecycle"><th scope="row">Lifecycle</th><td>Read once during construction; later mutation of the options object has no effect on the running session.</td></tr>
+      <tr id="pio-examples"><th scope="row">Example</th><td><code>{ sampleInterval: 10, maxBufferSize: 10_000 }</code> &mdash; see <a href="#examples">examples</a>.</td></tr>
+      <tr id="pio-compat"><th scope="row">Compatibility</th><td>As the constructor: see <a href="#compatibility">browser compatibility</a>.</td></tr>
+      <tr id="pio-security"><th scope="row">Security &amp; privacy</th><td><code>sampleInterval</code> is a request, not a guarantee &mdash; UAs choosing to honor sub-millisecond intervals are urged to re-verify the cross-origin protections; see <a href="#security-and-privacy">security and privacy</a>.</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">spec &mdash; The ProfilerInitOptions dictionary</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="profilertrace"><code>ProfilerTrace</code></h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr id="pt-syntax"><th scope="row">Syntax</th><td><code>dictionary ProfilerTrace { required sequence&lt;ProfilerResource&gt; resources; required sequence&lt;ProfilerFrame&gt; frames; required sequence&lt;ProfilerStack&gt; stacks; required sequence&lt;ProfilerSample&gt; samples; };</code> with <code>typedef DOMString ProfilerResource;</code></td></tr>
+      <tr id="pt-inputs"><th scope="row">Fields (inputs)</th><td>Not constructed by authors &mdash; the trace is produced by the UA's take-a-sample algorithm; scripts only read it. Its four lists are populated via the interning &ldquo;get an element ID&rdquo; algorithm (append if not present, return index), so entries are deduplicated and referenced by index.</td></tr>
+      <tr id="pt-outputs"><th scope="row">Contents</th><td><code>resources</code> &mdash; script base URLs (strings); <code>frames</code> &mdash; interned <a href="#profilerframe"><code>ProfilerFrame</code></a>s; <code>stacks</code> &mdash; interned <a href="#profilerstack"><code>ProfilerStack</code></a> nodes forming parent-linked chains; <code>samples</code> &mdash; time-ordered <a href="#profilersample"><code>ProfilerSample</code></a>s. The format is designed to be easily and efficiently serializable, inspired by the V8 trace event and Gecko profile formats.</td></tr>
+      <tr id="pt-errors"><th scope="row">Errors</th><td>None &mdash; a returned dictionary value has no failure surface of its own; failures occur at <a href="#stop"><code>stop()</code></a>.</td></tr>
+      <tr id="pt-context"><th scope="row">Context</th><td>Delivered by <code>stop()</code>'s promise in the profiler's own global. Plain data: structured-cloneable and JSON-serializable, so a worker can <code>postMessage()</code> it to the page or <code>JSON.stringify()</code> it for upload.</td></tr>
+      <tr id="pt-lifecycle"><th scope="row">Lifecycle</th><td>Accumulates from construction until the session stops; the buffer is bounded by <code>maxBufferSize</code> samples, after which <a href="#samplebufferfull-event"><code>samplebufferfull</code></a> fires and no further samples are added.</td></tr>
+      <tr id="pt-examples"><th scope="row">Example</th><td>See the trace-decoding walk in <a href="#examples">examples</a>.</td></tr>
+      <tr id="pt-compat"><th scope="row">Compatibility</th><td>As the interface: see <a href="#compatibility">browser compatibility</a>.</td></tr>
+      <tr id="pt-security"><th scope="row">Security &amp; privacy</th><td>The trace's frame inclusion rules are the API's core privacy boundary (CORS-same-origin scripts only, same realm only) &mdash; see <a href="#security-and-privacy">security and privacy</a>.</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">spec &mdash; The ProfilerTrace Dictionary; Processing Model</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="profilersample"><code>ProfilerSample</code></h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr id="ps-syntax"><th scope="row">Syntax</th><td><code>dictionary ProfilerSample { required DOMHighResTimeStamp timestamp; unsigned long long stackId; };</code></td></tr>
+      <tr id="ps-inputs"><th scope="row">Fields (inputs)</th><td>Not author-constructed; each sample is created by the take-a-sample algorithm. <code>timestamp</code> is set to the current high resolution time relative to the session's time origin; <code>stackId</code> to the result of the get-a-stack-ID algorithm.</td></tr>
+      <tr id="ps-outputs"><th scope="row">Contents</th><td><code>timestamp</code> &mdash; when the sample was taken, in ms relative to the worker's time origin. <code>stackId</code> &mdash; index into <code>ProfilerTrace.stacks</code>; <em>absent</em> (<code>undefined</code>) when the execution context stack was empty, i.e. the worker was idle at the sampling instant.</td></tr>
+      <tr id="ps-errors"><th scope="row">Errors</th><td>None &mdash; plain data with no failure surface; both fields MUST return the value they were initialized to.</td></tr>
+      <tr id="ps-context"><th scope="row">Context</th><td>Read from <code>ProfilerTrace.samples</code>; ordering follows sampling order across the session.</td></tr>
+      <tr id="ps-lifecycle"><th scope="row">Lifecycle</th><td>One entry appended per successful sampling step, up to <code>maxBufferSize</code> entries; samples after <code>stop()</code> SHOULD NOT be included.</td></tr>
+      <tr id="ps-examples"><th scope="row">Example</th><td>Idle-time detection: samples without <code>stackId</code> are idle &mdash; see <a href="#examples">examples</a>.</td></tr>
+      <tr id="ps-compat"><th scope="row">Compatibility</th><td>As the interface: see <a href="#compatibility">browser compatibility</a>.</td></tr>
+      <tr id="ps-security"><th scope="row">Security &amp; privacy</th><td>Timestamps MUST come from the same source as High Resolution Time's clock to avoid a new side channel &mdash; see <a href="#security-and-privacy">security and privacy</a>.</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">spec &mdash; The ProfilerSample Dictionary; Processing Model</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="profilerstack"><code>ProfilerStack</code></h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr id="pst-syntax"><th scope="row">Syntax</th><td><code>dictionary ProfilerStack { unsigned long long parentId; required unsigned long long frameId; };</code></td></tr>
+      <tr id="pst-inputs"><th scope="row">Fields (inputs)</th><td>Not author-constructed; built by the recursive get-a-stack-ID algorithm, which walks the execution context stack from outermost to innermost and interns one node per (parent, frame) pair.</td></tr>
+      <tr id="pst-outputs"><th scope="row">Contents</th><td><code>frameId</code> &mdash; index into <code>ProfilerTrace.frames</code> for this node's frame. <code>parentId</code> &mdash; index of the caller's stack node in <code>ProfilerTrace.stacks</code>; absent for a stack's outermost frame. Frames the algorithm filters out (other-realm or non-attributable) are skipped, splicing their callees onto the surviving parent.</td></tr>
+      <tr id="pst-errors"><th scope="row">Errors</th><td>None &mdash; plain data with no failure surface; both fields MUST return the value they were initialized to.</td></tr>
+      <tr id="pst-context"><th scope="row">Context</th><td>Read from <code>ProfilerTrace.stacks</code>; reconstruct a full call stack by following <code>parentId</code> links from a sample's <code>stackId</code> to the root.</td></tr>
+      <tr id="pst-lifecycle"><th scope="row">Lifecycle</th><td>Interned on first observation and reused by every later sample sharing the same call path (the get-an-element-ID dedup step), keeping traces compact.</td></tr>
+      <tr id="pst-examples"><th scope="row">Example</th><td>The stack-walk loop in <a href="#examples">examples</a>.</td></tr>
+      <tr id="pst-compat"><th scope="row">Compatibility</th><td>As the interface: see <a href="#compatibility">browser compatibility</a>.</td></tr>
+      <tr id="pst-security"><th scope="row">Security &amp; privacy</th><td>Stack nodes only ever reference frames that passed the same-realm and CORS-same-origin checks &mdash; see <a href="#security-and-privacy">security and privacy</a>.</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">spec &mdash; The ProfilerStack Dictionary; Processing Model</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="profilerframe"><code>ProfilerFrame</code></h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr id="pf-syntax"><th scope="row">Syntax</th><td><code>dictionary ProfilerFrame { required DOMString name; unsigned long long resourceId; unsigned long long line; unsigned long long column; };</code></td></tr>
+      <tr id="pf-inputs"><th scope="row">Fields (inputs)</th><td>Not author-constructed; built by the get-a-frame-ID algorithm from the execution context's function instance and its <code>ScriptOrModule</code>.</td></tr>
+      <tr id="pf-outputs"><th scope="row">Contents</th><td><code>name</code> &mdash; the function instance name. <code>resourceId</code> &mdash; index into <code>ProfilerTrace.resources</code> (the script's base URL); <code>line</code> / <code>column</code> &mdash; 1-based position where the function is defined. The three optional members are absent for frames without an attributable script (e.g. builtins invoked from accessible script keep only attribution rules described in the processing model).</td></tr>
+      <tr id="pf-errors"><th scope="row">Errors</th><td>None &mdash; plain data with no failure surface; all fields MUST return the value they were initialized to.</td></tr>
+      <tr id="pf-context"><th scope="row">Context</th><td>Read from <code>ProfilerTrace.frames</code> via <code>ProfilerStack.frameId</code>. In a worker trace, <code>resources</code> typically name the worker script and its <code>importScripts()</code>/module imports.</td></tr>
+      <tr id="pf-lifecycle"><th scope="row">Lifecycle</th><td>Interned once per distinct frame (component-wise equality) and referenced by index thereafter.</td></tr>
+      <tr id="pf-examples"><th scope="row">Example</th><td>Frame-name resolution in <a href="#examples">examples</a>.</td></tr>
+      <tr id="pf-compat"><th scope="row">Compatibility</th><td>As the interface: see <a href="#compatibility">browser compatibility</a>.</td></tr>
+      <tr id="pf-security"><th scope="row">Security &amp; privacy</th><td>Frames from scripts served CORS-cross-origin (muted errors) return no frame at all, and cross-realm contexts are filtered &mdash; the frame list is the enforcement point; see <a href="#security-and-privacy">security and privacy</a>.</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">spec &mdash; The ProfilerFrame Dictionary; Processing Model</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+    <p>Complete worker-side session with the buffer-full path handled (the worker script's response carries <code>Document-Policy: js-profiling-mode=lazy</code>):</p>
+<pre><code>// worker.js — dedicated worker, Chrome developer trial
+if (typeof Profiler === "undefined") {
+  self.postMessage({ trace: null }); // no trial / no policy — degrade honestly
+} else {
+  const profiler = new Profiler({ sampleInterval: 10, maxBufferSize: 10_000 });
+  console.log(profiler.sampleInterval); // effective interval (may be rounded)
+
+  profiler.addEventListener("samplebufferfull", async () =&gt; {
+    // Session auto-stopped: state is already `stopped`.
+    // stop() would now reject with InvalidStateError — the trace was
+    // finalized when the buffer filled, so collect it defensively:
+    console.warn("profile buffer full", profiler.stopped); // true
+  });
+
+  const result = doHeavyWork();
+
+  let trace = null;
+  if (!profiler.stopped) {
+    trace = await profiler.stop();
+  }
+  self.postMessage({ result, trace });
+}</code></pre>
+    <p>Decoding a trace: resolve a sample's stack by walking <code>parentId</code> links, then map frames to names and resources:</p>
+<pre><code>function stackFor(trace, sample) {
+  const names = [];
+  for (let id = sample.stackId; id !== undefined;
+       id = trace.stacks[id].parentId) {
+    const frame = trace.frames[trace.stacks[id].frameId];
+    const resource = frame.resourceId !== undefined
+      ? trace.resources[frame.resourceId] : "(builtin)";
+    names.push(`${frame.name || "(anonymous)"} @ ${resource}:${frame.line ?? "?"}`);
+  }
+  return names; // innermost → outermost
+}
+
+const idle = trace.samples.filter((s) =&gt; s.stackId === undefined).length;
+console.log(`worker idle in ${idle}/${trace.samples.length} samples`);</code></pre>
+    <span class="citation">Source: adapted from the <a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">spec examples and Processing Model</a> and the <a href="https://developer.mozilla.org/en-US/docs/Web/API/JS_Self-Profiling_API" target="_blank" rel="noopener">MDN JS Self-Profiling API guide</a>, moved into the worker global per the exposure change.</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">Browser compatibility</h2>
+    <p><em>Partly interim</em>: main-thread rows from <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Profiler.json" target="_blank" rel="noopener">BCD <code>api/Profiler.json</code></a> (fetched 2026-09-13); BCD has no subfeature for worker exposure, so the worker column is compiled from the linked primary sources.</p>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <thead><tr><th>Browser</th><th>Main thread</th><th>Dedicated workers</th></tr></thead>
+      <tr><td>Chrome</td><td>94+ (also Chrome Android 94+)</td><td>Developer trial behind <code>--enable-experimental-web-platform-features</code>; current trial target Chrome 154 (<a href="https://chromestatus.com/feature/5159559872249856" target="_blank" rel="noopener">ChromeStatus</a>)</td></tr>
+      <tr><td>Edge</td><td>94+</td><td>No shipped signal (proposal authored by Edge engineers; WPT dedicated-worker tests pass in the Edge dev experimental run &mdash; <a href="https://wpt.fyi/results/js-self-profiling" target="_blank" rel="noopener">wpt.fyi</a>, 2026-09-13)</td></tr>
+      <tr><td>Firefox</td><td>Not implemented (BCD; implementation bug <a href="https://bugzilla.mozilla.org/show_bug.cgi?id=1867361" target="_blank" rel="noopener">1867361</a>)</td><td>No signal (<a href="https://chromestatus.com/feature/5159559872249856" target="_blank" rel="noopener">ChromeStatus vendor views</a>)</td></tr>
+      <tr><td>Safari</td><td>Not implemented (BCD <code>version_added: false</code>)</td><td>No signal (<a href="https://chromestatus.com/feature/5159559872249856" target="_blank" rel="noopener">ChromeStatus vendor views</a>)</td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <ul>
+      <li><strong>Opt-in construction.</strong> The <a href="#constructor">constructor</a> is gated on the global's Document Policy (<code>js-profiling-mode</code> / deprecated <code>js-profiling</code>) &mdash; a worker whose script response carries no authorizing header (and, for <code>blob:</code>/<code>data:</code> workers, whose creator held none) cannot profile at all.</li>
+      <li><strong>Cross-origin script contents.</strong> Frames must come from CORS-same-origin script (classic-script <em>muted errors</em> check); builtins are attributed to accessible invoking script only. The API exposes no new insight into cross-origin script beyond manual instrumentation.</li>
+      <li><strong>Cross-origin execution.</strong> The realm check filters execution contexts whose realm differs from the session's: a worker profiler observes only its own worker realm.</li>
+      <li><strong>Timing.</strong> Sample timestamps use the same clock source as High Resolution Time, avoiding a new high-resolution timing vector; UAs supporting sub-millisecond <code>sampleInterval</code> values are urged to re-verify the protections.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://wicg.github.io/js-self-profiling/#privacy-security" target="_blank" rel="noopener">spec &mdash; Privacy and Security</a>; <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/DocumentPolicy/DocumentPolicyInWorkers.md" target="_blank" rel="noopener">Document Policy in Workers explainer</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="sources">Sources</h2>
+    <ul>
+      <li><a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">WICG JS Self-Profiling API</a> &mdash; the specification defining every member on this page (<a href="https://wicg.github.io/js-self-profiling/#the-profiler-interface" target="_blank" rel="noopener">&sect;The Profiler Interface</a>)</li>
+      <li><a href="https://github.com/WICG/js-self-profiling/commit/e603c27100c96b3ae34762c7af504713f6da4dd9" target="_blank" rel="noopener">Spec commit e603c27 (&ldquo;Extend Profiler to Workers&rdquo;, PR #88)</a> &mdash; the worker-exposure change</li>
+      <li><a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/DocumentPolicy/DocumentPolicyInWorkers.md" target="_blank" rel="noopener">Document Policy in Workers explainer</a> &mdash; how workers receive the gating policy</li>
+      <li><a href="https://chromestatus.com/feature/5159559872249856" target="_blank" rel="noopener">ChromeStatus 5159559872249856</a> &mdash; trial status and vendor views</li>
+      <li><a href="https://github.com/mdn/browser-compat-data/blob/main/api/Profiler.json" target="_blank" rel="noopener">BCD api/Profiler.json</a> and <a href="https://developer.mozilla.org/en-US/docs/Web/API/JS_Self-Profiling_API" target="_blank" rel="noopener">MDN &mdash; JS Self-Profiling API</a> &mdash; main-thread compatibility and reference</li>
+      <li><a href="https://wpt.fyi/results/js-self-profiling" target="_blank" rel="noopener">wpt.fyi &mdash; js-self-profiling</a> &mdash; upstream test results, including <code>with-document-policy/dedicated-worker*.https.html</code></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
