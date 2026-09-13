@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>JS Self-Profiling Markers — Chrome 153 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code { overflow-wrap: anywhere; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .compat-table tr > *:nth-child(2) { min-width: 6.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .baseline-banner { border: 2px solid var(--border-black); padding: 1rem 1.2rem; margin: 1.5rem 0; background: var(--bg-paper); box-shadow: var(--thin-shadow); }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    .example-embed { margin: 1.5rem 0; }
+    .example-embed iframe { display: block; max-width: 100%; }
+    .example-embed figcaption { font-size: 0.85rem; margin-top: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v153/">&larr; Chrome 153 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v153 &middot; origin trial &middot; performance apis &middot; desktop 153&ndash;161</p>
+    <h1>JS Self-Profiling Markers</h1>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; origin trial, desktop 153&ndash;161</li>
+        <li class="limited">Edge &middot; no announced trial (see compatibility)</li>
+        <li class="limited">Firefox &middot; no signal</li>
+        <li class="limited">Safari &middot; no signal</li>
+      </ul>
+      <p>Not on the Baseline register: a <a href="https://api.webstatus.dev/v1/features?q=self-profiling" target="_blank" rel="noopener">webstatus.dev query</a> returns only the base <code>profiler</code> feature (itself &ldquo;Limited availability&rdquo;, Chrome-only since 94) and no entry for the markers extension exists (<a href="https://webstatus.dev/?q=js-self-profiling-markers" target="_blank" rel="noopener">query</a>, zero matches, verified 2026-09-13). The <a href="https://chromestatus.com/api/v0/features/5201297767792640" target="_blank" rel="noopener">ChromeStatus record</a> carries Web Feature ID <code>4217</code>, but no matching web-features entry is published yet.</p>
+    </div>
+
+    <p class="lede">The JS Self-Profiling API lets a page sample its own call stacks on real user devices. This Chrome 153 origin trial adds an optional <a href="marker/"><code>marker</code></a> field to each captured <code>ProfilerSample</code> that names the browser activity running when the sample was taken &mdash; <code>script</code>, <code>gc</code>, <code>style</code>, <code>layout</code>, <code>paint</code>, or <code>other</code> &mdash; so the gaps and misattributed time in a field trace can finally be told apart from your own JavaScript.</p>
+  </header>
+
+  <div class="warn-block" id="origin-trial">
+    <strong>Origin trial &mdash; API surface may change</strong>
+    <p>This feature is in an <em>origin trial from Chrome 153 to Chrome 161</em> (desktop milestones per the ChromeStatus record). The marker vocabulary and its cross-origin-isolation gating are still being standardized in an <em>unmerged spec PR</em> (<a href="https://github.com/WICG/js-self-profiling/pull/89" target="_blank" rel="noopener">WICG/js-self-profiling#89</a>; the published spec contains no <code>marker</code> member &mdash; verified 2026-09-13). The trial owners state the marker set could narrow during review, and markers are best-effort annotations, so treat them as diagnostic signal, never program correctness.</p>
+    <ul>
+      <li><strong>Register for the trial.</strong> Sign up your origin for the <a href="https://developer.chrome.com/origintrials/#/view_trial/2442639847895072769" target="_blank" rel="noopener">&ldquo;JS Self-Profiling Markers&rdquo; origin trial</a> (Chromium trial name <code>JSSelfProfilingMarkers</code>) and copy the issued token.</li>
+      <li><strong>Serve the token.</strong> Either send it as an HTTP response header &mdash; <code>Origin-Trial: &lt;token&gt;</code> &mdash; or embed it in the page as <code>&lt;meta http-equiv=&quot;origin-trial&quot; content=&quot;&lt;token&gt;&quot;&gt;</code>. Third-party tokens are <em>not</em> supported for this trial (<code>ot_has_third_party_support: false</code> in the ChromeStatus record).</li>
+      <li><strong>Local testing without a token.</strong> Launch Chrome 153+ with <code>--enable-blink-features=ExperimentalJSProfilerMarkers</code>, or enable <code>chrome://flags/#enable-experimental-web-platform-features</code> &mdash; the Blink runtime feature record is <code>{ name: &quot;ExperimentalJSProfilerMarkers&quot;, origin_trial_feature_name: &quot;JSSelfProfilingMarkers&quot;, status: &quot;experimental&quot; }</code> (fetched from trunk 2026-09-13).</li>
+      <li><strong>File feedback</strong> on the <a href="https://github.com/WICG/js-self-profiling/issues" target="_blank" rel="noopener">WICG/js-self-profiling issue tracker</a>.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5201297767792640" target="_blank" rel="noopener">ChromeStatus feature 5201297767792640</a>; <a href="https://developer.chrome.com/origintrials/#/view_trial/2442639847895072769" target="_blank" rel="noopener">origin trial registration</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/2e4FWEI7Hw0" target="_blank" rel="noopener">Intent to Experiment</a>.</span>
+  </div>
+
+  <section id="at-a-glance">
+    <h2>at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">What it is</th><td>Two additions to the JS Self-Profiling API surface: the <a href="profilermarker/"><code>ProfilerMarker</code></a> enum (<code>&quot;script&quot;</code>, <code>&quot;gc&quot;</code>, <code>&quot;style&quot;</code>, <code>&quot;layout&quot;</code>, <code>&quot;paint&quot;</code>, <code>&quot;other&quot;</code>) and an optional <a href="marker/"><code>marker</code></a> member on the <code>ProfilerSample</code> dictionary that trace consumers read from <code>Profiler.stop()</code> output</td></tr>
+      <tr><th scope="row">Ships in</th><td>Chrome 153 as an <strong>origin trial</strong> (desktop 153&ndash;161) &mdash; the <a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">milestone=153 listing</a> files it under &ldquo;Origin trial&rdquo; as &ldquo;JS Self-Profiling Markers&rdquo; (verified 2026-09-13)</td></tr>
+      <tr><th scope="row">Base API</th><td><a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">JS Self-Profiling API</a> (<code>new Profiler(&hellip;)</code>, Chrome 94+); markers only annotate samples the profiler was already capturing</td></tr>
+      <tr><th scope="row">Exposure rules</th><td>A marker is attached only when the work is attributable to a document <strong>same-origin</strong> with the profiler; <code>script</code>/<code>gc</code>/<code>paint</code>/<code>other</code> additionally require <strong>cross-origin isolation</strong>, while <code>style</code>/<code>layout</code> are exposed without it (see <a href="#exposure-model">the exposure model</a>)</td></tr>
+      <tr><th scope="row">Absent marker</th><td>Means idle, unattributable, or filtered &mdash; the member is simply missing from the sample; existing trace consumers keep working unchanged</td></tr>
+      <tr><th scope="row">Runtime feature</th><td><code>ExperimentalJSProfilerMarkers</code> (status <code>experimental</code>; origin-trial feature name <code>JSSelfProfilingMarkers</code>)</td></tr>
+      <tr><th scope="row">WPT</th><td>One tentative test, <a href="https://wpt.fyi/results/js-self-profiling/tentative/marker-vm-state.https.html" target="_blank" rel="noopener">marker-vm-state.https.html</a> (see <a href="#wpt">web platform tests</a>)</td></tr>
+      <tr><th scope="row">Trial partners</th><td>Excel Online (enriching existing self-profiling telemetry) and Datadog (RUM product), per the Intent to Experiment</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5201297767792640" target="_blank" rel="noopener">5201297767792640 &mdash; JS Self-Profiling Markers</a> (blink component <code>Blink&gt;PerformanceAPIs</code>; tracking bug <a href="https://issues.chromium.org/issues/40800459" target="_blank" rel="noopener">40800459</a>)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5201297767792640" target="_blank" rel="noopener">ChromeStatus API record</a>; <a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">milestone=153 listing</a>; <a href="https://github.com/WICG/js-self-profiling/blob/main/markers.md" target="_blank" rel="noopener">markers explainer</a>.</span>
+  </section>
+
+  <section id="why-it-exists">
+    <h2>why it exists</h2>
+    <p>A self-profiled trace records stacks only for the page&rsquo;s own JavaScript. Everything else the browser does on the main thread &mdash; style recalculation, layout, paint, garbage collection &mdash; shows up either as an unexplained gap between stacks or, worse, as time <em>misattributed to whatever frame was on the stack</em>: garbage collection interrupts script without unwinding it, so a function that triggers heavy GC looks identical to a function that is simply slow. DevTools profilers solve this locally with activity categories, but field profiling through the JS Self-Profiling API had no equivalent, so RUM pipelines could not tell scripting cost from rendering cost on real user devices.</p>
+    <p>The markers extension attaches that missing category to each sample. The origin trial (Chrome 153&ndash;161) is explicitly framed as validating two things at production scale: whether per-sample markers let developers attribute slow field traces to browser activity outside their JavaScript and act on it, and whether the marker data is accurate and stable enough on real devices to drive optimization decisions. The feature is Microsoft-driven (the ChromeStatus record is owned by <code>monicach@microsoft.com</code> and <code>victorhuang@microsoft.com</code>), with Excel Online and Datadog named as consuming partners, and a <a href="https://github.com/w3ctag/design-reviews/issues/1251" target="_blank" rel="noopener">W3C TAG review</a> open (status &ldquo;Pending&rdquo; per ChromeStatus).</p>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/2e4FWEI7Hw0" target="_blank" rel="noopener">blink-dev &mdash; Intent to Experiment: JS Self-Profiling Markers</a>; <a href="https://github.com/WICG/js-self-profiling/blob/main/markers.md" target="_blank" rel="noopener">markers explainer &mdash; introduction and context</a>; <a href="https://chromestatus.com/api/v0/features/5201297767792640" target="_blank" rel="noopener">ChromeStatus record (motivation, experiment goals)</a>.</span>
+  </section>
+
+  <section id="syntax">
+    <h2>Syntax</h2>
+    <p>The feature adds one enum and one optional dictionary member. Verbatim from the spec change in <a href="https://github.com/WICG/js-self-profiling/pull/89" target="_blank" rel="noopener">WICG/js-self-profiling#89</a> (identical IDL in the <a href="https://github.com/WICG/js-self-profiling/blob/main/markers.md" target="_blank" rel="noopener">markers explainer</a>, which no longer carries the earlier <code>[CrossOriginIsolated]</code> attribute &mdash; gating moved into the <a href="#exposure-model">filter a marker</a> algorithm):</p>
+<pre><code>enum ProfilerMarker { "script", "gc", "style", "layout", "paint", "other" };
+
+dictionary ProfilerSample {
+  required DOMHighResTimeStamp timestamp;
+  unsigned long long stackId;
+  ProfilerMarker? marker;
+};</code></pre>
+    <p>For comparison, the <strong>published</strong> specification&rsquo;s <code>ProfilerSample</code> has no <code>marker</code> member yet (PR not merged as of 2026-09-13):</p>
+<pre><code>dictionary ProfilerSample {
+  required DOMHighResTimeStamp timestamp;
+  unsigned long long stackId;
+};</code></pre>
+    <span class="citation">Source: <a href="https://github.com/WICG/js-self-profiling/pull/89" target="_blank" rel="noopener">spec PR #89 (IDL fetched from the PR branch 2026-09-13)</a>; <a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">published JS Self-Profiling specification &mdash; ProfilerSample</a>.</span>
+  </section>
+
+  <section id="existing-api">
+    <h2>how it hangs off the existing API</h2>
+    <p>Markers add no new interface, method, event, or option: you start a profiler exactly as before, and the marker appears (when exposed) on the samples inside the trace that <code>Profiler.stop()</code> resolves with. The relevant surrounding surface, verbatim from the published specification:</p>
+<pre><code>[Exposed=(Window, Worker)]
+interface Profiler : EventTarget {
+  readonly attribute DOMHighResTimeStamp sampleInterval;
+  readonly attribute boolean stopped;
+
+  constructor(ProfilerInitOptions options);
+  Promise&lt;ProfilerTrace&gt; stop();
+};
+
+dictionary ProfilerInitOptions {
+  required DOMHighResTimeStamp sampleInterval;
+  required unsigned long maxBufferSize;
+};
+
+dictionary ProfilerTrace {
+  required sequence&lt;ProfilerResource&gt; resources;
+  required sequence&lt;ProfilerFrame&gt; frames;
+  required sequence&lt;ProfilerStack&gt; stacks;
+  required sequence&lt;ProfilerSample&gt; samples;
+};</code></pre>
+    <p>Two consequences worth spelling out. First, because <code>marker</code> rides on <code>ProfilerSample</code>, its granularity is the profiler&rsquo;s <code>sampleInterval</code> (requested at construction; the ChromeStatus record describes the effective marker resolution as &ldquo;&asymp;10&nbsp;ms interval&rdquo; sampling). Second, a sample can carry <em>both</em> a <code>stackId</code> and a non-<code>script</code> marker &mdash; that is the whole point: GC interrupts a stack without unwinding it, so the stack stays attributed while the marker reveals the interruption. The base API requires the document to be served with the <code>Document-Policy: js-profiling</code> header (<a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">spec &sect;Profiling Sessions</a>); markers change nothing about that prerequisite.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">JS Self-Profiling specification (IDL fetched 2026-09-13)</a>; <a href="https://chromestatus.com/api/v0/features/5201297767792640" target="_blank" rel="noopener">ChromeStatus record (ongoing constraints)</a>.</span>
+  </section>
+
+  <section id="exposure-model">
+    <h2>the exposure model: capture, attribute, filter</h2>
+    <p>The spec PR makes marker capture a two-step, privacy-gated pipeline inside the existing &ldquo;take a sample&rdquo; algorithm:</p>
+    <ol>
+      <li><strong>Capture a marker.</strong> The user agent picks the <code>ProfilerMarker</code> value that best describes the top-level work it was performing when the sample was taken (or null if none applies). If that work was performed for a specific document that is <strong>not same-origin</strong> with the profiler&rsquo;s origin, the marker is dropped &mdash; markers never describe cross-origin documents&rsquo; work.</li>
+      <li><strong>Filter a marker.</strong> If the profiler&rsquo;s environment has its <em>cross-origin isolated capability</em> set (the document was served with <code>Cross-Origin-Opener-Policy: same-origin</code> and <code>Cross-Origin-Embedder-Policy: require-corp</code>), every marker value passes. Otherwise only <code>&quot;style&quot;</code> and <code>&quot;layout&quot;</code> pass; <code>&quot;script&quot;</code>, <code>&quot;gc&quot;</code>, <code>&quot;paint&quot;</code>, and <code>&quot;other&quot;</code> are suppressed and the sample&rsquo;s <code>marker</code> member is simply absent.</li>
+    </ol>
+    <p>The PR also permits user agents to <em>widen</em> the filtered set through an explicit opt-in &mdash; naming &ldquo;an origin-trial token or a document policy&rdquo; as examples &mdash; provided the opt-in never exposes markers cross-origin. Chrome&rsquo;s trial description matches this model (&ldquo;Marker exposure is same-origin and gated on cross-origin isolation for non-script activity&rdquo;), and the Intent to Experiment notes the non-isolated <code>style</code>/<code>layout</code> exposure is itself still under security review, so the split could move during the trial. Details and per-value semantics: <a href="profilermarker/"><code>ProfilerMarker</code> reference</a>.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/js-self-profiling/pull/89" target="_blank" rel="noopener">spec PR #89 &mdash; &ldquo;capture a marker&rdquo; and &ldquo;filter a marker&rdquo; algorithms</a>; <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/ConditionalMarkersExposure/explainer.md" target="_blank" rel="noopener">Conditional Markers Exposure explainer</a>; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/2e4FWEI7Hw0" target="_blank" rel="noopener">Intent to Experiment (risks)</a>.</span>
+  </section>
+
+  <section id="members">
+    <h2>the new surface, member by member</h2>
+    <ul>
+      <li><a href="marker/"><code>ProfilerSample.marker</code></a> &mdash; the optional per-sample field: type, absence semantics, how it interacts with <code>stackId</code>, and how to consume it from a trace.</li>
+      <li><a href="profilermarker/"><code>ProfilerMarker</code></a> &mdash; the six-value enum: what each value means, which values appear in which security context, and how the vocabulary may evolve.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/WICG/js-self-profiling/pull/89" target="_blank" rel="noopener">spec PR #89</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+    <p>Profile a workload and aggregate time by browser activity (requires the base API&rsquo;s <code>Document-Policy: js-profiling</code> response header, plus this trial&rsquo;s token or flag):</p>
+<pre><code>// Markers need no new options — feature-detect on the trace instead.
+const profiler = new Profiler({ sampleInterval: 10, maxBufferSize: 10_000 });
+
+renderTheExpensiveThing();
+
+const trace = await profiler.stop();
+
+// Aggregate sample counts by marker. An absent marker means the engine
+// was idle, the work was cross-origin, or the value was filtered out
+// in a non-cross-origin-isolated context.
+const byMarker = {};
+for (const sample of trace.samples) {
+  const key = sample.marker ?? "(none)";
+  byMarker[key] = (byMarker[key] ?? 0) + 1;
+}
+console.table(byMarker);
+// e.g. { script: 41, layout: 12, style: 7, gc: 3, "(none)": 9 }</code></pre>
+    <p>What a trace looks like with markers, from the explainer (cross-origin-isolated context, so every value can appear; note the GC samples that keep their <code>stackId</code>):</p>
+<pre><code>"samples" : [
+  { "timestamp" : 100, "stackId": 3, "marker": "script" },
+  { "timestamp" : 110, "stackId": 2, "marker": "script" },
+  { "timestamp" : 120, "stackId": 2, "marker": "gc" },
+  { "timestamp" : 130, "stackId": 2, "marker": "gc" },
+  { "timestamp" : 140, "stackId": 1, "marker": "script" },
+  { "timestamp" : 150 }
+]</code></pre>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v153/js-self-profiling-markers/marker-field-probe/"
+        title="Live example — the marker field, probed (JS Self-Profiling Markers)" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase &mdash; probes the <code>marker</code> field and the headers it needs (route HEAD-checked 200, 2026-09-13).<span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v153/js-self-profiling-markers/marker-field-probe/" target="_blank" rel="noopener">chrome-platform-showcase &mdash; marker-field-probe</a>.</span></figcaption>
+    </figure>
+    <p>A standalone demo by one of the feature&rsquo;s owners &mdash; also linked from the ChromeStatus record as the dev-trial instructions &mdash; is at <a href="https://github.com/victorhuangwq/js-profiler-markers-demo" target="_blank" rel="noopener">victorhuangwq/js-profiler-markers-demo</a>.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/js-self-profiling/blob/main/markers.md" target="_blank" rel="noopener">markers explainer &mdash; key scenarios (trace excerpts)</a>; <a href="https://github.com/victorhuangwq/js-profiler-markers-demo" target="_blank" rel="noopener">js-profiler-markers-demo</a>.</span>
+  </section>
+
+  <section id="wpt">
+    <h2>web platform tests</h2>
+    <p>One tentative test exists: <a href="https://wpt.fyi/results/js-self-profiling/tentative/marker-vm-state.https.html" target="_blank" rel="noopener"><code>js-self-profiling/tentative/marker-vm-state.https.html</code></a> (tentative because the spec PR is unmerged). On the latest wpt.fyi aligned runs (checked 2026-09-13), Edge 155 dev passes it 1/1 while the Chrome 155, Firefox 158a1, and Safari 252&nbsp;preview runs record no result &mdash; consistent with a feature that is experimental-flag-gated rather than on by default. The ChromeStatus record answers the WPT question by pointing at this same test.</p>
+    <span class="citation">Source: <a href="https://wpt.fyi/results/js-self-profiling/tentative/marker-vm-state.https.html" target="_blank" rel="noopener">wpt.fyi results</a>; <a href="https://chromestatus.com/api/v0/features/5201297767792640" target="_blank" rel="noopener">ChromeStatus record (wpt fields)</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">browser compatibility</h2>
+    <p><em>Interim table.</em> There is no BCD entry for the marker surface &mdash; <a href="https://raw.githubusercontent.com/mdn/browser-compat-data/main/api/Profiler.json" target="_blank" rel="noopener">BCD <code>api/Profiler.json</code></a> covers only the base interface (Chrome 94+) and contains no <code>marker</code> key (verified 2026-09-13) &mdash; and no web-features entry exists (<a href="https://webstatus.dev/?q=js-self-profiling-markers" target="_blank" rel="noopener">webstatus.dev query</a>, zero matches). Rows below are compiled from the linked primary sources.</p>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <thead><tr><th>Browser</th><th>Support</th><th>Evidence</th></tr></thead>
+      <tr><td>Chrome (desktop)</td><td>153&ndash;161, origin trial or flag</td><td><a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">milestone=153 listing</a> (&ldquo;Origin trial&rdquo;); OT stage in the <a href="https://chromestatus.com/api/v0/features/5201297767792640" target="_blank" rel="noopener">ChromeStatus record</a> (desktop_first 153, desktop_last 161)</td></tr>
+      <tr><td>Chrome (Android, WebView, iOS)</td><td>Unknown &mdash; no trial milestones recorded</td><td>The OT stage records desktop milestones only; the record&rsquo;s per-platform ship fields are empty (<a href="https://chromestatus.com/api/v0/features/5201297767792640" target="_blank" rel="noopener">ChromeStatus record</a>)</td></tr>
+      <tr><td>Edge</td><td>No announced trial; in development</td><td>Feature is Microsoft-authored and Edge 155 dev passes the tentative WPT 1/1 (<a href="https://wpt.fyi/results/js-self-profiling/tentative/marker-vm-state.https.html" target="_blank" rel="noopener">wpt.fyi</a>); no Edge origin trial page was found to cite</td></tr>
+      <tr><td>Firefox</td><td>No signal</td><td><a href="https://chromestatus.com/api/v0/features/5201297767792640" target="_blank" rel="noopener">ChromeStatus record</a> vendor views; base API also unimplemented (<a href="https://api.webstatus.dev/v1/features?q=self-profiling" target="_blank" rel="noopener">webstatus.dev</a>)</td></tr>
+      <tr><td>Safari</td><td>No signal</td><td><a href="https://chromestatus.com/api/v0/features/5201297767792640" target="_blank" rel="noopener">ChromeStatus record</a> vendor views</td></tr>
+      <tr><td>Base JS Self-Profiling API</td><td>Chromium 94+ only</td><td><a href="https://raw.githubusercontent.com/mdn/browser-compat-data/main/api/Profiler.json" target="_blank" rel="noopener">BCD api/Profiler.json</a> (<code>chrome: 94</code>); <a href="https://api.webstatus.dev/v1/features?q=self-profiling" target="_blank" rel="noopener">webstatus.dev &ldquo;profiler&rdquo;</a> (Limited)</td></tr>
+    </table>
+    </div>
+    <p><strong>Fallback guidance:</strong> code needs none &mdash; on any engine without the feature, <code>sample.marker</code> is <code>undefined</code>, exactly like an idle sample. Analysis pipelines should treat marker presence as best-effort enrichment, never as a required field.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5201297767792640" target="_blank" rel="noopener">chromestatus.com/feature/5201297767792640</a>; <a href="https://raw.githubusercontent.com/mdn/browser-compat-data/main/api/Profiler.json" target="_blank" rel="noopener">BCD api/Profiler.json</a>; <a href="https://wpt.fyi/results/js-self-profiling/tentative/marker-vm-state.https.html" target="_blank" rel="noopener">wpt.fyi</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <ul>
+      <li><strong>Cross-origin work is never labeled.</strong> The &ldquo;capture a marker&rdquo; algorithm drops any marker for work performed for a document that is not same-origin with the profiler, so a page cannot use markers to observe what the browser is doing for embedded cross-origin content.</li>
+      <li><strong>Side-channel gating.</strong> <code>gc</code>, <code>paint</code>, <code>script</code>, and <code>other</code> can reflect engine work correlated across contexts (engine-wide GC; compositing that includes other frames), so they are exposed only under cross-origin isolation &mdash; the same COOP+COEP boundary that gates <code>SharedArrayBuffer</code> and high-resolution timers. The ChromeStatus record states the restricted markers &ldquo;remain permanently gated behind cross-origin isolation&rdquo;.</li>
+      <li><strong><code>style</code>/<code>layout</code> are treated as already-observable.</strong> A document can synchronously force and time its own style and layout today (<code>getComputedStyle()</code>, <code>getBoundingClientRect()</code>), so the PR exposes those two markers without isolation &mdash; this specific exposure is the part still under security review (tracked from the 2021 review in <a href="https://github.com/WICG/js-self-profiling/issues/61" target="_blank" rel="noopener">WICG/js-self-profiling#61</a>).</li>
+      <li><strong>GC timing is deliberately coarse.</strong> The explainer notes marker data arrives only after the trace completes, at sampling resolution (&asymp;10&nbsp;ms), so a <code>gc</code> marker &ldquo;should not be considered a weak reference to a GC event&rdquo; &mdash; aligning with the W3C TAG design principle against exposing GC timing (<a href="https://w3ctag.github.io/design-principles/#js-gc" target="_blank" rel="noopener">design principles &sect;js-gc</a>).</li>
+      <li><strong>No PII, no persistent state, no sensors</strong> per the explainer&rsquo;s security &amp; privacy questionnaire.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/WICG/js-self-profiling/pull/89" target="_blank" rel="noopener">spec PR #89 &mdash; &ldquo;Conditional marker exposure&rdquo; section</a>; <a href="https://github.com/WICG/js-self-profiling/blob/main/markers.md" target="_blank" rel="noopener">markers explainer &mdash; privacy and security + questionnaire</a>; <a href="https://chromestatus.com/api/v0/features/5201297767792640" target="_blank" rel="noopener">ChromeStatus record (ongoing constraints)</a>.</span>
+  </section>
+
+  <section id="specifications">
+    <h2>specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Document</th><th>Status</th></tr></thead>
+      <tr><td><a href="https://github.com/WICG/js-self-profiling/pull/89" target="_blank" rel="noopener">WICG/js-self-profiling PR #89 &mdash; ProfilerMarker + ProfilerSample.marker</a></td><td>Open, <strong>unmerged</strong> spec change (verified against the repository 2026-09-13); the normative text this page documents, including the &ldquo;capture a marker&rdquo; / &ldquo;filter a marker&rdquo; algorithms</td></tr>
+      <tr><td><a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">JS Self-Profiling API (WICG published draft)</a></td><td>The base specification; contains no marker surface yet</td></tr>
+      <tr><td><a href="https://github.com/WICG/js-self-profiling/blob/main/markers.md" target="_blank" rel="noopener">Markers explainer (markers.md)</a></td><td>Motivation, trace scenarios, considered alternatives, security questionnaire</td></tr>
+      <tr><td><a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/ConditionalMarkersExposure/explainer.md" target="_blank" rel="noopener">Conditional Markers Exposure explainer (MSEdgeExplainers)</a></td><td>Technical rationale for the isolated/non-isolated marker split</td></tr>
+      <tr><td><a href="https://github.com/w3ctag/design-reviews/issues/1251" target="_blank" rel="noopener">W3C TAG design review #1251</a></td><td>Open; &ldquo;Pending&rdquo; per the ChromeStatus record</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: repository and specification contents fetched 2026-09-13 (PR branch fetched via git; merge state checked against <code>main</code>).</span>
+  </section>
+
+  <section id="see-also">
+    <h2>see also</h2>
+    <ul>
+      <li><a href="marker/"><code>ProfilerSample.marker</code> reference</a> and <a href="profilermarker/"><code>ProfilerMarker</code> enum reference</a> &mdash; the two child pages with full contracts</li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/JS_Self-Profiling_API" target="_blank" rel="noopener">MDN &mdash; JS Self-Profiling API</a> and <a href="https://developer.mozilla.org/en-US/docs/Web/API/Profiler" target="_blank" rel="noopener">MDN &mdash; Profiler</a> &mdash; the base API (neither documents markers as of 2026-09-13, which is why this full reference exists)</li>
+      <li><a href="https://chromestatus.com/feature/5201297767792640" target="_blank" rel="noopener">Chrome Platform Status &mdash; JS Self-Profiling Markers</a> (<a href="https://chromestatus.com/api/v0/features/5201297767792640" target="_blank" rel="noopener">API record</a>)</li>
+      <li><a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/2e4FWEI7Hw0" target="_blank" rel="noopener">blink-dev &mdash; Intent to Experiment: JS Self-Profiling Markers</a></li>
+      <li><a href="https://developer.chrome.com/origintrials/#/view_trial/2442639847895072769" target="_blank" rel="noopener">Origin trial registration</a></li>
+      <li><a href="https://github.com/victorhuangwq/js-profiler-markers-demo" target="_blank" rel="noopener">js-profiler-markers-demo</a> &mdash; demo by a feature owner</li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v153/js-self-profiling-markers/" target="_blank" rel="noopener">Chrome Platform Showcase &mdash; interactive demos for this feature</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
