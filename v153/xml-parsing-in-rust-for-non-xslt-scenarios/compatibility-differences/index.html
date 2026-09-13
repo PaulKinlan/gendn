@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Observable compatibility differences — XML parsing in Rust — Chrome 153 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code { overflow-wrap: anywhere; }
+    p a, li a, td a { overflow-wrap: anywhere; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .compat-table tr > *:nth-child(2) { min-width: 6.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .baseline-banner { border: 2px solid var(--border-black); padding: 1rem 1.2rem; margin: 1.5rem 0; background: var(--bg-paper); box-shadow: var(--thin-shadow); }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v153/xml-parsing-in-rust-for-non-xslt-scenarios/">&larr; XML parsing in Rust for non-XSLT scenarios</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v153 · xml parsing in rust · migration behavior</p>
+    <h1>Observable compatibility differences</h1>
+
+    <div class="baseline-banner" role="note" aria-label="Compatibility claim">
+      <p class="baseline-status">Official claim: functionally equivalent</p>
+      <p>The <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/A-EM4e-JrTA/m/jgFyVxgLCAAJ" target="_blank" rel="noopener">Intent to Ship</a>: &ldquo;the new memory-safe implementation is expected and shown to be functionally equivalent to the C++ based implementation. No functional change&rdquo; &mdash; with the caveats quoted on this page. Everything below is drawn from the intent thread and the Chromium implementation, fetched 2026-09-13; nothing here was independently verified in a running Chrome 153 build.</p>
+    </div>
+
+    <p class="lede">What a developer can actually observe differing (or explicitly staying the same) between Chrome&rsquo;s libxml2 backend and the Rust backend in the <a href="../affected-entry-points/">migrated scenarios</a>: error-message wording, entity and DTD handling, encoding-declaration handling, parse performance &mdash; and the parity guarantees implemented on purpose.</p>
+  </header>
+
+  <section>
+    <h2 id="syntax">Parser configuration</h2>
+    <p>The Rust backend is the <a href="https://docs.rs/xml/" target="_blank" rel="noopener"><code>xml-rs</code> crate</a> (vendored as <code>xml</code> v1.4.0, per <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/vendor/xml-v1/Cargo.toml" target="_blank" rel="noopener">third_party/rust Cargo.toml</a>), configured verbatim as follows in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xml_ffi.rs" target="_blank" rel="noopener">xml_ffi.rs</a>:</p>
+<pre><code>let parser_config = ParserConfig::new()
+    .override_encoding(Some(Encoding::Utf8))
+    .ignore_invalid_encoding_declarations(true)
+    .ignore_comments(false)
+    .ignore_end_of_stream(true)
+    .allow_multiple_root_elements(false);</code></pre>
+    <p>Reading that configuration: input reaches the crate already decoded (as UTF-8), so the document&rsquo;s <code>encoding=&quot;&hellip;&quot;</code> declaration does not drive decoding at this layer and an inaccurate declaration is not itself a fatal error; comments become DOM <code>Comment</code> nodes; incremental network chunks do not end the stream; and multiple root elements remain a well-formedness error, as in XML 1.0.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xml_ffi.rs" target="_blank" rel="noopener">xml_ffi.rs &mdash; create_reader()</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/vendor/xml-v1/Cargo.toml" target="_blank" rel="noopener">vendored crate manifest</a>; <a href="https://docs.rs/xml/" target="_blank" rel="noopener">xml-rs documentation</a>; <a href="https://www.w3.org/TR/xml/" target="_blank" rel="noopener">XML 1.0</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="inputs">Input handling differences</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Input construct</th><th>Behavior under the Rust parser</th></tr></thead>
+      <tr><td>External entities / external DTDs (<code>SYSTEM</code>/<code>PUBLIC</code> loads)</td><td><strong>Never loaded.</strong> The Rust parser &ldquo;does not support external entities&rdquo; (<a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/4j2oGg2lyBk/m/r8RA6dhYBQAJ" target="_blank" rel="noopener">Intent to Deprecate and Remove</a>). This is <em>not</em> new in 153: Chrome removed synchronous external-entity loading for all its XML parsing separately (<a href="https://chromestatus.com/feature/6734457763659776" target="_blank" rel="noopener">ChromeStatus 6734457763659776</a>; deprecate 144, remove 145 proposed in that thread), precisely to make this migration possible</td></tr>
+      <tr><td>DTD internal subset</td><td>The DOCTYPE&rsquo;s name, public id, and system id are surfaced and a <code>DocumentType</code> node is created (<code>DocType</code> callback in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xml_document_parser_rs.cc" target="_blank" rel="noopener">xml_document_parser_rs.cc</a>). Beyond that, the Intent notes upstream test failures &ldquo;pertain to functionality that we do not use (DTD parsing, for example)&rdquo; &mdash; DTD-driven validation is not part of the browser contract in either backend</td></tr>
+      <tr><td>XHTML named character references (<code>&amp;nbsp;</code> etc.)</td><td><strong>Preserved for the spec&rsquo;s DOCTYPE allowlist.</strong> When the DOCTYPE public id matches the list in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xhtml_subset.cc" target="_blank" rel="noopener">xhtml_subset.cc</a> (XHTML 1.0 Strict/Transitional/Frameset, XHTML 1.1, XHTML Basic 1.0, XHTML+MathML(+SVG), MathML 2.0, XHTML Mobile 1.0/1.1/1.2 &mdash; implementing <a href="https://html.spec.whatwg.org/multipage/xhtml.html" target="_blank" rel="noopener">the HTML Standard&rsquo;s XHTML parsing rule</a>), the parser injects the HTML entity tables statically (<code>add_xhtml_entities</code> loading <code>LAT1_MAP</code>, <code>SYMBOL_MAP</code>, <code>SPECIAL_MAP</code>, <code>HTML5_MAP</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xml_ffi.rs" target="_blank" rel="noopener">xml_ffi.rs</a>) instead of reading a DTD</td></tr>
+      <tr><td>Encoding declarations</td><td>Decoding happens in Blink before the crate sees bytes; the crate is forced to UTF-8 and invalid encoding declarations are configured non-fatal (see <a href="#syntax">parser configuration</a>)</td></tr>
+      <tr><td>Deeply nested documents</td><td><strong>Parity:</strong> both backends cap the tree at the same <code>kMaxXMLTreeDepth = 5000</code> and raise the same fatal &ldquo;Excessive node nesting.&rdquo; error (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xml_document_parser_rs.cc" target="_blank" rel="noopener">xml_document_parser_rs.cc</a>, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xml_document_parser.cc" target="_blank" rel="noopener">xml_document_parser.cc</a>)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/4j2oGg2lyBk/m/r8RA6dhYBQAJ" target="_blank" rel="noopener">blink-dev &mdash; externally loaded entities I2D&amp;R</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xhtml_subset.cc" target="_blank" rel="noopener">xhtml_subset.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xml_ffi.rs" target="_blank" rel="noopener">xml_ffi.rs</a>; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/A-EM4e-JrTA/m/jgFyVxgLCAAJ" target="_blank" rel="noopener">Intent to Ship</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="outputs">Output &mdash; DOM parity and what was fixed</h2>
+    <p>The produced DOM is intended to be indistinguishable: same elements, attributes, namespaces, comments, CDATA, processing instructions, and <code>DocumentType</code> node. The Intent to Ship records the honest residual: &ldquo;Two or three compatibility issues were identified during the experiment phase and have been fixed&hellip; A very low risk of previously unforeseen compatibility issues remains, but I consider it unlikely.&rdquo; One documented edge in the wrapper: a processing-instruction target/data that XML&rsquo;s character rules accept but Blink&rsquo;s <code>createProcessingInstruction</code> rejects is silently dropped &mdash; deliberately &ldquo;follow[ing] the non-Rust implementation&rdquo; rather than raising a well-formedness error (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xml_document_parser_rs.cc" target="_blank" rel="noopener">xml_document_parser_rs.cc</a>).</p>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/A-EM4e-JrTA/m/jgFyVxgLCAAJ" target="_blank" rel="noopener">Intent to Ship (interoperability section)</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xml_document_parser_rs.cc" target="_blank" rel="noopener">xml_document_parser_rs.cc</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="errors">Changed error surfaces</h2>
+    <p>The error <em>mechanism</em> is shared, the error <em>text</em> is not:</p>
+    <ul>
+      <li><strong>Unchanged frame:</strong> both backends report through Blink&rsquo;s <code>XMLErrors</code>, which renders the same <code>&lt;parsererror&gt;</code> element and formats every line as <code>&lt;type&gt; on line &lt;lineNumber&gt; at column &lt;columnNumber&gt;: &lt;message&gt;</code> (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xml_errors.cc" target="_blank" rel="noopener">xml_errors.cc</a>).</li>
+      <li><strong>Changed wording:</strong> the <code>&lt;message&gt;</code> part now comes from <code>xml-rs</code> (<code>xml::reader::Error</code>, with its <code>row:col</code> prefix stripped in <code>try_get_error_details</code>, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xml_ffi.rs" target="_blank" rel="noopener">xml_ffi.rs</a>) instead of libxml2&rsquo;s message catalogue. Code that string-matches <code>parsererror</code> contents will see different text for the same malformed input.</li>
+      <li><strong>Unchanged outcomes:</strong> fatal errors still stop parsing and insert the error block once (<code>InsertErrorMessageBlock</code>); <code>responseXML</code> is still <code>null</code> for non-well-formed responses; warnings still do not fail the parse (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xml_document_parser_rs.cc" target="_blank" rel="noopener">xml_document_parser_rs.cc &mdash; HandleError</a>).</li>
+      <li><strong>Streaming edge handled:</strong> a chunk boundary that momentarily leaves the root element unbalanced is recognized via the crate&rsquo;s resumable &ldquo;Unexpected end of stream&rdquo; syntax error and parsing resumes with the next chunk instead of failing (<code>is_error_resumable</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xml_ffi.rs" target="_blank" rel="noopener">xml_ffi.rs</a>).</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xml_errors.cc" target="_blank" rel="noopener">xml_errors.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xml_ffi.rs" target="_blank" rel="noopener">xml_ffi.rs</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xml_document_parser_rs.cc" target="_blank" rel="noopener">xml_document_parser_rs.cc</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="context">Context &mdash; where these differences can be observed</h2>
+    <p>Only in the <a href="../affected-entry-points/">migrated scenarios</a> (<code>DOMParser</code>, <code>XMLHttpRequest.responseXML</code>, standalone and external-image SVG) on Chrome 153+ for desktop, Android, and WebView (<a href="https://chromestatus.com/feature/5309598397497344" target="_blank" rel="noopener">ChromeStatus record</a>). XSLT-capable paths keep libxml2 behavior &mdash; including its error strings &mdash; until that pipeline is removed (<a href="../what-still-uses-libxml2/">details</a>). The external-entity difference predates this feature: it applies to <em>both</em> backends since the separate removal (<a href="https://chromestatus.com/feature/6734457763659776" target="_blank" rel="noopener">ChromeStatus 6734457763659776</a>).</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5309598397497344" target="_blank" rel="noopener">ChromeStatus record</a>; <a href="https://chromestatus.com/feature/6734457763659776" target="_blank" rel="noopener">ChromeStatus &mdash; externally loaded entities</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">Lifecycle &mdash; how differences were flushed out</h2>
+    <p>The migration ran as a Finch-controlled 1%-at-stable experiment before shipping; the compatibility issues it surfaced (&ldquo;two or three&rdquo;) were fixed prior to the Intent, and guard-rail metrics stayed flat on all platforms. Upstream, the crate&rsquo;s XML conformance suites run &ldquo;with a good pass rate&rdquo;, with residual failures investigated and attributed to unused functionality (DTD parsing) &ldquo;or&hellip; conflicting specifications&rdquo;. Any newly discovered difference in the wild is a regression to report against <a href="https://issues.chromium.org/issues/466303347" target="_blank" rel="noopener">crbug.com/466303347</a> &mdash; process on <a href="/v153/xml-parsing-in-rust-for-non-xslt-scenarios/#reporting-regressions">the overview</a>.</p>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/A-EM4e-JrTA/m/jgFyVxgLCAAJ" target="_blank" rel="noopener">Intent to Ship (interoperability + ergonomics sections)</a>; <a href="https://issues.chromium.org/issues/466303347" target="_blank" rel="noopener">tracking bug</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples &mdash; probing the differences safely</h2>
+    <p>Detect parse failure structurally, never by matching error text (the text legitimately changed):</p>
+<pre><code>// ROBUST: structural error detection — identical across parser backends.
+function parseXml(text, type = "application/xml") {
+  const doc = new DOMParser().parseFromString(text, type);
+  const err = doc.querySelector("parsererror");
+  if (err) throw new Error("XML not well-formed"); // do NOT parse err.textContent
+  return doc;
+}
+
+// FRAGILE (may break in Chrome 153): matching libxml2's message wording.
+// if (err.textContent.includes("Opening and ending tag mismatch")) { … }
+
+// XHTML named entities still resolve for the spec's DOCTYPE allowlist:
+const xhtml = parseXml(
+  `&lt;!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"&gt;
+   &lt;html xmlns="http://www.w3.org/1999/xhtml"&gt;&lt;body&gt;&amp;nbsp;&amp;copy;&lt;/body&gt;&lt;/html&gt;`,
+  "application/xhtml+xml");
+
+// External entities are NOT fetched (both backends, since the separate removal):
+// &lt;!ENTITY ext SYSTEM "https://example.com/x"&gt; …&amp;ext;… will not load example.com.</code></pre>
+    <span class="citation">Source: entity allowlist and static tables per <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xhtml_subset.cc" target="_blank" rel="noopener">xhtml_subset.cc</a> and <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xml_ffi.rs" target="_blank" rel="noopener">xml_ffi.rs</a>; external-entity removal per the <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/4j2oGg2lyBk/m/r8RA6dhYBQAJ" target="_blank" rel="noopener">I2D&amp;R thread</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">Compatibility &mdash; including the performance delta</h2>
+    <p>The one <em>measured</em> regression is speed, quantified in the Intent to Ship from the 1%-at-stable experiment&rsquo;s <code>Blink.XMLParsing.NonXsltXmlParsingTime.Combined</code> histogram (&ldquo;guard rail metrics are unaffected on all relevant platforms&rdquo;; &ldquo;in absolute numbers we are talking about parse times reaching only tens of milliseconds&rdquo;):</p>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <thead><tr><th>Platform</th><th>Percentile</th><th>Parse-time regression (Rust vs libxml2)</th></tr></thead>
+      <tr><td>Android</td><td>50th</td><td>+36%</td></tr>
+      <tr><td>Android</td><td>99th</td><td>+54%</td></tr>
+      <tr><td>Windows</td><td>25th</td><td>+23%</td></tr>
+      <tr><td>Windows</td><td>95th</td><td>+74%</td></tr>
+      <tr><td>Windows</td><td>99th</td><td>+209%</td></tr>
+      <tr><td>Other platforms</td><td>&mdash;</td><td>Unknown &mdash; not broken out in the Intent&rsquo;s ergonomics section</td></tr>
+    </table>
+    </div>
+    <p>Behavioral compatibility across environments matches the parent feature: Chrome 153+ on desktop/Android/WebView, unaffected elsewhere &mdash; see the <a href="/v153/xml-parsing-in-rust-for-non-xslt-scenarios/#compatibility">overview compatibility table</a>.</p>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/A-EM4e-JrTA/m/jgFyVxgLCAAJ" target="_blank" rel="noopener">Intent to Ship (ergonomics section, quoted numbers)</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <p>Every difference on this page trades toward a smaller attack surface: no external entity fetches (an exfiltration/SSRF-adjacent channel that also made parsing synchronous and network-dependent), no libxml2 memory-unsafety in the migrated paths, and a statically-defined entity table instead of DTD-driven entity definition. The residual risk called out by the Intent is compatibility, not security: &ldquo;A very low risk of previously unforeseen compatibility issues remains.&rdquo;</p>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/A-EM4e-JrTA/m/jgFyVxgLCAAJ" target="_blank" rel="noopener">Intent to Ship (security section)</a>; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/4j2oGg2lyBk/m/r8RA6dhYBQAJ" target="_blank" rel="noopener">externally loaded entities I2D&amp;R</a>.</span>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

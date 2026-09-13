@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Affected entry points — XML parsing in Rust — Chrome 153 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code { overflow-wrap: anywhere; }
+    p a, li a, td a { overflow-wrap: anywhere; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .compat-table tr > *:nth-child(2) { min-width: 6.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .baseline-banner { border: 2px solid var(--border-black); padding: 1rem 1.2rem; margin: 1.5rem 0; background: var(--bg-paper); box-shadow: var(--thin-shadow); }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v153/xml-parsing-in-rust-for-non-xslt-scenarios/">&larr; XML parsing in Rust for non-XSLT scenarios</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v153 · xml parsing in rust · selection algorithm</p>
+    <h1>Affected entry points &mdash; which XML parses go through Rust</h1>
+
+    <div class="baseline-banner" role="note" aria-label="Scope">
+      <p class="baseline-status">Browser-internal parser selection &mdash; Chrome 153+</p>
+      <p>This page documents the concrete algorithm Chrome 153 uses to decide, per document, whether the Rust XML parser (<code>XMLDocumentParserRs</code>) or libxml2 (<code>XMLDocumentParser</code>) parses it &mdash; quoted from Chromium source, fetched 2026-09-13.</p>
+    </div>
+
+    <p class="lede">The rule is simpler than the four-scenario marketing list: <strong>any XML document that has no frame, and any SVG document, parses with the Rust parser</strong> when <code>XMLRustForNonXslt</code> is enabled (it is <code>stable</code> in Chrome 153). Frameless covers <code>DOMParser.parseFromString()</code> and <code>XMLHttpRequest.responseXML</code>; the SVG condition covers standalone SVG navigations and SVG loaded as an external image.</p>
+  </header>
+
+  <section>
+    <h2 id="syntax">Selection algorithm</h2>
+    <p>Verbatim from <code>Document::CreateParser()</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/dom/document.cc" target="_blank" rel="noopener">third_party/blink/renderer/core/dom/document.cc</a> (fetched 2026-09-13; HTML-document branch and timing bookkeeping elided as marked):</p>
+<pre><code>DocumentParser* Document::CreateParser() {
+  if (auto* html_document = DynamicTo&lt;HTMLDocument&gt;(this)) {
+    /* … HTML documents use HTMLDocumentParser, not affected … */
+  }
+
+  data_-&gt;using_rust_xml_parser_ = false;
+
+  // Use the Rust XML parser for situations non-XSLT situations: XMLHttpRequest,
+  // JS DOMParser API, where no dom_window_ is available, or for SVG images.
+  if (!GetFrame() || IsSVGDocument()) {
+    /* … starts the parse-time measurement … */
+    if (RuntimeEnabledFeatures::XMLRustForNonXsltEnabled()) {
+      data_-&gt;using_rust_xml_parser_ = true;
+      return MakeGarbageCollected&lt;XMLDocumentParserRs&gt;(*this, View());
+    }
+  }
+
+  // FIXME: this should probably pass the frame instead
+  if (RuntimeEnabledFeatures::XMLParsingRustEnabled()) {
+    data_-&gt;using_rust_xml_parser_ = true;
+    return MakeGarbageCollected&lt;XMLDocumentParserRs&gt;(*this, View());
+  } else {
+    return MakeGarbageCollected&lt;XMLDocumentParser&gt;(*this, View());
+  }
+}</code></pre>
+    <p>Two independent flags appear here. <code>XMLRustForNonXslt</code> (status <code>stable</code> &mdash; this feature) gates the frameless/SVG branch. <code>XMLParsingRust</code> (no status &mdash; default off) would route <em>every</em> XML document to Rust and is documented under <a href="../what-still-uses-libxml2/">what still uses libxml2</a>.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/dom/document.cc" target="_blank" rel="noopener">document.cc &mdash; Document::CreateParser()</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="inputs">Inputs &mdash; the documents that take the Rust path</h2>
+    <p>The condition <code>!GetFrame() || IsSVGDocument()</code> maps onto the four scenarios announced in the <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/A-EM4e-JrTA/m/jgFyVxgLCAAJ" target="_blank" rel="noopener">Intent to Ship</a>:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Scenario (Intent wording)</th><th>Why the condition matches</th></tr></thead>
+      <tr><td>&ldquo;DOMParser Web API&rdquo;</td><td><code>DOMParser.parseFromString(text, type)</code> with an XML type (<code>application/xml</code>, <code>text/xml</code>, <code>application/xhtml+xml</code>, <code>image/svg+xml</code>) creates a document with no frame &rarr; <code>!GetFrame()</code></td></tr>
+      <tr><td>&ldquo;Accessing responseXML of XMLHttpRequest&rdquo;</td><td>The response document XHR builds for <code>responseXML</code> has no frame &rarr; <code>!GetFrame()</code></td></tr>
+      <tr><td>&ldquo;SVG standalone images (that is, accessing a <code>image.svg</code> document directly as a top level navigation)&rdquo;</td><td>The navigated document is an SVG document &rarr; <code>IsSVGDocument()</code></td></tr>
+      <tr><td>&ldquo;SVG external images (including a main document embedding an SVG as an external image resource)&rdquo;</td><td>SVG decoded for <code>&lt;img&gt;</code>, CSS images, favicons, etc. is parsed as an SVG document &rarr; <code>IsSVGDocument()</code>; the ChromeStatus record notes &ldquo;Usage of SVG as external images remains high at about 60%&hellip; and will run through this code path&rdquo;</td></tr>
+    </table>
+    </div>
+    <p>The source comment generalizes the same set: &ldquo;XMLHttpRequest, JS DOMParser API, where no <code>dom_window_</code> is available, or for SVG images&rdquo; &mdash; so <em>any</em> other frameless XML document construction that goes through <code>Document::CreateParser()</code> also takes the Rust path. What makes these &ldquo;non-XSLT&rdquo; is structural: XSLT applies during framed XML navigations via <code>&lt;?xml-stylesheet?&gt;</code>, which cannot happen for frameless documents, and inline XSLT producing SVG was <a href="https://chromestatus.com/feature/5143784390262784" target="_blank" rel="noopener">removed in Chrome 147</a>.</p>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/A-EM4e-JrTA/m/jgFyVxgLCAAJ" target="_blank" rel="noopener">Intent to Ship (scenario list)</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/dom/document.cc" target="_blank" rel="noopener">document.cc</a>; <a href="https://chromestatus.com/feature/5309598397497344" target="_blank" rel="noopener">ChromeStatus record (measurement section)</a>; <a href="https://chromestatus.com/feature/5143784390262784" target="_blank" rel="noopener">ChromeStatus &mdash; remove inline XSLT for production of SVG</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="outputs">Outputs &mdash; what the selected parser produces</h2>
+    <p>Both backends produce the same observable output: a DOM <code>Document</code> built through Blink&rsquo;s node-construction callbacks (<code>StartElementNs</code>, <code>Characters</code>, <code>CData</code>, <code>Comment</code>, <code>DocType</code>, <code>ProcessingInstruction</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xml_document_parser_rs.cc" target="_blank" rel="noopener">xml_document_parser_rs.cc</a>). The Intent to Ship&rsquo;s compatibility claim: the Rust implementation is &ldquo;expected and shown to be functionally equivalent to the C++ based implementation. No functional change.&rdquo; For instrumentation, the selected backend is recorded per parse into the UMA histograms <code>Blink.XMLParsing.NonXsltXmlParsingTime.Rust</code> / <code>.Libxml2</code> / <code>.Combined</code> (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/dom/document.cc" target="_blank" rel="noopener">document.cc</a>).</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xml_document_parser_rs.cc" target="_blank" rel="noopener">xml_document_parser_rs.cc</a>; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/A-EM4e-JrTA/m/jgFyVxgLCAAJ" target="_blank" rel="noopener">Intent to Ship</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/dom/document.cc" target="_blank" rel="noopener">document.cc (histograms)</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="errors">Error surface</h2>
+    <p>Parse failure surfaces exactly as before, per entry point: <code>DOMParser</code> returns an error document containing a <code>&lt;parsererror&gt;</code> element; <code>XMLHttpRequest.responseXML</code> is <code>null</code> when the response is not well-formed (the parser&rsquo;s <code>WellFormed()</code> accessor is documented in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xml_document_parser_rs.cc" target="_blank" rel="noopener">xml_document_parser_rs.cc</a> as &ldquo;Used by the XMLHttpRequest to check if the responseXML was well formed&rdquo;, matching the <a href="https://xhr.spec.whatwg.org/" target="_blank" rel="noopener">XHR Standard</a>); a malformed standalone SVG navigation renders the error block; a malformed external SVG image fails to render. The <em>wording</em> of error messages differs between backends &mdash; detailed under <a href="../compatibility-differences/">observable compatibility differences</a>.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xml_document_parser_rs.cc" target="_blank" rel="noopener">xml_document_parser_rs.cc</a>; <a href="https://xhr.spec.whatwg.org/" target="_blank" rel="noopener">XMLHttpRequest Standard</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="context">Context &mdash; where this applies</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Platforms</th><td>All six Blink platforms &mdash; the <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/A-EM4e-JrTA/m/jgFyVxgLCAAJ" target="_blank" rel="noopener">Intent to Ship</a> answers the all-platforms question &ldquo;Yes&rdquo;; the <a href="https://chromestatus.com/feature/5309598397497344" target="_blank" rel="noopener">record</a> lists desktop 153, Android 153, WebView 153 (no iOS milestone)</td></tr>
+      <tr><th scope="row">Flag</th><td><code>XMLRustForNonXslt</code>, status <code>stable</code> at <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">trunk</a> and on the <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/8010/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">M153 branch</a>. For A/B testing a regression, launch with <code>--disable-blink-features=XMLRustForNonXslt</code> to force the libxml2 path in these scenarios</td></tr>
+      <tr><th scope="row">Contexts</th><td>Applies wherever the affected documents are constructed &mdash; main-thread windows and worker XHR alike; the decision is per <em>document</em>, in <code>Document::CreateParser()</code></td></tr>
+      <tr><th scope="row">No opt-out for sites</th><td>There is no web-exposed switch, header, or attribute to choose a parser backend</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5 (trunk)</a>; <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/8010/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">M153 branch copy</a>; <a href="https://chromestatus.com/feature/5309598397497344" target="_blank" rel="noopener">ChromeStatus record</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">Lifecycle &mdash; rollout history and state</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">2026-02-09</th><td>ChromeStatus entry created by drott@chromium.org (<a href="https://chromestatus.com/api/v0/features/5309598397497344" target="_blank" rel="noopener">API record</a>, <code>created</code> field)</td></tr>
+      <tr><th scope="row">Experiment</th><td>&ldquo;A 1% @ stable experiment was performed&rdquo; under the Finch name <code>XMLParsingRust</code>, monitored via <code>Blink.XMLParsing.NonXsltXmlParsingTime.Combined</code>; &ldquo;guard rail metrics are unaffected on all relevant platforms&rdquo; and the two-or-three compatibility issues found were fixed (<a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/A-EM4e-JrTA/m/jgFyVxgLCAAJ" target="_blank" rel="noopener">Intent to Ship</a>)</td></tr>
+      <tr><th scope="row">2026-06-09</th><td>Intent to Ship posted, estimating Chrome 151; approved the same week &mdash; LGTM1 Chris Harrelson, LGTM2 Yoav Weiss (noting &ldquo;One could also argue that this is a non-web-exposed implementation change&hellip; it doesn&rsquo;t need API owner approvals&rdquo;), LGTM3 Mike Taylor (<a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/A-EM4e-JrTA/m/jgFyVxgLCAAJ" target="_blank" rel="noopener">thread</a>)</td></tr>
+      <tr><th scope="row">Chrome 153</th><td>Ships enabled by default &mdash; the milestone moved from the intent&rsquo;s estimate of 151 to 153; the <a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">milestone=153 listing</a> is authoritative and files it under &ldquo;Enabled by default&rdquo; (verified 2026-09-13). Enterprise admins were first notified in the Chrome 150 cycle (<code>first_enterprise_notification_milestone: 150</code> in the <a href="https://chromestatus.com/api/v0/features/5309598397497344" target="_blank" rel="noopener">API record</a>)</td></tr>
+      <tr><th scope="row">Next</th><td>libxml2 XML parsing is deactivated entirely only &ldquo;when XSLT deprecation concludes&rdquo; &mdash; see <a href="../what-still-uses-libxml2/">what still uses libxml2</a></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5309598397497344" target="_blank" rel="noopener">ChromeStatus API record</a>; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/A-EM4e-JrTA/m/jgFyVxgLCAAJ" target="_blank" rel="noopener">Intent to Ship thread</a>; <a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">milestone=153 listing</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples &mdash; observing which parser ran</h2>
+    <p>Sites cannot query the backend directly (no web-exposed switch), but each affected entry point can be exercised deterministically. In Chrome 153 all four snippets below take the Rust path; with <code>--disable-blink-features=XMLRustForNonXslt</code> they take libxml2. The DOM produced must be identical either way &mdash; any difference is reportable (see <a href="/v153/xml-parsing-in-rust-for-non-xslt-scenarios/#reporting-regressions">reporting regressions</a>):</p>
+<pre><code>// 1. DOMParser — frameless document
+const dp = new DOMParser().parseFromString("&lt;a b='1'&gt;&lt;c/&gt;&lt;/a&gt;", "text/xml");
+console.assert(dp.documentElement.getAttribute("b") === "1");
+
+// 2. XMLHttpRequest.responseXML — frameless response document
+const xhr = new XMLHttpRequest();
+xhr.open("GET", "/sitemap.xml");
+xhr.onload = () =&gt; console.log(xhr.responseXML instanceof XMLDocument);
+xhr.send();
+
+// 3. Standalone SVG — navigate a tab/iframe-less top-level load to image.svg
+//    (the navigated document IsSVGDocument() → Rust parser)
+location.assign("/logo.svg");
+
+// 4. SVG as an external image resource
+const img = new Image();
+img.src = "/logo.svg";  // decoded via an SVG document → Rust parser
+document.body.append(img);</code></pre>
+    <span class="citation">Source: scenario mapping per <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/dom/document.cc" target="_blank" rel="noopener">document.cc</a> and the <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/A-EM4e-JrTA/m/jgFyVxgLCAAJ" target="_blank" rel="noopener">Intent to Ship</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">Browser compatibility</h2>
+    <p><em>Interim table</em> &mdash; no BCD/web-features entry exists for an internal parser swap (<a href="https://api.webstatus.dev/v1/features?q=xml%20parsing%20in%20rust" target="_blank" rel="noopener">webstatus.dev query</a>, zero matches, 2026-09-13).</p>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <thead><tr><th>Environment</th><th>Rust parser for these entry points</th><th>Evidence</th></tr></thead>
+      <tr><td>Chrome desktop</td><td>153+</td><td><a href="https://chromestatus.com/feature/5309598397497344" target="_blank" rel="noopener">ChromeStatus record</a>; <a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">milestone=153 listing</a></td></tr>
+      <tr><td>Chrome Android / WebView</td><td>153+</td><td><a href="https://chromestatus.com/feature/5309598397497344" target="_blank" rel="noopener">ChromeStatus record</a> (android 153, webview 153)</td></tr>
+      <tr><td>Chrome iOS</td><td>No milestone recorded</td><td><a href="https://chromestatus.com/api/v0/features/5309598397497344" target="_blank" rel="noopener">API record</a> (<code>ios: null</code>)</td></tr>
+      <tr><td>Firefox / Safari</td><td>Unaffected (own engines)</td><td><a href="https://chromestatus.com/feature/5309598397497344" target="_blank" rel="noopener">ChromeStatus record</a>: no signals; Intent: no functional change to solicit signals on</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5309598397497344" target="_blank" rel="noopener">chromestatus.com/feature/5309598397497344</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <p>These entry points all parse attacker-controllable input (cross-origin XML responses, user-supplied strings, remote SVG images), which is exactly why they were migrated first: &ldquo;This change&rsquo;s main intention is to improve security&rdquo; (<a href="https://chromestatus.com/feature/5309598397497344" target="_blank" rel="noopener">ChromeStatus security section</a>). Selection happens in the renderer with no new process boundaries, permissions, or data flows; the only privacy-adjacent output is the aggregate UMA parse-time histogram named above.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5309598397497344" target="_blank" rel="noopener">ChromeStatus record</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/dom/document.cc" target="_blank" rel="noopener">document.cc</a>.</span>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

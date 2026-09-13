@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>What still uses libxml2 — XML parsing in Rust — Chrome 153 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code { overflow-wrap: anywhere; }
+    p a, li a, td a { overflow-wrap: anywhere; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .compat-table tr > th:first-child { width: auto; min-width: 5rem; }
+    .compat-table tr > *:nth-child(2) { min-width: 6.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .baseline-banner { border: 2px solid var(--border-black); padding: 1rem 1.2rem; margin: 1.5rem 0; background: var(--bg-paper); box-shadow: var(--thin-shadow); }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v153/xml-parsing-in-rust-for-non-xslt-scenarios/">&larr; XML parsing in Rust for non-XSLT scenarios</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v153 · xml parsing in rust · remaining libxml2 scenarios</p>
+    <h1>What still uses libxml2 in Chrome 153</h1>
+
+    <div class="baseline-banner" role="note" aria-label="Scope">
+      <p class="baseline-status">The other half of the migration</p>
+      <p>&ldquo;Non-XSLT scenarios&rdquo; is a precise boundary. This page documents which XML processing in Chrome 153 remains on the C libraries (libxml2/libxslt), why, and the sourced conditions for their eventual removal.</p>
+    </div>
+
+    <p class="lede">Anything that can feed the XSLT pipeline stays on libxml2, because Chromium&rsquo;s libxslt integration consumes libxml2 document structures &mdash; the runtime-flag comment for the umbrella <code>XMLParsingRust</code> flag is blunt: switching everything to Rust &ldquo;breaks XSLT as the Rust XML parsing code paths is incompatible with libxslt&rdquo;. Fragment parsing and a couple of internal helpers also remain on libxml2 in Chrome 153.</p>
+  </header>
+
+  <section>
+    <h2 id="syntax">The gate, in code</h2>
+    <p>The libxml2 fallback is the tail of <code>Document::CreateParser()</code> (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/dom/document.cc" target="_blank" rel="noopener">document.cc</a>, fetched 2026-09-13) &mdash; reached by framed, non-SVG XML documents, i.e. exactly the documents a <code>&lt;?xml-stylesheet type=&quot;text/xsl&quot;&hellip;?&gt;</code> processing instruction could transform:</p>
+<pre><code>// Reached only when the document has a frame and is not an SVG document:
+if (RuntimeEnabledFeatures::XMLParsingRustEnabled()) {   // default OFF
+  data_-&gt;using_rust_xml_parser_ = true;
+  return MakeGarbageCollected&lt;XMLDocumentParserRs&gt;(*this, View());
+} else {
+  return MakeGarbageCollected&lt;XMLDocumentParser&gt;(*this, View());  // libxml2
+}</code></pre>
+    <p>And the corresponding flag declarations in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a> (verbatim; no <code>status</code> means not enabled anywhere by default):</p>
+<pre><code>{
+  // Switches from XML parsing through libxml2 to parsing XML using the
+  // Rust xml crate. This makes parsing memory safe but breaks XSLT
+  // as the Rust XML parsing code paths is incompatible with libxslt.
+  // https://crbug.com/441911594
+  name: "XMLParsingRust"
+},
+{
+  // Enables the Rust XML parser for situations where we know
+  // no XSLT processing will be required. This covers usage of
+  // JS DOMParser API to parse XML, and usage of XMLHttpRequest
+  // with its responseXML document.
+  // https://crbug.com/466303347
+  name: "XMLRustForNonXslt",
+  status: "stable",
+},</code></pre>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/dom/document.cc" target="_blank" rel="noopener">document.cc &mdash; Document::CreateParser()</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="inputs">Scenarios that remain on libxml2</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Scenario</th><th>Evidence</th></tr></thead>
+      <tr><td>Framed XML navigations (a tab or iframe displaying an XML document other than SVG &mdash; the case where <code>&lt;?xml-stylesheet?&gt;</code> XSLT can apply)</td><td>Falls through the <code>!GetFrame() || IsSVGDocument()</code> gate in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/dom/document.cc" target="_blank" rel="noopener">document.cc</a> to the libxml2 branch</td></tr>
+      <tr><td><code>XSLTProcessor</code> (JS API): stylesheet compilation and transformation</td><td>Implemented against libxslt/libxml2 in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/xslt_processor_libxslt.cc" target="_blank" rel="noopener">xslt_processor_libxslt.cc</a>; string inputs are parsed by <code>XmlDocPtrForString</code>, whose comment notes it &ldquo;might be the first call into libxml2&rdquo; even &ldquo;in situations where the XMLDocumentParserRs is used as the primary parser&rdquo; (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xml_document_parser.cc" target="_blank" rel="noopener">xml_document_parser.cc</a>)</td></tr>
+      <tr><td>XML fragment parsing &mdash; <code>innerHTML</code>/<code>insertAdjacentHTML</code> on documents in the XML parser mode, <code>Range.createContextualFragment</code></td><td><code>ParseDocumentFragment</code> remains on the libxml2 parser; the Rust wrapper&rsquo;s header carries the TODO &ldquo;This class might need implement ParseDocumentFragment()&hellip;&rdquo; (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xml_document_parser_rs.h" target="_blank" rel="noopener">xml_document_parser_rs.h</a>), and the libxml2 fragment path <code>CHECK</code>s that <code>XMLParsingRust</code> is not enabled (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xml_document_parser.cc" target="_blank" rel="noopener">xml_document_parser.cc</a>)</td></tr>
+      <tr><td>Internal helper <code>ParseAttributes</code> (used for markup attribute parsing)</td><td>Uses a libxml2 SAX context and likewise <code>CHECK</code>s <code>!RuntimeEnabledFeatures::XMLParsingRustEnabled()</code> (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xml_document_parser.cc" target="_blank" rel="noopener">xml_document_parser.cc</a>)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/dom/document.cc" target="_blank" rel="noopener">document.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xml_document_parser.cc" target="_blank" rel="noopener">xml_document_parser.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xml_document_parser_rs.h" target="_blank" rel="noopener">xml_document_parser_rs.h</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/xslt_processor_libxslt.cc" target="_blank" rel="noopener">xslt_processor_libxslt.cc</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="outputs">Outputs &mdash; unchanged behavior on these paths</h2>
+    <p>Because these scenarios did not migrate, Chrome 153 produces byte-for-byte the behavior of earlier releases on them: libxml2 error strings, libxml2 parsing quirks, and the full XSLT 1.0 pipeline via libxslt. Nothing on these paths changed in this milestone; the observable changes documented under <a href="../compatibility-differences/">compatibility differences</a> apply only to the <a href="../affected-entry-points/">migrated entry points</a>.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/dom/document.cc" target="_blank" rel="noopener">document.cc (unchanged libxml2 branch)</a>; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/A-EM4e-JrTA/m/jgFyVxgLCAAJ" target="_blank" rel="noopener">Intent to Ship (scope limited to the four scenarios)</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="errors">Error surface</h2>
+    <p>Unchanged for these scenarios: libxml2&rsquo;s error catalogue feeds the same <code>XMLErrors</code> rendering (&ldquo;error on line&hellip; at column&hellip;&rdquo;) as before (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xml_errors.cc" target="_blank" rel="noopener">xml_errors.cc</a> is shared by both backends). A practical consequence for developers: the same malformed markup can yield <em>different error wording</em> depending on whether it is parsed by <code>DOMParser</code> (Rust path) or served as a framed XML navigation (libxml2 path) in Chrome 153 &mdash; another reason never to string-match parser errors.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xml_errors.cc" target="_blank" rel="noopener">xml_errors.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/dom/document.cc" target="_blank" rel="noopener">document.cc (per-document backend selection)</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="context">Context &mdash; the XSLT dependency</h2>
+    <p>These scenarios stay on libxml2 <em>only</em> because of XSLT. Chrome&rsquo;s XSLT support is itself being removed under <a href="https://chromestatus.com/feature/4709671889534976" target="_blank" rel="noopener">Deprecate and remove XSLT (ChromeStatus 4709671889534976)</a>, whose record (fetched 2026-09-13) shows deprecation development from Chrome 143 and a deprecation trial spanning Chrome 152&ndash;175 for sites that need migration time. Flipping the umbrella <code>XMLParsingRust</code> flag today would break <code>XSLTProcessor</code> and <code>&lt;?xml-stylesheet?&gt;</code> transforms &mdash; which is why it ships default-off and this feature exists as the safe subset.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/4709671889534976" target="_blank" rel="noopener">ChromeStatus &mdash; Deprecate and remove XSLT</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5 (XMLParsingRust comment)</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">Lifecycle &mdash; the removal endgame</h2>
+    <p>The sequencing is stated in the Intent to Ship&rsquo;s security section: &ldquo;Almost all XML parsing we perform will run through the Rust memory-safe parser. When XSLT deprecation concludes, we can deactivate libxml2 XML parsing and move to Rust XML parsing completely.&rdquo; Until then the umbrella flag <code>XMLParsingRust</code> (tracking bug <a href="https://crbug.com/441911594" target="_blank" rel="noopener">crbug.com/441911594</a>) remains the switch for the final step, and the libxml2 code paths above are maintained. No milestone for the final deactivation is committed in any source fetched for this page; the XSLT deprecation trial running through Chrome 175 (<a href="https://chromestatus.com/feature/4709671889534976" target="_blank" rel="noopener">ChromeStatus record</a>) is the earliest bound implied by the public record.</p>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/A-EM4e-JrTA/m/jgFyVxgLCAAJ" target="_blank" rel="noopener">Intent to Ship (security section)</a>; <a href="https://crbug.com/441911594" target="_blank" rel="noopener">crbug.com/441911594</a>; <a href="https://chromestatus.com/feature/4709671889534976" target="_blank" rel="noopener">XSLT deprecation record</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples &mdash; code that stays on the C libraries in 153</h2>
+<pre><code>// XSLTProcessor: stylesheet + transform run through libxslt/libxml2.
+const xslt = new XSLTProcessor();
+const sheet = new DOMParser().parseFromString(`
+  &lt;xsl:stylesheet version="1.0"
+      xmlns:xsl="http://www.w3.org/1999/XSL/Transform"&gt;
+    &lt;xsl:template match="/"&gt;&lt;out&gt;&lt;xsl:value-of select="//title"/&gt;&lt;/out&gt;&lt;/xsl:template&gt;
+  &lt;/xsl:stylesheet&gt;`, "application/xml");
+xslt.importStylesheet(sheet);                    // libxml2/libxslt path
+const data = new DOMParser().parseFromString(
+  "&lt;doc&gt;&lt;title&gt;hi&lt;/title&gt;&lt;/doc&gt;", "application/xml");
+const result = xslt.transformToDocument(data);   // libxml2/libxslt path
+
+// Fragment parsing inside an XML document — libxml2 path in Chrome 153:
+const xdoc = new DOMParser().parseFromString("&lt;root/&gt;", "application/xml");
+xdoc.documentElement.innerHTML = "&lt;child&gt;text&lt;/child&gt;";
+
+// Framed XML navigation (tab/iframe showing feed.xml, XSLT PI honored):
+// &lt;?xml-stylesheet type="text/xsl" href="feed.xsl"?&gt; … → libxml2 + libxslt</code></pre>
+    <p>Note the boundary running through a single workflow: the two <code>DOMParser</code> calls above use the <em>Rust</em> parser (frameless documents), while <code>importStylesheet</code>/<code>transformToDocument</code> re-parse and transform through libxml2/libxslt.</p>
+    <span class="citation">Source: path attribution per <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/xslt_processor_libxslt.cc" target="_blank" rel="noopener">xslt_processor_libxslt.cc</a>, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xml_document_parser.cc" target="_blank" rel="noopener">xml_document_parser.cc (XmlDocPtrForString, ParseDocumentFragment)</a>, and <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/dom/document.cc" target="_blank" rel="noopener">document.cc</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">Compatibility &mdash; scenario-by-parser matrix for Chrome 153</h2>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <thead><tr><th>XML processing scenario</th><th>Parser in Chrome 153</th></tr></thead>
+      <tr><td><code>DOMParser.parseFromString()</code> (XML types)</td><td>Rust (<code>xml-rs</code>)</td></tr>
+      <tr><td><code>XMLHttpRequest.responseXML</code></td><td>Rust (<code>xml-rs</code>)</td></tr>
+      <tr><td>Standalone SVG navigation</td><td>Rust (<code>xml-rs</code>)</td></tr>
+      <tr><td>SVG as external image resource</td><td>Rust (<code>xml-rs</code>)</td></tr>
+      <tr><td>Framed non-SVG XML navigation (XSLT possible)</td><td>libxml2</td></tr>
+      <tr><td><code>XSLTProcessor</code> (parse + transform)</td><td>libxml2 + libxslt</td></tr>
+      <tr><td>Fragment parsing in XML documents (<code>innerHTML</code> etc.)</td><td>libxml2</td></tr>
+      <tr><td><code>XMLSerializer</code> / XPath</td><td>Not parsing &mdash; unaffected by this feature (Blink&rsquo;s own serializer and XPath implementations in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/xml_serializer.cc" target="_blank" rel="noopener">xml_serializer.cc</a> and core/xml)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/dom/document.cc" target="_blank" rel="noopener">document.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/xml/parser/xml_document_parser.cc" target="_blank" rel="noopener">xml_document_parser.cc</a>; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/A-EM4e-JrTA/m/jgFyVxgLCAAJ" target="_blank" rel="noopener">Intent to Ship</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <p>The honest security accounting of Chrome 153: the C attack surface (libxml2/libxslt) remains reachable from web content through XSLT scenarios and XML fragment parsing until the XSLT removal completes &mdash; that is why the ChromeStatus security section frames this feature as &ldquo;almost all&rdquo; rather than &ldquo;all&rdquo; XML parsing becoming memory-safe. The deprecation-trial structure of the <a href="https://chromestatus.com/feature/4709671889534976" target="_blank" rel="noopener">XSLT removal</a> bounds how long that residual surface persists for sites that opt in to the trial.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5309598397497344" target="_blank" rel="noopener">ChromeStatus record (security risks)</a>; <a href="https://chromestatus.com/feature/4709671889534976" target="_blank" rel="noopener">XSLT deprecation record</a>.</span>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
