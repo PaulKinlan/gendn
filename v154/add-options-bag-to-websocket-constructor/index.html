@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Add options bag to WebSocket constructor — Chrome 154 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code { overflow-wrap: anywhere; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 26%; min-width: 7.5rem; overflow-wrap: normal; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .table-wrap { overflow-x: auto; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .baseline-banner { border: 2px solid var(--border-black); padding: 1rem 1.2rem; margin: 1.5rem 0; background: var(--bg-paper); box-shadow: var(--thin-shadow); }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .warn-block > strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    .example-embed { margin: 1.5rem 0; }
+    .example-embed iframe { max-width: 100%; }
+    .example-embed figcaption { font-size: 0.85rem; margin-top: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v154/">&larr; Chrome 154 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v154 &middot; web api &middot; networking</p>
+    <h1>Add options bag to WebSocket constructor</h1>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; implemented, behind an experimental flag (targeted at 154)</li>
+        <li class="limited">Edge &middot; not separately reported</li>
+        <li class="limited">Firefox &middot; no signal</li>
+        <li>Safari &middot; positive standards position, not shipped</li>
+      </ul>
+      <p>Not a Baseline feature: the option bag has no <a href="https://api.webstatus.dev/v1/features?q=websocket" target="_blank" rel="noopener">web-features entry on webstatus.dev</a> (queried 2026-09-20; only the host <a href="https://api.webstatus.dev/v1/features/websockets" target="_blank" rel="noopener"><code>websockets</code> feature</a> exists, Baseline <strong>widely available</strong> — that covers the classic constructor, not this overload). <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebSocket.json" target="_blank" rel="noopener">BCD</a> has no subfeature key for it either (the constructor entry records only the host constructor and the relative-URL update, verified 2026-09-20).</p>
+    </div>
+
+    <p class="lede">An overload of the <a href="websocket-constructor/"><code>WebSocket()</code> constructor</a>: the second argument may now be a <a href="websocketinit/"><code>WebSocketInit</code></a> options dictionary (<code>new WebSocket(url, { protocols: ["soap"] })</code>) instead of a bare string or array of subprotocol names. The dictionary initially carries a single member, <a href="websocketinit/#protocols"><code>protocols</code></a>, and exists chiefly as an extension point — mirroring the Fetch API's option-bag style — so future connection options don't need new positional arguments.</p>
+  </header>
+
+  <div class="warn-block" id="experimental">
+    <strong>Experimental &mdash; not yet enabled by default</strong>
+    <p>The <a href="https://chromestatus.com/api/v0/features?milestone=154" target="_blank" rel="noopener">milestone=154 listing</a> files this feature under &ldquo;Enabled by default&rdquo;, but as of 2026-09-20 that is a target, not a shipped state: the <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime flag record</a> for <code>WebSocketOptionBag</code> is still <code>status: "experimental"</code> at trunk, the CL that promotes it to stable (<a href="https://chromium-review.googlesource.com/c/chromium/src/+/8256918" target="_blank" rel="noopener">CL&nbsp;8256918</a>) is open and unmerged, the ChromeStatus record's own implementation status reads &ldquo;Proposed&rdquo;, and the defining spec change (<a href="https://github.com/whatwg/websockets/pull/76" target="_blank" rel="noopener">whatwg/websockets PR&nbsp;#76</a>) is open with active web-compat review. To test locally:</p>
+    <pre><code>chrome --enable-blink-features=WebSocketOptionBag</code></pre>
+    <p>or enable <code>chrome://flags/#enable-experimental-web-platform-features</code>. Feature-detect before relying on it &mdash; with the flag off, an options object is coerced to the string <code>"[object Object]"</code> and the constructor throws a <code>SyntaxError</code>:</p>
+    <pre><code>function supportsWebSocketOptions() {
+  try {
+    // An empty bag is valid where the overload exists, and an invalid
+    // protocol string where it does not.
+    new WebSocket("wss://example.invalid/", {}).close();
+    return true;
+  } catch {
+    return false;
+  }
+}</code></pre>
+  </div>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">What it is</th><td>A third accepted type for the <code>WebSocket()</code> constructor's second argument: alongside <code>DOMString</code> and <code>sequence&lt;DOMString&gt;</code>, a <code>WebSocketInit</code> dictionary whose <code>protocols</code> member lists subprotocols (<a href="https://github.com/whatwg/websockets/pull/76/files" target="_blank" rel="noopener">spec PR diff</a>)</td></tr>
+      <tr><th scope="row">Why</th><td>Extensibility: an option bag mirrors <code>fetch()</code>'s <code>RequestInit</code>, so future per-connection options need no new positional parameters. Chromium's concrete motivation is a <code>targetAddressSpace</code> option for <a href="https://wicg.github.io/local-network-access/" target="_blank" rel="noopener">Local Network Access</a> (<a href="https://github.com/whatwg/websockets/issues/42" target="_blank" rel="noopener">issue #42</a>)</td></tr>
+      <tr><th scope="row">Behavior change</th><td>Passing a plain non-iterable object as the second argument today coerces to the string <code>"[object Object]"</code> and rejects with <code>SyntaxError</code>; with the overload it parses as an options dictionary. This is the web-compat question under measurement on the <a href="https://github.com/whatwg/websockets/pull/76" target="_blank" rel="noopener">spec PR</a></td></tr>
+      <tr><th scope="row">Milestone listing</th><td>Chrome 154 &mdash; listed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=154" target="_blank" rel="noopener">milestone=154 listing</a> (fetched 2026-09-20; the listing is authoritative for filing). See the <a href="#experimental">warn-block</a> for the actual flag state</td></tr>
+      <tr><th scope="row">Runtime feature</th><td><code>WebSocketOptionBag</code> (<code>experimental</code>) in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>; implemented by <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8197225" target="_blank" rel="noopener">CL&nbsp;8197225</a> (merged 2026-08-12); stable promotion pending in <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8256918" target="_blank" rel="noopener">CL&nbsp;8256918</a></td></tr>
+      <tr><th scope="row">WPT</th><td><a href="https://github.com/web-platform-tests/wpt/blob/master/websockets/constructor/option-bag.any.js" target="_blank" rel="noopener">websockets/constructor/option-bag.any.js</a> (upstreamed with the implementation CL): an empty bag is accepted; a <code>protocols</code> array negotiates the first supported subprotocol</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5080055102439424" target="_blank" rel="noopener">5080055102439424 &mdash; Add options bag to WebSocket constructor</a> (blink component <code>Blink&gt;Network&gt;WebSockets</code>; tracking bug <a href="https://crbug.com/542670554" target="_blank" rel="noopener">crbug.com/542670554</a>)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/whatwg/websockets/pull/76/files" target="_blank" rel="noopener">whatwg/websockets PR #76 diff</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/websockets/websocket_init.idl" target="_blank" rel="noopener">websocket_init.idl</a>; <a href="https://chromestatus.com/api/v0/features/5080055102439424" target="_blank" rel="noopener">ChromeStatus API record</a></span>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p><a href="https://github.com/whatwg/websockets/issues/42" target="_blank" rel="noopener">whatwg/websockets issue #42</a> (open since 2015) collects long-standing requests to make the WebSocket constructor extensible the way <code>fetch()</code> is: headers, cache mode, and other per-connection knobs have nowhere to go when the only extra parameter is a protocols list. The option bag itself doesn't add those capabilities &mdash; it adds the <em>place</em> for them. Chromium's immediate use is <code>targetAddressSpace</code>, needed so pages can opt WebSocket connections into <a href="https://wicg.github.io/local-network-access/" target="_blank" rel="noopener">Local Network Access</a> checks the way <code>fetch(url, { targetAddressSpace })</code> already can; that member is tracked as its own Chrome 154 feature (<a href="https://chromestatus.com/feature/4779920606756864" target="_blank" rel="noopener">Support targetAddressSpace option for WebSockets</a>) and rides on this extension point.</p>
+    <span class="citation">Source: <a href="https://github.com/whatwg/websockets/issues/42" target="_blank" rel="noopener">issue #42</a>; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/YwkXWzPUJ7U" target="_blank" rel="noopener">blink-dev Intent to Prototype (2026-08-05)</a>; <a href="https://chromestatus.com/feature/4779920606756864" target="_blank" rel="noopener">chromestatus 4779920606756864</a></span>
+  </section>
+
+  <section>
+    <h2 id="how-it-works">how the second argument is routed</h2>
+    <p>The constructor's second parameter becomes the three-way union <code>(DOMString or sequence&lt;DOMString&gt; or WebSocketInit)</code>. Which branch a value takes follows the <a href="https://webidl.spec.whatwg.org/#es-union" target="_blank" rel="noopener">Web IDL union conversion algorithm</a>, so the routing is fully deterministic:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>You pass</th><th>Branch taken</th><th>Resulting protocols</th></tr></thead>
+      <tr><td><code>"soap"</code> (string)</td><td><code>DOMString</code> &mdash; unchanged classic form</td><td><code>["soap"]</code></td></tr>
+      <tr><td><code>["soap", "wamp"]</code> (array, or any iterable object)</td><td><code>sequence&lt;DOMString&gt;</code> &mdash; unchanged classic form</td><td><code>["soap", "wamp"]</code></td></tr>
+      <tr><td><code>{ protocols: ["soap"] }</code> (non-iterable object)</td><td><strong><code>WebSocketInit</code> dictionary</strong> &mdash; new</td><td><code>["soap"]</code></td></tr>
+      <tr><td><code>{}</code> (empty object)</td><td><code>WebSocketInit</code> with defaults</td><td><code>[]</code> (none)</td></tr>
+      <tr><td><code>undefined</code> / omitted</td><td>parameter default <code>[]</code></td><td><code>[]</code> (none)</td></tr>
+      <tr><td><code>{ protocols: "soap" }</code> (bare string member)</td><td><code>WebSocketInit</code>, then <strong><code>TypeError</code></strong></td><td>&mdash; see <a href="websocketinit/#protocols">the member's type</a></td></tr>
+    </table>
+    </div>
+    <p>The spec PR's constructor step is a two-liner (quoted from the <a href="https://github.com/whatwg/websockets/pull/76/files" target="_blank" rel="noopener">diff</a>): &ldquo;If <var>protocolsOrOptions</var> is a <code>WebSocketInit</code> dictionary, set <var>protocols</var> to <var>protocolsOrOptions</var>["protocols"]. Otherwise, set <var>protocols</var> to <var>protocolsOrOptions</var>.&rdquo; Everything downstream &mdash; protocol validation, the opening handshake &mdash; is the existing algorithm.</p>
+    <p>In Chromium, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/websockets/dom_websocket.cc" target="_blank" rel="noopener"><code>dom_websocket.cc</code></a> branches on <code>RuntimeEnabledFeatures::WebSocketOptionBagEnabled()</code>: with the flag on, the argument converts through the generated union <code>V8UnionStringOrStringSequenceOrWebSocketInit</code> and <code>ParseConstructorOptionsWithBag()</code> reads the dictionary; with the flag off, the pre-existing two-way union applies and an object coerces to a (rejected) protocol string. The declared IDL parameter is temporarily <code>any</code> so the two behaviors can coexist (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/websockets/websocket.idl" target="_blank" rel="noopener">websocket.idl</a>, TODO note referencing <a href="https://crbug.com/542670554" target="_blank" rel="noopener">crbug.com/542670554</a>).</p>
+    <span class="citation">Source: <a href="https://webidl.spec.whatwg.org/#es-union" target="_blank" rel="noopener">Web IDL &sect; ES union conversion</a>; <a href="https://github.com/whatwg/websockets/pull/76/files" target="_blank" rel="noopener">PR #76 diff</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/websockets/dom_websocket.cc" target="_blank" rel="noopener">dom_websocket.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/websockets/websocket.idl" target="_blank" rel="noopener">websocket.idl</a></span>
+  </section>
+
+  <section>
+    <h2 id="syntax">syntax</h2>
+    <p>Proposed spec IDL (<a href="https://github.com/whatwg/websockets/pull/76/files" target="_blank" rel="noopener">whatwg/websockets PR #76</a>, open &mdash; quoted verbatim from the diff, 2026-09-20):</p>
+    <pre><code>dictionary WebSocketInit {
+  sequence&lt;DOMString&gt; protocols = [];
+};
+
+[Exposed=(Window,Worker)]
+interface WebSocket : EventTarget {
+  constructor(USVString url,
+              optional (DOMString or sequence&lt;DOMString&gt; or WebSocketInit) protocolsOrOptions = []);
+  // &hellip; rest of the interface unchanged
+};</code></pre>
+    <p>Shipping Chromium dictionary IDL (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/websockets/websocket_init.idl" target="_blank" rel="noopener">websocket_init.idl</a> at trunk, 2026-09-20 &mdash; quoted verbatim, including the flag-gated Chromium extension):</p>
+    <pre><code>dictionary WebSocketInit {
+    sequence&lt;DOMString&gt; protocols = [];
+    [RuntimeEnabled=LocalNetworkAccessWebSocketsTargetAddressSpace] IPAddressSpace targetAddressSpace;
+};</code></pre>
+    <p>The <a href="https://websockets.spec.whatwg.org/" target="_blank" rel="noopener">WebSocket living standard</a> does <strong>not</strong> yet contain <code>WebSocketInit</code> (0 occurrences, verified 2026-09-20) &mdash; PR #76 must merge first. Full member documentation: <a href="websocket-constructor/">the constructor overload</a> and <a href="websocketinit/">the <code>WebSocketInit</code> dictionary</a>.</p>
+    <span class="citation">Source: <a href="https://github.com/whatwg/websockets/pull/76/files" target="_blank" rel="noopener">PR #76 diff</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/websockets/websocket_init.idl" target="_blank" rel="noopener">websocket_init.idl</a>; <a href="https://websockets.spec.whatwg.org/" target="_blank" rel="noopener">websockets.spec.whatwg.org</a></span>
+  </section>
+
+  <section>
+    <h2 id="reference">reference</h2>
+    <ul>
+      <li><a href="websocket-constructor/"><code>WebSocket(url, protocolsOrOptions)</code></a> &mdash; the constructor overload: parameters, routing, errors, lifecycle</li>
+      <li><a href="websocketinit/"><code>WebSocketInit</code></a> &mdash; the options dictionary and its <a href="websocketinit/#protocols"><code>protocols</code></a> member</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <p>Both spellings of the same connection &mdash; the classic positional form and the option bag:</p>
+    <pre><code>// Classic (unchanged, works everywhere):
+const a = new WebSocket("wss://example.com/chat", "soap");
+const b = new WebSocket("wss://example.com/chat", ["soap", "wamp"]);
+
+// Option bag (Chrome 154 behind the WebSocketOptionBag flag):
+const c = new WebSocket("wss://example.com/chat", { protocols: ["soap"] });
+
+// NOTE: the member is a sequence — a bare string throws a TypeError:
+// new WebSocket("wss://example.com/chat", { protocols: "soap" });  // TypeError</code></pre>
+    <p>Negotiation is unchanged: the server picks one offered subprotocol, and the chosen one appears on <code>socket.protocol</code> after <code>open</code>, exactly as with the positional forms.</p>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v154/add-options-bag-to-websocket-constructor/both-forms/"
+        title="Live example — WebSocket constructor: both argument forms" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase (route HEAD-checked 200, 2026-09-20). Sibling concept demos: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v154/add-options-bag-to-websocket-constructor/negotiation/" target="_blank" rel="noopener">subprotocol negotiation</a> and <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v154/add-options-bag-to-websocket-constructor/why-a-dictionary/" target="_blank" rel="noopener">why a dictionary</a>. The demo needs the <code>WebSocketOptionBag</code> flag to exercise the new form.<span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v154/add-options-bag-to-websocket-constructor/" target="_blank" rel="noopener">chrome-platform-showcase</a></span></figcaption>
+    </figure>
+    <span class="citation">Source: forms per the <a href="https://github.com/whatwg/websockets/pull/76/files" target="_blank" rel="noopener">PR #76 IDL</a> and the <a href="https://github.com/web-platform-tests/wpt/blob/master/websockets/constructor/option-bag.any.js" target="_blank" rel="noopener">WPT option-bag tests</a>; the TypeError note is gendn-derived from <a href="https://webidl.spec.whatwg.org/#es-sequence" target="_blank" rel="noopener">Web IDL sequence conversion</a> (labelled accordingly)</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">browser compatibility</h2>
+    <p><em>Interim table.</em> <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebSocket.json" target="_blank" rel="noopener">BCD</a> has no key for the option-bag overload (the <code>WebSocket()</code> constructor entry carries only the host constructor and the relative-URL subfeature, verified 2026-09-20), and <a href="https://api.webstatus.dev/v1/features?q=websocket" target="_blank" rel="noopener">webstatus.dev</a> has no web-feature for it. Rows compiled from the linked primary sources.</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Support</th><th>Evidence</th></tr></thead>
+      <tr><td>Chrome / Edge (Chromium)</td><td>Implemented; behind <code>WebSocketOptionBag</code> (experimental) &mdash; stable promotion targeted at 154, CL open as of 2026-09-20</td><td><a href="https://chromium-review.googlesource.com/c/chromium/src/+/8197225" target="_blank" rel="noopener">CL 8197225</a> (merged 2026-08-12); <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">flag record</a>; <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8256918" target="_blank" rel="noopener">CL 8256918</a></td></tr>
+      <tr><td>Firefox</td><td>No signal</td><td><a href="https://chromestatus.com/api/v0/features/5080055102439424" target="_blank" rel="noopener">ChromeStatus API record</a> vendor views; position requested at <a href="https://github.com/mozilla/standards-positions/issues/1444" target="_blank" rel="noopener">mozilla/standards-positions #1444</a></td></tr>
+      <tr><td>Safari</td><td>Positive standards position (&ldquo;Support&rdquo;); not shipped</td><td><a href="https://github.com/WebKit/standards-positions/issues/708" target="_blank" rel="noopener">WebKit/standards-positions #708</a>; <a href="https://chromestatus.com/api/v0/features/5080055102439424" target="_blank" rel="noopener">ChromeStatus API record</a></td></tr>
+    </table>
+    </div>
+    <p>For orientation, the host <code>WebSocket()</code> constructor itself is Baseline widely available (Chrome 5+, Edge 12+, Firefox 11+, Safari 5+ per <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebSocket.json" target="_blank" rel="noopener">BCD</a>) &mdash; only the dictionary overload is new.</p>
+    <span class="citation">Source: as linked per row; <a href="https://api.webstatus.dev/v1/features/websockets" target="_blank" rel="noopener">webstatus.dev websockets feature</a></span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <ul>
+      <li><strong>No new network capability</strong> &mdash; the option bag changes how subprotocols are <em>spelled</em>, not what a page can connect to. The same protocol-validation and handshake algorithm of the <a href="https://websockets.spec.whatwg.org/" target="_blank" rel="noopener">living standard</a> runs for every branch of the union.</li>
+      <li><strong>Web-compat, not security, is the open risk</strong> &mdash; code that today passes a non-iterable object (coerced to <code>"[object Object]"</code>, then rejected with <code>SyntaxError</code>) would begin connecting with no subprotocols. The <a href="https://github.com/whatwg/websockets/pull/76" target="_blank" rel="noopener">spec PR review</a> flagged this pattern in shipping libraries and asked for usage measurement before merging; Chromium's flag gating (and the abandoned revert, <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8294944" target="_blank" rel="noopener">CL&nbsp;8294944</a>) reflect the same caution.</li>
+      <li><strong>The extension point is where security options will land</strong> &mdash; Chromium's <code>targetAddressSpace</code> member (flag-gated in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/websockets/websocket_init.idl" target="_blank" rel="noopener">websocket_init.idl</a>) exists to let pages opt in to <a href="https://wicg.github.io/local-network-access/" target="_blank" rel="noopener">Local Network Access</a> restrictions for WebSocket connections to private networks; it is tracked as <a href="https://chromestatus.com/feature/4779920606756864" target="_blank" rel="noopener">its own feature</a>.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/whatwg/websockets/pull/76" target="_blank" rel="noopener">PR #76 review thread</a>; <a href="https://wicg.github.io/local-network-access/" target="_blank" rel="noopener">Local Network Access spec</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/websockets/websocket_init.idl" target="_blank" rel="noopener">websocket_init.idl</a></span>
+  </section>
+
+  <section>
+    <h2 id="specifications">specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Document</th><th>Status</th></tr></thead>
+      <tr><td><a href="https://github.com/whatwg/websockets/pull/76" target="_blank" rel="noopener">whatwg/websockets PR #76 &mdash; Add WebSocketInit option to constructor</a></td><td><strong>Open, unmerged</strong> (last updated 2026-09-14, checked 2026-09-20) &mdash; the normative text this page quotes; review is measuring the object-coercion web-compat risk</td></tr>
+      <tr><td><a href="https://github.com/whatwg/websockets/issues/42" target="_blank" rel="noopener">whatwg/websockets issue #42 &mdash; Extensibility of the WebSocket constructor</a></td><td>The originating proposal (2015&ndash;) and de-facto explainer; records implementer and user demand</td></tr>
+      <tr><td><a href="https://websockets.spec.whatwg.org/" target="_blank" rel="noopener">WebSockets living standard</a></td><td>Host specification; does <strong>not</strong> yet contain <code>WebSocketInit</code> (0 occurrences, verified 2026-09-20)</td></tr>
+      <tr><td><a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/YwkXWzPUJ7U" target="_blank" rel="noopener">blink-dev &mdash; Intent to Prototype: WebSocket constructor option bag</a></td><td>Posted 2026-08-05; tracking bug <a href="https://crbug.com/542670554" target="_blank" rel="noopener">542670554</a>. No Intent-to-Ship thread is linked from the ChromeStatus record as of 2026-09-20</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: repository and thread contents fetched 2026-09-20</span>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/5080055102439424" target="_blank" rel="noopener">Chrome Platform Status &mdash; Add options bag to WebSocket constructor</a> (<a href="https://chromestatus.com/api/v0/features/5080055102439424" target="_blank" rel="noopener">API record</a>)</li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/WebSocket/WebSocket" target="_blank" rel="noopener">MDN &mdash; WebSocket() constructor</a> (documents the classic two forms only; no <code>WebSocketInit</code> coverage, verified 2026-09-20)</li>
+      <li><a href="https://chromestatus.com/feature/4779920606756864" target="_blank" rel="noopener">Chrome Platform Status &mdash; Support targetAddressSpace option for WebSockets</a> (the first real option to ride this extension point)</li>
+      <li><a href="https://github.com/web-platform-tests/wpt/blob/master/websockets/constructor/option-bag.any.js" target="_blank" rel="noopener">WPT &mdash; option-bag.any.js</a> (the upstreamed tests)</li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v154/add-options-bag-to-websocket-constructor/" target="_blank" rel="noopener">Chrome Platform Showcase &mdash; interactive demos for this feature</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
