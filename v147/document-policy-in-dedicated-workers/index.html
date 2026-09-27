@@ -59,13 +59,13 @@
     <h2 id="at-a-glance">at a glance</h2>
     <div class="table-wrap">
     <table class="doc-table">
-      <tr><th>Status in Chrome 147</th><td>Developer trial &mdash; filed under &ldquo;In developer trial (Behind a flag)&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=147" target="_blank" rel="noopener">milestone=147 listing</a></td></tr>
-      <tr><th>Runtime flag</th><td><code>DocumentPolicyInDedicatedWorker</code> (<code>experimental</code>)</td></tr>
-      <tr><th>Spec change</th><td><a href="https://github.com/whatwg/html/pull/12026" target="_blank" rel="noopener">whatwg/html PR #12026</a> (the ChromeStatus record&rsquo;s spec link), building on HTML&rsquo;s <a href="https://html.spec.whatwg.org/#initialize-worker-policy-container" target="_blank" rel="noopener">worker policy-container initialization</a></td></tr>
-      <tr><th>Explainer</th><td><a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/DocumentPolicy/DocumentPolicyInWorkers.md" target="_blank" rel="noopener">MSEdgeExplainers — Document Policy in Workers</a></td></tr>
-      <tr><th>Intent to Prototype</th><td><a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/l-3DhX_uCco" target="_blank" rel="noopener">blink-dev thread</a></td></tr>
-      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/6242687411945472" target="_blank" rel="noopener">6242687411945472 — Document Policy in Dedicated Workers</a></td></tr>
-      <tr><th>Tracking bug</th><td><a href="https://issues.chromium.org/issues/450845903" target="_blank" rel="noopener">crbug 450845903</a></td></tr>
+      <tr><th scope="row">Status in Chrome 147</th><td>Developer trial &mdash; filed under &ldquo;In developer trial (Behind a flag)&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=147" target="_blank" rel="noopener">milestone=147 listing</a></td></tr>
+      <tr><th scope="row">Runtime flag</th><td><code>DocumentPolicyInDedicatedWorker</code> (<code>experimental</code>)</td></tr>
+      <tr><th scope="row">Spec change</th><td><a href="https://github.com/whatwg/html/pull/12026" target="_blank" rel="noopener">whatwg/html PR #12026</a> (the ChromeStatus record&rsquo;s spec link), building on HTML&rsquo;s <a href="https://html.spec.whatwg.org/#initialize-worker-policy-container" target="_blank" rel="noopener">worker policy-container initialization</a></td></tr>
+      <tr><th scope="row">Explainer</th><td><a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/DocumentPolicy/DocumentPolicyInWorkers.md" target="_blank" rel="noopener">MSEdgeExplainers — Document Policy in Workers</a></td></tr>
+      <tr><th scope="row">Intent to Prototype</th><td><a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/l-3DhX_uCco" target="_blank" rel="noopener">blink-dev thread</a></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/6242687411945472" target="_blank" rel="noopener">6242687411945472 — Document Policy in Dedicated Workers</a></td></tr>
+      <tr><th scope="row">Tracking bug</th><td><a href="https://issues.chromium.org/issues/450845903" target="_blank" rel="noopener">crbug 450845903</a></td></tr>
     </table>
     </div>
   </section>
@@ -83,7 +83,7 @@ Document-Policy: js-profiling</code></pre>
     <p>Policy source per worker type, from the <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/DocumentPolicy/DocumentPolicyInWorkers.md" target="_blank" rel="noopener">explainer&rsquo;s proposed model</a> (dedicated workers are what Chrome 147&rsquo;s trial covers; the explainer also defines shared and service workers for completeness):</p>
     <div class="table-wrap">
     <table class="doc-table">
-      <thead><tr><th>Worker script</th><th>Effective Document Policy</th></tr></thead>
+      <thead><tr><th scope="col">Worker script</th><th scope="col">Effective Document Policy</th></tr></thead>
       <tr><td>Network-loaded (<code>https:</code> &hellip;)</td><td>Parsed from the worker script&rsquo;s <em>own</em> response header. Any creator policy is ignored &mdash; &ldquo;no merge/intersection&rdquo;. Without the header, each feature falls back to its spec-defined default (for <code>js-profiling</code>, off).</td></tr>
       <tr><td><code>blob:</code> / <code>data:</code></td><td>Clones the creator&rsquo;s Document Policy, &ldquo;since no HTTP response exists to consult&rdquo; (<code>blob:</code> clones from the environment that created the blob; <code>data:</code> from the document that created the worker).</td></tr>
     </table>
@@ -102,7 +102,8 @@ Document-Policy: js-profiling</code></pre>
     <h2 id="examples">examples</h2>
     <p>Enabling the JS Self-Profiling API inside a dedicated worker &mdash; the explainer&rsquo;s motivating case:</p>
 <pre><code>// main.js — the page's own Document-Policy header is irrelevant here
-const worker = new Worker("/scripts/crunch.js");
+// (module worker: the crunch.js below uses top-level await)
+const worker = new Worker("/scripts/crunch.js", { type: "module" });
 
 // Server config: serve /scripts/crunch.js with
 //   Document-Policy: js-profiling
@@ -117,9 +118,10 @@ console.log(JSON.stringify(trace));
 // HTTP response, so it CLONES the creating page's Document Policy —
 // serve the PAGE with `Document-Policy: js-profiling` instead.
 const src = await (await fetch("/scripts/crunch.js")).text();
-const blobWorker = new Worker(URL.createObjectURL(
-  new Blob([src], { type: "text/javascript" })
-));</code></pre>
+const blobWorker = new Worker(
+  URL.createObjectURL(new Blob([src], { type: "text/javascript" })),
+  { type: "module" },
+);</code></pre>
 
     <figure class="example-embed">
       <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/document-policy-in-dedicated-workers/worker-feature-probe/"
@@ -135,7 +137,7 @@ const blobWorker = new Worker(URL.createObjectURL(
     <p>Neither MDN nor BCD documents the <code>Document-Policy</code> header at all (no <code>http/headers/Document-Policy.json</code>; both MDN URL layouts 404, checked 2026-09-27), so there is no per-version table to quote &mdash; everything below is interim ChromeStatus data, labelled as such:</p>
     <div class="table-wrap">
     <table class="doc-table">
-      <thead><tr><th>Browser</th><th>Document Policy in dedicated workers</th></tr></thead>
+      <thead><tr><th scope="col">Browser</th><th scope="col">Document Policy in dedicated workers</th></tr></thead>
       <tr><td>Chrome</td><td>Developer trial in <strong>147</strong> behind <code>DocumentPolicyInDedicatedWorker</code> (<a href="https://chromestatus.com/feature/6242687411945472" target="_blank" rel="noopener">ChromeStatus</a>; no ship milestone set)</td></tr>
       <tr><td>Edge</td><td>The <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/DocumentPolicy/DocumentPolicyInWorkers.md" target="_blank" rel="noopener">proposal is authored by Edge engineers</a>; no separate ship record</td></tr>
       <tr><td>Firefox</td><td>No signal (ChromeStatus vendor view; no public URL on the record)</td></tr>
@@ -150,7 +152,7 @@ const blobWorker = new Worker(URL.createObjectURL(
     <h2 id="specifications">specifications</h2>
     <div class="table-wrap">
     <table class="doc-table">
-      <thead><tr><th>Specification</th><th>Section</th></tr></thead>
+      <thead><tr><th scope="col">Specification</th><th scope="col">Section</th></tr></thead>
       <tr><td><a href="https://wicg.github.io/document-policy/" target="_blank" rel="noopener">Document Policy</a> (WICG Draft Community Group Report)</td><td><a href="https://wicg.github.io/document-policy/#document-policy-http-header" target="_blank" rel="noopener">&sect;7.2.1 Document-Policy</a></td></tr>
       <tr><td><a href="https://html.spec.whatwg.org/" target="_blank" rel="noopener">HTML Standard</a></td><td><a href="https://github.com/whatwg/html/pull/12026" target="_blank" rel="noopener">PR #12026</a> (in progress) &middot; <a href="https://html.spec.whatwg.org/#initialize-worker-policy-container" target="_blank" rel="noopener">initialize a worker&rsquo;s policy container</a></td></tr>
     </table>
