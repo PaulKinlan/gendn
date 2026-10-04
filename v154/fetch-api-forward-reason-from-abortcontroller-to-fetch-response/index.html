@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fetch API: Forward reason from AbortController to fetch Response — Chrome 154 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code, figcaption code { overflow-wrap: anywhere; }
+    .table-wrap { overflow-x: auto; max-inline-size: 100%; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .baseline-banner { border: 2px solid var(--border-black); padding: 1rem 1.2rem; margin: 1.5rem 0; background: var(--bg-paper); box-shadow: var(--thin-shadow); }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    .example-embed { margin: 1.5rem 0; }
+    .example-embed iframe { max-width: 100%; }
+    .example-embed figcaption { font-size: 0.85rem; margin-top: 0.4rem; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table th[scope="row"] { overflow-wrap: normal; white-space: nowrap; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    blockquote.spec-quote { margin: 1rem 0; padding: 0.75rem 1rem; border-left: 4px solid var(--border-black); background: var(--bg-stone); font-size: 0.92rem; }
+    blockquote.spec-quote p { margin: 0 0 0.5rem; }
+    blockquote.spec-quote p:last-child { margin-bottom: 0; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v154/">&larr; Chrome 154 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v154 &middot; network / connectivity &middot; enabled by default</p>
+    <h1>Fetch API: Forward reason from AbortController to fetch Response</h1>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Baseline Widely available (parent feature) &mdash; this specific fix is engine-dependent</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; reason reaches the body from 154</li>
+        <li>Edge &middot; not yet at intent time; Chromium-based</li>
+        <li>Firefox &middot; already compliant</li>
+        <li class="limited">Safari &middot; not compliant (Aug 2026)</li>
+      </ul>
+      <p>ChromeStatus maps this change to the <a href="https://api.webstatus.dev/v1/features/abortable-fetch" target="_blank" rel="noopener"><code>abortable-fetch</code> web feature</a>, which is Baseline <strong>widely available</strong> (low 2019-03-25, high 2021-09-25; queried 2026-10-04). That Baseline covers aborting a fetch at all. The behavior documented on this page &mdash; the abort <em>reason</em> propagating into <code>Response</code> body reads &mdash; is required by the spec but was missing from Chromium until 154: per the <a href="https://www.mail-archive.com/blink-dev@chromium.org/msg17127.html" target="_blank" rel="noopener">Intent to Ship</a>, &ldquo;Firefox at least is compliant here but chromium/Edge/Safari are not.&rdquo; Do not rely on the reason surviving into body reads cross-browser; see the <a href="#compatibility">full table</a>.</p>
+    </div>
+
+    <p class="lede">From Chrome 154, when a <code>fetch()</code> is aborted <em>after</em> its promise has resolved but <em>before</em> the response body has been fully read, the reason you passed to <code>AbortController.abort(reason)</code> is forwarded to the <code>Response</code> body: consumption methods such as <code>response.text()</code> reject with your reason, and the <code>response.body</code> <code>ReadableStream</code> errors with it. Previously those paths produced a generic <code>&quot;AbortError&quot;</code> <code>DOMException</code> and your reason was lost. This is a spec-compliance fix &mdash; no new API surface is added.</p>
+  </header>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Shipped in</th><td>Chrome 154 (desktop, Android, Android WebView, iOS) &mdash; filed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=154" target="_blank" rel="noopener">milestone=154 listing</a>; per-platform milestones from the <a href="https://chromestatus.com/api/v0/features/5158507786665984" target="_blank" rel="noopener">ChromeStatus API record</a></td></tr>
+      <tr><th scope="row">Runtime flag</th><td><code>ForwardReasonToFetchBodyAbort</code>, status <code>stable</code> in Blink&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a> (&ldquo;Flag for rolling out the standardized behavior where fetch calls are rejected with the reason provided to the abort controller&rdquo;; verified 2026-10-04)</td></tr>
+      <tr><th scope="row">Specification</th><td><a href="https://fetch.spec.whatwg.org/" target="_blank" rel="noopener">Fetch Living Standard</a>; the abort-reason forwarding was added by spec commit <a href="https://github.com/whatwg/fetch/commit/c9039b97a502b1d5fea46b55b9166762c3479837" target="_blank" rel="noopener"><code>c9039b9</code> &ldquo;Add abort reason support&rdquo;</a> (Nidhi Jaju, 2022-10-05), a follow-up to <a href="https://github.com/whatwg/dom/pull/1027" target="_blank" rel="noopener">whatwg/dom#1027</a> which added <code>AbortSignal.reason</code></td></tr>
+      <tr><th scope="row">Tracking bug</th><td><a href="https://issues.chromium.org/issues/502133195" target="_blank" rel="noopener">issues.chromium.org/502133195</a></td></tr>
+      <tr><th scope="row">Intent to Ship</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a73a11f.c91ea2f1.3ad85a.0300.GAE%40google.com" target="_blank" rel="noopener">blink-dev thread (2026-08-05)</a>, also archived as <a href="https://www.mail-archive.com/blink-dev@chromium.org/msg17127.html" target="_blank" rel="noopener">mail-archive msg17127</a></td></tr>
+      <tr><th scope="row">Web platform tests</th><td><a href="https://wpt.fyi/results/fetch/api/abort/general.any.html" target="_blank" rel="noopener">fetch/api/abort/general.any.html</a> &mdash; the intent names the subtests &ldquo;response.arrayBuffer() rejects with abort reason if already aborted&rdquo; and &ldquo;Stream errors once aborted with abort reason&rdquo;</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5158507786665984" target="_blank" rel="noopener">5158507786665984 &mdash; Fetch API: Forward reason from AbortController to fetch Response</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="what-changed">what changed</h2>
+    <p>Aborting a fetch has two windows. If you abort while the <code>fetch()</code> promise is still pending, the promise rejects with your reason &mdash; Chromium already did this (see the earlier <a href="https://chromestatus.com/feature/5631483679080448" target="_blank" rel="noopener">abortable-fetch entry</a>). If you abort after the headers arrived &mdash; the promise has resolved to a <code>Response</code>, but the body is still streaming &mdash; the spec says the reason must also reach everything that is reading that body. That second window is what Chrome 154 fixes:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Surface</th><th>Abort mid-body, Chrome &le; 153</th><th>Abort mid-body, Chrome 154+</th></tr></thead>
+      <tr><td><code>fetch()</code> promise</td><td colspan="2">Already settled &mdash; unaffected in both. (Aborting <em>before</em> settlement already rejected it with your reason.)</td></tr>
+      <tr><td><code>response.arrayBuffer()</code>, <code>.blob()</code>, <code>.bytes()</code>, <code>.formData()</code>, <code>.json()</code>, <code>.text()</code></td><td>Rejected with a newly minted generic <code>&quot;AbortError&quot;</code> <code>DOMException</code>; your reason was discarded</td><td>Rejected with your abort reason</td></tr>
+      <tr><td><code>response.body</code> (<code>ReadableStream</code>) &mdash; pending and subsequent <code>reader.read()</code> calls</td><td>Stream errored with a generic <code>&quot;AbortError&quot;</code></td><td>Stream errored with your abort reason</td></tr>
+    </table>
+    </div>
+    <p>The normative requirement comes from two places in the Fetch Standard. <a href="https://fetch.spec.whatwg.org/#abort-fetch" target="_blank" rel="noopener">&ldquo;Abort a fetch() call&rdquo;</a> (&sect;5.6):</p>
+    <blockquote class="spec-quote"><p>&ldquo;To abort a <code>fetch()</code> call with a <var>promise</var>, <var>request</var>, <var>responseObject</var>, and an <var>error</var>: Reject <var>promise</var> with <var>error</var>. &hellip; If <var>request</var>&rsquo;s body is non-null and is readable, then cancel <var>request</var>&rsquo;s body with <var>error</var>. If <var>responseObject</var> is null, then return. Let <var>response</var> be <var>responseObject</var>&rsquo;s response. If <var>response</var>&rsquo;s body is non-null and is readable, then error <var>response</var>&rsquo;s body with <var>error</var>.&rdquo;</p></blockquote>
+    <p>And <a href="https://fetch.spec.whatwg.org/#http-network-fetch" target="_blank" rel="noopener">HTTP-network fetch</a> (&sect;4.7), for the network-layer teardown of the body stream:</p>
+    <blockquote class="spec-quote"><p>&ldquo;If aborted, then: If <var>fetchParams</var> is aborted, then: Set <var>response</var>&rsquo;s aborted flag. If <var>stream</var> is readable, then error <var>stream</var> with the result of deserialize a serialized abort reason given <var>fetchParams</var>&rsquo;s controller&rsquo;s serialized abort reason and an implementation-defined realm.&rdquo;</p></blockquote>
+    <p>Note the spec also cancels a readable <em>request</em> body with the same error; the Chrome 154 entry describes the <code>Response</code>-side gap specifically, and the request-body side is not separately called out in the sources read.</p>
+    <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#abort-fetch" target="_blank" rel="noopener">Fetch Standard &sect;5.6 &mdash; abort a fetch() call</a>; <a href="https://fetch.spec.whatwg.org/#http-network-fetch" target="_blank" rel="noopener">Fetch Standard &sect;4.7 &mdash; HTTP-network fetch</a> (both quoted verbatim from the Living Standard, fetched 2026-10-04); behavior gap per the <a href="https://chromestatus.com/feature/5158507786665984" target="_blank" rel="noopener">ChromeStatus record</a> and <a href="https://www.mail-archive.com/blink-dev@chromium.org/msg17127.html" target="_blank" rel="noopener">Intent to Ship</a></span>
+  </section>
+
+  <section>
+    <h2 id="syntax">syntax</h2>
+    <p>No signatures change. The surfaces whose <em>rejection and error values</em> change are the body members of the <code>Response</code> object, defined by the <a href="https://fetch.spec.whatwg.org/#body-mixin" target="_blank" rel="noopener"><code>Body</code> interface mixin</a> (IDL verbatim from the Living Standard, fetched 2026-10-04 &mdash; <code>textStream()</code> is a newer spec addition quoted as-is, not part of this Chrome 154 change):</p>
+    <pre><code>interface mixin Body {
+  readonly attribute ReadableStream? body;
+  readonly attribute boolean bodyUsed;
+  [NewObject] Promise&lt;ArrayBuffer&gt; arrayBuffer();
+  [NewObject] Promise&lt;Blob&gt; blob();
+  [NewObject] Promise&lt;Uint8Array&gt; bytes();
+  [NewObject] Promise&lt;FormData&gt; formData();
+  [NewObject] Promise&lt;any&gt; json();
+  [NewObject] Promise&lt;USVString&gt; text();
+  [NewObject] ReadableStream textStream();
+};</code></pre>
+    <p>None of these methods takes arguments; each returns a promise that settles as the body is fully read. The abort reason itself enters the system through <code>AbortController.abort(reason)</code> / <code>AbortSignal</code>, defined in the <a href="https://dom.spec.whatwg.org/#abortsignal-abort-reason" target="_blank" rel="noopener">DOM Standard</a> (IDL verbatim, fetched 2026-10-04):</p>
+    <pre><code>[Exposed=*]
+interface AbortSignal : EventTarget {
+  [NewObject] static AbortSignal abort(optional any reason);
+  [Exposed=(Window,Worker), NewObject] static AbortSignal timeout([EnforceRange] unsigned long long milliseconds);
+  [NewObject] static AbortSignal _any(sequence&lt;AbortSignal&gt; signals);
+
+  readonly attribute boolean aborted;
+  readonly attribute any reason;
+  undefined throwIfAborted();
+
+  attribute EventHandler onabort;
+};</code></pre>
+    <p>The reason is <code>any</code> JavaScript value. When none is given, the DOM Standard sets the signal&rsquo;s abort reason &ldquo;to a new <code>&quot;AbortError&quot;</code> <code>DOMException</code>&rdquo;, and <code>AbortSignal.timeout()</code> aborts with &ldquo;a new <code>&quot;TimeoutError&quot;</code> <code>DOMException</code>&rdquo; &mdash; which is what makes timeouts distinguishable from user cancels at the body-read site (see <a href="#examples">examples</a>). <code>Response</code> objects (and these members) are exposed in <code>Window</code> and <code>Worker</code> contexts.</p>
+    <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#body-mixin" target="_blank" rel="noopener">Fetch Standard &sect;5.3 &mdash; Body mixin</a>; <a href="https://dom.spec.whatwg.org/#abortsignal-abort-reason" target="_blank" rel="noopener">DOM Standard &sect;3.2 &mdash; Interface AbortSignal</a></span>
+  </section>
+
+  <section>
+    <h2 id="how-the-reason-travels">how the reason travels (and when you still get AbortError)</h2>
+    <p>The reason is not passed around by reference. When a fetch controller is aborted, the Fetch Standard stores a <em>structured-serialized</em> copy, and each consumer deserializes it back into its own realm (<a href="https://fetch.spec.whatwg.org/#fetch-controller-abort" target="_blank" rel="noopener">abort a fetch controller</a>, quoted verbatim):</p>
+    <blockquote class="spec-quote"><p>&ldquo;Let <var>fallbackError</var> be an <code>&quot;AbortError&quot;</code> <code>DOMException</code>. Set <var>error</var> to <var>fallbackError</var> if it is not given. Let <var>serializedError</var> be StructuredSerialize(<var>error</var>). If that threw an exception, catch it, and let <var>serializedError</var> be StructuredSerialize(<var>fallbackError</var>). Set controller&rsquo;s <a href="https://fetch.spec.whatwg.org/#fetch-controller-serialized-abort-reason" target="_blank" rel="noopener">serialized abort reason</a> to <var>serializedError</var>.&rdquo;</p></blockquote>
+    <p>And the reverse step (<a href="https://fetch.spec.whatwg.org/#deserialize-a-serialized-abort-reason" target="_blank" rel="noopener">deserialize a serialized abort reason</a>, quoted verbatim):</p>
+    <blockquote class="spec-quote"><p>&ldquo;To deserialize a serialized abort reason, given null or a Record <var>abortReason</var> and a realm <var>realm</var>: Let <var>fallbackError</var> be an <code>&quot;AbortError&quot;</code> <code>DOMException</code>. Let <var>deserializedError</var> be <var>fallbackError</var>. If <var>abortReason</var> is non-null, then set <var>deserializedError</var> to StructuredDeserialize(<var>abortReason</var>, <var>realm</var>). If that threw an exception or returned undefined, then set <var>deserializedError</var> to <var>fallbackError</var>. Return <var>deserializedError</var>.&rdquo;</p></blockquote>
+    <p>Practical consequences, all directly from those two algorithms:</p>
+    <ul>
+      <li><strong>Inputs:</strong> any value works as a reason, but only <em>structured-cloneable</em> values survive the trip. <code>Error</code> and <code>DOMException</code> objects, plain objects, strings and numbers arrive intact (as copies).</li>
+      <li><strong>Fallback:</strong> if the reason cannot be serialized (a function, a value with call-site-only semantics) or deserializes to <code>undefined</code>, consumers on this path receive the generic <code>&quot;AbortError&quot;</code> <code>DOMException</code> instead &mdash; the pre-154 behavior, by design.</li>
+      <li><strong>Identity:</strong> a deserialized reason is a structurally equal <em>copy</em>, not the same object; don&rsquo;t compare it with <code>===</code> against the value you passed to <code>abort()</code>. (On the same-realm path, &sect;5.6&rsquo;s abort steps hand the signal&rsquo;s abort reason to &ldquo;abort a fetch() call&rdquo; directly.)</li>
+      <li><strong>Lifecycle:</strong> the serialized reason is set once, when the controller is aborted; every later delivery &mdash; erroring the body stream, rejecting in-flight <code>reader.read()</code> promises, rejecting body-consumption promises &mdash; reuses it. A body that was already fully read, or a stream already closed/errored, is not re-errored (&ldquo;if &hellip; is readable&rdquo; guards every step).</li>
+    </ul>
+    <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#fetch-controller-abort" target="_blank" rel="noopener">Fetch Standard &sect;2 &mdash; abort a fetch controller</a>; <a href="https://fetch.spec.whatwg.org/#deserialize-a-serialized-abort-reason" target="_blank" rel="noopener">Fetch Standard &sect;2 &mdash; deserialize a serialized abort reason</a>; same-realm path per <a href="https://fetch.spec.whatwg.org/#abort-fetch" target="_blank" rel="noopener">&sect;5.6</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <p>Cancelling a download after the headers arrived, and seeing <em>your</em> reason at the body read:</p>
+<pre><code>const controller = new AbortController();
+
+const response = await fetch('/api/export.csv', {
+  signal: controller.signal,
+});
+// Headers are in: the fetch() promise has already resolved.
+// The body is still streaming.
+
+// Later, the user clicks "cancel":
+controller.abort(new DOMException('User cancelled the export', 'AbortError'));
+// ...any value is allowed: controller.abort({ why: 'user-cancel' });
+
+try {
+  const text = await response.text();
+} catch (err) {
+  // Chrome 154+ (and Firefox): err IS the reason passed to abort()
+  // (a structured clone of it on the cross-realm path).
+  // Chrome &lt;= 153: err was a fresh generic "AbortError" DOMException
+  // and the reason was lost.
+  console.log(err.message); // "User cancelled the export"
+}</code></pre>
+    <p>Telling a timeout apart from a deliberate cancel while reading <code>response.body</code> &mdash; the case that makes this fix useful, because <code>AbortSignal.timeout()</code> aborts with a <code>&quot;TimeoutError&quot;</code> <code>DOMException</code> (DOM Standard, quoted above):</p>
+<pre><code>const response = await fetch(url, {
+  signal: AbortSignal.any([userController.signal, AbortSignal.timeout(10_000)]),
+});
+
+const reader = response.body.getReader();
+try {
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    render(value);
+  }
+} catch (err) {
+  // Chrome 154+: the stream is errored with the abort reason.
+  if (err instanceof DOMException &amp;&amp; err.name === 'TimeoutError') {
+    offerRetry();        // the 10 s budget ran out
+  } else {
+    showCancelled(err);  // the user's own abort reason
+  }
+}</code></pre>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v154/fetch-api-forward-reason-from-abortcontroller-to-fetch-response/reason-everywhere/"
+        title="Live example — every place the abort reason can surface" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase (route HEAD-checked 200, 2026-10-04): abort one request and inspect the reason at the fetch promise, <code>response.text()</code>, a stream reader, and <code>signal.reason</code>. Sibling concept demos (both 200): <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v154/fetch-api-forward-reason-from-abortcontroller-to-fetch-response/timeout-vs-user/" target="_blank" rel="noopener">timeout vs. user cancel</a> and <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v154/fetch-api-forward-reason-from-abortcontroller-to-fetch-response/streaming-download/" target="_blank" rel="noopener">cancelling mid-stream</a>.<span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v154/fetch-api-forward-reason-from-abortcontroller-to-fetch-response/" target="_blank" rel="noopener">chrome-platform-showcase</a></span></figcaption>
+    </figure>
+    <span class="citation">Source: behavior per the <a href="https://fetch.spec.whatwg.org/#abort-fetch" target="_blank" rel="noopener">Fetch Standard</a> and <a href="https://www.mail-archive.com/blink-dev@chromium.org/msg17127.html" target="_blank" rel="noopener">Intent to Ship</a>; <code>TimeoutError</code> per the <a href="https://dom.spec.whatwg.org/#dom-abortsignal-timeout" target="_blank" rel="noopener">DOM Standard</a>; snippets gendn-derived (labelled accordingly), exercised live by the embedded showcase demo</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">browser compatibility</h2>
+    <p><strong>BCD has no entry for this behavior change yet</strong>: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Response.json" target="_blank" rel="noopener">BCD <code>api/Response.json</code></a> contains no abort-reason subfeature or version note (raw file checked 2026-10-04 &mdash; zero matches for &ldquo;abort&rdquo;). The table below is therefore interim, built from the ChromeStatus record, the Intent to Ship, and BCD for the prerequisite <code>AbortSignal.reason</code>:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Abort reason forwarded to <code>Response</code> body reads</th><th>Notes</th></tr></thead>
+      <tr><td>Chrome</td><td><strong>154</strong> (interim: ChromeStatus, not yet BCD)</td><td>Desktop, Android, Android WebView and iOS all 154 per the <a href="https://chromestatus.com/api/v0/features/5158507786665984" target="_blank" rel="noopener">ChromeStatus API record</a>; runtime flag <code>ForwardReasonToFetchBodyAbort</code> is <code>stable</code></td></tr>
+      <tr><td>Edge</td><td>Unknown</td><td>&ldquo;chromium/Edge&hellip; are not&rdquo; compliant per the <a href="https://www.mail-archive.com/blink-dev@chromium.org/msg17127.html" target="_blank" rel="noopener">Intent (2026-08)</a>; as a Chromium browser it is expected to inherit the fix at its 154-based release, but no source read here records an Edge version</td></tr>
+      <tr><td>Firefox</td><td>Already compliant; version unknown</td><td>&ldquo;Firefox at least is compliant here&rdquo; (<a href="https://www.mail-archive.com/blink-dev@chromium.org/msg17127.html" target="_blank" rel="noopener">Intent</a>); vendor view &ldquo;Shipped/Shipping&rdquo; in the <a href="https://chromestatus.com/api/v0/features/5158507786665984" target="_blank" rel="noopener">ChromeStatus record</a>. The first compliant Firefox version is not recorded in the sources read</td></tr>
+      <tr><td>Safari</td><td>Not compliant (as of 2026-08)</td><td>Per the <a href="https://www.mail-archive.com/blink-dev@chromium.org/msg17127.html" target="_blank" rel="noopener">Intent</a>; the ChromeStatus record links the WebKit standards-position entry <a href="https://github.com/WebKit/standards-positions/issues/711" target="_blank" rel="noopener">WebKit/standards-positions#711</a> as &ldquo;Closed Without a Position&rdquo;</td></tr>
+      <tr><td colspan="3">Prerequisite &mdash; <code>AbortSignal.reason</code> itself, per <a href="https://github.com/mdn/browser-compat-data/blob/main/api/AbortSignal.json" target="_blank" rel="noopener">BCD <code>api/AbortSignal.json</code></a> (verified 2026-10-04): Chrome <strong>98</strong>, Firefox <strong>97</strong>, Safari <strong>15.4</strong>, Edge mirrors Chrome.</td></tr>
+    </table>
+    </div>
+    <p>Cross-engine status of the two relevant subtests (&ldquo;response.arrayBuffer() rejects with abort reason if already aborted&rdquo;, &ldquo;Stream errors once aborted with abort reason&rdquo;) is tracked on <a href="https://wpt.fyi/results/fetch/api/abort/general.any.html" target="_blank" rel="noopener">wpt.fyi</a>; per-browser subtest results were not individually verified here. Write code that treats the reason as a progressive enhancement: always handle a plain <code>&quot;AbortError&quot;</code> <code>DOMException</code> as the baseline outcome.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5158507786665984" target="_blank" rel="noopener">ChromeStatus API record</a>; <a href="https://www.mail-archive.com/blink-dev@chromium.org/msg17127.html" target="_blank" rel="noopener">Intent to Ship</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/AbortSignal.json" target="_blank" rel="noopener">BCD api/AbortSignal.json</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Response.json" target="_blank" rel="noopener">BCD api/Response.json</a> (no entry); <a href="https://api.webstatus.dev/v1/features/abortable-fetch" target="_blank" rel="noopener">webstatus.dev abortable-fetch</a></span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <p>No new capability is exposed: the abort reason is a value the page itself supplied to <code>abort()</code>, delivered back to the same page&rsquo;s own <code>Response</code> object. The structured-serialize/deserialize round trip (quoted in <a href="#how-the-reason-travels">how the reason travels</a>) is the trust boundary: the reason crosses between realms and off the network thread only as a structured clone, never as a live object reference, and anything that cannot be cloned is replaced by the neutral <code>&quot;AbortError&quot;</code> fallback rather than leaked or thrown across the boundary. Nothing about the reason is sent on the network, and the server cannot observe it &mdash; aborting still simply tears down the connection (for HTTP/2, the spec transmits an <code>RST_STREAM</code> frame). The change is observable only to script that already holds the <code>Response</code>.</p>
+    <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#fetch-controller-abort" target="_blank" rel="noopener">Fetch Standard &sect;2 &mdash; abort a fetch controller</a>; <a href="https://fetch.spec.whatwg.org/#http-network-fetch" target="_blank" rel="noopener">Fetch Standard &sect;4.7 &mdash; HTTP-network fetch</a></span>
+  </section>
+
+  <section>
+    <h2 id="specifications">specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Specification</th><th>Section</th></tr></thead>
+      <tr><td><a href="https://fetch.spec.whatwg.org/" target="_blank" rel="noopener">Fetch Living Standard</a></td><td><a href="https://fetch.spec.whatwg.org/#abort-fetch" target="_blank" rel="noopener">&sect;5.6 &mdash; abort a fetch() call</a> &middot; <a href="https://fetch.spec.whatwg.org/#http-network-fetch" target="_blank" rel="noopener">&sect;4.7 &mdash; HTTP-network fetch</a> &middot; <a href="https://fetch.spec.whatwg.org/#fetch-controller-serialized-abort-reason" target="_blank" rel="noopener">&sect;2 &mdash; fetch controller&rsquo;s serialized abort reason</a> &middot; <a href="https://fetch.spec.whatwg.org/#deserialize-a-serialized-abort-reason" target="_blank" rel="noopener">&sect;2 &mdash; deserialize a serialized abort reason</a> &middot; <a href="https://fetch.spec.whatwg.org/#body-mixin" target="_blank" rel="noopener">&sect;5.3 &mdash; Body mixin</a></td></tr>
+      <tr><td><a href="https://dom.spec.whatwg.org/" target="_blank" rel="noopener">DOM Living Standard</a></td><td><a href="https://dom.spec.whatwg.org/#abortsignal-abort-reason" target="_blank" rel="noopener">&sect;3.2 &mdash; AbortSignal&rsquo;s abort reason</a> &middot; <a href="https://dom.spec.whatwg.org/#dom-abortsignal-reason" target="_blank" rel="noopener"><code>reason</code> getter</a> &middot; <a href="https://dom.spec.whatwg.org/#dom-abortsignal-timeout" target="_blank" rel="noopener"><code>timeout()</code></a></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: both Living Standards fetched and quoted 2026-10-04; forwarding added by <a href="https://github.com/whatwg/fetch/commit/c9039b97a502b1d5fea46b55b9166762c3479837" target="_blank" rel="noopener">whatwg/fetch commit c9039b9</a></span>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/reason" target="_blank" rel="noopener">MDN: AbortSignal.reason</a> &mdash; the reason attribute itself (MDN does not yet document this Chrome 154 body-forwarding change; HEAD-checked 2026-10-04)</li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Response/body" target="_blank" rel="noopener">MDN: Response.body</a> and <a href="https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch" target="_blank" rel="noopener">MDN: Using the Fetch API</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v154/fetch-api-forward-reason-from-abortcontroller-to-fetch-response/" target="_blank" rel="noopener">chrome-platform-showcase: abort-reason demos</a> (three concepts, all routes 200)</li>
+      <li><a href="https://chromestatus.com/feature/5158507786665984" target="_blank" rel="noopener">ChromeStatus &mdash; Fetch API: Forward reason from AbortController to fetch Response (5158507786665984)</a></li>
+      <li><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a73a11f.c91ea2f1.3ad85a.0300.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a> &middot; <a href="https://issues.chromium.org/issues/502133195" target="_blank" rel="noopener">tracking bug 502133195</a></li>
+      <li><a href="https://chromestatus.com/feature/5631483679080448" target="_blank" rel="noopener">ChromeStatus &mdash; the original abortable-fetch entry (promise-phase abort)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
