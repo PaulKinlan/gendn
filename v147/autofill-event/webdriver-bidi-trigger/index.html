@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebDriver BiDi autofill.trigger — Chrome 147 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code { overflow-wrap: anywhere; }
+    .table-wrap { overflow-x: auto; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .doc-table { width: 100%; table-layout: fixed; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v147/autofill-event/">&larr; Autofill event</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v147 &middot; experimental &middot; webdriver bidi command</p>
+    <h1>The autofill.trigger command</h1>
+    <p class="lede">The Autofill Event spec defines a WebDriver BiDi module, <code>autofill</code>, with one command: <code>autofill.trigger</code>. It triggers autofill on a form field with caller-supplied card or address data, so automated tests can exercise the <code>autofill</code> event and <code>refill()</code> flow without a real user profile or manual interaction.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Experimental — API surface may move</strong>
+    Defined in the same incubating WICG draft as the parent feature (experimental in Chromium; Origin trial per the milestone-147 listing, &ldquo;Proposed&rdquo; on the detail record). See the <a href="/v147/autofill-event/">overview warn-block</a> for evidence and enable steps.
+  </div>
+
+  <section>
+    <h2 id="syntax">syntax</h2>
+    <p>Command definition quoted verbatim (CDDL) from <a href="https://wicg.github.io/autofill-event/#the-autofilltrigger-command" target="_blank" rel="noopener">spec &sect;7.1.1</a>:</p>
+    <pre><code>autofill.Trigger = (
+  method: "autofill.trigger",
+  params: autofill.TriggerParameters
+)
+
+autofill.TriggerParameters = {
+  context: browsingContext.BrowsingContext,
+  element: script.SharedReference,
+  ? card: autofill.Card,
+  ? address: autofill.Address
+}
+
+autofill.Card = {
+  number: text,
+  name: text,
+  expiryMonth: text,
+  expiryYear: text,
+  cvc: text
+}
+
+autofill.Address = {
+  fields: [ * autofill.Field ]
+}
+
+autofill.Field = {
+  name: autofill.FieldName,
+  value: text
+}</code></pre>
+    <p><code>autofill.FieldName</code> is the enumeration <code>"name"</code> / <code>"honorific-prefix"</code> / <code>"given-name"</code> / <code>"additional-name"</code> / <code>"family-name"</code> / <code>"honorific-suffix"</code> / <code>"nickname"</code> / <code>"organization"</code> / <code>"street-address"</code> / <code>"address-line1"</code> / <code>"address-line2"</code> / <code>"address-line3"</code> / <code>"address-level4"</code> / <code>"address-level3"</code> / <code>"address-level2"</code> / <code>"address-level1"</code> / <code>"country"</code> / <code>"country-name"</code> / <code>"postal-code"</code> / <code>"tel"</code> / <code>"tel-country-code"</code> / <code>"tel-national"</code> / <code>"tel-area-code"</code> / <code>"tel-local"</code> / <code>"email"</code> &mdash; corresponding to the <a href="https://html.spec.whatwg.org/multipage/form-control-infrastructure.html#autofill" target="_blank" rel="noopener">HTML autofill field names</a>.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/autofill-event/#the-autofilltrigger-command" target="_blank" rel="noopener">spec &sect;7.1.1</a> (CDDL and FieldName values quoted verbatim). Read 2026-10-04.</span>
+  </section>
+
+  <section>
+    <h2 id="parameters">parameters</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th><code>context</code></th><td>A <code>browsingContext.BrowsingContext</code> id; resolved to a navigable whose active document hosts the fill.</td></tr>
+      <tr><th><code>element</code></th><td>A <code>script.SharedReference</code> to the target form field; it must deserialize to a form control that has a non-null form owner.</td></tr>
+      <tr><th><code>card</code></th><td>Optional <code>autofill.Card</code> (number, name, expiryMonth, expiryYear, cvc &mdash; all text).</td></tr>
+      <tr><th><code>address</code></th><td>Optional <code>autofill.Address</code>: a list of <code>autofill.Field</code> name/value pairs using the FieldName enumeration above.</td></tr>
+    </table>
+    </div>
+    <p><strong>Exactly one</strong> of <code>card</code> / <code>address</code> must be present &mdash; both, or neither, is an <code>invalid argument</code> error (processing steps 10&ndash;11).</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/autofill-event/#processing-steps" target="_blank" rel="noopener">spec &sect;7.1.2 processing steps</a>. Read 2026-10-04.</span>
+  </section>
+
+  <section>
+    <h2 id="return-value">return value</h2>
+    <p>Return type <code>EmptyResult</code>: on success the remote end returns <q>success with data null</q> (final processing step). The command reports no fill details; observe the effect in-page via the <a href="/v147/autofill-event/#lifecycle"><code>autofill</code> event</a> and the resulting control values.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/autofill-event/#the-autofilltrigger-command" target="_blank" rel="noopener">spec &sect;7.1.1 Return Type</a>, <a href="https://wicg.github.io/autofill-event/#processing-steps" target="_blank" rel="noopener">&sect;7.1.2</a>. Read 2026-10-04.</span>
+  </section>
+
+  <section>
+    <h2 id="errors">errors</h2>
+    <p>The error codes defined by the processing steps (<a href="https://wicg.github.io/autofill-event/#processing-steps" target="_blank" rel="noopener">spec &sect;7.1.2</a>), verbatim:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Error code</th><th>Condition</th></tr></thead>
+      <tr><td><code>invalid element state</code></td><td><code>element</code> is not a form control, or its form owner is null</td></tr>
+      <tr><td><code>invalid argument</code></td><td>Both <code>card</code> and <code>address</code> provided, or neither provided</td></tr>
+      <tr><td><code>unsupported operation</code></td><td>The user agent is unable to perform autofill</td></tr>
+    </table>
+    </div>
+    <p>Earlier steps can also fail with the generic WebDriver BiDi &ldquo;trying&rdquo; errors when the browsing context or shared reference cannot be resolved; those come from the referenced WebDriver BiDi algorithms, not this spec.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/autofill-event/#processing-steps" target="_blank" rel="noopener">spec &sect;7.1.2</a> (error codes quoted verbatim). Read 2026-10-04.</span>
+  </section>
+
+  <section>
+    <h2 id="context">context and exposure</h2>
+    <p>Not a web-page API: it is a remote-end command available only inside a <a href="https://w3c.github.io/webdriver-bidi/" target="_blank" rel="noopener">WebDriver BiDi</a> automation session, defined &ldquo;for automated testing of autofill functionality&rdquo; (<a href="https://wicg.github.io/autofill-event/#webdriver-bidi-integration" target="_blank" rel="noopener">spec &sect;7</a>). Nothing is exposed to page script; pages only observe the resulting fill and its <code>autofill</code> event.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/autofill-event/#webdriver-bidi-integration" target="_blank" rel="noopener">spec &sect;7</a>. Read 2026-10-04.</span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">lifecycle</h2>
+    <p>Processing steps in order (<a href="https://wicg.github.io/autofill-event/#processing-steps" target="_blank" rel="noopener">&sect;7.1.2</a>, condensed): resolve the navigable from <code>context</code> &rarr; take its active document, settings and realm &rarr; deserialize <code>element</code> &rarr; validate it is a form control with a form owner &rarr; validate exactly one of <code>card</code>/<code>address</code> &rarr; check the user agent can perform autofill &rarr; parse the payload &rarr; <q>the user agent should autofill <var>element</var> and <var>element</var>&rsquo;s form owner, while taking into account the contents of parsed card and parsed address</q> &rarr; return success. The triggered fill then runs the normal <a href="/v147/autofill-event/#lifecycle">firing model</a>, so the page&rsquo;s <code>autofill</code> listener and <code>refill()</code> behave exactly as in a user-initiated fill.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/autofill-event/#processing-steps" target="_blank" rel="noopener">spec &sect;7.1.2</a>. Read 2026-10-04.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <p>Both example payloads from the spec, quoted verbatim. Address autofill:</p>
+    <pre><code>{
+  "method": "autofill.trigger",
+  "params": {
+    "context": "context-id-123",
+    "element": { "sharedId": "element-id-456" },
+    "address": {
+      "fields": [
+        { "name": "given-name", "value": "John" },
+        { "name": "family-name", "value": "Doe" },
+        { "name": "street-address", "value": "123 Main St" },
+        { "name": "address-level2", "value": "San Francisco" },
+        { "name": "address-level1", "value": "CA" },
+        { "name": "postal-code", "value": "94102" },
+        { "name": "country", "value": "US" }
+      ]
+    }
+  }
+}</code></pre>
+    <p>Credit-card autofill:</p>
+    <pre><code>{
+  "method": "autofill.trigger",
+  "params": {
+    "context": "context-id-123",
+    "element": { "sharedId": "cc-number-element-id" },
+    "card": {
+      "number": "4111111111111111",
+      "name": "John Doe",
+      "expiryMonth": "12",
+      "expiryYear": "2028",
+      "cvc": "123"
+    }
+  }
+}</code></pre>
+    <span class="citation">Source: <a href="https://wicg.github.io/autofill-event/#the-autofilltrigger-command" target="_blank" rel="noopener">spec &sect;7.1</a> examples, quoted verbatim. Read 2026-10-04.</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">browser compatibility</h2>
+    <p><em>Interim table &mdash; explicit unknowns.</em> BCD&rsquo;s <code>webdriver/bidi/</code> tree has <strong>no <code>autofill</code> module file</strong> (<code>webdriver/bidi/autofill.json</code> returns 404 while sibling modules like <a href="https://github.com/mdn/browser-compat-data/blob/main/webdriver/bidi/input.json" target="_blank" rel="noopener"><code>input.json</code></a> exist; checked 2026-10-04):</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Implementation</th><th><code>autofill.trigger</code></th><th>Evidence</th></tr></thead>
+      <tr><td>Chrome / chromedriver</td><td>Unknown &mdash; no BCD entry; parent feature experimental behind flag since 146</td><td><a href="https://github.com/mdn/browser-compat-data/blob/main/api/AutofillEvent.json" target="_blank" rel="noopener">BCD (interface only)</a>; <a href="https://chromestatus.com/api/v0/features/5137581018841088" target="_blank" rel="noopener">ChromeStatus record</a></td></tr>
+      <tr><td>Firefox / geckodriver</td><td>Unknown &mdash; no entry; no signal on the parent feature</td><td><a href="https://github.com/mozilla/standards-positions/issues/1361" target="_blank" rel="noopener">mozilla/standards-positions #1361</a></td></tr>
+      <tr><td>Safari / safaridriver</td><td>Unknown &mdash; no entry; no signal on the parent feature</td><td><a href="https://github.com/WebKit/standards-positions/issues/431" target="_blank" rel="noopener">WebKit/standards-positions #431</a></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: BCD <code>webdriver/bidi</code> absence (checked 2026-10-04); <a href="https://chromestatus.com/api/v0/features/5137581018841088" target="_blank" rel="noopener">ChromeStatus API record</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <p>The command injects caller-chosen card/address values, bypassing the user-consent gesture that <a href="https://wicg.github.io/autofill-event/#security-and-privacy-considerations" target="_blank" rel="noopener">spec &sect;6</a> expects for real fills &mdash; acceptable only because WebDriver BiDi commands run solely in an automation session the user (or CI) explicitly started; no user profile data is read (the test supplies all values). The spec adds no command-specific security text beyond that session boundary (verified 2026-10-04).</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/autofill-event/#webdriver-bidi-integration" target="_blank" rel="noopener">spec &sect;7</a>, <a href="https://wicg.github.io/autofill-event/#security-and-privacy-considerations" target="_blank" rel="noopener">&sect;6</a>; session model per <a href="https://w3c.github.io/webdriver-bidi/" target="_blank" rel="noopener">WebDriver BiDi</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="/v147/autofill-event/">Autofill event &mdash; overview</a></li>
+      <li><a href="/v147/autofill-event/constructor/"><code>AutofillEvent()</code> and <code>AutofillEventInit</code></a></li>
+      <li><a href="https://wicg.github.io/autofill-event/" target="_blank" rel="noopener">Autofill Event specification (WICG)</a></li>
+      <li><a href="https://w3c.github.io/webdriver-bidi/" target="_blank" rel="noopener">WebDriver BiDi specification</a></li>
+      <li><a href="https://chromestatus.com/feature/5137581018841088" target="_blank" rel="noopener">chromestatus — Autofill event (5137581018841088)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
