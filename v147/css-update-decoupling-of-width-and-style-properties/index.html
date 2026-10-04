@@ -6,12 +6,25 @@
   <title>CSS update: decoupling of Width and Style properties — Chrome 147 — gendn</title>
   <link rel="stylesheet" href="/public/styles.css">
   <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code { overflow-wrap: anywhere; }
+    .table-wrap { overflow-x: auto; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .baseline-banner { border: 2px solid var(--border-black); padding: 1rem 1.2rem; margin: 1.5rem 0; background: var(--bg-paper); box-shadow: var(--thin-shadow); }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    .example-embed { margin: 1.5rem 0; }
+    .example-embed iframe { max-width: 100%; }
+    .example-embed figcaption { font-size: 0.85rem; margin-top: 0.4rem; }
     .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
-    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
     .doc-table th { background: var(--bg-stone); font-weight: 600; }
     .doc-table tr:last-child td { border-bottom: none; }
     .doc-table code { background: transparent; border: none; padding: 0; }
     .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    blockquote.spec-quote { border-left: 4px solid var(--border-black); margin: 1rem 0; padding: 0.4rem 1rem; background: var(--bg-stone); font-style: italic; }
   </style>
 </head>
 <body>
@@ -21,11 +34,24 @@
   <header class="lede-block">
     <p class="eyebrow">v147 · css · interop fix</p>
     <h1>CSS update: decoupling of Width and Style properties</h1>
-    <p class="lede">Chrome 147 aligns with Firefox and Safari: the computed values of <code>border-width</code>, <code>outline-width</code>, and <code>column-rule-width</code> are now independent of their corresponding <code>*-style</code> properties. Previously Chrome forced the computed width to <code>0px</code> when style was <code>none</code> or <code>hidden</code>; now the author-specified width is always reflected in <code>getComputedStyle()</code>.</p>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; decoupled in 147</li>
+        <li>Firefox &middot; border/outline earlier; <code>column-rule</code> in 147</li>
+        <li>Safari &middot; border/outline earlier; <code>column-rule</code> fix in WebKit</li>
+        <li class="limited">Edge &middot; no independent record</li>
+      </ul>
+      <p>This behavior change carries no Baseline badge: webstatus.dev has no web-feature tracking the width/style decoupling (queries for <code>border-width</code>, <code>outline-width</code> and <code>column-rule</code> on 2026-10-04 return none). The underlying properties are themselves Baseline Widely available via the <a href="https://webstatus.dev/features/borders" target="_blank" rel="noopener"><code>borders</code></a> and <a href="https://webstatus.dev/features/outlines" target="_blank" rel="noopener"><code>outlines</code></a> web-features. Per-engine status above is from the <a href="https://chromestatus.com/api/v0/features/5133099851317248" target="_blank" rel="noopener">ChromeStatus API record</a> (&ldquo;aligns Chrome with Firefox and WebKit, which have already implemented this behavior&rdquo;), <a href="https://bugzilla.mozilla.org/show_bug.cgi?id=1998285" target="_blank" rel="noopener">Firefox bug 1998285</a> (RESOLVED FIXED, target 147 Branch) and <a href="https://bugs.webkit.org/show_bug.cgi?id=304940" target="_blank" rel="noopener">WebKit bug 304940</a> (RESOLVED FIXED). See the <a href="#compatibility">full table</a>.</p>
+    </div>
+
+    <p class="lede">Chrome 147 aligns with Firefox and Safari: the computed values of <code>border-width</code>, <code>outline-width</code>, and <code>column-rule-width</code> are now independent of their corresponding <code>*-style</code> properties. Previously Chrome forced the computed width to <code>0px</code> when style was <code>none</code> or <code>hidden</code>; now the author-specified width is always preserved in the computed value, and for <code>outline-width</code> and <code>column-rule-width</code> it is also what <code>getComputedStyle()</code> returns. <code>border-width</code> still <em>resolves</em> to the used value &mdash; <code>0px</code> when no border is painted.</p>
   </header>
 
   <section>
-    <h2>what changed</h2>
+    <h2 id="what-changed">what changed</h2>
+    <div class="table-wrap">
     <table class="doc-table">
       <thead><tr><th>Property</th><th>Before Chrome 147</th><th>Chrome 147+</th></tr></thead>
       <tr>
@@ -44,36 +70,148 @@
         <td>Computed value and resolved value both reflect the authored value</td>
       </tr>
     </table>
-    <span class="citation">Source: chromestatus — CSS update: decoupling of Width and Style properties, May 2026.</span>
+    </div>
+    <p>Note the asymmetry: for <code>border-width</code> only the <em>computed</em> value is decoupled. The spec now says explicitly that its <em>resolved</em> value (what <code>getComputedStyle()</code> returns) is the used value, and &ldquo;if the <code>border-style</code> corresponding to a given <code>border-width</code> is <code>none</code> or <code>hidden</code>, then the used width is 0&rdquo;. For <code>outline-width</code> and <code>column-rule-width</code> no such used-value clause exists, so their resolved values follow the computed value and report the authored width.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5133099851317248" target="_blank" rel="noopener">ChromeStatus — CSS update: decoupling of Width and Style properties</a>; <a href="https://drafts.csswg.org/css-backgrounds-3/#the-border-width" target="_blank" rel="noopener">CSS Backgrounds &amp; Borders Level 3 &sect;3.3</a> (resolved-value clause); verified 2026-10-04.</span>
   </section>
 
   <section>
-    <h2>why it matters</h2>
-    <p>Pages that read <code>getComputedStyle().borderWidth</code> or <code>outlineWidth</code> — for example, to compute layout or animate from a base state — now get the authored value reliably across Chrome, Firefox, and Safari. Code that worked on Firefox and was wrong on Chrome no longer needs a workaround.</p>
+    <h2 id="syntax">syntax</h2>
+    <p>The value grammar of the three properties is unchanged. What changed is each property&rsquo;s <strong>Computed value</strong> line: the trailing special case (&ldquo;; zero if the &hellip; style is <code>none</code> or <code>hidden</code>&rdquo;) was removed by <a href="https://github.com/w3c/csswg-drafts/pull/11913" target="_blank" rel="noopener">csswg-drafts PR #11913</a> (&ldquo;Adjust *-width zero value special cases per WG resolution&rdquo;, resolving <a href="https://github.com/w3c/csswg-drafts/issues/11494" target="_blank" rel="noopener">issue #11494</a>). Value definitions and the current computed-value lines, quoted verbatim from the editor&rsquo;s drafts (read 2026-10-04):</p>
+    <pre><code>&lt;line-width&gt; = &lt;length [0,&infin;]&gt; | thin | medium | thick
 
-    <pre><code>/* Chrome 147+ — these read back 4px even though there's no visible border */
-.box {
-  border-style: none;
-  border-width: 4px;
-}
+/* CSS Backgrounds &amp; Borders Level 3 &mdash; &sect;3.3 Line Thickness */
+border-top-width, border-right-width, border-bottom-width, border-left-width
+  Value:          &lt;line-width&gt;
+  Initial:        medium
+  Applies to:     all elements except ruby base containers and ruby annotation containers
+  Computed value: absolute length, snapped as a border width
 
-const w = getComputedStyle(box).borderWidth;
-// Chrome 147+: "4px"  (previously: "0px")
-// Firefox: "4px"
-// Safari: "4px"</code></pre>
-    <span class="citation">Source: chromestatus and CSS Backgrounds Level 3, May 2026.</span>
+border-width
+  Value:          &lt;line-width&gt;{1,4}
+
+/* CSS Basic User Interface Level 4 &mdash; Outline Thickness */
+outline-width
+  Value:          &lt;line-width&gt;
+  Initial:        medium
+  Applies to:     all elements
+  Computed value: absolute length, snapped as a border width
+
+/* CSS Multi-column Layout Level 1 &mdash; The Width Of Column Rules */
+column-rule-width
+  Value:          &lt;line-width&gt;
+  Initial:        medium
+  Applies to:     multicol containers
+  Computed value: absolute length, snapped as a border width
+
+/* CSS Gaps Level 1 &mdash; Gap decoration width (list-valued extension) */
+column-rule-width, row-rule-width
+  Applies to:     grid containers, flex containers, multicol containers, and masonry containers
+  Computed value: list of absolute lengths, snapped as a border width</code></pre>
+    <p>The new normative clause added for borders only:</p>
+    <blockquote class="spec-quote">The resolved value for the <code>border-width</code> properties is the used value. If the <code>border-style</code> corresponding to a given <code>border-width</code> is <code>none</code> or <code>hidden</code>, then the used width is 0.</blockquote>
+    <span class="citation">Source: <a href="https://drafts.csswg.org/css-backgrounds-3/#the-border-width" target="_blank" rel="noopener">css-backgrounds-3 &sect;3.3</a>; <a href="https://drafts.csswg.org/css-ui-4/#outline-width" target="_blank" rel="noopener">css-ui-4 outline-width</a>; <a href="https://drafts.csswg.org/css-multicol-1/#crw" target="_blank" rel="noopener">css-multicol-1 &sect;crw</a>; <a href="https://drafts.csswg.org/css-gaps-1/#column-row-rule-width" target="_blank" rel="noopener">css-gaps-1 gap decoration width</a>; diff verified against <a href="https://github.com/w3c/csswg-drafts/pull/11913/files" target="_blank" rel="noopener">PR #11913</a> (commit 5e14aa0), 2026-10-04.</span>
   </section>
 
   <section>
-    <h2>quick reference</h2>
+    <h2 id="why-it-matters">why it matters</h2>
+    <p>Pages that read <code>getComputedStyle().outlineWidth</code> or <code>columnRuleWidth</code> &mdash; for example, to compute layout or animate from a base state &mdash; now get the authored value reliably across Chrome, Firefox, and Safari. For <code>border-width</code> the readback is unchanged (<code>0px</code> with <code>border-style: none</code>, because the resolved value is the used value), but its computed value no longer collapses to zero: since the Animation type of these properties is &ldquo;by computed value&rdquo;, toggling only <code>border-style</code> no longer makes <code>border-width</code> itself jump <code>0px &rarr; 4px</code>, so a registered <code>transition: border-width</code> is no longer triggered by a pure style toggle, and values inherited with <code>inherit</code> carry the authored width.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5133099851317248" target="_blank" rel="noopener">ChromeStatus summary</a>; Animation-type and computed-value lines in <a href="https://drafts.csswg.org/css-backgrounds-3/#the-border-width" target="_blank" rel="noopener">css-backgrounds-3 &sect;3.3</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <pre><code>/* CSS */
+.card {
+  border-style: none;   /* no border painted */
+  border-width: 4px;    /* preserved in the computed value since Chrome 147 */
+  outline-style: none;
+  outline-width: 6px;
+}</code></pre>
+    <pre><code>// JavaScript
+const cs = getComputedStyle(document.querySelector(".card"));
+
+// outline-width (and column-rule-width): the resolved value now
+// reflects the author-specified value even while the style is "none".
+cs.outlineWidth;   // Chrome 147+: "6px"   (previously "0px")
+
+// border-width still resolves to the USED value, which is 0 when no
+// border is painted — only its COMPUTED value was decoupled.
+cs.borderWidth;    // "0px" while border-style is none (unchanged)</code></pre>
+
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/css-update-decoupling-of-width-and-style-properties/computed-value-inspector/"
+        title="Live example — computed value inspector" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase (route verified 200 via GET, 2026-10-04). Sibling concept demos: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/css-update-decoupling-of-width-and-style-properties/width-style-invariant-test/" target="_blank" rel="noopener">width/style invariant test</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/css-update-decoupling-of-width-and-style-properties/transition-continuity/" target="_blank" rel="noopener">transition continuity</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/css-update-decoupling-of-width-and-style-properties/animation-pipeline-demo/" target="_blank" rel="noopener">animation pipeline</a>, and <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/css-update-decoupling-of-width-and-style-properties/compatibility-lab/" target="_blank" rel="noopener">compatibility lab</a>.<span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/css-update-decoupling-of-width-and-style-properties/" target="_blank" rel="noopener">chrome-platform-showcase</a></span></figcaption>
+    </figure>
+    <span class="citation">Source: value behavior per the <a href="https://chromestatus.com/feature/5133099851317248" target="_blank" rel="noopener">ChromeStatus summary</a> and <a href="https://drafts.csswg.org/css-backgrounds-3/#the-border-width" target="_blank" rel="noopener">css-backgrounds-3 &sect;3.3</a>; snippet gendn-derived (labelled accordingly), not executed.</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">browser compatibility</h2>
+    <p><strong>The decoupling change itself is not yet recorded in BCD</strong>: <a href="https://github.com/mdn/browser-compat-data/blob/main/css/properties/border-width.json" target="_blank" rel="noopener"><code>css/properties/border-width.json</code></a>, <a href="https://github.com/mdn/browser-compat-data/blob/main/css/properties/outline-width.json" target="_blank" rel="noopener"><code>outline-width.json</code></a> and <a href="https://github.com/mdn/browser-compat-data/blob/main/css/properties/column-rule-width.json" target="_blank" rel="noopener"><code>column-rule-width.json</code></a> carry no note about it (raw JSON verified 2026-10-04). Interim data for the behavior change, labelled as such, from ChromeStatus and the vendor trackers:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Width/style decoupling</th><th>Evidence (interim, not BCD)</th></tr></thead>
+      <tr><td>Chrome</td><td><strong>147</strong> (desktop, Android, WebView)</td><td><a href="https://chromestatus.com/api/v0/features/5133099851317248" target="_blank" rel="noopener">ChromeStatus API record</a>; <a href="https://issues.chromium.org/issues/393631108" target="_blank" rel="noopener">crbug 393631108</a></td></tr>
+      <tr><td>Edge</td><td>No independent record</td><td>Chromium-derived; no Edge-specific signal found (2026-10-04)</td></tr>
+      <tr><td>Firefox</td><td>border/outline: earlier; <code>column-rule-width</code>: <strong>147</strong></td><td>ChromeStatus: &ldquo;Firefox &hellip; already implemented this behavior&rdquo;; <a href="https://bugzilla.mozilla.org/show_bug.cgi?id=1998285" target="_blank" rel="noopener">bug 1998285</a> RESOLVED FIXED, target 147 Branch</td></tr>
+      <tr><td>Safari</td><td>border/outline: earlier; <code>column-rule-width</code>: fixed in WebKit, release not recorded</td><td>ChromeStatus: &ldquo;WebKit &hellip; already implemented this behavior&rdquo;; <a href="https://bugs.webkit.org/show_bug.cgi?id=304940" target="_blank" rel="noopener">WebKit bug 304940</a> RESOLVED FIXED</td></tr>
+    </table>
+    </div>
+    <p>Per-version support for the three properties themselves, from BCD (verified 2026-10-04):</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Property</th><th>Chrome</th><th>Edge</th><th>Firefox</th><th>Safari</th></tr></thead>
+      <tr><td><code>border-width</code></td><td>1</td><td>12</td><td>1</td><td>1</td></tr>
+      <tr><td><code>outline-width</code></td><td>1</td><td>12</td><td>1.5</td><td>1.2</td></tr>
+      <tr><td><code>column-rule-width</code></td><td>50 (<code>-webkit-</code> since 1)</td><td>12</td><td>52 (<code>-moz-</code> 3.5&ndash;74)</td><td>9 (<code>-webkit-</code> since 3)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/css/properties/border-width.json" target="_blank" rel="noopener">BCD border-width.json</a>, <a href="https://github.com/mdn/browser-compat-data/blob/main/css/properties/outline-width.json" target="_blank" rel="noopener">outline-width.json</a>, <a href="https://github.com/mdn/browser-compat-data/blob/main/css/properties/column-rule-width.json" target="_blank" rel="noopener">column-rule-width.json</a>; <a href="https://chromestatus.com/api/v0/features/5133099851317248" target="_blank" rel="noopener">ChromeStatus API record</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="quick-reference">quick reference</h2>
+    <div class="table-wrap">
     <table class="doc-table">
       <tr><th>Affected properties</th><td><code>border-width</code> · <code>outline-width</code> · <code>column-rule-width</code></td></tr>
       <tr><th>Interop</th><td>Now matches Firefox and Safari behaviour</td></tr>
-      <tr><th>Shipped in</th><td>Chrome 147 (desktop + Android)</td></tr>
+      <tr><th>Shipped in</th><td>Chrome 147 (desktop + Android + WebView) &mdash; listed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=147" target="_blank" rel="noopener">milestone=147 listing</a></td></tr>
+      <tr><th>Intent to Ship</th><td><a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/_50sVoTmZ3I" target="_blank" rel="noopener">blink-dev thread</a> (resolved from the ChromeStatus record&rsquo;s message-id link)</td></tr>
       <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5133099851317248" target="_blank" rel="noopener">5133099851317248 — CSS update: decoupling of Width and Style properties</a></td></tr>
-      <tr><th>Spec</th><td><a href="https://drafts.csswg.org/css-backgrounds/" target="_blank" rel="noopener">CSS Backgrounds and Borders Level 3</a></td></tr>
+      <tr><th>Spec</th><td><a href="https://drafts.csswg.org/css-backgrounds/" target="_blank" rel="noopener">CSS Backgrounds and Borders Level 3</a> (see <a href="#specifications">Specifications</a> for all four modules)</td></tr>
     </table>
-    <span class="citation">Source: chromestatus, May 2026.</span>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5133099851317248" target="_blank" rel="noopener">ChromeStatus API record</a> (re-read 2026-10-04); <a href="https://chromestatus.com/api/v0/features?milestone=147" target="_blank" rel="noopener">milestone=147 listing</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Specification</th><th>Section</th></tr></thead>
+      <tr><td><a href="https://drafts.csswg.org/css-backgrounds-3/#the-border-width" target="_blank" rel="noopener">CSS Backgrounds and Borders Module Level 3</a></td><td>&sect;3.3 Line Thickness: the <code>border-width</code> properties</td></tr>
+      <tr><td><a href="https://drafts.csswg.org/css-ui-4/#outline-width" target="_blank" rel="noopener">CSS Basic User Interface Module Level 4</a></td><td>Outline Thickness: the <code>outline-width</code> property</td></tr>
+      <tr><td><a href="https://drafts.csswg.org/css-multicol-1/#crw" target="_blank" rel="noopener">CSS Multi-column Layout Module Level 1</a></td><td>The Width Of Column Rules: the <code>column-rule-width</code> property</td></tr>
+      <tr><td><a href="https://drafts.csswg.org/css-gaps-1/#column-row-rule-width" target="_blank" rel="noopener">CSS Gaps Module Level 1</a></td><td>Gap decoration width: <code>column-rule-width</code> and <code>row-rule-width</code></td></tr>
+      <tr><td><a href="https://github.com/w3c/csswg-drafts/pull/11913/files" target="_blank" rel="noopener">csswg-drafts PR #11913</a></td><td>The change itself, per WG resolution of <a href="https://github.com/w3c/csswg-drafts/issues/11494" target="_blank" rel="noopener">issue #11494</a></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: editor&rsquo;s drafts read 2026-10-04; PR diff fetched from the csswg-drafts repository (commit 5e14aa0).</span>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/CSS/border-width" target="_blank" rel="noopener">MDN: border-width</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/CSS/outline-width" target="_blank" rel="noopener">outline-width</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/CSS/column-rule-width" target="_blank" rel="noopener">column-rule-width</a></li>
+      <li><a href="https://github.com/w3c/csswg-drafts/issues/11494" target="_blank" rel="noopener">csswg-drafts issue #11494 — the WG resolution this change implements</a></li>
+      <li><a href="https://issues.chromium.org/issues/393631108" target="_blank" rel="noopener">Chromium implementation bug 393631108</a></li>
+      <li><a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/_50sVoTmZ3I" target="_blank" rel="noopener">blink-dev Intent to Ship thread</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/css-update-decoupling-of-width-and-style-properties/" target="_blank" rel="noopener">chrome-platform-showcase: width/style decoupling demos</a> (five concepts, routes 200)</li>
+      <li><a href="https://chromestatus.com/feature/5133099851317248" target="_blank" rel="noopener">ChromeStatus — CSS update: decoupling of Width and Style properties (5133099851317248)</a></li>
+    </ul>
   </section>
 
   <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
