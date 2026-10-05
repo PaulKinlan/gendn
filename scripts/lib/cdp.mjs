@@ -78,16 +78,33 @@ async function terminateChild(child) {
 // so loudly instead of silently skipping the kill. The random temp dir name keeps a plain
 // path substring match precise; the argv0/--user-data-dir checks mean we never signal
 // unrelated processes (e.g. a concurrent `du /tmp/gendn-cdp-<that-exact-dir>`) that merely
-// mention the path.
-function parseProcessListForDir(out, path) {
+// mention the path. Exported so the parse behaviour can be exercised by a fixture directly.
+// Malformed matched-path lines we have already warned about (dedup: the kill loop calls the
+// parser every ~100ms, and repeating the same warning would flood the gate log).
+const warnedParseAnomalies = new Set();
+
+export function parseProcessListForDir(out, path) {
   const pids = [];
   for (const line of out.split("\n")) {
     if (!line.includes(path)) continue;
     const trimmed = line.trimStart();
     const sp = trimmed.indexOf(" ");
-    if (sp < 0) continue;
-    const pid = Number(trimmed.slice(0, sp));
-    if (!Number.isInteger(pid) || pid === Deno.pid) continue;
+    const pid = sp < 0 ? NaN : Number(trimmed.slice(0, sp));
+    if (!Number.isInteger(pid) || pid < 1) {
+      // A ps line that references the dir but carries no parseable pid is an output anomaly.
+      // Never silent (this file's original bug was a silent catch), never fatal: warn once,
+      // skip the line, keep parsing the rest.
+      if (!warnedParseAnomalies.has(line)) {
+        warnedParseAnomalies.add(line);
+        console.error(
+          `[cdp] WARNING: ps line references ${path} but has no parseable pid ` +
+            `(${JSON.stringify(line.slice(0, 120))}); skipping it — the pre-remove kill ` +
+            `may miss a process`,
+        );
+      }
+      continue;
+    }
+    if (pid === Deno.pid) continue;
     const args = trimmed.slice(sp + 1).trim();
     const argv0 = args.split(" ")[0] ?? "";
     if (args.includes(`--user-data-dir=${path}`) || argv0.includes("chrom")) pids.push(pid);
@@ -163,8 +180,10 @@ function chromeHoldsLock(dir) {
   try {
     Deno.lstatSync(`${dir}/SingletonLock`); // lock present but unreadable: assume live
     return true;
-  } catch {
-    return false;
+  } catch (err) {
+    // Absent → not held. Any OTHER failure (e.g. EACCES) means we cannot tell — assume
+    // live, matching the conservative contract above; never report "not held" on doubt.
+    return err instanceof Deno.errors.NotFound ? false : true;
   }
 }
 
@@ -179,17 +198,30 @@ function chromeHoldsLock(dir) {
 //    old code can never be swept mid-run.
 const LEGACY_MIN_AGE_MS = 15 * 60 * 1000;
 
+// Normalize TMPDIR once: an empty-string TMPDIR means "unset" to makeTempDir but `??` does
+// not catch it (root would become ""), and a trailing slash would build `${root}/${name}`
+// paths whose STRING differs from what makeTempDir returned — stat/remove survive a double
+// slash, but the ps substring match would silently miss every process.
+function tmpRoot() {
+  const stripped = (Deno.env.get("TMPDIR") ?? "/tmp").replace(/\/+$/, "");
+  return stripped === "" ? "/" : stripped;
+}
+
 async function sweepStaleProfileDirs() {
-  const root = Deno.env.get("TMPDIR") ?? "/tmp";
+  const root = tmpRoot();
   let reclaimed = 0;
   const failed = [];
   try {
     for (const entry of Deno.readDirSync(root)) {
       if (!entry.isDirectory || !entry.name.startsWith(PROFILE_PREFIX)) continue;
-      const path = `${root}/${entry.name}`;
+      const path = root === "/" ? `/${entry.name}` : `${root}/${entry.name}`;
       const m = /^gendn-cdp-(\d+)-/.exec(entry.name);
       if (m) {
         const pid = Number(m[1]);
+        // Known limitation (retention, by design): if a new process RECYCLES a dead run's
+        // pid, processAlive() reports true forever and this stale dir is never swept — it
+        // leaks disk (visible as /tmp residue) but can never delete a live run's dir, which
+        // is the safe direction. Rare on a large pid space; the next reboot clears /tmp.
         if (pid !== Deno.pid && processAlive(pid)) continue; // another live run owns it
         if (pid === Deno.pid && liveProfileDirs.has(path)) continue; // our current browser
       } else {
