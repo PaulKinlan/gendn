@@ -78,16 +78,34 @@ async function terminateChild(child) {
 // so loudly instead of silently skipping the kill. The random temp dir name keeps a plain
 // path substring match precise; the argv0/--user-data-dir checks mean we never signal
 // unrelated processes (e.g. a concurrent `du /tmp/gendn-cdp-<that-exact-dir>`) that merely
-// mention the path.
-function parseProcessListForDir(out, path) {
+// mention the path. Exported so the parse behaviour can be exercised by a fixture directly.
+// Malformed matched-path lines we have already warned about (dedup: the kill loop calls the
+// parser every ~100ms, and repeating the same warning would flood the gate log). Never pruned:
+// growth is bounded by the number of DISTINCT anomalous lines — ~zero in a normal gate run.
+const warnedParseAnomalies = new Set();
+
+export function parseProcessListForDir(out, path) {
   const pids = [];
   for (const line of out.split("\n")) {
     if (!line.includes(path)) continue;
     const trimmed = line.trimStart();
     const sp = trimmed.indexOf(" ");
-    if (sp < 0) continue;
-    const pid = Number(trimmed.slice(0, sp));
-    if (!Number.isInteger(pid) || pid === Deno.pid) continue;
+    const pid = sp < 0 ? NaN : Number(trimmed.slice(0, sp));
+    if (!Number.isInteger(pid) || pid < 1) {
+      // A ps line that references the dir but carries no parseable pid is an output anomaly.
+      // Never silent (this file's original bug was a silent catch), never fatal: warn once,
+      // skip the line, keep parsing the rest.
+      if (!warnedParseAnomalies.has(line)) {
+        warnedParseAnomalies.add(line);
+        console.error(
+          `[cdp] WARNING: ps line references ${path} but has no parseable pid ` +
+            `(${JSON.stringify(line.slice(0, 120))}); skipping it — the pre-remove kill ` +
+            `may miss a process`,
+        );
+      }
+      continue;
+    }
+    if (pid === Deno.pid) continue;
     const args = trimmed.slice(sp + 1).trim();
     const argv0 = args.split(" ")[0] ?? "";
     if (args.includes(`--user-data-dir=${path}`) || argv0.includes("chrom")) pids.push(pid);
@@ -163,8 +181,10 @@ function chromeHoldsLock(dir) {
   try {
     Deno.lstatSync(`${dir}/SingletonLock`); // lock present but unreadable: assume live
     return true;
-  } catch {
-    return false;
+  } catch (err) {
+    // Absent → not held. Any OTHER failure (e.g. EACCES) means we cannot tell — assume
+    // live, matching the conservative contract above; never report "not held" on doubt.
+    return err instanceof Deno.errors.NotFound ? false : true;
   }
 }
 
@@ -179,17 +199,41 @@ function chromeHoldsLock(dir) {
 //    old code can never be swept mid-run.
 const LEGACY_MIN_AGE_MS = 15 * 60 * 1000;
 
+// Single source of truth for where Chrome profile dirs live. Measured on deno 2.9.7:
+// TMPDIR unset → makeTempDir creates absolute /tmp/<name>; TMPDIR="" → it creates a BARE
+// RELATIVE name in the process CWD (during a gate run that is the repo worktree — untracked
+// dirt a merger could push, and the selector's untracked-residue trap); a trailing slash is
+// normalised by Deno itself, but we strip it so the root stays canonical. Empty TMPDIR is
+// conventionally "unset/use the default", and we own the makeTempDir dir argument — so we
+// override Deno's cwd-relative quirk (unset AND empty both → /tmp) instead of propagating
+// profile dirs into the repo tree. The same function resolves the root consistently for
+// both call sites (the launch-time sweep and makeTempDir's dir), so creation and sweeping
+// can never disagree whatever TMPDIR says — even if someone later sets TMPDIR mid-process —
+// and the ps substring match (string-exact) always sees the same path Chrome was given.
+// Exported for the committed root-resolution fixture.
+export function tmpRoot() {
+  const raw = Deno.env.get("TMPDIR");
+  if (raw === undefined || raw === "") return "/tmp"; // unset and empty both mean the default
+  const abs = raw.startsWith("/") ? raw : `${Deno.cwd()}/${raw}`;
+  return abs.replace(/\/+$/, "") || "/";
+}
+
 async function sweepStaleProfileDirs() {
-  const root = Deno.env.get("TMPDIR") ?? "/tmp";
+  const root = tmpRoot();
   let reclaimed = 0;
   const failed = [];
   try {
     for (const entry of Deno.readDirSync(root)) {
       if (!entry.isDirectory || !entry.name.startsWith(PROFILE_PREFIX)) continue;
-      const path = `${root}/${entry.name}`;
+      const path = root === "/" ? `/${entry.name}` : `${root}/${entry.name}`;
       const m = /^gendn-cdp-(\d+)-/.exec(entry.name);
       if (m) {
         const pid = Number(m[1]);
+        // Known limitation (retention, by design): if a new process RECYCLES a dead run's
+        // pid, processAlive() reports true while the recycled pid stays alive, so the stale
+        // dir is retained until that pid next exits — it leaks disk (visible as /tmp residue)
+        // but can never delete a live run's dir, which is the safe direction. Rare on a large
+        // pid space; the next reboot clears /tmp.
         if (pid !== Deno.pid && processAlive(pid)) continue; // another live run owns it
         if (pid === Deno.pid && liveProfileDirs.has(path)) continue; // our current browser
       } else {
@@ -261,7 +305,10 @@ async function removeProfileDir(path, delays = [0, 150, 400, 900, 1900]) {
 export async function launch({ port = 9333 } = {}) {
   const bins = findChrome();
   await sweepStaleProfileDirs();
-  const userDataDir = await Deno.makeTempDir({ prefix: `${PROFILE_PREFIX}${Deno.pid}-` });
+  const userDataDir = await Deno.makeTempDir({
+    dir: tmpRoot(),
+    prefix: `${PROFILE_PREFIX}${Deno.pid}-`,
+  });
   liveProfileDirs.add(userDataDir);
   let child = null;
   let lastErr = null;
