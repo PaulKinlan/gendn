@@ -222,6 +222,14 @@ async function runSuite(suite, ctx) {
 
 const OVERFLOW = "document.documentElement.scrollWidth <= (window.innerWidth + 1)";
 
+// Single source of truth for a device class's responsive verdict (gendn-jeq): the same
+// four-field conjunction used to be written twice — inline for the per-page ok/REVIEW tokens
+// and again in the end-of-run summary — and two copies of a classification can drift, which
+// would make the summary headline contradict the per-page detail. One helper, both callers.
+function classOk(d) {
+  return d.noOverflow && d.controlsInView && d.consoleClean && d.networkClean;
+}
+
 async function responsiveCheck(pageId, meta, ctx, { screenshots }) {
   const { base, origin, desktop, mobile } = ctx;
   const route = meta.route;
@@ -367,10 +375,8 @@ async function main() {
         const meta = metadataFromHtml(p, html);
         const r = await responsiveCheck(id, meta, ctx, { screenshots });
         rows.push(r);
-        const okD = r.desktop.noOverflow && r.desktop.controlsInView && r.desktop.consoleClean &&
-          r.desktop.networkClean;
-        const okM = r.mobile.noOverflow && r.mobile.controlsInView && r.mobile.consoleClean &&
-          r.mobile.networkClean;
+        const okD = classOk(r.desktop);
+        const okM = classOk(r.mobile);
         console.log(
           `${id}  desktop:${okD ? "ok" : "REVIEW"}  mobile:${okM ? "ok" : "REVIEW"}` +
             (okD && okM ? "" : `  (${JSON.stringify({ d: r.desktop, m: r.mobile })})`),
@@ -401,9 +407,18 @@ async function main() {
       console.log(`\nresponsive-check: ${rows.length} pages scanned → ${OUT_DIR}/responsive.json`);
       // Verdict visibility (gendn-m9j): the scan's summary line above carries no verdict, so
       // REVIEW pages were only visible in per-page output. Print them explicitly at the end —
-      // additive only; per-page lines and exit code (0) are unchanged.
-      const clsVerdict = (d) =>
-        d.noOverflow && d.controlsInView && d.consoleClean && d.networkClean ? "ok" : "REVIEW";
+      // additive only; per-page lines and exit code (0) are unchanged. The classification is
+      // classOk() — the exact helper behind the per-page tokens — so headline and detail
+      // cannot disagree.
+      //
+      // Gate-output grep anchoring (gendn-jeq): per-page verdict rows start at column 0 with
+      // the route id ("v153/scroll-axis-lock  desktop:ok  mobile:REVIEW"); every derived
+      // end-of-run line is distinguishable by its two-space indent ("  review-page ...",
+      // "  fail-assertion ...") or its "verdict:" prefix. A raw whole-log token grep
+      // DOUBLE-COUNTS flagged pages — each flagged responsive page prints BOTH a per-page row
+      // and a review-page line — so count per-page verdicts with ^<route-id> anchoring and
+      // summary items with the indent/prefix forms.
+      const clsVerdict = (d) => (classOk(d) ? "ok" : "REVIEW");
       const flagged = rows
         .map((r) => ({ id: r.id, desktop: clsVerdict(r.desktop), mobile: clsVerdict(r.mobile) }))
         .filter((v) => v.desktop !== "ok" || v.mobile !== "ok");
@@ -482,9 +497,12 @@ async function main() {
           `verdict: NOT-GREEN - ${agg.fail} failing assertions on ${pagesWithFails} of ${runAll.length} suites ` +
             `(exit code unchanged for run-all; single-page runs still exit 2)`,
         );
-        for (
-          const [name, pages] of [...byAssertion.entries()].sort((a, b) => a[0].localeCompare(b[0]))
-        ) {
+        // Sort by code-unit order (not localeCompare's default locale) so the printed order
+        // is deterministic across environments; assertion ids are lowercase ASCII today.
+        const sorted = [...byAssertion.entries()].sort((a, b) =>
+          a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0
+        );
+        for (const [name, pages] of sorted) {
           console.log(`  fail-assertion ${name} pages=${pages.length} :: ${pages.join(" ")}`);
         }
       } else {
