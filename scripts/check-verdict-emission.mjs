@@ -17,41 +17,67 @@
 // WHAT IT ASSERTS — emitted `verdict:` lines at column 0 of ONE log, against the expectation
 // re-derived from that log's phase (never a constant carried over from a previous landing):
 //
-//   phase         recognised by the phase's summary line, which the runner prints immediately
-//                 before its terminal verdict block                            owes
-//   responsive    `responsive-check: <n> pages scanned ...`                   exactly 1
-//   run-all       `run-all: <n> suites ...`                                   exactly 1
-//   behavioural   neither summary — the landing gate's kill probe, killed before it reached its
-//                 terminal verdict block, so a verdict line here is a contradiction
-//                                                                            exactly 0
+//   phase         recognised by                                                    owes
+//   run-all       its completion summary `run-all: <n> suites …`                   exactly 1
+//   responsive    its completion summary `responsive-check: <n> pages scanned …`   exactly 1
+//   behavioural   no completion summary, PLUS probe-initiation evidence (the         exactly 0
+//                 harness banner `Task <name> … scripts/conformance.mjs`) PLUS an
+//                 explicit `--phase behavioural` from the caller
 //
 // The expectation is a function of the phase's OWN evidence, not a number handed down: the runner
 // emits its verdict once per phase from a single terminal if/else whose two arms are mutually
 // exclusive, so a phase that reached its summary line owes exactly one line and a phase that never
 // reached it owes none.
 //
+// WHY BEHAVIOURAL IS NOT A FALLBACK (gendn-aj6 review): an unsummarised log used to default to the
+// behavioural phase, which owes 0 — so a run-all that CRASHED or was TRUNCATED before its terminal
+// verdict block (suite output, no summary, no verdict) derived as behavioural, expected 0, found 0,
+// and passed. An unsummarised log is now UNKNOWN and fails closed, and behavioural is accepted only
+// when the caller declares it and the log carries probe-initiation evidence:
+//   - a bare `--phase behavioural /etc/hosts`, or the runner's own source, FAILS: neither is a gate
+//     log, so neither carries the banner;
+//   - the declaration is load-bearing, not decorative: a SIGKILLed probe and a run that crashed at
+//     the same point have the SAME log shape (banner, no summary, no verdict — a signal leaves no
+//     trace in a log), so the caller's `--phase behavioural` is the assertion that this file is the
+//     probe rather than a run that died before its terminal block. The check does not guess it, and
+//     it demands the banner as corroboration, so an arbitrary file can never be checked as the probe.
+//
 // A COMPLETED single-suite run (`deno task conformance --page <id>`, the landing gate's behavioural
-// accumulation runs) takes the run-all arm and prints `run-all: 1 suites ...`, so it is a run-all
+// accumulation runs) takes the run-all arm and prints `run-all: 1 suites …`, so it is a run-all
 // phase log and owes exactly 1 (measured in the gendn-jeq landing logs). Only the SIGKILLed probe
 // log has no summary and owes 0.
 //
-// `--phase <name>` is an optional cross-check of the caller's label against the phase derived from
-// the log, so a log cannot be checked against the wrong phase: the kill probe's log checked as
-// `--phase run-all` FAILS (0 emissions where the run-all phase owes 1), and a completed `--page` run
-// checked as `--phase behavioural` FAILS (1 emission where the behavioural probe owes 0).
+// `--phase <name>` cross-checks the caller's label against the phase derived from the log, so a log
+// cannot be checked against the wrong phase: the kill probe's log checked as `--phase run-all`
+// FAILS (0 emissions where run-all owes 1), and a completed `--page` run checked as `--phase
+// behavioural` FAILS (1 emission where the behavioural probe owes 0). A mismatch reports BOTH
+// expectations — the caller's phase and the derived one — because the caller asked about theirs.
 //
-// It never guesses whether the input is a log: an input with no completion summary and no verdict
-// line has the killed-probe shape and is consistent (0 owes 0). What it does make impossible is a
-// verdict being counted from prose (the column-0 anchor) or from the wrong phase (the cross-check).
+// WHERE IT RUNS: the landing gate runs this against the REAL log of the phase it just ran, which is
+// the only place a regression in the runner's own output can be observed. `deno task
+// test-verdict-emission` (and the CI step that calls it) exercises the CHECKER against synthetic
+// logs: it is a property of this script and NOT evidence about the runner — if scripts/conformance.mjs
+// stopped printing `verdict:` altogether, only a real-log landing run would notice.
 //
-// Exit codes: 0 = exactly the phase's expected emission; 1 = mismatch (missing, extra, or an empty
-// log); 2 = usage error (bad arguments or an unreadable log).
+// Exit codes: 0 = exactly the phase's expected emission; 1 = mismatch, an unsummarised log whose
+// phase cannot be derived, an unsummarised log that was not declared as the probe, or an empty log;
+// 2 = usage error (bad arguments or an unreadable log).
 //
 // Usage:
 //   deno run --allow-read scripts/check-verdict-emission.mjs <log-path> [--phase <name>]
 //   deno task check-verdict-emission /tmp/gate-conformance.log --phase run-all
+//   deno task check-verdict-emission /tmp/gate-kill-probe.log --phase behavioural
 
 const VERDICT_LINE = /^verdict:/;
+
+// The landing gate's harness writes an ANSI-coloured `Task <name> <command>` banner at the head of
+// every log it captures — measured on the gendn-jeq landing logs, where the run-all log, the
+// responsive log, the completed `--page` logs and the kill probe all carry it. Normalising the
+// escapes away first makes the anchors below match the real bytes (`/tmp/merger-l5b-kill.log` is a
+// single coloured line) instead of only the plain-text fixtures.
+function stripAnsi(text) {
+  return text.replace(/\u001b\[[0-9;]*[A-Za-z]/g, "");
+}
 
 // The runner prints its verdict lines at column 0. Indented occurrences are derived detail
 // (`  fail-assertion`, `  review-page`) or documentation prose, never an emission — which is exactly
@@ -61,30 +87,47 @@ export function emittedVerdictLines(logText) {
 }
 
 // Each phase's expectation is derived from whether the phase carries a completion summary — i.e.
-// whether the run reached the point at which its terminal verdict block lives.
+// whether the run reached the point at which its terminal verdict block lives. The key order is the
+// order the CLI documents (run-all|responsive|behavioural).
 const PHASES = {
-  responsive: {
-    summary: /^responsive-check: \d+ pages scanned\b/m,
-    command: "deno task responsive",
-  },
   "run-all": {
     summary: /^run-all: \d+ suites\b/m,
+    shape: "run-all: <n> suites",
     command: "deno task conformance [--page <id>]",
+  },
+  responsive: {
+    summary: /^responsive-check: \d+ pages scanned\b/m,
+    shape: "responsive-check: <n> pages scanned",
+    command: "deno task responsive",
   },
   behavioural: {
     summary: null,
+    shape: null,
     command: "the kill probe (a run killed before its terminal verdict block)",
   },
 };
 
 export const PHASE_NAMES = Object.keys(PHASES);
 
+// The phase of a log that shows PROBE INITIATION but no completion. It is not silently treated as
+// the behavioural probe: see the header — a crashed run and a killed probe share this shape, so the
+// caller has to declare that this log is the probe.
+export const PHASE_UNKNOWN = "unknown";
+
+// Probe-initiation evidence: the harness banner naming a task that runs the conformance runner. A
+// run that crashed carries the same banner, which is why this is evidence of a GATE LOG and not
+// proof of the kill probe — the proof is the caller's `--phase behavioural` declaration.
+const PROBE_INITIATION = /^Task \S+\b[^\n]*scripts\/conformance\.mjs/m;
+
 export function classifyPhase(logText) {
+  const text = stripAnsi(logText);
   for (const [name, phase] of Object.entries(PHASES)) {
-    const match = phase.summary ? logText.match(phase.summary) : null;
+    const match = phase.summary ? text.match(phase.summary) : null;
     if (match) return { name, evidence: match[0].trim() };
   }
-  return { name: "behavioural", evidence: null };
+  const probe = text.match(PROBE_INITIATION);
+  if (probe) return { name: "behavioural", evidence: probe[0].trim() };
+  return { name: PHASE_UNKNOWN, evidence: null };
 }
 
 export function expectedVerdictLines(phaseName) {
@@ -130,7 +173,7 @@ async function main() {
 
   let logText;
   try {
-    logText = await Deno.readTextFile(logPath);
+    logText = stripAnsi(await Deno.readTextFile(logPath));
   } catch (error) {
     usage(`cannot read ${logPath}: ${error.message}`);
     Deno.exit(2);
@@ -138,36 +181,74 @@ async function main() {
 
   const emitted = emittedVerdictLines(logText);
   const derived = classifyPhase(logText);
-  const expected = expectedVerdictLines(derived.name);
+  const declaredExpected = declared === null ? null : expectedVerdictLines(declared);
+  const derivedKnown = derived.name !== PHASE_UNKNOWN;
+  const expected = derivedKnown ? expectedVerdictLines(derived.name) : null;
 
   console.log(`check-verdict-emission: ${logPath}`);
+  console.log(`  phase    : ${derived.name}`);
   console.log(
-    `  phase    : ${derived.name}` +
-      (derived.evidence
-        ? ` (summary "${derived.evidence}")`
-        : " (no completion summary: killed before its terminal verdict block)"),
+    `  evidence : ${
+      derived.evidence ?? "none — no completion summary and no probe-initiation banner"
+    }`,
   );
-  console.log(`  command  : ${PHASES[derived.name].command}`);
+  console.log(`  command  : ${derivedKnown ? PHASES[derived.name].command : "unknown phase"}`);
   console.log(`  emitted  : ${emitted.length}`);
   for (const line of emitted) console.log(`    | ${line}`);
-  console.log(`  expected : ${expected} (re-derived from the ${derived.name} phase)`);
+  console.log(
+    derivedKnown
+      ? `  expected : ${expected} (re-derived from the ${derived.name} phase)`
+      : "  expected : — the phase cannot be derived from this log, so nothing is verifiable",
+  );
+  if (declared !== null) console.log(`  declared : ${declared} (owes ${declaredExpected})`);
 
   const problems = [];
   if (logText.trim() === "") problems.push("the log is empty: no phase to verify");
-  if (declared !== null && declared !== derived.name) {
+
+  if (!derivedKnown) {
+    // The blocker: an unsummarised log used to default to behavioural and pass on 0 == 0.
     problems.push(
-      `declared --phase ${declared} but this is a ${derived.name} log` +
-        (derived.evidence ? ` (summary "${derived.evidence}")` : " (no completion summary)") +
-        `, and the ${derived.name} phase owes ${expected} verdict line(s)`,
+      "this log is UNKNOWN: it carries neither a completion summary (" +
+        PHASE_NAMES.filter((n) => PHASES[n].shape).map((n) => `\`${PHASES[n].shape}\``).join(
+          " / ",
+        ) +
+        ") nor probe-initiation evidence (the harness' " +
+        "`Task <name> … scripts/conformance.mjs` banner)" +
+        (declared === null
+          ? ""
+          : `, so it cannot be verified as --phase ${declared} (owes ${declaredExpected})`) +
+        " — a run that crashed, was killed, or was truncated before its terminal verdict block " +
+        "must not pass",
     );
-  }
-  if (emitted.length !== expected) {
-    const reason = emitted.length === 0
-      ? "the terminal verdict block is MISSING from this log"
-      : `${emitted.length} verdict lines: the phase prints exactly ${expected}`;
+  } else if (derived.name === "behavioural" && declared !== "behavioural") {
     problems.push(
-      `${derived.name} owes ${expected} verdict line(s), emitted ${emitted.length} — ${reason}`,
+      declared === null
+        ? "this log has no completion summary, only probe-initiation evidence: an unsummarised log " +
+          "is accepted as the kill probe only when the caller declares it with --phase behavioural " +
+          "— a run that crashed or was truncated before its terminal verdict block has the same " +
+          "shape (banner, no summary, no verdict) and nothing in a log tells them apart, so do not " +
+          `re-check such a run as the probe — evidence: ${derived.evidence}`
+        : `declared --phase ${declared} (owes ${declaredExpected}) but this is a behavioural log ` +
+          `(owes 0): this log has no \`${PHASES[declared].shape}\` completion summary, so the ` +
+          `${declared} phase's terminal verdict block was never verified — the kill probe looks ` +
+          "the same in a log and is accepted only when the caller declares --phase behavioural " +
+          `— evidence: ${derived.evidence}`,
     );
+  } else {
+    if (declared !== null && declared !== derived.name) {
+      problems.push(
+        `declared --phase ${declared} (owes ${declaredExpected}) but this is a ${derived.name} log ` +
+          `(owes ${expected}) — evidence: ${derived.evidence}`,
+      );
+    }
+    if (emitted.length !== expected) {
+      const reason = emitted.length === 0
+        ? "the terminal verdict block is MISSING from this log"
+        : `${emitted.length} verdict lines: the phase prints exactly ${expected}`;
+      problems.push(
+        `${derived.name} owes ${expected} verdict line(s), emitted ${emitted.length} — ${reason}`,
+      );
+    }
   }
 
   if (problems.length) {
