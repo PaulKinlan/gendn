@@ -6,8 +6,9 @@
   <title>Document Policy in Dedicated Workers — Chrome 147 — gendn</title>
   <link rel="stylesheet" href="/public/styles.css">
   <style>
-    h1, .lede { overflow-wrap: anywhere; }
-    p code, li code, td code { overflow-wrap: anywhere; }
+    h1, .lede, .eyebrow { overflow-wrap: anywhere; }
+    p code, li code, td code, .warn-block code, .baseline-banner code { overflow-wrap: anywhere; }
+    .baseline-browsers li { overflow-wrap: anywhere; min-width: 0; }
     .table-wrap { overflow-x: auto; }
     pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
     pre code { font-size: 0.85rem; }
@@ -18,7 +19,7 @@
     .example-embed { margin: 1.5rem 0; }
     .example-embed iframe { max-width: 100%; }
     .example-embed figcaption { font-size: 0.85rem; margin-top: 0.4rem; }
-    .doc-table { width: 100%; table-layout: fixed; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
     .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
     .doc-table th { background: var(--bg-stone); font-weight: 600; }
     .doc-table tr:last-child td { border-bottom: none; }
@@ -37,136 +38,149 @@
     <h1>Document Policy in Dedicated Workers</h1>
 
     <div class="baseline-banner" role="note" aria-label="Baseline status">
-      <p class="baseline-status">Limited availability &mdash; developer trial</p>
+      <p class="baseline-status">Limited availability</p>
       <ul class="baseline-browsers">
-        <li>Chrome &middot; developer trial in 147 (behind a flag)</li>
-        <li class="limited">Edge &middot; proposal authored by Edge engineers; no separate ship record</li>
+        <li>Chrome &middot; 147, developer trial behind a flag</li>
+        <li>Edge &middot; not shipped (Edge-authored proposal)</li>
         <li class="limited">Firefox &middot; no signal</li>
         <li class="limited">Safari &middot; no signal</li>
       </ul>
-      <p>There is no webstatus.dev web-feature entry for this behavior, MDN has <strong>no page</strong> for the <code>Document-Policy</code> header (HEAD-checked 404, 2026-09-27), and BCD has no <code>http/headers/Document-Policy.json</code> file &mdash; the compat picture below is entirely interim data from the <a href="https://chromestatus.com/api/v0/features/6242687411945472" target="_blank" rel="noopener">ChromeStatus record</a>.</p>
+      <p>This capability has no web-features / Baseline entry: the <a href="https://chromestatus.com/api/v0/features/6242687411945472" target="_blank" rel="noopener">ChromeStatus API record</a> reports <code>web_feature: &quot;Missing feature&quot;</code> and a <a href="https://api.webstatus.dev/v1/features?q=document-policy" target="_blank" rel="noopener">webstatus.dev query for <code>document-policy</code></a> returns no entry (both queried 2026-10-04). Vendor views are from the same ChromeStatus record (Firefox: No signal; Safari: No signal). Do not treat it as cross-browser; see the <a href="#compatibility">full table</a>.</p>
     </div>
 
-    <p class="lede">Chrome 147 lets <a href="https://wicg.github.io/document-policy/" target="_blank" rel="noopener">Document Policy</a> take effect inside dedicated workers, as a developer trial. A network-loaded worker&rsquo;s policy comes from the <em>worker script&rsquo;s own</em> <code>Document-Policy</code> response header &mdash; the creating page&rsquo;s policy is deliberately <strong>not</strong> propagated &mdash; while <code>blob:</code>/<code>data:</code> workers, which have no HTTP response, clone the creator&rsquo;s policy. The motivating use case is enabling the policy-gated <a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">JS Self-Profiling API</a> in workers.</p>
+    <p class="lede">Chrome 147 adds developer trial support for propagating <code>Document-Policy</code> HTTP response headers into dedicated workers. When a page is loaded with a Document Policy, the same policy now applies to workers spawned by that page, enabling consistent enforcement of security and performance constraints across the main thread and its workers.</p>
   </header>
 
   <div class="warn-block">
     <strong>Developer trial</strong>
-    This behavior is behind a flag in Chrome 147: the Blink runtime feature is <code>DocumentPolicyInDedicatedWorker</code> (status <code>experimental</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>, verified 2026-09-27). Enable it with <code>--enable-blink-features=DocumentPolicyInDedicatedWorker</code>, or turn on everything experimental via <code>chrome://flags/#enable-experimental-web-platform-features</code>. The API surface may change before it ships &mdash; do not use in production.
+    This API is behind a flag in Chrome 147. Enable <code>chrome://flags/#enable-experimental-web-platform-features</code>, or launch with <code>--enable-blink-features=DocumentPolicyInDedicatedWorker</code> (the runtime flag is <code>DocumentPolicyInDedicatedWorker</code>, status <code>experimental</code> in Chromium&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>, checked 2026-10-04). The API surface may change before it ships. Do not use in production.
   </div>
 
   <section>
     <h2 id="at-a-glance">at a glance</h2>
     <div class="table-wrap">
     <table class="doc-table">
-      <tr><th scope="row">Status in Chrome 147</th><td>Developer trial &mdash; filed under &ldquo;In developer trial (Behind a flag)&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=147" target="_blank" rel="noopener">milestone=147 listing</a></td></tr>
-      <tr><th scope="row">Runtime flag</th><td><code>DocumentPolicyInDedicatedWorker</code> (<code>experimental</code>)</td></tr>
-      <tr><th scope="row">Spec change</th><td><a href="https://github.com/whatwg/html/pull/12026" target="_blank" rel="noopener">whatwg/html PR #12026</a> (the ChromeStatus record&rsquo;s spec link), building on HTML&rsquo;s <a href="https://html.spec.whatwg.org/#initialize-worker-policy-container" target="_blank" rel="noopener">worker policy-container initialization</a></td></tr>
-      <tr><th scope="row">Explainer</th><td><a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/DocumentPolicy/DocumentPolicyInWorkers.md" target="_blank" rel="noopener">MSEdgeExplainers — Document Policy in Workers</a></td></tr>
-      <tr><th scope="row">Intent to Prototype</th><td><a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/l-3DhX_uCco" target="_blank" rel="noopener">blink-dev thread</a></td></tr>
-      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/6242687411945472" target="_blank" rel="noopener">6242687411945472 — Document Policy in Dedicated Workers</a></td></tr>
-      <tr><th scope="row">Tracking bug</th><td><a href="https://issues.chromium.org/issues/450845903" target="_blank" rel="noopener">crbug 450845903</a></td></tr>
+      <tr><th>Status in Chrome 147</th><td>Developer trial (behind a flag); dev-trial milestone 147 per the <a href="https://chromestatus.com/api/v0/features/6242687411945472" target="_blank" rel="noopener">ChromeStatus API record</a> (stage <code>desktop_first: 147</code>), announced in the <a href="https://docs.google.com/document/d/1ip0obDEsVLT2WzyuEzi0LZlh5Sd78tDmo9QwRRqPKOw/edit?tab=t.0" target="_blank" rel="noopener">DevTrial announcement document</a></td></tr>
+      <tr><th>Flag</th><td><code>enable-experimental-web-platform-features</code> / <code>--enable-blink-features=DocumentPolicyInDedicatedWorker</code></td></tr>
+      <tr><th>Spec</th><td><a href="https://wicg.github.io/document-policy/" target="_blank" rel="noopener">WICG Document Policy</a> (Draft Community Group Report) + HTML Standard integration in <a href="https://github.com/whatwg/html/pull/12026" target="_blank" rel="noopener">whatwg/html PR #12026</a></td></tr>
+      <tr><th>Explainer</th><td><a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/DocumentPolicy/DocumentPolicyInWorkers.md" target="_blank" rel="noopener">Document Policy in Workers (MSEdgeExplainers)</a></td></tr>
+      <tr><th>Intent thread</th><td><a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/l-3DhX_uCco" target="_blank" rel="noopener">blink-dev thread</a> (the prototype-stage intent recorded on ChromeStatus)</td></tr>
+      <tr><th>Tracking bug</th><td><a href="https://issues.chromium.org/issues/450845903" target="_blank" rel="noopener">issues.chromium.org/issues/450845903</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/6242687411945472" target="_blank" rel="noopener">6242687411945472 — Document Policy in Dedicated Workers</a></td></tr>
     </table>
     </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6242687411945472" target="_blank" rel="noopener">chromestatus.com/feature/6242687411945472</a> (API record queried 2026-10-04)</span>
+  </section>
+
+  <section>
+    <h2 id="what-is-document-policy">what is Document Policy?</h2>
+    <p>Document Policy is an HTTP header (<code>Document-Policy: directive=value</code>) that allows servers to enforce or opt into behaviours for a document. Example directives include:</p>
+    <ul>
+      <li><code>force-load-at-top</code> — prevent JavaScript from scrolling the document to a mid-page position on load</li>
+      <li><code>lossless-images-max-bpp</code> — enforce maximum bits-per-pixel for lossless images</li>
+      <li><code>oversized-images</code> — enforce a maximum image display/intrinsic size ratio</li>
+      <li><code>js-profiling</code> — opt into the <a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">JS Self-Profiling API</a>; the worker use case that motivated this feature (see <a href="https://github.com/WICG/js-self-profiling/issues/33" target="_blank" rel="noopener">WICG/js-self-profiling#33</a>)</li>
+    </ul>
+    <p>Previously, these policies applied only to the main document and iframes, not to workers. This extension propagates the policy to dedicated workers so that, for example, a worker that loads images or performs layout-adjacent operations respects the same constraints as the main thread.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/document-policy/" target="_blank" rel="noopener">WICG Document Policy</a>; <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/DocumentPolicy/DocumentPolicyInWorkers.md" target="_blank" rel="noopener">Document Policy in Workers explainer</a></span>
   </section>
 
   <section>
     <h2 id="syntax">syntax</h2>
-    <p>The header itself is unchanged from the <a href="https://wicg.github.io/document-policy/" target="_blank" rel="noopener">Document Policy draft</a> &mdash; what&rsquo;s new is <em>which response</em> it is read from. The ABNF, quoted from <a href="https://wicg.github.io/document-policy/#document-policy-http-header" target="_blank" rel="noopener">&sect;7.2.1</a>:</p>
-    <pre><code># A Structured Header whose value must be a dictionary (RFC 8941)
-Document-Policy = sf-dictionary
-
-# Served on the WORKER SCRIPT's response to enable a policy in that worker:
-HTTP/1.1 200 OK
-Content-Type: text/javascript
-Document-Policy: js-profiling</code></pre>
-    <p>Policy source per worker type, from the <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/DocumentPolicy/DocumentPolicyInWorkers.md" target="_blank" rel="noopener">explainer&rsquo;s proposed model</a> (dedicated workers are what Chrome 147&rsquo;s trial covers; the explainer also defines shared and service workers for completeness):</p>
-    <div class="table-wrap">
-    <table class="doc-table">
-      <thead><tr><th scope="col">Worker script</th><th scope="col">Effective Document Policy</th></tr></thead>
-      <tr><td>Network-loaded (<code>https:</code> &hellip;)</td><td>Parsed from the worker script&rsquo;s <em>own</em> response header. Any creator policy is ignored &mdash; &ldquo;no merge/intersection&rdquo;. Without the header, each feature falls back to its spec-defined default (for <code>js-profiling</code>, off).</td></tr>
-      <tr><td><code>blob:</code> / <code>data:</code></td><td>Clones the creator&rsquo;s Document Policy, &ldquo;since no HTTP response exists to consult&rdquo; (<code>blob:</code> clones from the environment that created the blob; <code>data:</code> from the document that created the worker).</td></tr>
-    </table>
-    </div>
-    <span class="citation">Source: <a href="https://wicg.github.io/document-policy/#document-policy-http-header" target="_blank" rel="noopener">Document Policy draft &sect;7.2.1</a> (ABNF verbatim); <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/DocumentPolicy/DocumentPolicyInWorkers.md" target="_blank" rel="noopener">Document Policy in Workers explainer</a> (per-type semantics, quoted)</span>
+    <p>This feature adds <strong>no new header and no new JavaScript API</strong> — it changes <em>where</em> the existing <code>Document-Policy</code> response header is read from (the worker script&rsquo;s own HTTP response). The header keeps its syntax from the <a href="https://wicg.github.io/document-policy/#document-policy-http-header" target="_blank" rel="noopener">WICG Document Policy draft, &sect;7.2.1</a>, which defines it as a Structured Header whose value &ldquo;must be a dictionary&rdquo;:</p>
+    <pre><code># ABNF, quoted verbatim from WICG Document Policy &sect;7.2.1
+Document-Policy = sf-dictionary</code></pre>
+    <p>Each dictionary member is a document policy directive: a directive name (an <code>sf-token</code> naming a configuration point, or <code>*</code>) with optional parameters — any directive may carry a <code>report-to</code> parameter, and integer/float/enum configuration points carry a required value parameter. The spec&rsquo;s own directive examples (<a href="https://wicg.github.io/document-policy/#policies-as-structured-headers" target="_blank" rel="noopener">&sect;7.1, verbatim</a>):</p>
+    <pre><code>boolean-feature
+boolean-feature=?0
+integer-feature=2
+float-feature=-0.2
+enum-feature=state</code></pre>
+    <p>What Chrome 147&rsquo;s developer trial changes is how a <strong>dedicated worker</strong> obtains its policy. Per the <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/DocumentPolicy/DocumentPolicyInWorkers.md" target="_blank" rel="noopener">explainer</a> (semantics for dedicated workers, quoted verbatim):</p>
+    <ul>
+      <li>&ldquo;For network scripts: Parse <code>Document-Policy</code> from the worker script&rsquo;s HTTP response headers&rdquo;</li>
+      <li>&ldquo;If no <code>Document-Policy</code> header is present: Each feature uses its spec-defined default value (same as document contexts)&rdquo;</li>
+      <li>&ldquo;For local schemes (blob:, data:): Worker clones the creator&rsquo;s Document Policy, since no HTTP response exists to consult (blob: URLs clone from the environment that created the blob, data: URLs clone from the document that created the worker)&rdquo;</li>
+    </ul>
+    <p>The worker&rsquo;s effective policy is taken <em>only</em> from the script response for network workers — the explainer is explicit that &ldquo;any creator policy is ignored (no merge/intersection)&rdquo;. The spec change lands via the HTML Standard&rsquo;s policy container: <a href="https://github.com/whatwg/html/pull/12026" target="_blank" rel="noopener">whatwg/html PR #12026</a> (&ldquo;Add DP to policy-container&rdquo; + &ldquo;add fallback case&rdquo; per the <a href="https://patch-diff.githubusercontent.com/raw/whatwg/html/pull/12026.patch" target="_blank" rel="noopener">PR patch</a>), aligning with <a href="https://html.spec.whatwg.org/#initialize-worker-policy-container" target="_blank" rel="noopener">initialize a worker&rsquo;s policy container</a>.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/document-policy/#document-policy-http-header" target="_blank" rel="noopener">WICG Document Policy &sect;7.2.1</a>; <a href="https://wicg.github.io/document-policy/#policies-as-structured-headers" target="_blank" rel="noopener">&sect;7.1 Policies as Structured Headers</a>; <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/DocumentPolicy/DocumentPolicyInWorkers.md" target="_blank" rel="noopener">explainer</a>; <a href="https://github.com/whatwg/html/pull/12026" target="_blank" rel="noopener">whatwg/html PR #12026</a> (all fetched 2026-10-04)</span>
   </section>
 
   <section>
-    <h2 id="description">why response headers, not inheritance</h2>
-    <p>The explainer rejects blanket inheritance from the creating document: a page&rsquo;s policy applied to a cross-origin worker script would create &ldquo;owner-dependent behavior where the same worker script behaves differently depending on which document started it&rdquo;, and would override what the script&rsquo;s own origin intended. Response-driven policy keeps each origin in control of its own feature gating, matches HTML&rsquo;s <a href="https://html.spec.whatwg.org/#initialize-worker-policy-container" target="_blank" rel="noopener">policy-container model</a> (which already scopes inheritance to local schemes), and avoids enabling feature hooks &mdash; and their runtime overhead &mdash; in every worker of an opted-in page.</p>
-    <p>Practical consequence: <strong>opting your page into a policy does not opt in its workers.</strong> To use a policy-gated feature in a dedicated worker, serve the worker script itself with the <code>Document-Policy</code> header (or create the worker from a <code>blob:</code>/<code>data:</code> URL so it clones the page&rsquo;s policy).</p>
-    <span class="citation">Source: <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/DocumentPolicy/DocumentPolicyInWorkers.md" target="_blank" rel="noopener">explainer &mdash; &ldquo;Rationale: Why Response Headers for Network Workers?&rdquo; and &ldquo;Considered Alternatives&rdquo;</a></span>
+    <h2 id="error-handling">error handling</h2>
+    <p>The header has no exception surface in JavaScript — failures are absorbed by the parsing rules:</p>
+    <ul>
+      <li><strong>Unknown or malformed directives are ignored.</strong> The <a href="https://wicg.github.io/document-policy/#document-policy-http-header" target="_blank" rel="noopener">WICG draft, &sect;7.2.1</a> specifies that any dictionary member that does not name a supported configuration point (or the special value <code>*</code>) is ignored by the processing steps; a directive whose value falls outside the configuration point&rsquo;s range likewise fails structured-field parsing rather than throwing in script.</li>
+      <li><strong>An absent header is not an error.</strong> Per the <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/DocumentPolicy/DocumentPolicyInWorkers.md" target="_blank" rel="noopener">explainer</a> (verbatim): &ldquo;If the response lacks a <code>Document-Policy</code> header, the feature falls back to its spec-defined default (for js-profiling, typically off)&rdquo; — the observable failure mode is the gated API being unavailable in the worker (e.g. <code>Profiler</code> is not constructible), not an exception from the policy machinery itself.</li>
+      <li><strong>Documented unknown — violation reporting in workers.</strong> Whether the <code>report-to</code> parameter and the <code>Document-Policy-Report-Only</code> header operate in worker contexts is not specified by either the <a href="https://wicg.github.io/document-policy/" target="_blank" rel="noopener">WICG draft</a> (its reporting sections predate the worker extension) or the <a href="https://github.com/whatwg/html/pull/12026" target="_blank" rel="noopener">worker policy-container PR</a>; both were checked on 2026-10-04. This page records that as unknown rather than inventing behaviour.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://wicg.github.io/document-policy/#document-policy-http-header" target="_blank" rel="noopener">WICG Document Policy &sect;7.2.1</a>; <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/DocumentPolicy/DocumentPolicyInWorkers.md" target="_blank" rel="noopener">Document Policy in Workers explainer</a> (checked 2026-10-04)</span>
   </section>
 
   <section>
     <h2 id="examples">examples</h2>
-    <p>Enabling the JS Self-Profiling API inside a dedicated worker &mdash; the explainer&rsquo;s motivating case:</p>
-<pre><code>// main.js — the page's own Document-Policy header is irrelevant here
-// (module worker: the crunch.js below uses top-level await)
-const worker = new Worker("/scripts/crunch.js", { type: "module" });
-
-// Server config: serve /scripts/crunch.js with
-//   Document-Policy: js-profiling
-
-// crunch.js (inside the worker) — from the explainer:
+    <p>Serve the <em>worker script</em> (not just the page) with a <code>Document-Policy</code> header — the explainer&rsquo;s example (verbatim):</p>
+    <pre><code>Document-Policy: js-profiling</code></pre>
+    <p>&ldquo;If Document-Policy is enabled in the worker, developers can use the Profiler&rdquo; (explainer example, verbatim):</p>
+    <pre><code>// Start a profiling session
 const profiler = new Profiler({ sampleInterval: 10, maxBufferSize: 10_000 });
 doWork();
 const trace = await profiler.stop();
-console.log(JSON.stringify(trace));
-
-// Alternative without touching server config: a blob: worker has no
-// HTTP response, so it CLONES the creating page's Document Policy —
-// serve the PAGE with `Document-Policy: js-profiling` instead.
-const src = await (await fetch("/scripts/crunch.js")).text();
-const blobWorker = new Worker(
-  URL.createObjectURL(new Blob([src], { type: "text/javascript" })),
-  { type: "module" },
-);</code></pre>
+console.log(JSON.stringify(trace));</code></pre>
 
     <figure class="example-embed">
       <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/document-policy-in-dedicated-workers/worker-feature-probe/"
-        title="Live example — probing policy-gated features inside a worker" loading="lazy" width="100%" height="520"
+        title="Live example — worker feature probe" loading="lazy" width="100%" height="520"
         style="border:2px solid var(--border-black)"></iframe>
-      <figcaption>Live example from the Chrome Platform Showcase (route HEAD-checked 200, 2026-09-27). Sibling concept demos: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/document-policy-in-dedicated-workers/policy-headers/" target="_blank" rel="noopener">policy headers</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/document-policy-in-dedicated-workers/policy-inheritance-tester/" target="_blank" rel="noopener">policy inheritance tester</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/document-policy-in-dedicated-workers/worker-violation-probe/" target="_blank" rel="noopener">worker violation probe</a>, and <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/document-policy-in-dedicated-workers/compatibility-lab/" target="_blank" rel="noopener">compatibility lab</a>.<span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/document-policy-in-dedicated-workers/" target="_blank" rel="noopener">chrome-platform-showcase</a></span></figcaption>
+      <figcaption>Live example from the Chrome Platform Showcase (route GET-verified 200, 2026-10-04). Sibling concept demos: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/document-policy-in-dedicated-workers/policy-headers/" target="_blank" rel="noopener">policy headers</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/document-policy-in-dedicated-workers/policy-inheritance-tester/" target="_blank" rel="noopener">policy inheritance tester</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/document-policy-in-dedicated-workers/worker-violation-probe/" target="_blank" rel="noopener">worker violation probe</a>, and <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/document-policy-in-dedicated-workers/compatibility-lab/" target="_blank" rel="noopener">compatibility lab</a>.<span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/document-policy-in-dedicated-workers/" target="_blank" rel="noopener">chrome-platform-showcase</a></span></figcaption>
     </figure>
-    <span class="citation">Source: profiler snippet quoted from the <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/DocumentPolicy/DocumentPolicyInWorkers.md" target="_blank" rel="noopener">explainer</a>; framing gendn-derived (labelled accordingly)</span>
+    <span class="citation">Source: header and Profiler snippets quoted from the <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/DocumentPolicy/DocumentPolicyInWorkers.md" target="_blank" rel="noopener">Document Policy in Workers explainer</a></span>
   </section>
 
   <section>
     <h2 id="compatibility">browser compatibility</h2>
-    <p>Neither MDN nor BCD documents the <code>Document-Policy</code> header at all (no <code>http/headers/Document-Policy.json</code>; both MDN URL layouts 404, checked 2026-09-27), so there is no per-version table to quote &mdash; everything below is interim ChromeStatus data, labelled as such:</p>
+    <p><a href="https://github.com/mdn/browser-compat-data/tree/main/http/headers" target="_blank" rel="noopener">mdn/browser-compat-data</a> has <strong>no entry for the <code>Document-Policy</code> header</strong> (checked BCD v8.1.4, published 2026-10-01, on 2026-10-04: its <code>http/headers/</code> tree has no <code>Document-Policy.json</code>, and no key anywhere in the compiled data mentions it), so the table below is <strong>interim</strong>, built from the <a href="https://chromestatus.com/api/v0/features/6242687411945472" target="_blank" rel="noopener">ChromeStatus API record</a> rather than BCD per-version data:</p>
     <div class="table-wrap">
     <table class="doc-table">
-      <thead><tr><th scope="col">Browser</th><th scope="col">Document Policy in dedicated workers</th></tr></thead>
-      <tr><td>Chrome</td><td>Developer trial in <strong>147</strong> behind <code>DocumentPolicyInDedicatedWorker</code> (<a href="https://chromestatus.com/feature/6242687411945472" target="_blank" rel="noopener">ChromeStatus</a>; no ship milestone set)</td></tr>
-      <tr><td>Edge</td><td>The <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/DocumentPolicy/DocumentPolicyInWorkers.md" target="_blank" rel="noopener">proposal is authored by Edge engineers</a>; no separate ship record</td></tr>
-      <tr><td>Firefox</td><td>No signal (ChromeStatus vendor view; no public URL on the record)</td></tr>
-      <tr><td>Safari</td><td>No signal (ChromeStatus vendor view; no public URL on the record)</td></tr>
+      <thead><tr><th>Browser</th><th>Document Policy in dedicated workers</th><th>Notes (interim, non-BCD)</th></tr></thead>
+      <tr><td>Chrome</td><td>147 &mdash; developer trial, behind a flag</td><td>ChromeStatus dev-trial stage <code>desktop_first: 147</code>; overall status &ldquo;Proposed&rdquo;; runtime flag <code>DocumentPolicyInDedicatedWorker</code> (experimental)</td></tr>
+      <tr><td>Edge</td><td>Not shipped</td><td>Proposal authored by Microsoft Edge (explainer owners); no shipped support recorded</td></tr>
+      <tr><td>Firefox</td><td>No signal</td><td>ChromeStatus Firefox view: &ldquo;No signal&rdquo;, no standards-position link filed</td></tr>
+      <tr><td>Safari</td><td>No signal</td><td>ChromeStatus Safari view: &ldquo;No signal&rdquo;, no standards-position link filed</td></tr>
     </table>
     </div>
-    <p>Feature-detect at runtime rather than sniffing: probe for the gated feature itself inside the worker (e.g. <code>typeof Profiler === "function"</code>) and degrade to main-thread behavior when absent.</p>
-    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/6242687411945472" target="_blank" rel="noopener">ChromeStatus API record</a> (vendor views); MDN/BCD absence verified by HEAD checks and the <a href="https://github.com/mdn/browser-compat-data/tree/main/http/headers" target="_blank" rel="noopener">BCD http/headers tree</a>, 2026-09-27</span>
+    <p>For the motivating gated API, BCD <em>does</em> have per-version data: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Profiler.json" target="_blank" rel="noopener">BCD <code>api/Profiler.json</code></a> records <code>Profiler</code> (JS Self-Profiling) as Chrome/Edge 94, Firefox not shipped (<a href="https://bugzil.la/1867361" target="_blank" rel="noopener">bug 1867361</a>), Safari not shipped — so even once workers honour <code>Document-Policy: js-profiling</code>, profiling remains Chromium-only.</p>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/tree/main/http/headers" target="_blank" rel="noopener">BCD http/headers tree</a> (absence) and <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Profiler.json" target="_blank" rel="noopener">BCD api/Profiler.json</a>, both verified against BCD v8.1.4 on 2026-10-04; <a href="https://chromestatus.com/api/v0/features/6242687411945472" target="_blank" rel="noopener">ChromeStatus API record</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a></span>
   </section>
 
   <section>
     <h2 id="specifications">specifications</h2>
     <div class="table-wrap">
     <table class="doc-table">
-      <thead><tr><th scope="col">Specification</th><th scope="col">Section</th></tr></thead>
-      <tr><td><a href="https://wicg.github.io/document-policy/" target="_blank" rel="noopener">Document Policy</a> (WICG Draft Community Group Report)</td><td><a href="https://wicg.github.io/document-policy/#document-policy-http-header" target="_blank" rel="noopener">&sect;7.2.1 Document-Policy</a></td></tr>
-      <tr><td><a href="https://html.spec.whatwg.org/" target="_blank" rel="noopener">HTML Standard</a></td><td><a href="https://github.com/whatwg/html/pull/12026" target="_blank" rel="noopener">PR #12026</a> (in progress) &middot; <a href="https://html.spec.whatwg.org/#initialize-worker-policy-container" target="_blank" rel="noopener">initialize a worker&rsquo;s policy container</a></td></tr>
+      <thead><tr><th>Specification</th><th>Status</th></tr></thead>
+      <tr><td><a href="https://wicg.github.io/document-policy/#document-policy-http-header" target="_blank" rel="noopener">Document Policy — &sect;7.2.1 The Document-Policy HTTP header</a></td><td>Draft Community Group Report (WICG)</td></tr>
+      <tr><td><a href="https://github.com/whatwg/html/pull/12026" target="_blank" rel="noopener">HTML Standard — whatwg/html PR #12026 &ldquo;Add DP to policy-container&rdquo;</a></td><td>Pull request (authored 2025-12-16 by the feature owner; merge state not re-verified from this environment, 2026-10-04 — ChromeStatus records maturity &ldquo;Working draft&rdquo;)</td></tr>
     </table>
     </div>
+    <span class="citation">Source: <a href="https://wicg.github.io/document-policy/" target="_blank" rel="noopener">WICG Document Policy</a>; <a href="https://patch-diff.githubusercontent.com/raw/whatwg/html/pull/12026.patch" target="_blank" rel="noopener">PR #12026 patch</a>; <a href="https://chromestatus.com/api/v0/features/6242687411945472" target="_blank" rel="noopener">ChromeStatus API record</a></span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <p>From the explainer&rsquo;s <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/DocumentPolicy/DocumentPolicyInWorkers.md" target="_blank" rel="noopener">Privacy and Security Considerations</a> (quoted verbatim): &ldquo;Document Policy inheritance is limited to local URLs (blob:, data:), consistent with the HTML policy container model, this prevents cross-origin policy leakage&rdquo;; &ldquo;Inherited policies cannot expand privileges beyond what the creator or script origin allows&rdquo;; &ldquo;Worker script responses define the effective policy, ensuring each origin controls its own features&rdquo;; and &ldquo;The proposal adds no new fingerprinting or cross-origin exposure surfaces.&rdquo; The response-driven model exists precisely so that a creating document&rsquo;s policy cannot be imposed on a cross-origin worker script — each origin gates its own features through its own headers.</p>
+    <span class="citation">Source: <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/DocumentPolicy/DocumentPolicyInWorkers.md" target="_blank" rel="noopener">Document Policy in Workers explainer — Privacy and Security Considerations</a></span>
   </section>
 
   <section>
     <h2 id="see-also">see also</h2>
     <ul>
-      <li><a href="/v147/js-profiling-in-dedicated-workers/">gendn: js-profiling in dedicated workers</a> &mdash; the policy-gated feature this trial exists to unlock</li>
-      <li><a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/DocumentPolicy/DocumentPolicyInWorkers.md" target="_blank" rel="noopener">Document Policy in Workers explainer</a> &middot; <a href="https://github.com/WICG/document-policy/blob/main/document-policy-explainer.md" target="_blank" rel="noopener">Document Policy explainer</a></li>
-      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/document-policy-in-dedicated-workers/" target="_blank" rel="noopener">chrome-platform-showcase: worker document-policy demos</a> (five concepts, route 200)</li>
-      <li><a href="https://chromestatus.com/feature/6242687411945472" target="_blank" rel="noopener">ChromeStatus — Document Policy in Dedicated Workers (6242687411945472)</a></li>
-      <li><a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/l-3DhX_uCco" target="_blank" rel="noopener">blink-dev Intent to Prototype</a> &middot; <a href="https://issues.chromium.org/issues/450845903" target="_blank" rel="noopener">crbug 450845903</a></li>
+      <li><a href="https://chromestatus.com/feature/6242687411945472" target="_blank" rel="noopener">Chrome Platform Status — Document Policy in Dedicated Workers</a></li>
+      <li><a href="https://wicg.github.io/document-policy/" target="_blank" rel="noopener">WICG Document Policy specification</a></li>
+      <li><a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/DocumentPolicy/DocumentPolicyInWorkers.md" target="_blank" rel="noopener">Explainer: Document Policy in Workers (MSEdgeExplainers)</a></li>
+      <li><a href="https://github.com/WICG/js-self-profiling/issues/33" target="_blank" rel="noopener">WICG/js-self-profiling#33 — &ldquo;How does document policy work in workers?&rdquo; (initial public proposal)</a></li>
+      <li><a href="https://issues.chromium.org/issues/450845903" target="_blank" rel="noopener">Chromium tracking bug 450845903</a></li>
+      <li><a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/l-3DhX_uCco" target="_blank" rel="noopener">blink-dev intent thread</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/document-policy-in-dedicated-workers/" target="_blank" rel="noopener">chrome-platform-showcase: Document Policy in Dedicated Workers demos</a> (five concepts, every route GET-verified 200, 2026-10-04)</li>
     </ul>
   </section>
 

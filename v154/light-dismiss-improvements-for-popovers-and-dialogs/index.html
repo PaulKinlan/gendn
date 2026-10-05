@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Light dismiss improvements for popovers and dialogs — Chrome 154 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code { overflow-wrap: anywhere; }
+    .table-wrap { overflow-x: auto; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .baseline-banner { border: 2px solid var(--border-black); padding: 1rem 1.2rem; margin: 1.5rem 0; background: var(--bg-paper); box-shadow: var(--thin-shadow); }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
+    .warn-block > strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--text-charcoal); display: block; margin-bottom: 0.4rem; }
+    .doc-table { width: 100%; table-layout: fixed; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
+    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; overflow-wrap: anywhere; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+    .algo { border-left: 4px solid var(--border-black); padding-left: 1rem; margin: 1rem 0; }
+    .algo ol { margin: 0.5rem 0 0.5rem 1.2rem; padding: 0; }
+    .algo li { margin: 0.35rem 0; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v154/">&larr; Chrome 154 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v154 · dom · popover &amp; dialog · enabled by default</p>
+    <h1>Light dismiss improvements for popovers and dialogs</h1>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability (this behavior change)</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 154 (desktop, Android, WebView)</li>
+        <li class="limited">Edge &middot; not yet recorded</li>
+        <li class="limited">Firefox &middot; no signal</li>
+        <li class="limited">Safari &middot; no signal</li>
+      </ul>
+      <p>The behavior change itself ships only in Chrome 154 per the <a href="https://chromestatus.com/api/v0/features/6209615938322432" target="_blank" rel="noopener">ChromeStatus API record</a> (queried 2026-10-04; Firefox and Safari views both &ldquo;No signal&rdquo;). The <em>underlying</em> features are further along: the host <a href="https://api.webstatus.dev/v1/features/popover" target="_blank" rel="noopener"><code>popover</code> web-feature</a> is Baseline <strong>newly available</strong> (since 2025-01-27), while <a href="https://api.webstatus.dev/v1/features/dialog-closedby" target="_blank" rel="noopener"><code>dialog-closedby</code></a> is Baseline <strong>limited</strong> (Chrome 134, Firefox 141, no Safari release; both queried 2026-10-04). See the <a href="#compatibility">full table</a>.</p>
+    </div>
+
+    <p class="lede">Chrome 154 changes <em>how</em> the browser decides that you clicked outside an open popover or a <code>&lt;dialog closedby=&quot;any&quot;&gt;</code>: light dismiss is now driven by the <code>click</code> event instead of separate <code>pointerdown</code>/<code>pointerup</code> tracking. Two long-standing bugs disappear as a result &mdash; scrolling gestures on touch screens no longer light-dismiss, and right clicks no longer light-dismiss. No HTML or JavaScript surface is added or removed; existing pages simply stop being dismissed by input sequences that never produce a <code>click</code>.</p>
+  </header>
+
+  <div class="warn-block">
+    <strong>Spec still in flight</strong>
+    <p>Chrome 154 ships this enabled by default (runtime flag <code>LightDismissFromClick</code>, status <code>stable</code> in the <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium runtime_enabled_features.json5</a>, verified 2026-10-04), but the specification changes are still <em>open pull requests</em>: <a href="https://github.com/whatwg/html/pull/11536" target="_blank" rel="noopener">whatwg/html#11536</a> and <a href="https://github.com/w3c/pointerevents/pull/460" target="_blank" rel="noopener">w3c/pointerevents#460</a> (both open as of 2026-10-04), and the ChromeStatus standardization status is &ldquo;Proposed&rdquo;. Algorithm details quoted below come from those PRs verbatim and may still be refined before merging.</p>
+  </div>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 154 (desktop, Android, WebView) &mdash; filed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=154" target="_blank" rel="noopener">milestone=154 listing</a>; dev-trial stage recorded from Chrome 145</td></tr>
+      <tr><th>Runtime flag</th><td><code>LightDismissFromClick</code>, status <code>stable</code> &mdash; Chromium comment: &ldquo;Makes light dismiss for popovers and dialogs use the click event instead of pointerdown and pointerup in order to fix light dismiss bugs for touch inputs&rdquo; (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>, verified 2026-10-04)</td></tr>
+      <tr><th>Spec changes</th><td><a href="https://github.com/whatwg/html/pull/11536" target="_blank" rel="noopener">whatwg/html PR #11536</a> (rewrites the light dismiss algorithms; open) + <a href="https://github.com/w3c/pointerevents/pull/460" target="_blank" rel="noopener">w3c/pointerevents PR #460</a> (invokes them from <code>click</code> dispatch; open), against the <a href="https://html.spec.whatwg.org/multipage/popover.html#popover-light-dismiss" target="_blank" rel="noopener">Popover light dismiss</a> and <a href="https://html.spec.whatwg.org/multipage/interactive-elements.html#dialog-light-dismiss" target="_blank" rel="noopener">Dialog light dismiss</a> sections</td></tr>
+      <tr><th>Explainer</th><td><a href="https://github.com/w3c/pointerevents/issues/542" target="_blank" rel="noopener">w3c/pointerevents issue #542 &mdash; &ldquo;Add context for popover light dismiss to click event&rdquo;</a></td></tr>
+      <tr><th>Tracking bugs</th><td><a href="https://issues.chromium.org/issues/408010435" target="_blank" rel="noopener">crbug 408010435</a> (touch scrolling triggers light dismiss) &middot; <a href="https://issues.chromium.org/issues/425579196" target="_blank" rel="noopener">crbug 425579196</a> (right click triggers light dismiss) &mdash; issue pages sit behind a sign-in wall; descriptions here come from the <a href="https://chromestatus.com/api/v0/features/6209615938322432" target="_blank" rel="noopener">ChromeStatus record&rsquo;s motivation field</a></td></tr>
+      <tr><th>Intent to Ship</th><td>No intent thread is recorded on the ChromeStatus record (all <code>intent_thread_url</code> fields null, queried 2026-10-04) &mdash; no public blink-dev link can be given yet</td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/6209615938322432" target="_blank" rel="noopener">6209615938322432 &mdash; Light dismiss improvements for popovers and dialogs</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="syntax">syntax</h2>
+    <p>Nothing changes in the markup you write. Light dismiss remains opt-in through the same two attributes, whose definitions in the current <a href="https://html.spec.whatwg.org/multipage/popover.html#popover-light-dismiss" target="_blank" rel="noopener">HTML Standard</a> read (verbatim, fetched 2026-10-04):</p>
+    <blockquote>
+      <p>&ldquo;Light dismiss&rdquo; means that clicking outside of a popover whose <code>popover</code> attribute is in the Auto or Hint state will close the popover. This is in addition to how such popovers respond to close requests.</p>
+      <p>&ldquo;Light dismiss&rdquo; means that clicking outside of a <code>dialog</code> element whose <code>closedby</code> attribute is in the Any state will close the <code>dialog</code> element.</p>
+    </blockquote>
+    <pre><code>&lt;!-- Popovers: popover="auto" (or "hint") opts into light dismiss --&gt;
+&lt;div id="menu" popover="auto"&gt;&hellip;&lt;/div&gt;
+
+&lt;!-- Dialogs: closedby="any" opts into light dismiss --&gt;
+&lt;dialog closedby="any"&gt;&hellip;&lt;/dialog&gt;</code></pre>
+    <p>The <code>closedby</code> keyword table from the <a href="https://html.spec.whatwg.org/multipage/interactive-elements.html#attr-dialog-closedby" target="_blank" rel="noopener">spec</a>: <code>any</code> &mdash; &ldquo;Close requests or clicks outside close the dialog&rdquo;; <code>closerequest</code> &mdash; &ldquo;Close requests close the dialog&rdquo;; <code>none</code> &mdash; &ldquo;No user actions automatically close the dialog&rdquo;. What Chrome 154 changes is the <em>algorithms behind</em> that behavior, documented below.</p>
+    <span class="citation">Source: <a href="https://html.spec.whatwg.org/multipage/popover.html#popover-light-dismiss" target="_blank" rel="noopener">HTML Standard &sect;Popover light dismiss</a>; <a href="https://html.spec.whatwg.org/multipage/interactive-elements.html#dialog-light-dismiss" target="_blank" rel="noopener">&sect;Dialog light dismiss</a>; <a href="https://html.spec.whatwg.org/multipage/interactive-elements.html#attr-dialog-closedby" target="_blank" rel="noopener">&sect;attr-dialog-closedby</a></span>
+  </section>
+
+  <section>
+    <h2 id="what-changed">what changed</h2>
+    <p>Before Chrome 154, the HTML Standard&rsquo;s light dismiss algorithms listen to each trusted <code>pointerdown</code> and <code>pointerup</code> <code>PointerEvent</code> separately: on <code>pointerdown</code> the document stores a &ldquo;popover pointerdown target&rdquo; / &ldquo;dialog pointerdown target&rdquo;, and on <code>pointerup</code> it compares targets and hides. Any pointer-up outside the popover could dismiss &mdash; including the pointer sequences of a touch scroll or a right click, neither of which is a click. <a href="https://github.com/whatwg/html/pull/11536" target="_blank" rel="noopener">whatwg/html PR #11536</a> deletes that tracking (both &ldquo;pointerdown target&rdquo; document states are removed) and replaces it with algorithms evaluated once, from <code>click</code>-event dispatch:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Input sequence</th><th>Before Chrome 154</th><th>Chrome 154+</th></tr></thead>
+      <tr><td>Click/tap outside</td><td>Light dismiss</td><td>Light dismiss (unchanged)</td></tr>
+      <tr><td>Touch scroll gesture starting outside</td><td>Could light dismiss</td><td>No dismiss &mdash; a canceled scroll never produces a <code>click</code></td></tr>
+      <tr><td>Right click outside</td><td>Could light dismiss</td><td>No dismiss &mdash; a right click fires <code>auxclick</code>, not <code>click</code>, and the <a href="https://github.com/w3c/pointerevents/pull/460" target="_blank" rel="noopener">pointerevents hook</a> runs only for <code>click</code></td></tr>
+      <tr><td>Press outside, release over the popover (or vice versa)</td><td>No dismiss (pointerdown/up target mismatch)</td><td>No dismiss (pointerdown/up data mismatch, now carried on the click)</td></tr>
+    </table>
+    </div>
+    <p>The scroll and right-click rows restate the ChromeStatus summary: &ldquo;The fixed bugs include making scrolling gestures on touch screens no longer trigger light dismiss and making right clicks no longer trigger light dismiss. The underlying mechanism of this change is that the browser will use click events to trigger light dismiss instead of a combination of pointerdown and pointerup events.&rdquo; The explainer adds a third motivation: &ldquo;pointerdown is skipped on touch devices in blink and webkit unless there is a pointerdown event listener&rdquo;, which broke light dismiss entirely in some engines, and the old design &ldquo;is replicating a form of click detection which would better be served by listening to the existing click event&rdquo;.</p>
+    <p>Observable timing consequence: light dismiss now happens as part of <code>click</code> processing. Per <a href="https://github.com/w3c/pointerevents/pull/460" target="_blank" rel="noopener">pointerevents PR #460</a>, &ldquo;run light dismiss activities&rdquo; executes in the Event dispatch section <em>immediately before</em> the <code>click</code> event is dispatched to its target, so by the time your own <code>click</code> listener runs, a light-dismissed popover has already begun closing (its <code>toggle</code>/<code>beforetoggle</code> sequence fires around the click rather than at pointer-up time).</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6209615938322432" target="_blank" rel="noopener">ChromeStatus 6209615938322432</a> (summary, queried 2026-10-04); <a href="https://github.com/w3c/pointerevents/issues/542" target="_blank" rel="noopener">explainer issue w3c/pointerevents#542</a>; <a href="https://github.com/whatwg/html/pull/11536" target="_blank" rel="noopener">whatwg/html PR #11536 diff</a>; <a href="https://github.com/w3c/pointerevents/pull/460" target="_blank" rel="noopener">w3c/pointerevents PR #460 diff</a></span>
+  </section>
+
+  <section>
+    <h2 id="popover-algorithm">the rewritten popover algorithm</h2>
+    <p>New signature and steps, quoted from the <a href="https://github.com/whatwg/html/pull/11536" target="_blank" rel="noopener">PR #11536</a> diff (fetched 2026-10-04). The old algorithm took &ldquo;a <code>PointerEvent</code> <var>event</var>&rdquo; and branched on <code>pointerdown</code>/<code>pointerup</code>; the new one receives both targets at once:</p>
+    <div class="algo">
+      <p>To <strong>light dismiss open popovers</strong>, given a <code>Node</code> <var>pointerDownTarget</var> and a <code>Node</code> <var>pointerUpTarget</var>:</p>
+      <ol>
+        <li>Let <var>document</var> be <var>pointerDownTarget</var>&rsquo;s node document.</li>
+        <li>Let <var>pointerDownPopover</var> be the result of running topmost clicked popover given <var>pointerDownTarget</var>.</li>
+        <li>Let <var>pointerUpPopover</var> be the result of running topmost clicked popover given <var>pointerUpTarget</var>.</li>
+        <li>If <var>pointerDownPopover</var> is not <var>pointerUpPopover</var>, then return.</li>
+        <li>Let <var>endpointIsHint</var> be true if <var>document</var>&rsquo;s showing hint popover list contains <var>pointerDownPopover</var>; otherwise false.</li>
+        <li>Run hide popover stack until given <var>document</var>, <var>pointerDownPopover</var>, Hint, false, and true.</li>
+        <li>Let <var>autoEndpoint</var> be <var>pointerDownPopover</var>.</li>
+        <li>If <var>endpointIsHint</var> is true, then set <var>autoEndpoint</var> to <var>document</var>&rsquo;s hint stack parent. <em>(Spec note: &ldquo;This means, if a hint popover is clicked, auto popovers are closed, except those that are parent to the clicked hint popover.&rdquo;)</em></li>
+        <li>Run hide popover stack until given <var>document</var>, <var>autoEndpoint</var>, Auto, false, and true.</li>
+      </ol>
+    </div>
+    <p>Deleted alongside: the &ldquo;Every <code>Document</code> has a <em>popover pointerdown target</em>&rdquo; state, the <code>isTrusted</code> assert (trust is now guaranteed by the caller &mdash; the browser&rsquo;s own <code>click</code> dispatch), and the early-return when no auto/hint popover is showing (subsumed by the stack walk). The helper algorithms it calls &mdash; <em>topmost clicked popover</em>, <em>popover stack position</em>, <em>nearest inclusive target popover</em> &mdash; are unchanged by this PR; their current text is in the <a href="https://html.spec.whatwg.org/multipage/popover.html#popover-light-dismiss" target="_blank" rel="noopener">live spec section</a>.</p>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/11536" target="_blank" rel="noopener">whatwg/html PR #11536</a> (diff hunk at source &sect;popover light dismiss); <a href="https://html.spec.whatwg.org/multipage/popover.html#popover-light-dismiss" target="_blank" rel="noopener">HTML Standard &sect;6.12.2</a></span>
+  </section>
+
+  <section>
+    <h2 id="dialog-algorithm">the rewritten dialog algorithm</h2>
+    <p>Same pattern for <code>&lt;dialog closedby=&quot;any&quot;&gt;</code>, with coordinates added so backdrop clicks can be told apart from clicks on the dialog itself. Quoted from the <a href="https://github.com/whatwg/html/pull/11536" target="_blank" rel="noopener">PR #11536</a> diff:</p>
+    <div class="algo">
+      <p>To <strong>light dismiss open dialogs</strong>, given a <code>Node</code> <var>pointerDownTarget</var>, a number <var>pointerDownX</var>, a number <var>pointerDownY</var>, a <code>Node</code> <var>pointerUpTarget</var>, a number <var>pointerUpX</var>, and a number <var>pointerUpY</var>:</p>
+      <ol>
+        <li>Let <var>document</var> be <var>pointerDownTarget</var>&rsquo;s node document.</li>
+        <li>If <var>document</var>&rsquo;s open dialogs list is empty, then return.</li>
+        <li>Let <var>pointerDownDialog</var> be the result of running nearest clicked dialog given <var>pointerDownTarget</var>, <var>pointerDownX</var>, and <var>pointerDownY</var>.</li>
+        <li>Let <var>pointerUpDialog</var> be the result of running nearest clicked dialog given <var>pointerUpTarget</var>, <var>pointerUpX</var>, and <var>pointerUpY</var>.</li>
+        <li>If <var>pointerDownDialog</var> is not <var>pointerUpDialog</var>, then return.</li>
+        <li>Let <var>topmostDialog</var> be the last element of <var>document</var>&rsquo;s open dialogs list.</li>
+        <li>If <var>pointerDownDialog</var> is <var>topmostDialog</var>, then return.</li>
+        <li>If <var>topmostDialog</var>&rsquo;s computed closed-by state is not Any, then return.</li>
+        <li>Assert: <var>topmostDialog</var>&rsquo;s close watcher is not null.</li>
+        <li>Request to close <var>topmostDialog</var>&rsquo;s close watcher with false.</li>
+      </ol>
+    </div>
+    <p><em>Nearest clicked dialog</em> is re-signed from &ldquo;given a <code>PointerEvent</code> <var>event</var>&rdquo; to &ldquo;given a <code>Node</code> <var>target</var>, a number <var>clientX</var>, and a number <var>clientY</var>&rdquo;, and its hit test now uses CSSOM View&rsquo;s <em>get the bounding box</em> (a dependency the PR adds to the HTML spec&rsquo;s CSSOM View references). The spec note explains why coordinates are needed at all: &ldquo;a pointer event that hits the <code>::backdrop</code> pseudo element of a dialog will result in <var>event</var> having a target of the dialog element itself. This could be improved if the pointer events spec passed the <code>::backdrop</code> pseudo-element directly instead of the <code>dialog</code> element.&rdquo; The document&rsquo;s &ldquo;dialog pointerdown target&rdquo; state is deleted. Closing still goes through the dialog&rsquo;s close watcher, so <code>cancel</code>/<code>close</code> event semantics are untouched.</p>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/11536" target="_blank" rel="noopener">whatwg/html PR #11536</a> (diff hunks at source &sect;dialog light dismiss); <a href="https://html.spec.whatwg.org/multipage/interactive-elements.html#dialog-light-dismiss" target="_blank" rel="noopener">HTML Standard &sect;4.11.5</a></span>
+  </section>
+
+  <section>
+    <h2 id="activities">when the browser runs light dismiss</h2>
+    <p>The entry point, <em>run light dismiss activities</em>, keeps its two steps (popovers first, then dialogs) but now takes the full pointer context: &ldquo;given a <code>Node</code> <var>pointerDownTarget</var>, a number <var>pointerDownX</var>, a number <var>pointerDownY</var>, a <code>Node</code> <var>pointerUpTarget</var>, a number <var>pointerUpX</var>, and a number <var>pointerUpY</var>&rdquo;. Who calls it moves from prose (&ldquo;when the user clicks or touches anywhere on the page&rdquo;) into normative Pointer Events dispatch steps. Quoted from the <a href="https://github.com/w3c/pointerevents/pull/460" target="_blank" rel="noopener">w3c/pointerevents PR #460</a> diff (inserted into &sect;Event dispatch, immediately before &ldquo;Dispatch <var>event</var> to <var>target</var>&rdquo;):</p>
+    <div class="algo">
+      <p>If <var>event</var> is a <code>click</code> event, then:</p>
+      <ol>
+        <li>Let <var>pointerDownTarget</var>, <var>pointerDownX</var>, <var>pointerDownY</var>, <var>pointerUpTarget</var>, <var>pointerUpX</var>, and <var>pointerUpY</var> each be null.</li>
+        <li>If <var>event</var> had corresponding <code>pointerdown</code> and <code>pointerup</code> events preceding it, then: set <var>pointerDownTarget</var>/<var>pointerDownX</var>/<var>pointerDownY</var> to the corresponding <code>pointerdown</code> event&rsquo;s event target, <code>clientX</code>, and <code>clientY</code>, and <var>pointerUpTarget</var>/<var>pointerUpX</var>/<var>pointerUpY</var> to the corresponding <code>pointerup</code> event&rsquo;s event target, <code>clientX</code>, and <code>clientY</code>.</li>
+        <li>Otherwise: set both targets to <var>event</var>&rsquo;s event target and both coordinate pairs to <var>event</var>&rsquo;s <code>clientX</code> and <code>clientY</code>. <em>(This covers clicks with no preceding pointer sequence, such as keyboard-synthesized activations.)</em></li>
+        <li>Run light dismiss activities given <var>pointerDownTarget</var>, <var>pointerDownX</var>, <var>pointerDownY</var>, <var>pointerUpTarget</var>, <var>pointerUpX</var>, and <var>pointerUpY</var>.</li>
+      </ol>
+    </div>
+    <p>Because the hook is gated on &ldquo;<var>event</var> is a <code>click</code> event&rdquo;, an <code>auxclick</code> (right/middle button) never reaches light dismiss, and a touch scroll &mdash; whose pointer sequence is canceled and never produces a <code>click</code> &mdash; cannot dismiss anything. Note the parenthetical in step 3 is gendn&rsquo;s reading of &ldquo;Otherwise&rdquo;; the PR text itself does not enumerate which clicks lack pointer events.</p>
+    <span class="citation">Source: <a href="https://github.com/w3c/pointerevents/pull/460" target="_blank" rel="noopener">w3c/pointerevents PR #460</a> (diff, fetched 2026-10-04); <a href="https://github.com/whatwg/html/pull/11536" target="_blank" rel="noopener">whatwg/html PR #11536</a> (run light dismiss activities)</span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <p>Opting in is unchanged &mdash; the improvement is what <em>stops</em> happening. On a Chrome 154 touch screen, scrolling the page behind this menu no longer closes it, and right-clicking the page no longer closes it:</p>
+<pre><code>&lt;button popovertarget="filters"&gt;Filters&lt;/button&gt;
+&lt;div id="filters" popover="auto"&gt;
+  &lt;!-- Chrome 154: survives touch-scroll and right-click outside;
+       still closes on a real click/tap outside or Esc --&gt;
+&lt;/div&gt;
+
+&lt;dialog id="prefs" closedby="any"&gt;
+  &lt;form method="dialog"&gt;&lt;button&gt;Done&lt;/button&gt;&lt;/form&gt;
+&lt;/dialog&gt;
+&lt;script&gt;
+  document.getElementById('prefs').showModal();
+  // closedby="any": a click on ::backdrop light-dismisses via the
+  // dialog's close watcher, so 'cancel' then 'close' fire as before.
+&lt;/script&gt;</code></pre>
+    <p>If you worked <em>around</em> the old bugs &mdash; for example re-opening a popover from a <code>contextmenu</code> handler because right click dismissed it, or suppressing <code>pointerup</code> to stop scroll-dismiss &mdash; those workarounds become dead code in Chrome 154 and can be removed behind a version check or left to no-op.</p>
+    <p>No live demo is embedded: the matching Chrome Platform Showcase route (<code>/v154/light-dismiss-improvements-for-popovers-and-dialogs/</code>) returned HTTP 404 when checked on 2026-10-04 (demo not built yet). When it lands it will appear under the <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/" target="_blank" rel="noopener">showcase index</a>.</p>
+    <span class="citation">Source: markup patterns per <a href="https://html.spec.whatwg.org/multipage/popover.html#the-popover-attribute" target="_blank" rel="noopener">HTML Standard &sect;the popover attribute</a> and <a href="https://html.spec.whatwg.org/multipage/interactive-elements.html#attr-dialog-closedby" target="_blank" rel="noopener">&sect;attr-dialog-closedby</a>; behavior rows per the <a href="https://chromestatus.com/feature/6209615938322432" target="_blank" rel="noopener">ChromeStatus summary</a>; snippet gendn-derived (labelled accordingly)</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">browser compatibility</h2>
+    <p><a href="https://github.com/mdn/browser-compat-data/blob/main/html/global_attributes.json" target="_blank" rel="noopener">BCD <code>html/global_attributes.json</code></a> and <a href="https://github.com/mdn/browser-compat-data/blob/main/html/elements/dialog.json" target="_blank" rel="noopener">BCD <code>html/elements/dialog.json</code></a> have <strong>no entry for this click-based light dismiss change</strong> (checked 2026-10-04) &mdash; BCD tracks the base features, below. The change&rsquo;s own ship data is therefore from ChromeStatus, labelled interim:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Surface</th><th>Chrome</th><th>Edge</th><th>Firefox</th><th>Safari</th></tr></thead>
+      <tr><td>Click-based light dismiss (this change) <em>&mdash; interim, ChromeStatus</em></td><td><strong>154</strong> (desktop, Android, WebView)</td><td>Unknown &mdash; not yet recorded</td><td>No signal</td><td>No signal</td></tr>
+      <tr><td><code>popover</code> attribute (BCD)</td><td>114</td><td>mirror</td><td>125</td><td>17</td></tr>
+      <tr><td><code>&lt;dialog closedby&gt;</code> (BCD)</td><td>134</td><td>mirror</td><td>141</td><td>preview</td></tr>
+    </table>
+    </div>
+    <p>Baseline: <code>popover</code> is <strong>newly available</strong> (low date 2025-01-27, all engines); <code>dialog-closedby</code> is <strong>limited</strong> (no Safari release; Apple&rsquo;s position is &ldquo;support&rdquo; per <a href="https://github.com/WebKit/standards-positions/issues/329" target="_blank" rel="noopener">WebKit/standards-positions#329</a>). The explainer notes implementation bugs were filed on Chromium, Gecko and WebKit for the click-based change, but no Firefox/Safari release carries it yet and ChromeStatus records &ldquo;No signal&rdquo; views from both (queried 2026-10-04). Feature-detecting the new behavior from script is not possible &mdash; there is no API surface to probe; treat it as a progressive quality-of-implementation improvement.</p>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/html/global_attributes.json" target="_blank" rel="noopener">BCD html/global_attributes.json</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/html/elements/dialog.json" target="_blank" rel="noopener">BCD html/elements/dialog.json</a>; <a href="https://api.webstatus.dev/v1/features/popover" target="_blank" rel="noopener">webstatus.dev popover</a>; <a href="https://api.webstatus.dev/v1/features/dialog-closedby" target="_blank" rel="noopener">webstatus.dev dialog-closedby</a>; <a href="https://chromestatus.com/api/v0/features/6209615938322432" target="_blank" rel="noopener">ChromeStatus API record</a></span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <p>Light dismiss only ever reacts to real user input: the pre-154 algorithms assert the <code>PointerEvent</code>&rsquo;s <code>isTrusted</code> is true, and the new design preserves that guarantee structurally &mdash; the <a href="https://github.com/w3c/pointerevents/pull/460" target="_blank" rel="noopener">pointerevents hook</a> runs inside the browser&rsquo;s own event-dispatch steps for the <code>click</code> it is constructing, so synthetic <code>element.click()</code> or dispatched <code>MouseEvent</code>s cannot trigger it. Dismissal of a dialog still routes through its close watcher (&ldquo;Request to close &hellip; with false&rdquo;), keeping close-watcher abuse protections and <code>cancel</code>-ability intact. No new data is exposed to pages: the pointer targets and coordinates the algorithms consume are the same ones already delivered via <code>pointerdown</code>/<code>pointerup</code>/<code>click</code> events.</p>
+    <span class="citation">Source: <a href="https://html.spec.whatwg.org/multipage/popover.html#popover-light-dismiss" target="_blank" rel="noopener">HTML Standard &sect;popover light dismiss (isTrusted assert)</a>; <a href="https://github.com/whatwg/html/pull/11536" target="_blank" rel="noopener">whatwg/html PR #11536</a>; <a href="https://github.com/w3c/pointerevents/pull/460" target="_blank" rel="noopener">w3c/pointerevents PR #460</a></span>
+  </section>
+
+  <section>
+    <h2 id="specifications">specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Specification</th><th>Status</th></tr></thead>
+      <tr><td><a href="https://github.com/whatwg/html/pull/11536" target="_blank" rel="noopener">HTML Standard PR #11536 &mdash; light dismiss via click events</a></td><td>Open PR (checked 2026-10-04); ChromeStatus maturity: &ldquo;Working draft&rdquo;</td></tr>
+      <tr><td><a href="https://github.com/w3c/pointerevents/pull/460" target="_blank" rel="noopener">Pointer Events PR #460 &mdash; &ldquo;Add popover light dismiss integration&rdquo;</a></td><td>Open PR (checked 2026-10-04)</td></tr>
+      <tr><td><a href="https://html.spec.whatwg.org/multipage/popover.html#popover-light-dismiss" target="_blank" rel="noopener">HTML Standard &sect;6.12.2 Popover light dismiss</a> &middot; <a href="https://html.spec.whatwg.org/multipage/interactive-elements.html#dialog-light-dismiss" target="_blank" rel="noopener">&sect;4.11.5 Dialog light dismiss</a></td><td>Current (pre-change) normative text these PRs amend</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/6209615938322432" target="_blank" rel="noopener">ChromeStatus API record</a> (spec_link, standards.maturity)</span>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Popover_API" target="_blank" rel="noopener">MDN: Popover API</a> and <a href="https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Global_attributes/popover" target="_blank" rel="noopener">MDN: popover global attribute</a> (base feature; the click-based mechanism is not yet described there, checked 2026-10-04)</li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/HTMLDialogElement/closedBy" target="_blank" rel="noopener">MDN: HTMLDialogElement.closedBy</a> and <a href="https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/dialog" target="_blank" rel="noopener">MDN: &lt;dialog&gt;</a></li>
+      <li><a href="https://github.com/w3c/pointerevents/issues/542" target="_blank" rel="noopener">Explainer: w3c/pointerevents#542 &mdash; Add context for popover light dismiss to click event</a></li>
+      <li><a href="https://github.com/whatwg/html/issues/10905" target="_blank" rel="noopener">whatwg/html#10905 &mdash; popovers broken in contextmenu event listeners</a> (fixed by PR #11536)</li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/" target="_blank" rel="noopener">chrome-platform-showcase</a> (feature demo route not built yet; 404 on 2026-10-04)</li>
+      <li><a href="https://chromestatus.com/feature/6209615938322432" target="_blank" rel="noopener">ChromeStatus &mdash; Light dismiss improvements for popovers and dialogs (6209615938322432)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
