@@ -293,21 +293,43 @@ async function featureHasDoc(release: string, slug: string): Promise<boolean> {
 // built under an earlier release is the canonical reference — the listing must link it rather
 // than flag a false "doc pending". Built lazily once per process from each page's identity link.
 let identityIndexPromise: Promise<Map<string, string>> | null = null;
+// Bounds the concurrent index.html reads below; the pages are independent files, so this is
+// only a cap on in-flight I/O, never a change to which page wins a duplicate identity.
+const IDENTITY_READ_CONCURRENCY = 32;
 function getIdentityIndex(): Promise<Map<string, string>> {
   if (!identityIndexPromise) {
     identityIndexPromise = (async () => {
       const map = new Map<string, string>();
+      const routes: string[] = [];
       for (const dir of Deno.readDirSync(".")) {
         if (!dir.isDirectory || !/^v\d+$/.test(dir.name)) continue;
         for (const sub of Deno.readDirSync(`./${dir.name}`)) {
           if (!sub.isDirectory) continue;
-          try {
-            const html = await Deno.readTextFile(`./${dir.name}/${sub.name}/index.html`);
-            const m = html.match(/chromestatus\.com\/feature\/(\d+)/);
-            if (m && !map.has(m[1])) map.set(m[1], `/${dir.name}/${sub.name}/`);
-          } catch { /* folder without an index page (child route container) */ }
+          routes.push(`/${dir.name}/${sub.name}/`);
         }
       }
+      // Read the pages concurrently, writing each result back at its route's index: the
+      // collation below then runs in directory order, so `!map.has(id)` still resolves
+      // duplicates first-wins exactly as the sequential loop did, independent of read order.
+      const htmls: (string | null)[] = new Array(routes.length).fill(null);
+      let next = 0;
+      await Promise.all(
+        Array.from(
+          { length: Math.min(IDENTITY_READ_CONCURRENCY, routes.length) },
+          async () => {
+            for (;;) {
+              const i = next++;
+              if (i >= routes.length) break;
+              // A missing index.html means a child-route container, not a page.
+              htmls[i] = await Deno.readTextFile(`.${routes[i]}index.html`).catch(() => null);
+            }
+          },
+        ),
+      );
+      htmls.forEach((html, i) => {
+        const m = html?.match(/chromestatus\.com\/feature\/(\d+)/);
+        if (m && !map.has(m[1])) map.set(m[1], routes[i]);
+      });
       return map;
     })();
   }
