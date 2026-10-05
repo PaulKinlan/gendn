@@ -64,18 +64,26 @@ async function terminateChild(child) {
   }
 }
 
-// PIDs of any process still using this Chrome profile dir as its --user-data-dir. Chrome's
-// crashpad handler and GPU/renderer helpers can outlive the main process for a moment and
-// RE-CREATE profile files after a successful recursive remove, so they must be gone first.
+// PIDs of any Chrome-family process still referencing this profile dir. The main browser
+// carries --user-data-dir=<path>, but helper processes reference the dir differently (e.g.
+// chrome_crashpad_handler gets --database=<path>/Crashpad --metrics-dir=<path>/...), and those
+// helpers can outlive the main process and RE-CREATE profile files after a successful recursive
+// remove — so they must be gone before we remove. The random temp dir name makes a plain path
+// substring match safe; the argv0 check keeps us from ever signalling unrelated processes (e.g.
+// a concurrent `du /tmp/gendn-cdp-<that-exact-dir>`) that merely mention the path.
 // Linux-specific (/proc); returns [] elsewhere and the caller degrades to retry-remove.
 function pidsUsingDir(path) {
-  const needle = `--user-data-dir=${path}`;
   const pids = [];
   try {
     for (const entry of Deno.readDirSync("/proc")) {
       if (!/^\d+$/.test(entry.name) || Number(entry.name) === Deno.pid) continue;
       try {
-        if (Deno.readTextFileSync(`/proc/${entry.name}/cmdline`).includes(needle)) {
+        const cmdline = Deno.readTextFileSync(`/proc/${entry.name}/cmdline`);
+        if (!cmdline.includes(path)) continue;
+        if (
+          cmdline.includes(`--user-data-dir=${path}`) ||
+          (cmdline.split("\0")[0] ?? "").includes("chrom")
+        ) {
           pids.push(Number(entry.name));
         }
       } catch {
@@ -124,7 +132,9 @@ function processAlive(pid) {
 }
 
 // Chrome holds <user-data-dir>/SingletonLock (a "hostname-<pid>" symlink) for the life of the
-// browser. Used for legacy (untagged) dirs where we cannot ask the owning deno process.
+// browser. Used for legacy (untagged) dirs where we cannot ask the owning deno process. A
+// parseable lock whose pid is DEAD is a stale lock — exactly what a SIGKILLed Chrome leaves
+// behind — and must NOT count as live.
 function chromeHoldsLock(dir) {
   let target = null;
   try {
@@ -134,10 +144,11 @@ function chromeHoldsLock(dir) {
   }
   if (target) {
     const m = /-(\d+)$/.exec(target);
-    if (m && processAlive(Number(m[1]))) return true;
+    if (m) return processAlive(Number(m[1]));
+    return true; // present but unparseable: assume live
   }
   try {
-    Deno.lstatSync(`${dir}/SingletonLock`); // lock present but unparseable: assume live
+    Deno.lstatSync(`${dir}/SingletonLock`); // lock present but unreadable: assume live
     return true;
   } catch {
     return false;
