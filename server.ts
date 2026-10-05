@@ -150,6 +150,11 @@ function formatCommitLine(c: CommitInfo | null): string {
 }
 
 async function readPublicAsset(path: string): Promise<Response> {
+  // DEFENSE IN DEPTH ONLY (gendn-d7a): symmetric with readReleaseAsset's guard below. The
+  // nightly vuln-discovery and vuln-verify stations both judged directory traversal SAFE
+  // here because the URL is normalised before use — this guard adds no behaviour change
+  // beyond the same explicit early-exit its sibling already has.
+  if (path.includes("..")) return new Response("Not found", { status: 404 });
   try {
     const file = await Deno.readFile("." + path);
     const ext = path.split(".").pop() ?? "";
