@@ -5,7 +5,13 @@
 // at v<N>/<api-slug>/index.html. The index lists every API by release and
 // flags each as "on MDN → link out" or "generated here → link to local page".
 
-import { Channels, getChannels, getMilestoneFeatures, slugify } from "./lib/chromestatus.ts";
+import {
+  Channels,
+  fetchBounded,
+  getChannels,
+  getMilestoneFeatures,
+  slugify,
+} from "./lib/chromestatus.ts";
 import {
   renderConformanceIndex,
   renderCritique,
@@ -93,10 +99,30 @@ interface CommitInfo {
 const COMMIT_TTL_MS = 5 * 60 * 1000;
 let commitCache: { at: number; value: CommitInfo | null } | null = null;
 
+// Errors are logged in full server-side so an operator can still diagnose the failure, but the
+// client gets a generic message: raw err text can carry internal paths, file names and upstream
+// detail (gendn-snd). The log line carries the context needed to identify the request.
+function serverError(req: Request, what: string, err: unknown): Response {
+  const path = (() => {
+    try {
+      return new URL(req.url).pathname;
+    } catch {
+      return req.url;
+    }
+  })();
+  const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+  console.error(`[gendn] ${what} failed: ${req.method} ${path} -> ${detail}`);
+  if (err instanceof Error && err.stack) console.error(`[gendn] ${what} stack: ${err.stack}`);
+  return new Response("Internal error", {
+    status: 502,
+    headers: { "content-type": "text/plain; charset=utf-8" },
+  });
+}
+
 async function getLatestCommit(): Promise<CommitInfo | null> {
   if (commitCache && Date.now() - commitCache.at < COMMIT_TTL_MS) return commitCache.value;
   try {
-    const res = await fetch(
+    const { res, text } = await fetchBounded(
       "https://api.github.com/repos/PaulKinlan/gendn/commits/main",
       { headers: { accept: "application/vnd.github+json" } },
     );
@@ -104,7 +130,7 @@ async function getLatestCommit(): Promise<CommitInfo | null> {
       commitCache = { at: Date.now(), value: null };
       return null;
     }
-    const data = await res.json();
+    const data = JSON.parse(text);
     const value: CommitInfo = {
       sha: data.sha,
       shortSha: String(data.sha).slice(0, 7),
@@ -665,7 +691,7 @@ Deno.serve({ port: PORT }, async (req) => {
         headers: { "content-type": "text/html; charset=utf-8" },
       });
     } catch (err) {
-      return new Response(`Failed to render conformance index: ${err}`, { status: 502 });
+      return serverError(req, "render conformance index", err);
     }
   }
   if (path === "/conformance/run-all" || path === "/conformance/run-all/") {
@@ -694,7 +720,7 @@ Deno.serve({ port: PORT }, async (req) => {
         headers: { "content-type": "text/html; charset=utf-8" },
       });
     } catch (err) {
-      return new Response(`Failed to render index: ${err}`, { status: 502 });
+      return serverError(req, "render index", err);
     }
   }
 
@@ -705,7 +731,7 @@ Deno.serve({ port: PORT }, async (req) => {
         headers: { "content-type": "text/html; charset=utf-8" },
       });
     } catch (err) {
-      return new Response(`Failed to render features: ${err}`, { status: 502 });
+      return serverError(req, "render features", err);
     }
   }
 
@@ -721,7 +747,7 @@ Deno.serve({ port: PORT }, async (req) => {
     try {
       channels = await getChannels();
     } catch (err) {
-      return new Response(`Failed to load channels: ${err}`, { status: 502 });
+      return serverError(req, "load channels", err);
     }
 
     const known = await knownReleaseMilestones(channels);
@@ -735,7 +761,7 @@ Deno.serve({ port: PORT }, async (req) => {
           headers: { "content-type": "text/html; charset=utf-8" },
         });
       } catch (err) {
-        return new Response(`Failed to render release: ${err}`, { status: 502 });
+        return serverError(req, `render release ${release}`, err);
       }
     }
 
