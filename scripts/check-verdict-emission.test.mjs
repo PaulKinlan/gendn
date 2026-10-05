@@ -269,6 +269,18 @@ assert(
 );
 r = await checkLog(LOGS.runAllNotGreen, ["--phase", "nonsense"]);
 assert("exit 2 on an unknown --phase", r.code === 2);
+// The filed defect (gendn-yl1): a bare trailing `--phase` with no value was consumed as
+// `undefined`, became `null`, and was treated as "no phase declared" — so on this very log (which
+// passes on its own and passes again under `--phase run-all`, asserted above) the CLI derived
+// run-all and exited 0, silently dropping the cross-check the caller asked for. It is a usage
+// error: the caller is told, and no evaluation runs (nothing is printed for the log).
+r = await checkLog(LOGS.runAllNotGreen, ["--phase"]);
+assert("exit 2 on a bare trailing --phase with no argument", r.code === 2);
+assert(
+  "the bare --phase usage error names the flag and performs NO evaluation (no derived phase, no PASS)",
+  r.err.includes("check-verdict-emission: --phase requires an argument") &&
+    r.err.includes("usage:") && !r.out.includes("phase    :") && !r.out.includes("PASS"),
+);
 const missing = await new Deno.Command(Deno.execPath(), {
   args: ["run", "--allow-read", CHECKER, `${root}/does-not-exist.log`],
   stdout: "piped",
