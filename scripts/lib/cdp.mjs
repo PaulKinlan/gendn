@@ -66,40 +66,53 @@ async function terminateChild(child) {
 
 // PIDs of any Chrome-family process still referencing this profile dir. The main browser
 // carries --user-data-dir=<path>, but helper processes reference the dir differently (e.g.
-// chrome_crashpad_handler gets --database=<path>/Crashpad --metrics-dir=<path>/...), and those
-// helpers can outlive the main process and RE-CREATE profile files after a successful recursive
-// remove — so they must be gone before we remove. The random temp dir name makes a plain path
-// substring match safe; the argv0 check keeps us from ever signalling unrelated processes (e.g.
-// a concurrent `du /tmp/gendn-cdp-<that-exact-dir>`) that merely mention the path.
-// Linux-specific (/proc); returns [] elsewhere and the caller degrades to retry-remove.
-function pidsUsingDir(path) {
+// chrome_crashpad_handler is spawned with --database=<path>/Crashpad --metrics-dir=<path>...),
+// and those helpers can outlive the main process and RE-CREATE profile files after a
+// successful recursive remove — so they must be gone before we remove.
+//
+// Implemented via `ps`, NOT /proc: Deno categorically denies procfs reads under `deno run`
+// ("Requires all access to /proc" unless --allow-all), and the gate tasks run with an
+// explicit permission set — so a /proc-based scan silently degrades to a no-op in every
+// real gate run. --allow-run is already required to launch Chrome, which makes `ps` the one
+// dependable process-list primitive available in every caller. If `ps` itself fails we say
+// so loudly instead of silently skipping the kill. The random temp dir name keeps a plain
+// path substring match precise; the argv0/--user-data-dir checks mean we never signal
+// unrelated processes (e.g. a concurrent `du /tmp/gendn-cdp-<that-exact-dir>`) that merely
+// mention the path.
+function parseProcessListForDir(out, path) {
   const pids = [];
-  try {
-    for (const entry of Deno.readDirSync("/proc")) {
-      if (!/^\d+$/.test(entry.name) || Number(entry.name) === Deno.pid) continue;
-      try {
-        const cmdline = Deno.readTextFileSync(`/proc/${entry.name}/cmdline`);
-        if (!cmdline.includes(path)) continue;
-        if (
-          cmdline.includes(`--user-data-dir=${path}`) ||
-          (cmdline.split("\0")[0] ?? "").includes("chrom")
-        ) {
-          pids.push(Number(entry.name));
-        }
-      } catch {
-        // unreadable (not ours / already gone)
-      }
-    }
-  } catch {
-    // /proc unavailable
+  for (const line of out.split("\n")) {
+    if (!line.includes(path)) continue;
+    const trimmed = line.trimStart();
+    const sp = trimmed.indexOf(" ");
+    if (sp < 0) continue;
+    const pid = Number(trimmed.slice(0, sp));
+    if (!Number.isInteger(pid) || pid === Deno.pid) continue;
+    const args = trimmed.slice(sp + 1).trim();
+    const argv0 = args.split(" ")[0] ?? "";
+    if (args.includes(`--user-data-dir=${path}`) || argv0.includes("chrom")) pids.push(pid);
   }
   return pids;
+}
+
+async function pidsUsingDir(path) {
+  try {
+    const cmd = new Deno.Command("ps", { args: ["-eo", "pid=,args="], stdout: "piped" });
+    const { stdout } = await cmd.output();
+    return parseProcessListForDir(new TextDecoder().decode(stdout), path);
+  } catch (err) {
+    console.error(
+      `[cdp] WARNING: cannot list processes (ps failed: ${err.message}); skipping the ` +
+        `pre-remove kill for ${path} — removal may race lingering Chrome helpers`,
+    );
+    return [];
+  }
 }
 
 async function killProcessesUsingDir(path, timeoutMs = 5000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const pids = pidsUsingDir(path);
+    const pids = await pidsUsingDir(path);
     if (pids.length === 0) return true;
     for (const pid of pids) {
       try {
@@ -110,7 +123,7 @@ async function killProcessesUsingDir(path, timeoutMs = 5000) {
     }
     await sleep(100);
   }
-  return pidsUsingDir(path).length === 0;
+  return (await pidsUsingDir(path)).length === 0;
 }
 
 // ---------- Chrome profile dir lifecycle (gendn-cdp-*) ----------
@@ -212,7 +225,15 @@ async function sweepStaleProfileDirs() {
 // is NOT swallowed: warn on stderr so it is visible in the gate log, and leave the dir for the
 // next run's sweep (its pid will be gone by then).
 async function removeProfileDir(path, delays = [0, 150, 400, 900, 1900]) {
-  await killProcessesUsingDir(path);
+  try {
+    await killProcessesUsingDir(path);
+  } catch (err) {
+    // Never let cleanup bookkeeping break the gate itself — but say it loudly.
+    console.error(
+      `[cdp] WARNING: pre-remove kill failed for ${path} (${err.message}); ` +
+        `removal may race lingering Chrome helpers`,
+    );
+  }
   let lastErr = null;
   for (const delay of delays) {
     if (delay > 0) await sleep(delay);
