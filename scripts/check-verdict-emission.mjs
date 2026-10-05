@@ -88,9 +88,11 @@ export function classifyPhase(logText) {
 }
 
 export function expectedVerdictLines(phaseName) {
+  const phase = PHASES[phaseName];
+  if (!phase) throw new Error(`unknown phase: ${phaseName}`);
   // Re-derived per phase, never carried: one verdict block reached => its single terminal if/else
   // prints exactly one line; never reached (killed) => no line.
-  return PHASES[phaseName].summary ? 1 : 0;
+  return phase.summary ? 1 : 0;
 }
 
 function usage(message) {
