@@ -152,7 +152,15 @@ async function main() {
   let declared = null;
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--phase") {
-      declared = args[++i] ?? null;
+      // Bounded BEFORE the value is consumed (gendn-yl1): a bare trailing `--phase` used to read
+      // `undefined`, become `null`, and be treated as "no phase declared" — so the CLI silently
+      // proceeded as though the flag were absent, and on a complete run-all log it derived run-all
+      // and exited 0 without running the cross-check the caller asked for. It is a usage error.
+      if (i + 1 >= args.length) {
+        usage("--phase requires an argument");
+        Deno.exit(2);
+      }
+      declared = args[++i];
       continue;
     }
     if (logPath === null && !args[i].startsWith("-")) {
