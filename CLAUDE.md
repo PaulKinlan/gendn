@@ -371,6 +371,50 @@ deno task test-verdict-emission # validate the CHECKER against synthetic logs �
 genuinely unavailable) and is NEVER counted as a pass. Coverage denominators are honest and burned
 down wave by wave — never claim complete/all.
 
+## Landing preflight (one shared block — `scripts/landing-preflight.sh`)
+
+Every landing uses the same four-branch assert-then-act block, kept in the repo so copies cannot
+diverge:
+
+```bash
+sh scripts/landing-preflight.sh <source-ref> main          # dry run: classify only, never mutates
+sh scripts/landing-preflight.sh <source-ref> main --push   # act: assert, push, then readback
+```
+
+| exit | meaning | action |
+|---|---|---|
+| 0 | would-push (dry run) / pushed with the readback agreed | — |
+| 2 | NO-OP (`Everything up-to-date`) | nothing to land |
+| 3 | REFUSED (`[rejected]` present) | DO NOT PUSH: fetch + re-merge + RE-GATE the merged tree |
+| 4 | UNKNOWN — fail closed | DO NOT PUSH |
+| 5 | post-condition: pushed, but the readback disagrees | investigate |
+| 6 | precondition: HEAD/ref unresolvable, or probe refs already present | fix, re-run |
+
+Measured rules it encodes — do not "simplify" any of them:
+
+- **Rejection is tested FIRST**, matched as the token `[rejected]` and never a surrounding wording
+  (a diverged remote says `(fetch first)`, an ancestor push says `(non-fast-forward)`). On this git
+  a refusal prints no `a..b` range at all, so the **anchored** row regex is what makes the row test
+  safe; testing rejection first is free insurance against a future git that prints a range on a
+  rejected update. A loose regex can be satisfied by a refusal line, which carries a sha.
+- **The update row is `<remote-old>..<local-new>`**: assert the row's NEW value is a PREFIX of
+  `git rev-parse HEAD` at whatever length the row printed, with a minimum-length guard. Never "the
+  first value" (that phrasing was inverted once and refused a good landing), and never a hardcoded
+  abbreviation length (it grows with `core.abbrev` and repo size, so fixed-length equality fails a
+  correct push).
+- **An empty read never passes** — an unparsed row must fail closed like anything else unrecognised.
+- **The readback is the post-condition, not a belt**: a dry run and a real push print byte-identical
+  rows, so the row proves the push *would be accepted* and cannot prove it *occurred*; only
+  `git ls-remote <remote> refs/heads/<target>` returning the pushed sha does.
+- **Non-mutation belt**: zero probe refs (`--probe-glob`) before and after every dry run — a
+  `--dry-run` that created a ref would be a silent mutation.
+- **Run it AFTER the merge commit exists.** Against a worktree still at the old tip, the form that
+  reads the real target reports the exact false green this block exists to prevent.
+- The dry-run status must be captured UNPIPED: `/bin/sh` here is dash, where `PIPESTATUS` is a hard
+  failure and `pipefail` is unavailable.
+- Rehearsal: `sh scripts/landing-preflight.test.sh` exercises all four branches and states which
+  cases were real local-git output versus stubbed shapes. Runs under both `sh` (dash) and `bash`.
+
 ## Testing checklist (do this before merging anything)
 
 ```bash
