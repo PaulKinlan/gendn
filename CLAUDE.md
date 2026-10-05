@@ -362,6 +362,8 @@ deno task build-goals          # roll critique followUpGoals into goals.json
 deno task validate-artifacts   # schemas + suiteHash + implementation-sufficiency mappings
 deno task test-reference-contract # fail-closed validator regression tests
 deno task check-conformance    # coverage + immutability + touched-page sufficiency gate
+deno task check-verdict-emission <log> [--phase run-all|responsive|behavioural]  # assert the emitted verdict block of a gate log
+deno task test-verdict-emission # the verdict-emission check's own fail-closed regression tests
 ```
 
 **Gate before every push (in addition to `deno task check-routes`):** `deno task validate-artifacts`,
