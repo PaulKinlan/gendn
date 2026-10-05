@@ -1,7 +1,7 @@
 #!/usr/bin/env -S deno run
 // cdp.test.mjs — committed fixtures for the cdp profile-dir tooling (gendn-bmi): the ps parse
 // anomaly warning, its per-line dedupe, parse fidelity vs the merged dfc4c2c behaviour, and
-// TMPDIR root resolution (incl. the empty-string → CWD case). No Chrome. Runs as
+// TMPDIR root resolution (incl. the empty-string → /tmp-like-unset case). No Chrome. Runs as
 // `deno task test-cdp` and chained first in `deno task test-reference-contract`.
 import { parseProcessListForDir, tmpRoot } from "./lib/cdp.mjs";
 
@@ -63,8 +63,8 @@ Deno.env.delete("TMPDIR");
 assert('unset TMPDIR resolves to "/tmp"', tmpRoot() === "/tmp");
 Deno.env.set("TMPDIR", "");
 assert(
-  'TMPDIR="" resolves to the CWD (absolute), not "/" and not a bare relative',
-  tmpRoot() === Deno.cwd(),
+  'TMPDIR="" resolves to "/tmp" like unset (we own the makeTempDir dir, so Deno\'s cwd-relative quirk is overridden)',
+  tmpRoot() === "/tmp",
 );
 Deno.env.set("TMPDIR", "/tmp/");
 assert('TMPDIR="/tmp/" strips the trailing slash', tmpRoot() === "/tmp");

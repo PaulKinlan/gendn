@@ -202,15 +202,18 @@ const LEGACY_MIN_AGE_MS = 15 * 60 * 1000;
 // Single source of truth for where Chrome profile dirs live. Measured on deno 2.9.7:
 // TMPDIR unset → makeTempDir creates absolute /tmp/<name>; TMPDIR="" → it creates a BARE
 // RELATIVE name in the process CWD (during a gate run that is the repo worktree — untracked
-// dirt); a trailing slash is normalised by Deno itself, but we strip it so the root stays
-// canonical. We resolve the root to an absolute path ONCE and pass it as makeTempDir's dir,
-// and the sweep derives its paths from the same function — creation and sweeping can never
-// disagree whatever TMPDIR says, and the ps substring match (string-exact) always sees the
-// same path Chrome was given. Exported for the committed root-resolution fixture.
+// dirt a merger could push, and the selector's untracked-residue trap); a trailing slash is
+// normalised by Deno itself, but we strip it so the root stays canonical. Empty TMPDIR is
+// conventionally "unset/use the default", and we own the makeTempDir dir argument — so we
+// override Deno's cwd-relative quirk (unset AND empty both → /tmp) instead of propagating
+// profile dirs into the repo tree. The same function resolves the root consistently for
+// both call sites (the launch-time sweep and makeTempDir's dir), so creation and sweeping
+// can never disagree whatever TMPDIR says — even if someone later sets TMPDIR mid-process —
+// and the ps substring match (string-exact) always sees the same path Chrome was given.
+// Exported for the committed root-resolution fixture.
 export function tmpRoot() {
   const raw = Deno.env.get("TMPDIR");
-  if (raw === undefined) return "/tmp";
-  if (raw === "") return Deno.cwd(); // empty TMPDIR means the CWD — resolved to absolute
+  if (raw === undefined || raw === "") return "/tmp"; // unset and empty both mean the default
   const abs = raw.startsWith("/") ? raw : `${Deno.cwd()}/${raw}`;
   return abs.replace(/\/+$/, "") || "/";
 }
