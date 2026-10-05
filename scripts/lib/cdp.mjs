@@ -4,6 +4,14 @@
 // the runner drives headless Chrome over the DevTools WebSocket directly. This is deterministic:
 // fixed viewports, load-event waits, no random timing baked into results.
 //
+// Chrome profile dirs (TMPDIR/gendn-cdp-*) are a managed resource: every launch creates one,
+// every close() removes it with retry/backoff (Chrome's crashpad/GPU helpers can outlive the main
+// process and race a one-shot remove), a failed removal is LOUD (stderr warning — never a silent
+// swallow), and every launch sweeps dirs orphaned by crashed/killed runs first. The sweep is safe
+// against concurrent runs: dirs are pid-tagged and only reclaimed when the owning process is gone
+// (or, for legacy untagged dirs, when no live Chrome holds the dir's SingletonLock and the dir is
+// well past the spawn window).
+//
 // Usage:
 //   const browser = await launch();
 //   const page = await browser.newPage({ width, height, mobile, deviceScaleFactor });
@@ -25,9 +33,236 @@ function findChrome() {
   return candidates;
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// ---------- Chrome process termination ----------
+
+// Terminate a spawned Chrome deterministically: SIGTERM with a bounded wait, then SIGKILL.
+// An unbounded await on a wedged Chrome would hang the whole gate.
+async function terminateChild(child) {
+  try {
+    child.kill();
+  } catch {
+    // already exited
+  }
+  try {
+    const st = await Promise.race([child.status, sleep(5000).then(() => null)]);
+    if (st === null) {
+      try {
+        child.kill("SIGKILL");
+      } catch {
+        // ignore
+      }
+      try {
+        await Promise.race([child.status, sleep(5000).then(() => null)]);
+      } catch {
+        // ignore
+      }
+    }
+  } catch {
+    // status already settled
+  }
+}
+
+// PIDs of any Chrome-family process still referencing this profile dir. The main browser
+// carries --user-data-dir=<path>, but helper processes reference the dir differently (e.g.
+// chrome_crashpad_handler is spawned with --database=<path>/Crashpad --metrics-dir=<path>...),
+// and those helpers can outlive the main process and RE-CREATE profile files after a
+// successful recursive remove — so they must be gone before we remove.
+//
+// Implemented via `ps`, NOT /proc: Deno categorically denies procfs reads under `deno run`
+// ("Requires all access to /proc" unless --allow-all), and the gate tasks run with an
+// explicit permission set — so a /proc-based scan silently degrades to a no-op in every
+// real gate run. --allow-run is already required to launch Chrome, which makes `ps` the one
+// dependable process-list primitive available in every caller. If `ps` itself fails we say
+// so loudly instead of silently skipping the kill. The random temp dir name keeps a plain
+// path substring match precise; the argv0/--user-data-dir checks mean we never signal
+// unrelated processes (e.g. a concurrent `du /tmp/gendn-cdp-<that-exact-dir>`) that merely
+// mention the path.
+function parseProcessListForDir(out, path) {
+  const pids = [];
+  for (const line of out.split("\n")) {
+    if (!line.includes(path)) continue;
+    const trimmed = line.trimStart();
+    const sp = trimmed.indexOf(" ");
+    if (sp < 0) continue;
+    const pid = Number(trimmed.slice(0, sp));
+    if (!Number.isInteger(pid) || pid === Deno.pid) continue;
+    const args = trimmed.slice(sp + 1).trim();
+    const argv0 = args.split(" ")[0] ?? "";
+    if (args.includes(`--user-data-dir=${path}`) || argv0.includes("chrom")) pids.push(pid);
+  }
+  return pids;
+}
+
+async function pidsUsingDir(path) {
+  try {
+    const cmd = new Deno.Command("ps", { args: ["-eo", "pid=,args="], stdout: "piped" });
+    const { stdout } = await cmd.output();
+    return parseProcessListForDir(new TextDecoder().decode(stdout), path);
+  } catch (err) {
+    console.error(
+      `[cdp] WARNING: cannot list processes (ps failed: ${err.message}); skipping the ` +
+        `pre-remove kill for ${path} — removal may race lingering Chrome helpers`,
+    );
+    return [];
+  }
+}
+
+async function killProcessesUsingDir(path, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const pids = await pidsUsingDir(path);
+    if (pids.length === 0) return true;
+    for (const pid of pids) {
+      try {
+        Deno.kill(pid, "SIGKILL");
+      } catch {
+        // already gone
+      }
+    }
+    await sleep(100);
+  }
+  return (await pidsUsingDir(path)).length === 0;
+}
+
+// ---------- Chrome profile dir lifecycle (gendn-cdp-*) ----------
+
+const PROFILE_PREFIX = "gendn-cdp-";
+// Profile dirs created by THIS process and not yet removed (tracked so the sweep never
+// reclaims the dir of a browser we are still using during RECYCLE_EVERY relaunches).
+const liveProfileDirs = new Set();
+
+// Conservative liveness probe: signal 0 only checks existence/permissions. Unknown errors
+// (e.g. PermissionDenied for another user's process) count as ALIVE so we never sweep on doubt.
+function processAlive(pid) {
+  try {
+    Deno.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return !(err instanceof Deno.errors.NotFound);
+  }
+}
+
+// Chrome holds <user-data-dir>/SingletonLock (a "hostname-<pid>" symlink) for the life of the
+// browser. Used for legacy (untagged) dirs where we cannot ask the owning deno process. A
+// parseable lock whose pid is DEAD is a stale lock — exactly what a SIGKILLed Chrome leaves
+// behind — and must NOT count as live.
+function chromeHoldsLock(dir) {
+  let target = null;
+  try {
+    target = Deno.readLinkSync(`${dir}/SingletonLock`);
+  } catch {
+    // absent, or not a symlink
+  }
+  if (target) {
+    const m = /-(\d+)$/.exec(target);
+    if (m) return processAlive(Number(m[1]));
+    return true; // present but unparseable: assume live
+  }
+  try {
+    Deno.lstatSync(`${dir}/SingletonLock`); // lock present but unreadable: assume live
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Reclaim profile dirs orphaned by crashed/killed runs. Runs at every launch(). Never throws.
+//
+// Safety against concurrent runs on the same VM (two lanes can hold browser gates at once):
+//  - pid-tagged dirs (gendn-cdp-<pid>-*) are skipped whenever that pid is still alive — a live
+//    run's dir can never be reclaimed, whoever owns it. Our own pid is only reclaimed when the
+//    dir is not one this process is currently using (leftovers from an earlier recycle).
+//  - legacy untagged dirs (pre-fix code) are only reclaimed when no live Chrome holds their
+//    SingletonLock AND they are older than the spawn window, so a just-launched browser from
+//    old code can never be swept mid-run.
+const LEGACY_MIN_AGE_MS = 15 * 60 * 1000;
+
+async function sweepStaleProfileDirs() {
+  const root = Deno.env.get("TMPDIR") ?? "/tmp";
+  let reclaimed = 0;
+  const failed = [];
+  try {
+    for (const entry of Deno.readDirSync(root)) {
+      if (!entry.isDirectory || !entry.name.startsWith(PROFILE_PREFIX)) continue;
+      const path = `${root}/${entry.name}`;
+      const m = /^gendn-cdp-(\d+)-/.exec(entry.name);
+      if (m) {
+        const pid = Number(m[1]);
+        if (pid !== Deno.pid && processAlive(pid)) continue; // another live run owns it
+        if (pid === Deno.pid && liveProfileDirs.has(path)) continue; // our current browser
+      } else {
+        if (chromeHoldsLock(path)) continue;
+        const mtime = await Deno.stat(path).then((s) => s.mtime?.getTime()).catch(() => undefined);
+        if (mtime === undefined || Date.now() - mtime < LEGACY_MIN_AGE_MS) continue;
+      }
+      try {
+        // The owning deno process is gone, but its Chrome may live on (reparented orphan) and
+        // would recreate profile files after our remove — kill anything still using the dir.
+        await killProcessesUsingDir(path);
+        await Deno.remove(path, { recursive: true });
+        reclaimed++;
+      } catch (err) {
+        if (!(err instanceof Deno.errors.NotFound)) failed.push(`${path} (${err.message})`);
+      }
+    }
+  } catch (err) {
+    console.error(`[cdp] sweep: could not scan ${root} for stale profile dirs: ${err.message}`);
+    return;
+  }
+  if (reclaimed > 0) {
+    console.error(
+      `[cdp] sweep: reclaimed ${reclaimed} stale Chrome profile dir(s) under ${root} ` +
+        `(leftovers from crashed/killed runs)`,
+    );
+  }
+  for (const f of failed) console.error(`[cdp] sweep: could not remove ${f}`);
+}
+
+// Remove a profile dir deterministically: kill everything still using it first (see
+// pidsUsingDir), then remove with retry/backoff to win any residual race. A persistent failure
+// is NOT swallowed: warn on stderr so it is visible in the gate log, and leave the dir for the
+// next run's sweep (its pid will be gone by then).
+async function removeProfileDir(path, delays = [0, 150, 400, 900, 1900]) {
+  try {
+    await killProcessesUsingDir(path);
+  } catch (err) {
+    // Never let cleanup bookkeeping break the gate itself — but say it loudly.
+    console.error(
+      `[cdp] WARNING: pre-remove kill failed for ${path} (${err.message}); ` +
+        `removal may race lingering Chrome helpers`,
+    );
+  }
+  let lastErr = null;
+  for (const delay of delays) {
+    if (delay > 0) await sleep(delay);
+    try {
+      await Deno.remove(path, { recursive: true });
+      liveProfileDirs.delete(path);
+      return true;
+    } catch (err) {
+      if (err instanceof Deno.errors.NotFound) {
+        liveProfileDirs.delete(path); // already gone (e.g. concurrent sweep) — fine
+        return true;
+      }
+      lastErr = err;
+    }
+  }
+  liveProfileDirs.delete(path);
+  console.error(
+    `[cdp] WARNING: could not remove Chrome profile dir ${path} ` +
+      `(${lastErr?.name}: ${lastErr?.message}); it stays on disk and the next run's sweep ` +
+      `will reclaim it`,
+  );
+  return false;
+}
+
 export async function launch({ port = 9333 } = {}) {
   const bins = findChrome();
-  const userDataDir = await Deno.makeTempDir({ prefix: "gendn-cdp-" });
+  await sweepStaleProfileDirs();
+  const userDataDir = await Deno.makeTempDir({ prefix: `${PROFILE_PREFIX}${Deno.pid}-` });
+  liveProfileDirs.add(userDataDir);
   let child = null;
   let lastErr = null;
   for (const bin of bins) {
@@ -54,7 +289,10 @@ export async function launch({ port = 9333 } = {}) {
       lastErr = err;
     }
   }
-  if (!child) throw new Error(`could not launch Chrome (tried ${bins.join(", ")}): ${lastErr}`);
+  if (!child) {
+    await removeProfileDir(userDataDir);
+    throw new Error(`could not launch Chrome (tried ${bins.join(", ")}): ${lastErr}`);
+  }
 
   // Wait for the debugging endpoint.
   let wsUrl = null;
@@ -71,11 +309,8 @@ export async function launch({ port = 9333 } = {}) {
     await new Promise((r) => setTimeout(r, 100));
   }
   if (!wsUrl) {
-    try {
-      child.kill();
-    } catch {
-      // ignore
-    }
+    await terminateChild(child);
+    await removeProfileDir(userDataDir);
     throw new Error("Chrome DevTools endpoint did not come up");
   }
   return new Browser(child, wsUrl, userDataDir, port);
@@ -149,21 +384,8 @@ export class Browser {
     } catch {
       // ignore
     }
-    try {
-      this.child.kill();
-    } catch {
-      // ignore
-    }
-    try {
-      await this.child.status;
-    } catch {
-      // ignore
-    }
-    try {
-      await Deno.remove(this.userDataDir, { recursive: true });
-    } catch {
-      // ignore
-    }
+    await terminateChild(this.child);
+    await removeProfileDir(this.userDataDir);
   }
 }
 
