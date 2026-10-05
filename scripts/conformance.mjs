@@ -399,6 +399,27 @@ async function main() {
       }
       await Deno.writeTextFile(`${OUT_DIR}/responsive.json`, JSON.stringify(rows, null, 2) + "\n");
       console.log(`\nresponsive-check: ${rows.length} pages scanned → ${OUT_DIR}/responsive.json`);
+      // Verdict visibility (gendn-m9j): the scan's summary line above carries no verdict, so
+      // REVIEW pages were only visible in per-page output. Print them explicitly at the end —
+      // additive only; per-page lines and exit code (0) are unchanged.
+      const clsVerdict = (d) =>
+        d.noOverflow && d.controlsInView && d.consoleClean && d.networkClean ? "ok" : "REVIEW";
+      const flagged = rows
+        .map((r) => ({ id: r.id, desktop: clsVerdict(r.desktop), mobile: clsVerdict(r.mobile) }))
+        .filter((v) => v.desktop !== "ok" || v.mobile !== "ok");
+      const nD = flagged.filter((v) => v.desktop !== "ok").length;
+      const nM = flagged.filter((v) => v.mobile !== "ok").length;
+      if (flagged.length > 0) {
+        console.log(
+          `verdict: REVIEW-REQUIRED - ${flagged.length} page(s) flagged ` +
+            `(desktop ${nD} / mobile ${nM} REVIEW of ${rows.length} scanned), exit code unchanged`,
+        );
+        for (const v of flagged) {
+          console.log(`  review-page ${v.id} desktop:${v.desktop} mobile:${v.mobile}`);
+        }
+      } else {
+        console.log(`verdict: GREEN - all ${rows.length} scanned pages ok on both classes`);
+      }
     } else {
       const runAll = [];
       let n = 0;
@@ -442,6 +463,33 @@ async function main() {
         `\nrun-all: ${runAll.length} suites · assertions ${agg.pass} pass / ${agg.fail} fail / ${agg.blocked} blocked (of ${agg.total})`,
       );
       console.log(`rollup → ${OUT_DIR}/index.html · results → ${OUT_DIR}/results.json`);
+      // Verdict visibility (gendn-m9j): a full run-all EXITS 0 by design (it is the backlog
+      // snapshot), so the exit code is not a verdict. Print an explicit end-of-run summary of
+      // the failing assertions, grouped by assertion name with the affected page ids —
+      // additive only; the totals line and exit codes are unchanged.
+      const byAssertion = new Map();
+      for (const s of runAll) {
+        for (const f of s.results.filter((x) => x.status === "fail")) {
+          if (!byAssertion.has(f.id)) byAssertion.set(f.id, []);
+          byAssertion.get(f.id).push(s.id);
+        }
+      }
+      if (agg.fail > 0) {
+        const pagesWithFails = new Set(
+          runAll.filter((s) => s.fail > 0).map((s) => s.id),
+        ).size;
+        console.log(
+          `verdict: NOT-GREEN - ${agg.fail} failing assertions on ${pagesWithFails} of ${runAll.length} suites ` +
+            `(exit code unchanged for run-all; single-page runs still exit 2)`,
+        );
+        for (
+          const [name, pages] of [...byAssertion.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+        ) {
+          console.log(`  fail-assertion ${name} pages=${pages.length} :: ${pages.join(" ")}`);
+        }
+      } else {
+        console.log(`verdict: GREEN - 0 failing assertions across ${runAll.length} suites`);
+      }
       // Single-page runs are the routine's per-page gate: don't push a red page. A full run-all is
       // the backlog snapshot (many known gaps during burn-down), so it reports without failing.
       if (agg.fail > 0 && only) Deno.exitCode = 2;
