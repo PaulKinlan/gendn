@@ -18,6 +18,9 @@
 #   --probe-glob   probe-ref glob checked by the non-mutation belt
 #                  (default: refs/heads/landing-preflight-probe-*)
 #
+# USAGE: scripts/landing-preflight.sh <source-ref> [target-ref] [--remote <name>] [--push]
+#        [--out <file>] [--probe-glob <glob>]
+#
 # EXIT CODES (distinct so a caller cannot read "nothing to land" as success)
 #   0  WOULD-PUSH / PUSHED+readback agreed (see the line printed for which)
 #   2  NO-OP      — "Everything up-to-date": nothing to land
@@ -26,6 +29,9 @@
 #                   or the non-mutation belt tripped
 #   5  POSTCONDITION — the real push was attempted but the readback did not confirm it
 #   6  PRECONDITION  — cannot resolve HEAD/ref, or the belt was already dirty before starting
+#   6 is deliberate for malformed invocations: a crash used to exit 2 in dash, which is this
+#      script's NO-OP code, so a broken command could be read as a successful "nothing to land".
+#      A failure code no success path uses cannot be confused with one (gendn-04g).
 #
 # MEASURED RULES THIS ENCODES (each was measured, several are counter-intuitive):
 #

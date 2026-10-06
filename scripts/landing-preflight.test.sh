@@ -167,6 +167,7 @@ for shell in sh bash; do
     extra=1
     grep -q "requires a value" "$TMPROOT/a15.out" || extra=0
     grep -qE "unbound variable|parameter not set" "$TMPROOT/a15.out" && extra=0
+    grep -q "usage:" "$TMPROOT/a15.out" || extra=0
     check "A15 $shell: last-arg '$opt' -> usage + exit 6 (no shell error)" 6 "$rc" "$extra"
   done
 done
@@ -215,7 +216,7 @@ B_MAIN_BEFORE=$(git -C "$B/remote.git" rev-parse refs/heads/main)
   sh "$SCRIPT" fleet/x main --remote origin --out "$B/b1.row" >"$B/b1.out" 2>&1
   echo $? >"$B/b1.rc"
 )
-b1_row=$(grep -E '^[[:space:]]*[0-9a-f]+\.\.[0-9a-f]+' "$B/b1.row" 2>/dev/null | head -1)
+b1_row=$(grep -E '^[[:space:]]*[0-9a-f]+\.\.[0-9a-f]+' "$B/b1.row" 2>/dev/null | head -n 1)
 say "      B1 real row: $b1_row"
 A7=$(printf '%s' "$B_A" | cut -c1-7)
 B7=$(printf '%s' "$B_B" | cut -c1-7)
@@ -258,7 +259,7 @@ check "B3 REAL Everything-up-to-date NO-OP" 2 "$(cat "$B/b3.rc")" 1
   sh "$SCRIPT" fleet/x main --remote origin --out "$B/b4.row" >"$B/b4.out" 2>&1
   echo $? >"$B/b4.rc"
 )
-say "      B4 refusal line: $(cat "$B/b4.row" 2>/dev/null | head -1)"
+say "      B4 refusal line: $(cat "$B/b4.row" 2>/dev/null | head -n 1)"
 check "B4 REAL [rejected] refusal classified REFUSED" 3 "$(cat "$B/b4.rc")" 1
 check "B4 control: fleet/x was NOT pushed by a refusal" 0 \
   "$([ "$(git -C "$B/remote.git" rev-parse refs/heads/main)" = "$(cat "$B/C")" ] && echo 0 || echo 1)" 1
