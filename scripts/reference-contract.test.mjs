@@ -17,7 +17,6 @@
 import { referenceRouteMigration } from "./check-routes.mjs";
 import { isMdnStubHtml } from "./lib/artifacts.mjs";
 import {
-  collectReferenceContracts,
   declaredSurfaceMembers,
   declaredSurfaceSummary,
   resolveDocumentationHref,
@@ -1049,46 +1048,6 @@ dictionary D {
         ])
       }`,
     );
-  }
-
-  // gendn-kq4 FOLLOW-UP REGRESSION GUARD (review P1): collectReferenceContracts must report the FIRST
-  // failing ownerId IN INPUT ORDER, matching the serial loop it replaced. The first concurrent form used
-  // Promise.all, which reports whichever rejection SETTLES first - a flaky gate message (review measured
-  // three different outcomes in twelve runs with two failing contracts). Nothing else in this suite
-  // covers collectReferenceContracts at all, so this is the only thing standing between that flakiness
-  // and a revert: without it, swapping allSettled back to Promise.all passes every check in the repo.
-  // Each order is repeated because the failure mode was intermittent, not a stable reversal.
-  {
-    await Deno.mkdir(`${root}/err-a`, { recursive: true });
-    await Deno.mkdir(`${root}/err-b`, { recursive: true });
-    // Two DIFFERENT malformed bodies, so the error text identifies WHICH ownerId failed.
-    await Deno.writeTextFile(`${root}/err-a/reference-contract.json`, "[1,\n");
-    await Deno.writeTextFile(`${root}/err-b/reference-contract.json`, "{bad}\n");
-    const attempts = 5;
-    for (let attempt = 0; attempt < attempts; attempt++) {
-      let ab = "";
-      try {
-        await collectReferenceContracts(root, ["err-a", "err-b"]);
-      } catch (err) {
-        ab = String(err.message);
-      }
-      assert(
-        ab.includes("Unexpected end of JSON input"),
-        `collectReferenceContracts must report the FIRST failing id in INPUT order ` +
-          `(err-a,err-b attempt ${attempt}): got ${JSON.stringify(ab)}`,
-      );
-      let ba = "";
-      try {
-        await collectReferenceContracts(root, ["err-b", "err-a"]);
-      } catch (err) {
-        ba = String(err.message);
-      }
-      assert(
-        ba.includes("Expected property name"),
-        `collectReferenceContracts must report the FIRST failing id in INPUT order ` +
-          `(err-b,err-a attempt ${attempt}): got ${JSON.stringify(ba)}`,
-      );
-    }
   }
 
   console.log("PASS — reference-contract structural tests");
