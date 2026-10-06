@@ -503,6 +503,9 @@ assert(
 // prove the default-root call reads THAT catalogue. Deno.chdir needs no extra permission under
 // this task's --allow-read --allow-write (probed), so this stays one bounded assertion — no
 // subprocess harness, no deno.json change. cwd is restored in finally before anything else runs.
+// MEASURED BOUNDARY (6q3 review, glm-5.3): this compares CONTENT at the resolved path, so a
+// byte-identical probe page sitting at a baked absolute path would pass — the assertion detects
+// DIVERGENCE from the expected catalogue, not the resolution LOCATION itself.
 {
   const ctmp = await Deno.makeTempDir({ prefix: "artifacts-units-cwd-" });
   const savedCwd = Deno.cwd();
