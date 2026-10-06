@@ -309,6 +309,22 @@ print(json.dumps([m.slugify(n) for n in json.loads(sys.argv[1])]))`,
       // PINNED KNOWN DIVERGENCE: TS keeps non-U+0300-036F combining marks as dashes; python
       // drops them by combining class. Both outputs are asserted AS-IS — "fixing" either side
       // renames published routes, which the bead forbids. Reported on gendn-14o instead.
+      //
+      // MEASURED BOUNDARY (gendn-puw, 2026-10-06 — full input table, sweep data and
+      // reproduction on that bead):
+      // RULE: the implementations diverge EXACTLY when a combining mark with non-zero class
+      //   OUTSIDE U+0300-U+036F sits BETWEEN two [a-z0-9] characters (after lowercase+NFD):
+      //   python drops it (joining the neighbours), TS dashes it. Leading/trailing marks or
+      //   marks adjacent to a non-alnum AGREE. Sweep of all 922 combining codepoints x 3
+      //   positions: 811 medial-only divergences, 0 leading/trailing, 0 inside the block.
+      // ROUTE CONSEQUENCE today: NONE — 0 divergences over all 201 published slugs. The class
+      //   only bites if a future chromestatus listing name carries an out-of-block mark
+      //   between alnums: fix-slugs (python) and TS consumers would then derive different
+      //   slugs AT CREATION — a loud gate mismatch, not a silent rename of anything published.
+      // ACCIDENTAL AGREEMENTS: edge-mark agreement rides on TS's edge dash-strip, and the
+      //   strip-then-truncate ORDER matches only because both sides independently chose it
+      //   (each now fixture-pinned). The divergence set grows with python's Unicode DB while
+      //   the TS regex range is frozen — new marks silently widen the class.
       divergenceOk = TS_RESULTS[i] === "b-c" && pyResults[i] === "bc";
       continue;
     }
