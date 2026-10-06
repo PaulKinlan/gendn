@@ -714,7 +714,65 @@ async function knownReleaseMilestones(channels: Channels): Promise<Set<number>> 
   return set;
 }
 
-Deno.serve({ port: PORT }, async (req) => {
+// ----- Defensive browser security headers (gendn-5tk) -----
+//
+// Threat-model findings addressed:
+//   - No browser security headers (notably CSP) on server responses
+//   - No defense-in-depth security headers (CSP, nosniff, Referrer-Policy) on any response
+//
+// Directives chosen deliberately against what gendn pages actually load:
+//   - default-src 'self': Restrict unspecified resource types to same-origin.
+//   - script-src 'self' 'sha256-KuiJqU/ZOCGu7VsWUb6EUZO+z/j7PyH/zkKtY2HByvg=':
+//       The only JavaScript across the entire site is the client-side table filter on /features.
+//       Rather than disabling protection wholesale with 'unsafe-inline', the allowance is
+//       scoped strictly to the exact SHA-256 hash of that inline script. No external scripts.
+//   - style-src 'self' 'unsafe-inline':
+//       Allows /public/styles.css plus inline <style> blocks and style="" attributes present
+//       across all 201 reference pages in v<N>/ and SSR templates for per-feature layout.
+//   - font-src 'self' https://fonts.gstatic.com:
+//       Allows local font assets (e.g. /fonts/avar2-demo.woff2) and Google Fonts woff2 sources
+//       referenced in public/styles.css.
+//   - img-src 'self' data::
+//       Allows same-origin image assets and data-URI SVG/raster images.
+//   - frame-src 'self' https://chrome-platform-showcase.paulkinlan-ea.deno.net:
+//       Allows embedding live interactive concept demos from the companion site
+//       chrome-platform-showcase (embedded by 24 reference pages across v147-v154).
+//   - connect-src 'self': Restricts fetch, XHR, and WebSocket connections to same-origin.
+//   - object-src 'none': Disallows plugin objects (Flash, Java, Silverlight).
+//   - base-uri 'self': Prevents <base href="..."> injection hijacking.
+//   - form-action 'self': Restricts form submissions to same-origin.
+//   - frame-ancestors 'self': Prevents clickjacking by disallowing framing from third-party sites.
+//
+// Defense-in-depth headers:
+//   - X-Content-Type-Options: nosniff (prevents MIME sniffing)
+//   - Referrer-Policy: strict-origin-when-cross-origin (protects outbound referrers)
+//   - X-Frame-Options: SAMEORIGIN (clickjacking protection for older UAs without CSP frame-ancestors)
+
+export const CSP_DIRECTIVES = [
+  "default-src 'self'",
+  "script-src 'self' 'sha256-KuiJqU/ZOCGu7VsWUb6EUZO+z/j7PyH/zkKtY2HByvg='",
+  "style-src 'self' 'unsafe-inline'",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data:",
+  "frame-src 'self' https://chrome-platform-showcase.paulkinlan-ea.deno.net",
+  "connect-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'self'",
+];
+
+export const CSP_HEADER_VALUE = CSP_DIRECTIVES.join("; ");
+
+export function addSecurityHeaders(res: Response): Response {
+  res.headers.set("x-content-type-options", "nosniff");
+  res.headers.set("referrer-policy", "strict-origin-when-cross-origin");
+  res.headers.set("content-security-policy", CSP_HEADER_VALUE);
+  res.headers.set("x-frame-options", "SAMEORIGIN");
+  return res;
+}
+
+export async function handleRequest(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const path = url.pathname;
 
@@ -823,6 +881,17 @@ Deno.serve({ port: PORT }, async (req) => {
   }
 
   return new Response("Not found", { status: 404 });
-});
+}
 
-console.log(`Listening on http://localhost:${PORT}`);
+if (import.meta.main) {
+  const server = Deno.serve({ port: PORT }, async (req) => {
+    try {
+      const res = await handleRequest(req);
+      return addSecurityHeaders(res);
+    } catch (err) {
+      return addSecurityHeaders(serverError(req, "unhandled request", err));
+    }
+  });
+
+  console.log(`Listening on http://localhost:${server.addr.port}`);
+}
