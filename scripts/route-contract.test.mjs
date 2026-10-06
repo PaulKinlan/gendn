@@ -1,18 +1,22 @@
 // Fast, aggregate-discovered detectors for gendn's published-route identity and gate decisions.
-// These synthetic manifests exercise both failure and harmless-change directions without git or pages.
+// These synthetic manifests exercise both failure and harmless-change directions without git or pages
+// - with ONE exception at the end (gendn-r1q), which calls git locally against a ref that cannot
+// exist, to pin that a non-zero exit NAMES what git said rather than only its exit code.
 import { evaluateRouteContract } from "./check-routes.mjs";
-import { PAGE_RE, pathToIdentityFields } from "./route-manifest.mjs";
+import { buildManifest, PAGE_RE, pathToIdentityFields } from "./route-manifest.mjs";
 import { metadataFromHtml } from "./lib/artifacts.mjs";
 
 let passed = 0;
 let failures = 0;
-function assert(name, condition) {
+function assert(name, condition, detail) {
   if (condition) {
     passed++;
     console.log(`PASS: ${name}`);
   } else {
     failures++;
-    console.error(`FAIL: ${name}`);
+    // Print the supplied detail on failure (gendn-r1q review): a failing pin whose message is
+    // discarded makes the reader re-derive what went wrong, which is the opposite of a diagnostic.
+    console.error(`FAIL: ${name}${detail ? ` :: ${detail}` : ""}`);
   }
 }
 
@@ -213,6 +217,37 @@ assert(
     "recorded broken on desktop",
   ),
 );
+
+// gendn-r1q: the shared bounded git runner must surface git's own stderr on a non-zero exit. The 8q2
+// refactor replaced "failed: <stderr>" with a bare exit code, losing the single most useful line for
+// a human debugging a bad ref. The ref below cannot exist, so this is a local, network-free call.
+try {
+  await buildManifest({ ref: "origin/gendn-r1q-ref-that-cannot-exist" });
+  assert("a bad ref must REJECT rather than return a manifest", false);
+} catch (e) {
+  const msg = String(e?.message ?? e);
+  assert(
+    "a bad ref's error names git's stderr (the 'fatal: ...' line), not just the exit code",
+    /exit code 128/.test(msg) && /fatal:/.test(msg),
+    msg,
+  );
+}
+
+// gendn-r1q review counterexample, pinned so the fix cannot silently regress: git prints `error:`/
+// `fatal:` FIRST and then usage or hints, so a rule that takes the LAST stderr line picks the hint.
+// An unknown option is the cheapest reliable multi-line case (exit 129, `error: unknown option ...`
+// followed by a usage block), and this asserts we report the CAUSE rather than a usage flag.
+try {
+  await buildManifest({ ref: "--invalid-option" });
+  assert("an invalid option must REJECT rather than return a manifest", false);
+} catch (e) {
+  const msg = String(e?.message ?? e);
+  assert(
+    "a MULTI-LINE git failure reports the 'error:'/'fatal:' cause, not the last usage line",
+    /exit code 129/.test(msg) && /error: unknown option/.test(msg),
+    msg,
+  );
+}
 
 if (failures) Deno.exit(1);
 console.log(`route contract fixture: all ${passed} assertions passed`);
