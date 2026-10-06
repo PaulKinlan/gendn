@@ -153,6 +153,30 @@ dictionary D { (boolean or MediaTrackConstraints) video = true; };</code></pre><
     JSON.stringify(declaredSurfaceMembers(shapesIdl)) === JSON.stringify(["alpha", "video"]),
     `includes/union/brace-shared parsing: ${JSON.stringify(declaredSurfaceMembers(shapesIdl))}`,
   );
+  // P1 regression (review 3): WebIDL defaults written with braces or brackets are extremely common,
+  // and a greedy header strip / blind extended-attribute strip used to swallow the whole declaration.
+  const defaultsIdl =
+    `<!doctype html><main><section><h2 id="syntax">Syntax</h2><pre><code>interface A {
+  undefined setConstraints(optional Foo constraints = {});
+};
+dictionary D {
+  sequence&lt;DOMString&gt; protocols = [];
+  sequence&lt;DOMString&gt; names = ["a", "b"];
+  Foo opts = {};
+};</code></pre></section></main>`;
+  assert(
+    JSON.stringify(declaredSurfaceMembers(defaultsIdl)) ===
+      JSON.stringify(["names", "opts", "protocols", "setConstraints"]),
+    `brace/bracket default parsing: ${JSON.stringify(declaredSurfaceMembers(defaultsIdl))}`,
+  );
+  // ...and a union-typed member declared AFTER keywords: the word before "(" is the keyword
+  // `attribute`, which must not be mistaken for a method name nor hide the member.
+  const unionAttrIdl =
+    `<!doctype html><main><section><h2 id="syntax">Syntax</h2><pre><code>interface A { readonly attribute (Foo or Bar) baz; };</code></pre></section></main>`;
+  assert(
+    JSON.stringify(declaredSurfaceMembers(unionAttrIdl)) === JSON.stringify(["baz"]),
+    `union-attribute parsing: ${JSON.stringify(declaredSurfaceMembers(unionAttrIdl))}`,
+  );
   // The syntax section is found by heading TEXT too, because several pages ship `<h2>Syntax</h2>`
   // with no id - the rule must not be silently dead there.
   const noIdPage =

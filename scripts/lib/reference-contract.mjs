@@ -198,11 +198,12 @@ export async function validateReferenceContract(contract, root = ".") {
 //
 // SCOPED TO TOUCHED PAGES (coord, 2026-10-06): this rule is enforced by check-conformance for
 // feature ids in the touched set, NOT by the general artifact validator. A new check must not go
-// red for PRE-EXISTING state: 7 of the 43 older contracts quote a surrounding interface as context
+// red for PRE-EXISTING state: 8 of the 43 older contracts quote a surrounding interface as context
 // (audiopreferred-capture prints all of DisplayMediaStreamOptions; gamepad-button-type prints all
-// of GamepadButton) and would red for a pattern that is not the defect this catches. A collapsed
+// of GamepadButton; no-auto-rewind quotes all of AnimationTrigger) and would red for a pattern that
+// is not the defect this catches. A collapsed
 // contract is authored at the moment a page is touched, so the touched set is where it bites.
-// Cleanup of those 7 (adding honest outOfScope entries) is tracked separately as gendn-1j4.
+// Cleanup of those 8 (adding honest outOfScope entries) is tracked separately as gendn-1j4.
 //
 // HOW THE SYNTAX SECTION IS FOUND: by id="syntax" when the page has one, otherwise by the heading
 // TEXT (`<h2>Syntax</h2>`), because several pages ship the heading without an id and the rule must
@@ -216,6 +217,46 @@ export async function validateReferenceContract(contract, root = ".") {
 // case - its syntax block shows a JSON structure, not IDL - and it is NOT caught here. A green from
 // this rule means "not SILENTLY smaller than the page's declared IDL", nothing more: prose
 // correctness and the real spec surface remain independent-review obligations, as the header says.
+// WebIDL keywords and declaration words that must never be reported as members. Hoisted because the
+// method match needs them too: in `readonly attribute (Foo or Bar) baz` the word before "(" is
+// `attribute`, which is a KEYWORD, not a method name (gendn-4kq review 3).
+const WEBIDL_KEYWORDS = new Set([
+  "interface",
+  "dictionary",
+  "enum",
+  "partial",
+  "mixin",
+  "stringifier",
+  "readonly",
+  "required",
+  "attribute",
+  "static",
+  "getter",
+  "setter",
+  "deleter",
+  "constructor",
+  "typedef",
+  "callback",
+  "namespace",
+  "implements",
+  "includes",
+  "const",
+  "unsigned",
+  "long",
+  "short",
+  "double",
+  "float",
+  "boolean",
+  "byte",
+  "octet",
+  "void",
+  "undefined",
+  "sequence",
+  "record",
+  "optional",
+  "or",
+]);
+
 export function declaredSurfaceMembers(html) {
   const markup = renderedMarkup(html);
   // Locate the syntax section: by id when the page gives one, otherwise by the heading TEXT. The
@@ -245,11 +286,23 @@ export function declaredSurfaceMembers(html) {
     const bare = idl
       .replace(/(^|[^:])\/\/[^\n]*/g, "$1 ")
       .replace(/\/\*[\s\S]*?\*\//g, " ")
-      .replace(/\[[^\]]*\]/g, " ");
+      // Extended attributes are stripped ONLY at the start of a line, where WebIDL puts them. A
+      // blind /\[[^\]]*\]/g would also eat a default value such as `= []`, silently dropping the
+      // member (gendn-4kq review 3, P1).
+      .replace(/^[ \t]*\[[^\]]*\][ \t]*/gm, " ");
     // Parse per `;`-statement, stripping the enclosing declaration header (everything up to the
     // last "{") so members declared on the same line as the brace are still seen.
     for (const raw of bare.split(";")) {
-      const statement = raw.replace(/[\s\S]*\{/, " ").replace(/^\}+/, "").trim();
+      // Strip a LEADING declaration header only, and non-greedily: a greedy `[\s\S]*\{` matches the
+      // `{` of a default value such as `= {}` and swallows the whole declaration, dropping the
+      // method (gendn-4kq review 3, P1).
+      const statement = raw
+        .replace(
+          /^[\s\S]*?\b(?:partial\s+)?(?:interface|dictionary|enum|mixin|namespace|callback\s+interface)\b[^{]*\{/,
+          " ",
+        )
+        .replace(/^\}+/, "")
+        .trim();
       if (!statement) continue;
       // `typedef X Y;` / `callback` / `namespace` declare a NAME, not a member; and in
       // `A implements B;` / `A includes B;` the B is a mixin name.
@@ -260,7 +313,7 @@ export function declaredSurfaceMembers(html) {
       // and `Promise<record<K,V>> list();`. Only the FIRST match is taken so parameter lists cannot
       // leak names.
       const method = statement.match(/[\w>\]?)]\s+([A-Za-z_$][\w$]*)\s*\(/);
-      if (method) {
+      if (method && !WEBIDL_KEYWORDS.has(method[1].toLowerCase())) {
         names.add(method[1]);
         continue;
       }
@@ -268,34 +321,18 @@ export function declaredSurfaceMembers(html) {
       // parenthesised union type such as `(boolean or MediaTrackConstraints) video = true`. The
       // default group must not cross a paren: `optional unsigned long? length = null` is a
       // PARAMETER of a method, not a member.
+      // DICTIONARY/INTERFACE MEMBERS: `Type name` / `Type name = default`. The type is a sequence
+      // of space-separated tokens, each either a plain token or a parenthesised union such as
+      // `(Foo or Bar)` - so a union typed member declared after keywords (`readonly attribute
+      // (Foo or Bar) baz;`) is seen. The default group must not cross a paren: a method's
+      // `optional unsigned long? length = null` is a PARAMETER, not a member.
       const member = statement.match(
-        /^(?:\([^)]*\)|[\w<>?\[\], ]+)\s+(\w+)\s*(?:=\s*[^;()]+)?$/,
+        /^(?:(?:\([^)]*\)|[\w<>?\[\],]+)\s+)+?(\w+)\s*(?:=\s*[^;()]+)?$/,
       );
       if (member) names.add(member[1]);
     }
   }
-  const KEYWORDS = new Set([
-    "interface",
-    "dictionary",
-    "enum",
-    "partial",
-    "mixin",
-    "stringifier",
-    "readonly",
-    "required",
-    "attribute",
-    "static",
-    "getter",
-    "setter",
-    "deleter",
-    "constructor",
-    "typedef",
-    "callback",
-    "namespace",
-    "implements",
-    "includes",
-  ]);
-  return [...names].filter((n) => !KEYWORDS.has(n.toLowerCase())).sort();
+  return [...names].filter((n) => !WEBIDL_KEYWORDS.has(n.toLowerCase())).sort();
 }
 
 function nameTokens(value) {
