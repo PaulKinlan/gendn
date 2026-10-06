@@ -22,21 +22,25 @@
 //             as-of dates is unauditable: the reader cannot tell which source is stale).
 //
 // The table's provenance is cumulative and its BOUNDARY is stated plainly (rule 67 — a
-// coverage claim wider than the code removes a check): the filing named three pages; a
+// coverage claim wider than the code removes a check). FOURTEEN pages are pinned, found in
+// six named steps so the method is reproducible: (1) the filing named three pages; (2) a
 // vocabulary grep of main's content tree ("disagree" and kin) found the fourth
-// (capability-elements); the first cross-family review sweep found two more that no
+// (capability-elements); (3) the FIRST cross-family review's sweep found two more that no
 // "disagree" grep surfaces (v152/deprecate-and-remove-xslt, "One source discrepancy is
-// recorded honestly", and v152/audiopreferred-capture-in-getdisplaymedia-api, listing
-// status vs trunk status); the second review's DIVERGENCE-vocabulary sweep found three
-// more (v151/no-auto-rewind-for-animationtrigger-play-methods with a dedicated
-// spec-vs-implementation block, v147/web-printing-api/entry-point, and
-// v147/device-bound-session-credentials/challenge-header). So NINE pages are pinned, and
-// the sweeps that found them are named so the method is reproducible. The boundary: a
-// disagreement carried WITHOUT any recognized vocabulary is invisible to sweeps — this
-// TABLE is the coverage, it is not complete by construction, and widening it is a
-// deliberate act. A new page that gains a carried disagreement should be ADDED here; a
-// side silently dropped from a pinned page fails, which is the failure mode the check
-// exists for.
+// recorded honestly"; v152/audiopreferred-capture-in-getdisplaymedia-api, listing status vs
+// trunk status); (4) the SECOND, independent review (the bounce) re-swept with DIVERGENCE
+// vocabulary and found three more (v151/no-auto-rewind-for-animationtrigger-play-methods,
+// v147/web-printing-api/entry-point,
+// v147/device-bound-session-credentials/challenge-header); (5) the first
+// delta-confirmation's re-sweep found four more (the animation-accessor
+// animationevent/transitionevent pair, v152/deprecate-and-remove-xslt/xsltprocessor,
+// v150/speculative-load-measurement); (6) the second delta-confirmation's re-sweep found
+// one more (v147/autofill-event, "Note on divergence"). Every re-run of a named sweep so
+// far has found more pages, so the honest claim is the narrow one: the sweeps are NOT
+// exhausted and the table is NOT complete by construction — it IS the coverage. A
+// disagreement carried WITHOUT any recognized vocabulary is invisible to sweeps entirely.
+// A new page that gains a carried disagreement should be ADDED here; a side silently
+// dropped from a pinned page fails, which is the failure mode the check exists for.
 //
 // MUTATION PROOFS (logs on the bead, not inline; cp-based backups per rule 107):
 //   M1 delete the carried disagreement sentence (webcrypto marker)  -> FAIL on the marker.
@@ -47,6 +51,8 @@
 //   M6 empty a table entry's marker                                  -> FAIL on non-vacuity (guard).
 //   M7 drop a sweep-2 entry's side-B token (no-auto-rewind)          -> FAIL on sideB.
 //   M8 empty a DATED entry's dates array in the table (webcrypto)    -> FAIL on the dated-pages floor.
+//   M9 drop autofill-event's side-B token ("autofillValues")         -> FAIL on sideB (N1 entry).
+//   M10 empty xsltprocessor's dates array in the table               -> FAIL on the dated-pages floor.
 // Each restored to green. A check that cannot fail on a silently dropped side is a claim, not
 // a detector (rule 64: the signal must be shown to fire on the shape it was added for).
 //
@@ -153,7 +159,66 @@ const PAGES = [
     page: "v147/device-bound-session-credentials/challenge-header/index.html",
     marker: "conflicting source descriptions",
     sideA: ["sf-string", "cache algorithm"],
-    sideB: ["Chromium parser code", "ParseList"],
+    sideB: ["Chromium parser code", "ParseList", "developer guide"],
+    dates: [],
+  },
+  {
+    // Found by the second delta-confirmation's re-sweep (N1): the non-normative explainer
+    // describes a non-bubbling event with a booleans-carrying values property; the current
+    // spec IDL defines bubbling and autofillValues with DOMString values. The page states
+    // its disposition ("This page documents the spec") yet carries BOTH sides with
+    // attribution and read dates — the same shape as capability-elements, admitted under
+    // the same qualifying reading. The first reviewer would have excluded it as fdh-family
+    // (a superseded explainer); both readings are recorded here and the pin adjudicates
+    // nothing either way — it only fails if a side stops being carried.
+    page: "v147/autofill-event/index.html",
+    marker: "Note on divergence",
+    sideA: ["non-normative explainer", "can carry booleans"],
+    sideB: ["current spec IDL", "autofillValues"],
+    dates: ["Read 2026-10-04"],
+  },
+  {
+    // Found by the first delta-confirmation's re-sweep: the spec (CSS Animations L2 partial
+    // interface) types the attribute as the CSS subclass; Chromium's bindings type it as the
+    // Web Animations base interface. Both quoted and linked; structurally identical to the
+    // web-printing entry-point entry. No dates carried, so none pinned.
+    page:
+      "v151/animation-accessor-on-animation-and-transition-events/animationevent-animation/index.html",
+    marker: "Implementation divergence:",
+    sideA: ["drafts.csswg.org/css-animations-1"],
+    sideB: ["bindings type the attribute", "animation_event.idl"],
+    dates: [],
+  },
+  {
+    // Same sweep, sibling page: the same spec-vs-bindings divergence for TransitionEvent.
+    // Pinned separately — two subpages of one feature are two carriage sites, and the
+    // assertion names disambiguate them (see the .at(-2) note below).
+    page:
+      "v151/animation-accessor-on-animation-and-transition-events/transitionevent-animation/index.html",
+    marker: "Implementation divergence:",
+    sideA: ["drafts.csswg.org/css-transitions-1"],
+    sideB: ["Web Animations base interface", "transition_event.idl"],
+    dates: [],
+  },
+  {
+    // Same sweep: a five-item "Key divergences between the spec text and the shipping
+    // implementation" list with WHATWG and Chromium sources both fetched 2026-07-29.
+    // Side A = the WHATWG spec text; side B = Chromium's gated shipping implementation.
+    page: "v152/deprecate-and-remove-xslt/xsltprocessor/index.html",
+    marker: "spec text and the shipping implementation",
+    sideA: ["WHATWG text"],
+    sideB: ["[RuntimeEnabled=XSLT]", "Chromium gates the whole interface"],
+    dates: ["fetched 2026-07-29"],
+  },
+  {
+    // Same sweep: the ChromeStatus origin-trial metadata and the json5 comment both say
+    // performance.speculations, while the WICG explainer and Chromium's experimental IDL
+    // expose a method, performance.getSpeculations(). The page keeps the divergence
+    // visible; the audiopreferred naming/status shape. No dates carried, so none pinned.
+    page: "v150/speculative-load-measurement/index.html",
+    marker: "Naming divergence to be aware of",
+    sideA: ["performance.speculations"],
+    sideB: ["performance.getSpeculations()"],
     dates: [],
   },
 ];
@@ -168,8 +233,8 @@ function assert(name, ok, detail = "") {
 // have a NON-EMPTY marker (html.includes("") is vacuously true), BOTH sides, and a dates
 // ARRAY (an absent one would throw an unnamed TypeError instead of failing a named check).
 assert(
-  "table is non-vacuous: at least nine carried-disagreement pages, each with a non-empty marker, BOTH sides pinned, and a dates array",
-  PAGES.length >= 9 &&
+  "table is non-vacuous: at least fourteen carried-disagreement pages, each with a non-empty marker, BOTH sides pinned, and a dates array",
+  PAGES.length >= 14 &&
     PAGES.every(
       (e) =>
         typeof e.marker === "string" && e.marker.length > 0 &&
@@ -180,16 +245,18 @@ assert(
 
 // Dated-pages floor (review finding F3): emptying a DATED entry's array in the table would
 // silently drop its dates assertion (the per-entry check is conditional on dates.length > 0).
-// Floor = the count measured at authoring (webcrypto, xslt, audiopreferred, no-auto-rewind);
-// raise it deliberately when a new dated page is pinned.
+// Floor = the count measured at authoring (webcrypto, xslt, audiopreferred, no-auto-rewind,
+// autofill-event, xsltprocessor); raise it deliberately when a new dated page is pinned.
 assert(
   "dated-pages floor: every page measured as carrying as-of dates still pins them",
-  PAGES.filter((e) => e.dates.length > 0).length >= 4,
+  PAGES.filter((e) => e.dates.length > 0).length >= 6,
   `${PAGES.filter((e) => e.dates.length > 0).length} dated entries`,
 );
 
 for (const entry of PAGES) {
-  const short = entry.page.split("/")[1];
+  // .at(-2), not [1]: two pinned pages are SUBPAGES of one feature (the animation-accessor
+  // pair), whose [1] segments are identical — the distinguishing name is the last directory.
+  const short = entry.page.split("/").at(-2);
   let html;
   try {
     html = await Deno.readTextFile(entry.page);
