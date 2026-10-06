@@ -4,7 +4,7 @@
 // cannot satisfy a touched feature's contract.
 
 import { launch } from "./cdp.mjs";
-import { REQUIRED_DIMENSIONS } from "./reference-contract.mjs";
+import { canonicalCitationUrl, REQUIRED_DIMENSIONS } from "./reference-contract.mjs";
 
 const VIEWPORTS = [
   ["desktop", { width: 1280, height: 800, mobile: false, deviceScaleFactor: 1 }],
@@ -82,9 +82,14 @@ export async function validateReferenceContractsInBrowser(records) {
             }
           }
           for (const url of sourceUrls) {
+            // The BROWSER side of the same comparison, normalised through the same rule (gendn-t77):
+            // `a.href` is already the DOM's canonical absolute form, so canonicalising the CONTRACT
+            // value here makes both sides speak the same dialect — without this, a contract citing a
+            // bare host could never match a link the browser resolved to its trailing-slash form.
+            const wanted = canonicalCitationUrl(url) ?? url;
             const result = await page.evaluate(`(() => {
               const links = [...document.querySelectorAll("a[href]")].filter(a => a.href === ${
-              JSON.stringify(url)
+              JSON.stringify(wanted)
             });
               return links.some(link => {
                 const style = getComputedStyle(link);
