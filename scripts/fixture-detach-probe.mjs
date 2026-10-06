@@ -13,6 +13,12 @@
 // It is deliberately NOT a `test-*` task: discovery would enrol it into the aggregate, where the hang
 // mode would sleep for the full bound (and the exit mode would leak a sleeper) in CI.
 //
+// BOUND (gendn-vxp): this is a TEST HARNESS, not something to run interactively. HANG mode
+// self-limits to PROBE_HANG_MS (default 120000 ms, ~27x the tests' 4.5s fixture timeout; NOTE the runner's default fixture timeout is 300s, so a manual default-timeout run ends by natural exit and no sleeper is spawned without a pid file) and then
+// exits on its own. A sleeper is spawned ONLY when PROBE_CHILD_PID_FILE is set, so every sleeper
+// is attributable by a recorded pid; without it the probe refuses to spawn one and says so.
+// (EXIT mode's sleeper is the negative control and is reaped by the test's finally, by pid.)
+//
 // WORST-CASE PROCESS COUNT — bounded, not a fork bomb: this invocation starts exactly ONE setsid
 // child, which forks exactly ONE sleeper, then no other processes. Counting the runner, task shells,
 // this script, and the transient setsid launcher gives at most 10 command-launched processes under
@@ -29,13 +35,20 @@ if (ownPidFile) await Deno.writeTextFile(ownPidFile, String(Deno.pid));
 // Pass the FULL environment explicitly rather than relying on merge semantics, because the detached
 // child MUST inherit GENDN_FIXTURE_TOKEN — that token is the only thing that makes it attributable.
 const env = { ...Deno.env.toObject(), PROBE_CHILD_PID_FILE: childPidFile ?? "" };
-const child = new Deno.Command("setsid", {
-  args: ["--fork", "sh", "-c", 'printf %s "$$" > "$PROBE_CHILD_PID_FILE"; exec sleep 600'],
-  stdout: "null",
-  stderr: "null",
-  env,
-}).spawn();
-console.log(`fixture-detach-probe: mode=${mode} own=${Deno.pid} detached=${child.pid}`);
+let child = null;
+if (childPidFile) {
+  child = new Deno.Command("setsid", {
+    args: ["--fork", "sh", "-c", 'printf %s "$$" > "$PROBE_CHILD_PID_FILE"; exec sleep 600'],
+    stdout: "null",
+    stderr: "null",
+    env,
+  }).spawn();
+} else {
+  console.log(
+    "fixture-detach-probe: PROBE_CHILD_PID_FILE unset; refusing to spawn an unrecorded detached sleeper",
+  );
+}
+console.log(`fixture-detach-probe: mode=${mode} own=${Deno.pid} detached=${child?.pid ?? "none"}`);
 
 // Wait until the sleeper has recorded its own pid, so the test's pid assertions are never racing the
 // child's startup. Bounded, so a broken probe fails fast instead of sleeping for the whole bound.
@@ -49,7 +62,9 @@ if (childPidFile) {
 }
 
 if (mode === "hang") {
-  // A pending TIMER, not a never-resolving top-level await: Deno reports "Top-level await promise
+  // A pending TIMER-backed promise, not a never-resolving top-level await: Deno reports "Top-level await promise
   // never resolved" and exits for the latter, which would make the probe pass-by-exiting.
-  setInterval(() => {}, 60_000);
+  // Self-limited (gendn-vxp): exits on its own after PROBE_HANG_MS so a manual run cannot leak.
+  const hangMs = Number(Deno.env.get("PROBE_HANG_MS")) || 120_000;
+  await new Promise((resolve) => setTimeout(resolve, hangMs));
 }
