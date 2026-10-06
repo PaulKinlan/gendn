@@ -54,6 +54,24 @@ export function extractBlocks(css, subsets = DEFAULT_SUBSETS) {
   return out;
 }
 
+/** How many @font-face rules a body declares at all, regardless of subset. */
+export function countFontFaces(css) {
+  return (css.match(/@font-face\s*\{/g) ?? []).length;
+}
+
+/** Does this text contain at least one @font-face rule? */
+export function hasFontFace(text) {
+  return /@font-face\s*\{/.test(text);
+}
+
+// Bounds nothing; the vendored block's own rule count, used by the mirror guard below.
+export function blockHasRules(sheet) {
+  const begin = sheet.indexOf(BEGIN);
+  const end = sheet.indexOf(END);
+  if (begin === -1 || end === -1) return false;
+  return hasFontFace(sheet.slice(begin, end));
+}
+
 export function renderBlock(blocks) {
   const grouped = new Map();
   for (const b of blocks) {
@@ -86,8 +104,8 @@ export function renderBlock(blocks) {
   return lines.join("\n");
 }
 
-async function fetchCss() {
-  const res = await fetch(CSS_URL, { headers: { "user-agent": UA } });
+async function fetchCss(url = CSS_URL) {
+  const res = await fetch(url, { headers: { "user-agent": UA } });
   if (!res.ok) throw new Error(`css2 fetch failed: ${res.status}`);
   return await res.text();
 }
@@ -104,25 +122,65 @@ function replaceBlock(sheet, block) {
 }
 
 if (import.meta.main) {
-  const check = Deno.args.includes("--check");
-  const css = await fetchCss();
-  const block = renderBlock(extractBlocks(css));
-  const sheet = await Deno.readTextFile(SHEET);
-  const updated = replaceBlock(sheet, block);
-  const changed = updated !== sheet;
-  if (check) {
-    console.log(
-      changed
-        ? "vendor-fonts: OUT OF DATE — run `deno task vendor-fonts`"
-        : "vendor-fonts: up to date",
+  const argv = Deno.args;
+  const check = argv.includes("--check");
+  // --css-url is a test seam: it lets the fixture point the extractor at a local server that
+  // serves a degenerate 200 (empty body, an HTML error page, or rules for subsets we do not
+  // keep) instead of reaching Google. It changes no production behaviour.
+  const urlFlag = argv.indexOf("--css-url");
+  const cssUrl = urlFlag === -1 ? CSS_URL : argv[urlFlag + 1];
+
+  try {
+    const css = await fetchCss(cssUrl);
+    const blocks = extractBlocks(css);
+
+    // FAIL CLOSED ON AN EMPTY EXTRACTION (gendn-dmz), before anything is rendered, compared or
+    // written. An HTTP 200 with an empty body, a status/error HTML page or a changed upstream
+    // markup shape yields 0 kept rules; writing that would silently strip the webfonts from all
+    // 302 consumers of the shared sheet, and comparing it would report a meaningless result.
+    if (blocks.length === 0) {
+      throw new Error(
+        `no @font-face rules extracted for the kept subsets (${DEFAULT_SUBSETS.join(", ")}) — ` +
+          `the response from ${cssUrl} was ${css.length} bytes with ${countFontFaces(css)} ` +
+          `@font-face rule(s) in total. Refusing to write.`,
+      );
+    }
+
+    const block = renderBlock(blocks);
+    const sheet = await Deno.readTextFile(SHEET);
+
+    // MIRROR GUARD (gendn-dmz): --check must never report "up to date" for a sheet whose own
+    // vendored block has no rules. Without this, a rule-less sheet and a rule-less extraction
+    // agree with each other and the check passes on exactly the state it exists to catch.
+    if (check && !blockHasRules(sheet)) {
+      throw new Error(
+        "public/styles.css's vendored block contains no @font-face rules, so --check has nothing " +
+          "to compare against and must not report it current. Restore the rules (deno task " +
+          "vendor-fonts) and re-check.",
+      );
+    }
+
+    const updated = replaceBlock(sheet, block);
+    const changed = updated !== sheet;
+    if (check) {
+      console.log(
+        changed
+          ? "vendor-fonts: OUT OF DATE — run `deno task vendor-fonts`"
+          : "vendor-fonts: up to date",
+      );
+      Deno.exit(changed ? 1 : 0);
+    }
+    if (!changed) {
+      console.log("vendor-fonts: already up to date (no write)");
+    } else {
+      await Deno.writeTextFile(SHEET, updated);
+      console.log(`vendor-fonts: wrote ${blocks.length} @font-face rules into public/styles.css`);
+    }
+  } catch (err) {
+    // Every failure path above is a refusal, not a partial success: nothing is written.
+    console.error(
+      `vendor-fonts: REFUSING — ${err instanceof Error ? err.message : String(err)}`,
     );
-    Deno.exit(changed ? 1 : 0);
-  }
-  if (!changed) {
-    console.log("vendor-fonts: already up to date (no write)");
-  } else {
-    await Deno.writeTextFile(SHEET, updated);
-    const kept = extractBlocks(css).length;
-    console.log(`vendor-fonts: wrote ${kept} @font-face rules into public/styles.css`);
+    Deno.exit(1);
   }
 }
