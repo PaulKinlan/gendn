@@ -318,6 +318,35 @@ try {
     "the 304 still carries the CSP",
     (revalidated.header("content-security-policy") ?? "").includes("default-src 'self'"),
   );
+
+  // 8. RFC 9110 13.1.2 for `If-None-Match: *`: that condition is FALSE only when the server DOES have a
+  // current representation for the target. So "*" on an existing route is a 304, but "*" on a MISSING
+  // route must let the 404 through. The first form of this fix hashed the 404 body and matched "*"
+  // against it, answering 304 for a resource that does not exist - which tells a cache it is there.
+  // This block makes that unrepresentable. (Found by review as a source-implied hypothesis; that
+  // reviewer's tooling could not run a probe, so it is reproduced here as an executable assertion.)
+  const wildcardExisting = await rawGet(port, leaf.route, { "if-none-match": "*" });
+  assert(
+    "'*' on an existing route is answered 304",
+    wildcardExisting.status === 304,
+    String(wildcardExisting.status),
+  );
+  const wildcardMissing = await rawGet(port, "/__definitely_missing__", { "if-none-match": "*" });
+  assert(
+    "'*' on a MISSING route is still 404, never 304",
+    wildcardMissing.status === 404,
+    String(wildcardMissing.status),
+  );
+  const plainMissing = await rawGet(port, "/__definitely_missing__", {});
+  assert(
+    "...and without a validator the same missing route is still that 404 (control)",
+    plainMissing.status === 404,
+    String(plainMissing.status),
+  );
+  assert(
+    "a 404 carries no revalidation validator",
+    plainMissing.header("etag") === null && plainMissing.header("cache-control") === null,
+  );
 } finally {
   try {
     serverProc.kill("SIGKILL");

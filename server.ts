@@ -846,10 +846,18 @@ export function addSecurityHeaders(res: Response): Response {
 //    content-codings once compression is on, which is exactly what a weak validator asserts. `no-cache`
 //    rather than a max-age because it keeps every response fresh and so needs no decision about how much
 //    staleness is acceptable.
+//
+// ONLY SUCCESSFUL REPRESENTATIONS ARE REVALIDATED. A 404 or a 500 has no current representation, and
+// RFC 9110 13.1.2 says the `If-None-Match: *` condition is FALSE only when the server DOES have a
+// current representation - so "*" on a missing route must let the 404 through, not answer "Not
+// Modified". Hashing the error body and matching "*" against it (the first form of this function) turned
+// every conditional request for a nonexistent resource into a 304, which tells a cache the resource is
+// there. Measured before the guard: /__definitely_missing__ with If-None-Match: * answered 304.
 const REVALIDATION_CACHE_CONTROL = "no-cache";
 
 async function withRevalidation(req: Request, res: Response): Promise<Response> {
   if (res.body === null) return res; // 204/302: no representation to validate
+  if (!res.ok) return res; // 404/500: nothing to validate - see the note above
   if (res.headers.has("etag")) return res; // the route already chose its own validator
   const bytes = new Uint8Array(await res.arrayBuffer());
   const digest = new Uint8Array(await crypto.subtle.digest("SHA-1", bytes));
