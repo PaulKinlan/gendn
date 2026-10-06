@@ -153,7 +153,12 @@ export async function renderSuite(release: string, slug: string): Promise<string
 
   const rows = suite.assertions.map((a) => {
     const v = verdicts.get(a.id);
-    const state = v?.status ?? "n/a";
+    // gendn-lny: the verdict status is WHITELISTED before it reaches markup. results.json is a
+    // runner-written artifact, but a corrupt or hostile status must neither inject raw text into
+    // the class attribute (the one interpolation in this module that esc() does not cover) nor
+    // let an unknown verdict borrow pass/fail/blocked styling. Anything unrecognised renders as
+    // "n/a" — never a pass. Pinned by scripts/lifecycle-units.test.mjs.
+    const state = v && ["pass", "fail", "blocked"].includes(v.status) ? v.status : "n/a";
     return `<tr><td><code>${esc(a.id)}</code></td><td>${
       esc(a.describe)
     }</td><td><span class="tag">${esc(a.category)}</span></td><td>${esc(a.kind)}</td><td>${

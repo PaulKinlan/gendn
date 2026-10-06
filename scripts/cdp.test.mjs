@@ -3,7 +3,13 @@
 // anomaly warning, its per-line dedupe, parse fidelity vs the merged dfc4c2c behaviour, and
 // TMPDIR root resolution (incl. the empty-string → /tmp-like-unset case). No Chrome. Runs as
 // `deno task test-cdp` and chained first in `deno task test-reference-contract`.
-import { parseProcessListForDir, tmpRoot } from "./lib/cdp.mjs";
+import {
+  classifyOrigin,
+  Conn,
+  isLocalNavigation,
+  parseProcessListForDir,
+  tmpRoot,
+} from "./lib/cdp.mjs";
 
 const DIR = "/tmp/gendn-cdp-424242-fixture";
 let failures = 0;
@@ -72,6 +78,109 @@ Deno.env.set("TMPDIR", "rel/dir");
 assert("relative TMPDIR resolves against the CWD", tmpRoot() === `${Deno.cwd()}/rel/dir`);
 if (savedTmpdir === undefined) Deno.env.delete("TMPDIR");
 else Deno.env.set("TMPDIR", savedTmpdir);
+
+// gendn-8na: the gate browser's navigation whitelist (the control that bounds --no-sandbox).
+assert("localhost route allowed", isLocalNavigation("http://localhost:3000/v150/x/"));
+assert("127.0.0.1 allowed", isLocalNavigation("http://127.0.0.1:4000/"));
+assert("about:blank allowed", isLocalNavigation("about:blank"));
+assert("off-site https refused", !isLocalNavigation("https://example.com/"));
+assert(
+  "showcase origin refused",
+  !isLocalNavigation("https://chrome-platform-showcase.paulkinlan-ea.deno.net/v1/x"),
+);
+assert("lookalike host refused", !isLocalNavigation("http://localhost.evil.example/"));
+assert("userinfo trick refused", !isLocalNavigation("http://localhost@evil.example/"));
+assert("IPv6 loopback allowed", isLocalNavigation("http://[::1]:3000/"));
+assert("IPv4-mapped IPv6 refused", !isLocalNavigation("http://[::ffff:8.8.8.8]/"));
+assert(
+  "chrome-error classified as navigation failure",
+  classifyOrigin("chrome-error://chromewebdata/") === "navigation-failed",
+);
+assert("local href classified local", classifyOrigin("http://127.0.0.1:1234/x") === "local");
+assert(
+  "external href classified off-origin",
+  classifyOrigin("https://example.com/") === "off-origin",
+);
+assert(
+  "other localhost port stays local (hostname-only, documented)",
+  classifyOrigin("http://localhost:9/") === "local",
+);
+assert("file: refused", !isLocalNavigation("file:///etc/passwd"));
+assert("garbage refused", !isLocalNavigation("not a url"));
+
+// gendn-8na: lazy loading is the control that keeps third-party iframes unloaded by a non-scrolling
+// gate. If any external iframe loses loading="lazy", that control is gone: fail.
+{
+  const bad = [];
+  let external = 0;
+  for await (const rel of Deno.readDir(".")) {
+    if (!(rel.isDirectory && /^v\d+$/.test(rel.name))) continue;
+    for await (const slug of Deno.readDir(rel.name)) {
+      if (!slug.isDirectory) continue;
+      const page = `${rel.name}/${slug.name}/index.html`;
+      let html;
+      try {
+        html = await Deno.readTextFile(page);
+      } catch {
+        continue;
+      }
+      for (const m of html.matchAll(/<iframe\b[^>]*>/gi)) {
+        if (!/\bsrc\s*=\s*["']?https?:\/\//i.test(m[0])) continue;
+        external++;
+        if (!/\bloading\s*=\s*["']?lazy/i.test(m[0])) bad.push(page);
+      }
+    }
+  }
+  assert(
+    `every third-party iframe is loading=lazy (${external} checked)`,
+    external > 0 && bad.length === 0,
+  );
+  if (bad.length) console.error(bad.join("\n"));
+}
+
+// A DEAD TARGET MUST NOT HANG THE GATE (gendn-1tu). Conn.send parked its {resolve,reject} in the
+// pending map and never deleted or bounded it, so a wedged Chrome target hung the caller forever -
+// at the top of a gate that is "Top-level await promise never resolved" with zero output. This uses
+// a stub socket, so it needs no Chrome.
+{
+  const stub = new Conn({ send() {}, onmessage: null });
+  const started = performance.now();
+  let rejected = "";
+  try {
+    await stub.send("Runtime.evaluate", {}, undefined, 25);
+  } catch (err) {
+    rejected = err.message;
+  }
+  assert(
+    "a CDP call that never gets a reply REJECTS instead of hanging",
+    rejected.includes("did not reply within 25ms") && rejected.includes("Runtime.evaluate"),
+    rejected || "(resolved - the bound did not fire)",
+  );
+  assert(
+    "the timed-out call is removed from the pending map",
+    stub.pending.size === 0,
+    `pending=${stub.pending.size}`,
+  );
+  assert(
+    "the bound is applied, not bypassed",
+    performance.now() - started >= 20,
+    `${Math.round(performance.now() - started)}ms`,
+  );
+  // ...and the happy path still resolves, with the timer cleared (no spurious late rejection).
+  const socket = {
+    sent: null,
+    send(payload) {
+      this.sent = JSON.parse(payload);
+    },
+    onmessage: null,
+  };
+  const stub2 = new Conn(socket);
+  const call = stub2.send("Runtime.evaluate", {}, undefined, 5000);
+  socket.onmessage({ data: JSON.stringify({ id: socket.sent.id, result: { value: 7 } }) });
+  const resolved = await call;
+  assert("a replied CDP call still resolves", resolved.value === 7, JSON.stringify(resolved));
+  assert("a replied call leaves nothing pending", stub2.pending.size === 0);
+}
 
 if (failures > 0) {
   console.error(`cdp.test.mjs: ${failures} assertion(s) failed`);

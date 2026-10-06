@@ -35,6 +35,37 @@ function findChrome() {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// CDP AWAITS ARE BOUNDED (gendn-1tu). Page.goto bounded only its LOAD wait: the underlying
+// Page.navigate and every Runtime.evaluate went through sendSession/Conn.send, which parked a
+// {resolve,reject} in the pending map and never deleted or bounded it. A dead or wedged Chrome
+// target therefore hung the caller FOREVER - and because these are awaited at the top of a gate,
+// that presents as "Top-level await promise never resolved" with zero output. A timeout now rejects
+// with the method named. The bound is a parameter with a default so a test can use a small value
+// without any env var or flag that could be abused to disable it.
+const CDP_TIMEOUT_MS = 30_000;
+
+function pendingCall(conn, ws, payload, method, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      conn.pending.delete(payload.id);
+      reject(
+        new Error(`CDP ${method} did not reply within ${timeoutMs}ms (target dead or wedged)`),
+      );
+    }, timeoutMs);
+    conn.pending.set(payload.id, {
+      resolve: (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      reject: (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    });
+    ws.send(JSON.stringify(payload));
+  });
+}
+
 // ---------- Chrome process termination ----------
 
 // Terminate a spawned Chrome deterministically: SIGTERM with a bounded wait, then SIGKILL.
@@ -302,6 +333,52 @@ async function removeProfileDir(path, delays = [0, 150, 400, 900, 1900]) {
   return false;
 }
 
+// NAVIGATION WHITELIST (gendn-8na). The gate Chrome runs with --no-sandbox (decision below), so the
+// control that actually bounds the exposure is that it only ever navigates to LOCAL gendn routes.
+// NOT a control: CSP frame-src. It limits which origins gendn may embed; it says nothing about what
+// an embedded origin does, and it does not apply to top-level navigation at all.
+// Other controls: the only third-party content is the operator's own showcase iframes, all
+// loading="lazy" and below the fold, so a gate that never scrolls never loads them (if a gate starts
+// scrolling, or an iframe moves above the fold, lazy stops being a control); tests evaluate only
+// same-origin DOM.
+//
+// WHAT THIS CHECK CAN SEE (gendn-8ph): only the URL the gate asks for. It is blind to HTTP redirects
+// and to navigation the page performs itself (location changes, clicks, form posts, window.open).
+// Those are covered separately, and only partly: goto() re-checks the FINAL top-level URL after the
+// load (catches redirects), and evaluate() re-checks it before every evaluation (catches a page that
+// navigated itself away before the gate reads it). Still NOT seen: a page that leaves and returns
+// between two checks, and subframe / popup navigation.
+// PORT DECISION (gendn-mem): the whitelist is HOSTNAME-ONLY on purpose. Every gate takes its port
+// from the OS, so a port-aware check would need the assigned port plumbed into every caller, and
+// it would guard nothing the hostname does not: all localhost ports are inside the same machine's
+// trust boundary, and what is being guarded is leaving the machine. A page can therefore redirect
+// to another localhost port and pass; to satisfy the check an off-machine service would need a
+// hostname of localhost / 127.0.0.1 / [::1], which means it is not off-machine.
+// CHROME-ERROR (gendn-mem): a failed navigation (connection refused, DNS failure) leaves the page
+// on chrome-error://. That is a navigation FAILURE, not an origin violation, so classifyOrigin()
+// names it separately and assertLocalOrigin() throws a distinct "navigation failed" error rather
+// than letting a caller read the error page as content.
+export function classifyOrigin(href) {
+  const h = String(href);
+  if (h.startsWith("chrome-error:")) return "navigation-failed";
+  return isLocalNavigation(h) ? "local" : "off-origin";
+}
+export function isLocalNavigation(url) {
+  if (url === "about:blank") return true;
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return false;
+  }
+  return (u.protocol === "http:" || u.protocol === "https:") &&
+    ["localhost", "127.0.0.1", "[::1]"].includes(u.hostname);
+}
+
+// POSTURE DECISION (gendn-8na): keep --no-sandbox. Chrome does start with its sandbox on this VM
+// (verified as uid 1000), but the gates also run in CI/containers where unprivileged user
+// namespaces are commonly unavailable and the sandboxed launch fails outright. Enabling it by
+// default would trade a hard gate failure for marginal protection given the whitelist above.
 export async function launch({ port = 9333 } = {}) {
   const bins = findChrome();
   await sweepStaleProfileDirs();
@@ -363,7 +440,7 @@ export async function launch({ port = 9333 } = {}) {
   return new Browser(child, wsUrl, userDataDir, port);
 }
 
-class Conn {
+export class Conn {
   constructor(ws) {
     this.ws = ws;
     this.nextId = 1;
@@ -381,14 +458,11 @@ class Conn {
       }
     };
   }
-  send(method, params = {}, sessionId) {
+  send(method, params = {}, sessionId, timeoutMs = CDP_TIMEOUT_MS) {
     const id = this.nextId++;
     const payload = { id, method, params };
     if (sessionId) payload.sessionId = id && sessionId;
-    return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
-      this.ws.send(JSON.stringify(payload));
-    });
+    return pendingCall(this, this.ws, payload, method, timeoutMs);
   }
   on(fn) {
     this.listeners.push(fn);
@@ -449,13 +523,16 @@ class Page {
   cmd(method, params) {
     return this.sendSession(method, params);
   }
-  sendSession(method, params = {}) {
+  sendSession(method, params = {}, timeoutMs = CDP_TIMEOUT_MS) {
     // send with sessionId (flat protocol)
     const id = this.conn.nextId++;
-    return new Promise((resolve, reject) => {
-      this.conn.pending.set(id, { resolve, reject });
-      this.conn.ws.send(JSON.stringify({ id, method, params, sessionId: this.sessionId }));
-    });
+    return pendingCall(
+      this.conn,
+      this.conn.ws,
+      { id, method, params, sessionId: this.sessionId },
+      method,
+      timeoutMs,
+    );
   }
   async init({ width, height, mobile, deviceScaleFactor }) {
     this.conn.on((msg) => {
@@ -500,6 +577,9 @@ class Page {
     });
   }
   async goto(url, { timeout = 20000 } = {}) {
+    if (!isLocalNavigation(url)) {
+      throw new Error(`gate browser refused non-local navigation: ${url}`);
+    }
     this.consoleErrors = [];
     this.failedRequests = [];
     this._reqUrls = new Map();
@@ -511,8 +591,25 @@ class Page {
     ]);
     // Give lazily-scheduled work a brief, fixed settle window (deterministic).
     await new Promise((r) => setTimeout(r, 400));
+    await this.assertLocalOrigin(`after goto ${url}`);
+  }
+  // Re-check the page's CURRENT top-level URL (catches redirects and in-page navigation).
+  async assertLocalOrigin(context = "") {
+    const res = await this.sendSession("Runtime.evaluate", {
+      expression: "location.href",
+      returnByValue: true,
+    });
+    const href = res.result?.value;
+    const kind = classifyOrigin(href);
+    if (kind === "navigation-failed") {
+      throw new Error(`gate browser navigation failed (${context}): ${href}`);
+    }
+    if (kind !== "local") {
+      throw new Error(`gate browser is off-origin (${context}): ${href}`);
+    }
   }
   async evaluate(expr) {
+    await this.assertLocalOrigin("before evaluate");
     const res = await this.sendSession("Runtime.evaluate", {
       expression:
         `(function(){ try { return (${expr}); } catch(e){ return "__THREW__:"+e.message; } })()`,

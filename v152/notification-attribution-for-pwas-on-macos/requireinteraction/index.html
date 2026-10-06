@@ -47,7 +47,7 @@
 new Notification(title, { requireInteraction: true });
 serviceWorkerRegistration.showNotification(title, { requireInteraction: true });</code></pre>
     <p>The WHATWG Notifications Standard defines <a href="https://notifications.spec.whatwg.org/#dom-notificationoptions-requireinteraction" target="_blank" rel="noopener"><code>requireInteraction</code></a> as a notification's <em>require interaction preference</em> (a boolean, initially false): &ldquo;When true, indicates that on devices with a sufficiently large screen, the notification should remain readily available until the end user activates or dismisses the notification.&rdquo;</p>
-    <span class="citation">Source: <a href="https://notifications.spec.whatwg.org/#dom-notificationoptions-requireinteraction" target="_blank" rel="noopener">WHATWG Notifications — NotificationOptions.requireInteraction</a></span>
+    <span class="citation">Source: <a href="https://notifications.spec.whatwg.org/" target="_blank" rel="noopener">WHATWG Notifications API Standard</a> — <a href="https://notifications.spec.whatwg.org/#dom-notificationoptions-requireinteraction" target="_blank" rel="noopener">NotificationOptions.requireInteraction</a></span>
   </section>
 
   <section>
@@ -107,15 +107,23 @@ reg.showNotification("Incoming call", {
 
 // Chrome 152+, installed PWA on macOS: same code, different outcome.
 // The field is ignored; the user's per-app alert style decides.
+// Platform detection first: the low-entropy Client Hint where the engine has it (Chromium only),
+// the legacy string strictly as a fallback for the engines that do not.
+const platform = navigator.userAgentData?.platform;
+const isMacOS = platform ? platform === "macOS" : /Mac OS X/.test(navigator.userAgent); // TODO(baseline/ua-client-hints): drop the navigator.userAgent fallback (Firefox and Safari expose no equivalent platform hint).
 // Robust pattern: don't encode "must persist" in the notification —
 // surface critical state in-app as well.
 const isMacPWA =
   matchMedia("(display-mode: standalone)").matches &amp;&amp;
-  /Mac OS X/.test(navigator.userAgent);
+  isMacOS;
 if (isMacPWA) {
   showInAppRingUI(); // your own unmissable surface
 }
 reg.showNotification("Incoming call", { body: "Ada is calling" });</code></pre>
+    <p>Platform detection here reads the low-entropy <code>navigator.userAgentData.platform</code> hint first. That API is Chromium-family only — the
+      <a href="https://wicg.github.io/ua-client-hints/#dom-navigatoruadata-platform" target="_blank" rel="noopener">User-Agent Client Hints spec</a>
+      defines it and Chrome/Edge 90+ implement it, while Firefox and Safari expose no equivalent
+      platform hint — so the snippet keeps the legacy string strictly as a fallback for those engines.</p>
     <p>Try it in the Chrome Platform Showcase <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v152/notification-attribution-for-pwas-on-macos/notification-capability-lab/" target="_blank" rel="noopener">notification capability lab</a> (route HEAD-checked 200, 2026-07-29).</p>
     <span class="citation">Source: behavior per the <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/1-_VfY1NIQs" target="_blank" rel="noopener">PSA</a>; demo per <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v152/notification-attribution-for-pwas-on-macos/" target="_blank" rel="noopener">chrome-platform-showcase</a></span>
   </section>

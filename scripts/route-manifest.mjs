@@ -26,12 +26,13 @@
 //   (add `--pretty` for indented output)
 
 import { isMdnStubHtml } from "./lib/artifacts.mjs";
+import { runGit } from "./lib/bounded-git.mjs";
 
-const PAGE_RE = /^v\d+\/[^/]+\/index\.html$/;
+export const PAGE_RE = /^v\d+\/[^/]+\/index\.html$/;
 const FEATURE_ID_RE = /chromestatus\.com\/feature\/(\d+)/;
 const SHOWCASE_HOST = "chrome-platform-showcase.paulkinlan-ea.deno.net";
 
-function pathToIdentityFields(pagePath, html) {
+export function pathToIdentityFields(pagePath, html) {
   // pagePath: `v<N>/<slug>/index.html`
   const parts = pagePath.split("/");
   const release = parts[0]; // v<N>
@@ -45,7 +46,7 @@ function pathToIdentityFields(pagePath, html) {
   const status = isMdnStubHtml(html) ? "stub" : "built";
 
   // The embedded-demo identity: the showcase route this page links to for its OWN feature.
-  // Prefer a link whose path matches this page's `/v<N>/<slug>`; fall back to null.
+  // Prefer a link whose path matches this page's `/v<N>/<slug>`; otherwise use the first showcase link.
   let demo = null;
   const showcaseRe = new RegExp(
     `${SHOWCASE_HOST.replace(/\./g, "\\.")}(/v\\d+/[a-z0-9-]+/?[a-z0-9-]*/?)`,
@@ -65,25 +66,32 @@ function pathToIdentityFields(pagePath, html) {
   return { id, route, identity, status, demo };
 }
 
-async function runGit(args) {
-  const cmd = new Deno.Command("git", {
-    args,
-    stdout: "piped",
-    stderr: "piped",
-  });
-  const { code, stdout, stderr } = await cmd.output();
+// Bounded and shared (gendn-8q2) so this gate cannot hang the way gendn-1tu found in
+// check-conformance; a timeout throws a named error instead of waiting forever.
+async function runGitChecked(args) {
+  const { code, stdout, stderr } = await runGit(args, { stdout: "piped", stderr: "piped" });
   if (code !== 0) {
-    throw new Error(`git ${args.join(" ")} failed: ${new TextDecoder().decode(stderr)}`);
+    // Name what git said, not just the code (gendn-r1q): the `fatal:`/`error:` line is the one that
+    // tells a human WHICH ref or object was wrong. NOT simply the last line: git prints `fatal: ...`
+    // FIRST and then hints, so taking the tail picked the hint (review counterexamples: `git show ""`
+    // ended on `'git <command> [<revision>...] -- [<file>...]'`, and an unknown option ended on a
+    // usage flag list, both discarding the actual cause). One line only, so a multi-line diagnostic
+    // cannot swamp the gate's output; falls back to the first non-empty line if git labelled nothing.
+    const lines = stderr.trim().split("\n").map((l) => l.trim()).filter(Boolean);
+    const detail = lines.find((l) => /^(fatal|error):/i.test(l)) ?? lines[0];
+    throw new Error(
+      `git ${args.join(" ")} failed with exit code ${code}${detail ? `: ${detail}` : ""}`,
+    );
   }
-  return new TextDecoder().decode(stdout);
+  return stdout;
 }
 
 async function collectFromRef(ref) {
-  const tree = await runGit(["ls-tree", "-r", "--name-only", ref]);
+  const tree = await runGitChecked(["ls-tree", "-r", "--name-only", ref]);
   const pages = tree.split("\n").filter((p) => PAGE_RE.test(p)).sort();
   const entries = [];
   for (const pagePath of pages) {
-    const html = await runGit(["show", `${ref}:${pagePath}`]);
+    const html = await runGitChecked(["show", `${ref}:${pagePath}`]);
     entries.push(pathToIdentityFields(pagePath, html));
   }
   return entries;
@@ -124,7 +132,7 @@ async function loadReferenceRoutes(ref, id) {
   let raw;
   try {
     raw = ref
-      ? await runGit(["show", `${ref}:${id}/reference-contract.json`])
+      ? await runGitChecked(["show", `${ref}:${id}/reference-contract.json`])
       : await Deno.readTextFile(`${id}/reference-contract.json`);
   } catch {
     return [];
@@ -147,7 +155,7 @@ async function loadSupportRoutes(ref) {
   let raw = null;
   try {
     raw = ref
-      ? await runGit(["show", `${ref}:responsive-support.json`])
+      ? await runGitChecked(["show", `${ref}:responsive-support.json`])
       : await Deno.readTextFile("responsive-support.json");
   } catch {
     return {};

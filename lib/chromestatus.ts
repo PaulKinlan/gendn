@@ -7,9 +7,92 @@
 //   on every request. Process restarts (and Deno Deploy isolate restarts) will
 //   refetch.
 
-const BASE = "https://chromestatus.com/api/v0";
+// Injectable base for TESTS ONLY (gendn-14o): when CHROMESTATUS_BASE is set at import time, the
+// wrapper targets a local HTTP stub instead of the live API, so parsing/cache/grouping behaviour
+// can be tested with no live chromestatus dependency. Production (Deno Deploy, deno task start)
+// never sets it, so the default below is the only real behaviour. The try/catch keeps the module
+// importable without --allow-env (Deno.env.get would throw a PermissionDenied at import time).
+let BASE = "https://chromestatus.com/api/v0";
+try {
+  BASE = Deno.env.get("CHROMESTATUS_BASE") ?? BASE;
+} catch {
+  // no env permission: production default
+}
 const TTL_MS = 5 * 60 * 1000;
 const XSSI_PREFIX = ")]}'";
+
+// Bounded upstream fetches (gendn-snd). A hung or oversized upstream must not be able to stall
+// or balloon the server.
+//
+// TIMEOUT: 15_000 ms, deliberately generous. chromestatus's API answers well under a second
+// when healthy, but this VM has measured 60-85% host CPU steal, and a cache miss happens on the
+// request path — so the bound only has to catch a HUNG connection, not police a slow one. Too
+// short would turn a slow-but-working upstream into an outage, which is worse than the exposure
+// being removed; 15s is ~15x the healthy p100 while still bounding a stalled socket.
+//
+// SIZE: 8 MiB. A milestone's feature list is the largest upstream payload (a few hundred
+// features with prose); 8 MiB is roughly 4x the biggest observed response and still a hard
+// ceiling on what one response can allocate.
+export const UPSTREAM_TIMEOUT_MS = 15_000;
+export const UPSTREAM_MAX_BYTES = 8 * 1024 * 1024;
+
+/** Read a response body with a hard byte cap, refusing oversized responses early. */
+export async function readCapped(res: Response, maxBytes: number): Promise<string> {
+  const declared = res.headers.get("content-length");
+  if (declared !== null && Number(declared) > maxBytes) {
+    throw new Error(`upstream response too large: ${declared} bytes > ${maxBytes} cap`);
+  }
+  if (!res.body) return "";
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        throw new Error(`upstream response exceeded the ${maxBytes}-byte cap`);
+      }
+      chunks.push(value);
+    }
+  } finally {
+    try {
+      await reader.cancel();
+    } catch {
+      // already closed
+    }
+  }
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(out);
+}
+
+/**
+ * fetch with a bounded timeout and a bounded body size (gendn-snd). Callers get a thrown Error
+ * either way, so the caller's error handling (generic client message + server-side detail) is
+ * the single place that decides what a client sees.
+ */
+export async function fetchBounded(
+  url: string,
+  { headers, timeoutMs = UPSTREAM_TIMEOUT_MS, maxBytes = UPSTREAM_MAX_BYTES, method }: {
+    headers?: HeadersInit;
+    timeoutMs?: number;
+    maxBytes?: number;
+    // method is additive for gendn-5fk: lib/mdn.ts existence checks use HEAD, and that fetch must
+    // carry the same bound as every other outbound call rather than a second implementation.
+    // Omitted (undefined) means a normal GET, so existing callers are unchanged.
+    method?: string;
+  } = {},
+): Promise<{ res: Response; text: string }> {
+  const res = await fetch(url, { method, headers, signal: AbortSignal.timeout(timeoutMs) });
+  const text = await readCapped(res, maxBytes);
+  return { res, text };
+}
 
 const cache = new Map<string, { at: number; value: unknown }>();
 
@@ -17,9 +100,11 @@ async function getJson<T>(path: string): Promise<T> {
   const hit = cache.get(path);
   if (hit && Date.now() - hit.at < TTL_MS) return hit.value as T;
 
-  const res = await fetch(BASE + path, { headers: { accept: "application/json" } });
+  const { res, text: body } = await fetchBounded(BASE + path, {
+    headers: { accept: "application/json" },
+  });
   if (!res.ok) throw new Error(`chromestatus ${path} returned ${res.status}`);
-  let text = await res.text();
+  let text = body;
   if (text.startsWith(XSSI_PREFIX)) text = text.slice(XSSI_PREFIX.length).trimStart();
   const parsed = JSON.parse(text) as T;
   cache.set(path, { at: Date.now(), value: parsed });

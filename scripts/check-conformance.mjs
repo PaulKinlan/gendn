@@ -30,28 +30,27 @@ import {
   validate,
 } from "./lib/artifacts.mjs";
 import { validateReferenceContractsInBrowser } from "./lib/reference-browser.mjs";
+import { gitRefExists, runGit } from "./lib/bounded-git.mjs";
 import {
   collectReferenceContracts,
+  declaredSurfaceSummary,
   validateContractOwnership,
+  validateDeclaredSurface,
   validateReferenceContract,
 } from "./lib/reference-contract.mjs";
 
 const MIGRATIONS = "migrations.json";
 
-async function git(args) {
-  const cmd = new Deno.Command("git", { args, stdout: "piped", stderr: "null" });
-  const { code, stdout } = await cmd.output();
-  if (code !== 0) return null;
-  return new TextDecoder().decode(stdout);
-}
+// GIT CANNOT BE ALLOWED TO HANG THIS GATE. The bounded runner lives in scripts/lib/bounded-git.mjs
+// so that check-conformance, check-routes and route-manifest cannot drift apart on the bound
+// (gendn-8q2); the reasoning behind it - object-store contention, and the pipe-EOF death where a
+// forked auto-gc holds stdout open so the promise never settles and Deno exits with zero output - is
+// documented there once.
 
-async function gitRefExists(ref) {
-  const cmd = new Deno.Command("git", {
-    args: ["rev-parse", "--verify", "--quiet", ref],
-    stdout: "null",
-    stderr: "null",
-  });
-  return (await cmd.output()).code === 0;
+async function git(args) {
+  const { code, stdout } = await runGit(args, { stdout: "piped" });
+  if (code !== 0) return null;
+  return stdout;
 }
 
 async function loadMigrations() {
@@ -142,6 +141,7 @@ async function main() {
     ];
     referenceErrorsById.set(record.ownerId, recordErrors);
   }
+  const surfaceNotes = [];
   const browserCheckRecords = [];
   if (baselineRef) {
     const diff = (await git(["diff", "--name-only", baselineRef, "--", "v*"])) ?? "";
@@ -238,7 +238,24 @@ async function main() {
               }, not implementation-sufficient`,
             );
           }
-          const structuralErrors = referenceErrorsById.get(id) ?? [];
+          const structuralErrors = [...(referenceErrorsById.get(id) ?? [])];
+          // DECLARED-SURFACE RULE, SCOPED TO TOUCHED PAGES (gendn-4kq): a touched contract claiming
+          // implementation-sufficient must account for every member the page declares in its own
+          // syntax IDL, or list it in outOfScope with a rationale - so a collapsed inventory is an
+          // explicit, reviewable statement instead of an invisible one. Deliberately NOT applied to
+          // untouched contracts, so this does not go red for pre-existing state.
+          if (contract.completeness === "implementation-sufficient") {
+            const pageHtml = await Deno.readTextFile(`./${id}/index.html`).catch(() => null);
+            if (pageHtml) {
+              structuralErrors.push(...validateDeclaredSurface(contract, pageHtml));
+              const surface = declaredSurfaceSummary(contract, pageHtml);
+              if (surface.declared > 0) {
+                surfaceNotes.push(
+                  `  ${id}: declared ${surface.declared} = inventory ${surface.inventory} + outOfScope ${surface.outOfScope}`,
+                );
+              }
+            }
+          }
           for (const error of structuralErrors) {
             failures.push(`touched built reference ${id}: ${error}`);
           }
@@ -289,6 +306,12 @@ async function main() {
   console.log(`  desktop matrix ok  : ${okCls("desktop")}/${pageIds.size}`);
   console.log(`  mobile matrix ok   : ${okCls("mobile")}/${pageIds.size}`);
   console.log(`  baseline suites    : ${baselineChecked} checked for weakening`);
+  if (surfaceNotes.length) {
+    console.log(
+      `  declared surfaces  : ${surfaceNotes.length} touched contract(s) - inventory N + outOfScope M of the page's declared members`,
+    );
+    for (const note of surfaceNotes) console.log(note);
+  }
   if (results?.agg) {
     const a = results.agg;
     console.log(
@@ -310,4 +333,16 @@ async function main() {
   console.log("\nPASS — full conformance coverage, no weakened assertions.");
 }
 
-if (import.meta.main) await main();
+if (import.meta.main) {
+  // A hang anywhere in the gate now surfaces as this line rather than as a silent zero-output death.
+  try {
+    await main();
+  } catch (err) {
+    console.error(
+      `\nFAIL — the conformance gate could not complete: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+    Deno.exit(1);
+  }
+}

@@ -58,7 +58,7 @@
   </div>
 
   <section>
-    <h2>at a glance</h2>
+    <h2 id="at-a-glance">at a glance</h2>
     <div class="table-wrap">
     <table class="doc-table">
       <caption>At a glance</caption>
@@ -75,7 +75,7 @@
   </section>
 
   <section>
-    <h2>Syntax</h2>
+    <h2 id="syntax">Syntax</h2>
     <p>The field lives inside a prerender rule in a <code>&lt;script type="speculationrules"&gt;</code> block. Per the open PR's spec-preview diff of <code>prerendering.html</code>, the rule parser accepts a <code>form_submission</code> member only when its value is a boolean; for a non-boolean value, the user agent may report a console warning and the individual rule parser returns null. The explainer says the intended form-submission use is restricted to <strong>list rules</strong> (explicit <code>urls</code>) because document rules match links, not submit buttons. However, the current open PR diff parses the member generically and propagates it through the predicate/document-rule candidate path; it does not visibly add a list-only rejection. Treat that as unresolved proposal text, not a settled parser guarantee.</p>
 <pre><code>// Two prerendered candidates: one prepared as a form submission, one ordinary.
 // A navigation that matches the parameters activates the matching one.
@@ -100,6 +100,7 @@
       <tr><th scope="row">Value type</th><td>Boolean; a non-boolean value discards the individual rule and may produce a console warning</td></tr>
       <tr><th scope="row">Rule kinds</th><td>The explainer intends list rules (<code>urls</code>) because document rules match links rather than submit buttons. The open PR diff currently propagates the member through its predicate path, so list-only parser enforcement is not yet settled.</td></tr>
       <tr><th scope="row">Effect when <code>true</code></th><td>The browser prepares the prerender as a form submission, so a real form-submission navigation can activate it</td></tr>
+      <tr><th scope="row">Activation matching</th><td>Activation matches on the <em>navigation type</em>, not only the URL: a record prepared as a form submission is matched only by a form-submission navigation, and a record prepared ordinarily only by an ordinary navigation. The two never substitute for each other, so marking the field on the wrong candidate makes the prerender unusable rather than harmless.</td></tr>
       <tr><th scope="row">What it does NOT do</th><td>It does not trigger the speculation itself — the page decides when to speculate (hover the submit button, pause after typing, or a form-specific point)</td></tr>
       <tr><th scope="row">Eligibility</th><td>Preparing as a form submission lets the browser run the form-action/CSP checks up front, avoiding wasted prerenders on ineligible pages</td></tr>
     </table>
@@ -108,17 +109,26 @@
   </section>
 
   <section>
-    <h2>Why it exists</h2>
+    <h2 id="why-it-exists">Why it exists</h2>
     <p>Prerendering loads a page before the user navigates so the navigation is instant. But form submissions are special navigations: they carry state ordinary navigations lack, and at least Chrome runs extra checks on them that a prerendered page never went through. So a prerender prepared the ordinary way can never be activated by a form submission — and without an eligibility check, the browser could waste resources prerendering a page CSP would reject anyway (via <code>form-action</code>). Developers asked for this specifically for search-style GET forms (<a href="https://issues.chromium.org/issues/346555939" target="_blank" rel="noopener">crbug.com/346555939</a>). The proposal addresses both halves: a candidate marked for form submission can run the additional eligibility checks while being prepared, and a later form submission can activate it only if the browser created and retained an eligible prerender and the activation navigation matches.</p>
     <p>Prefetch rules are unaffected: prefetch only downloads HTML without starting a navigation, so form navigations already work without this field.</p>
-    <span class="citation">Source: <a href="https://github.com/WICG/nav-speculation/blob/main/prerendering-form-submission.md" target="_blank" rel="noopener">WICG form_submission explainer — problem &amp; motivation</a></span>
-  </section>
+    <p>In the proposal's parsing changes, a prefetch rule that <em>does</em> specify <code>form_submission</code> is <strong>discarded</strong> rather than rejected as a whole rule set — the field is a prerender concept, and a prefetch cannot carry it.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/nav-speculation/blob/main/prerendering-form-submission.md" target="_blank" rel="noopener">WICG form_submission explainer — problem &amp; motivation</a>; <a href="https://github.com/WICG/nav-speculation/pull/426" target="_blank" rel="noopener">WICG nav-speculation PR #426</a></span>
+   </section>
+
+   <section>
+    <h2 id="lifecycle-and-context">Lifecycle and context</h2>
+    <p>Preparing is not activating. Marking a candidate <code>form_submission</code> only prepares the prerender; the candidate is then retained, and activation happens later, if at all, when a navigation arrives that matches the retained record. The explainer is explicit that the proposal “does not add functionality to trigger the speculation”, so a rule that is never matched is never activated.</p>
+    <p>The proposal's own review records one of these lifecycle questions as not applicable — prerendered pages cannot be kept in BFCache — and answers another factually: speculative loading does not work in disconnected documents. On context, the proposal does not distinguish first-party from third-party use, behaves the same in private browsing, and — because a speculatively loaded page is itself a waste of resources — speculative loads are skipped inside a page that is already prerendering.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/nav-speculation/blob/main/prerendering-form-submission.md" target="_blank" rel="noopener">WICG form_submission explainer — W3C TAG questionnaire, questions 14, 15, 18 and 19</a>; <a href="https://github.com/WICG/nav-speculation/pull/426" target="_blank" rel="noopener">WICG nav-speculation PR #426 — processing model</a></span>
+   </section>
 
   <section>
-    <h2>Examples</h2>
+    <h2 id="examples">Examples</h2>
     <figure class="example-embed">
       <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v151/speculation-rules-form-submission-field/syntax-builder/"
         title="Live example — Speculation rules syntax builder" loading="lazy" width="100%" height="520"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"
         style="border:2px solid var(--border-black)"></iframe>
       <figcaption>Live example from the Chrome Platform Showcase: build prerender rules with and without the <code>form_submission</code> field and inspect the JSON. <span class="citation">Source: chrome-platform-showcase</span></figcaption>
     </figure>
@@ -149,7 +159,7 @@ form.querySelector("input").addEventListener("input", debounce(speculate, 300));
   </section>
 
   <section>
-    <h2>Browser compatibility</h2>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
     <p>There is no browser-compat-data (BCD) entry for this field (BCD's <code>html/elements/script.json</code> covers <code>speculationrules</code> but not <code>form_submission</code>, checked 2026-07-25), so the table below is an <strong>interim</strong> view built from ChromeStatus ship data and public signals — not from BCD.</p>
     <div class="table-wrap">
     <table class="doc-table compat-table">
@@ -166,7 +176,14 @@ form.querySelector("input").addEventListener("input", debounce(speculate, 300));
   </section>
 
   <section>
-    <h2>Specifications</h2>
+    <h2 id="security-privacy">Security and privacy</h2>
+    <p>The explainer records no new accessibility, privacy or security considerations on top of the existing ones for speculative loads in general, and answers the W3C TAG security and privacy questionnaire: the field exposes no information and deals with no sensitive or personal data, creates no state that persists across browsing sessions and no temporary identifiers, does not expose platform information, does not access device sensors or other devices, does not enable a new script execution or loading mechanism, does not downgrade any default security protection, and works the same in private browsing. The larger Speculation Rules specification carries the <a href="https://wicg.github.io/nav-speculation/speculation-rules.html" target="_blank" rel="noopener">Security considerations and Privacy considerations</a> sections that this field inherits.</p>
+    <p>The eligibility check this field enables is a resource argument rather than a privacy property, and is framed that way in the explainer: preparing the prerender as a form submission lets the browser run the <code>form-action</code> CSP check up front, so a page whose policy would reject the submission is never prerendered. The explainer's security and privacy section records no considerations for the feature beyond those already existing for speculative loads in general, and describes the check only as avoiding wasted resources.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/nav-speculation/blob/main/prerendering-form-submission.md" target="_blank" rel="noopener">WICG form_submission explainer — accessibility, privacy and security considerations (incl. the TAG questionnaire)</a></span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
     <div class="table-wrap">
     <table class="doc-table">
       <caption>Specifications</caption>
@@ -180,7 +197,7 @@ form.querySelector("input").addEventListener("input", debounce(speculate, 300));
   </section>
 
   <section>
-    <h2>See also</h2>
+    <h2 id="see-also">See also</h2>
     <ul>
       <li><a href="https://github.com/WICG/nav-speculation/blob/main/prerendering-form-submission.md" target="_blank" rel="noopener">WICG — Speculation Rules form submission explainer</a></li>
       <li><a href="https://github.com/WICG/nav-speculation/issues/322" target="_blank" rel="noopener">WICG nav-speculation issue #322 — initial proposal</a></li>

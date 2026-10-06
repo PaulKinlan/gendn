@@ -5,7 +5,15 @@
 // at v<N>/<api-slug>/index.html. The index lists every API by release and
 // flags each as "on MDN → link out" or "generated here → link to local page".
 
-import { Channels, getChannels, getMilestoneFeatures, slugify } from "./lib/chromestatus.ts";
+import {
+  Channels,
+  fetchBounded,
+  getChannels,
+  getMilestoneFeatures,
+  slugify,
+} from "./lib/chromestatus.ts";
+import { renderCommitAnchor } from "./lib/external-url.ts";
+import { escapeHTML } from "./lib/html.ts";
 import {
   renderConformanceIndex,
   renderCritique,
@@ -72,14 +80,9 @@ const MIME: Record<string, string> = {
   woff2: "font/woff2",
 };
 
-function escapeHTML(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
+// escapeHTML now lives in lib/html.ts so the commit-line renderer (lib/external-url.ts) escapes
+// exactly as the server does — one implementation, not a copy. Encoding only: it is NOT a
+// URL-scheme check (gendn-0cu).
 
 // ----- Last-commit info (fetched from GitHub, cached for 5 minutes) -----
 
@@ -93,10 +96,30 @@ interface CommitInfo {
 const COMMIT_TTL_MS = 5 * 60 * 1000;
 let commitCache: { at: number; value: CommitInfo | null } | null = null;
 
+// Errors are logged in full server-side so an operator can still diagnose the failure, but the
+// client gets a generic message: raw err text can carry internal paths, file names and upstream
+// detail (gendn-snd). The log line carries the context needed to identify the request.
+function serverError(req: Request, what: string, err: unknown): Response {
+  const path = (() => {
+    try {
+      return new URL(req.url).pathname;
+    } catch {
+      return req.url;
+    }
+  })();
+  const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+  console.error(`[gendn] ${what} failed: ${req.method} ${path} -> ${detail}`);
+  if (err instanceof Error && err.stack) console.error(`[gendn] ${what} stack: ${err.stack}`);
+  return new Response("Internal error", {
+    status: 502,
+    headers: { "content-type": "text/plain; charset=utf-8" },
+  });
+}
+
 async function getLatestCommit(): Promise<CommitInfo | null> {
   if (commitCache && Date.now() - commitCache.at < COMMIT_TTL_MS) return commitCache.value;
   try {
-    const res = await fetch(
+    const { res, text } = await fetchBounded(
       "https://api.github.com/repos/PaulKinlan/gendn/commits/main",
       { headers: { accept: "application/vnd.github+json" } },
     );
@@ -104,11 +127,14 @@ async function getLatestCommit(): Promise<CommitInfo | null> {
       commitCache = { at: Date.now(), value: null };
       return null;
     }
-    const data = await res.json();
+    const data = JSON.parse(text);
     const value: CommitInfo = {
       sha: data.sha,
       shortSha: String(data.sha).slice(0, 7),
       date: data.commit?.author?.date ?? data.commit?.committer?.date ?? "",
+      // Stored raw; rendered through the scheme allowlist in lib/external-url.ts (gendn-0cu).
+      // This is the value's ONLY sink — it reaches no JSON, feed or other template (checked by
+      // grep for htmlUrl/html_url across the repo: interface, this assignment, and the render).
       htmlUrl: data.html_url,
     };
     commitCache = { at: Date.now(), value };
@@ -144,12 +170,15 @@ function formatCommitLine(c: CommitInfo | null): string {
     : "";
   return `<p class="updated-line">Last updated ${escapeHTML(relative)} <span class="updated-abs">(${
     escapeHTML(absolute)
-  })</span> &middot; commit <a href="${
-    escapeHTML(c.htmlUrl)
-  }" target="_blank" rel="noopener"><code>${escapeHTML(c.shortSha)}</code></a></p>`;
+  })</span> &middot; commit ${renderCommitAnchor(c.htmlUrl, c.shortSha)}</p>`;
 }
 
 async function readPublicAsset(path: string): Promise<Response> {
+  // DEFENSE IN DEPTH ONLY (gendn-d7a): symmetric with readReleaseAsset's guard below. The
+  // nightly vuln-discovery and vuln-verify stations both judged directory traversal SAFE
+  // here because the URL is normalised before use — this guard adds no behaviour change
+  // beyond the same explicit early-exit its sibling already has.
+  if (path.includes("..")) return new Response("Not found", { status: 404 });
   try {
     const file = await Deno.readFile("." + path);
     const ext = path.split(".").pop() ?? "";
@@ -293,9 +322,36 @@ async function featureHasDoc(release: string, slug: string): Promise<boolean> {
 // built under an earlier release is the canonical reference — the listing must link it rather
 // than flag a false "doc pending". Built lazily once per process from each page's identity link.
 let identityIndexPromise: Promise<Map<string, string>> | null = null;
-// Bounds the concurrent index.html reads below; the pages are independent files, so this is
-// only a cap on in-flight I/O, never a change to which page wins a duplicate identity.
-const IDENTITY_READ_CONCURRENCY = 32;
+// Bounds concurrent independent I/O. Used by the identity-index reads below AND by the /features
+// catalogue's per-feature doc checks, so there is one in-flight cap in the file rather than two
+// numbers that can drift. 32 mirrors the cap this file already used for the index reads; the work
+// items are independent files/metadata, so this is only a ceiling on in-flight I/O and never a
+// change to which item wins anything.
+const IO_CONCURRENCY = 32;
+
+// Run `fn` over `items` with at most `limit` in flight, returning results in INPUT ORDER so a
+// caller can rely on positional correspondence (that is what keeps duplicate-identity resolution
+// first-wins in getIdentityIndex below). Rejections propagate: callers that want per-item
+// tolerance catch inside `fn`.
+async function mapPool<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, async () => {
+      for (;;) {
+        const i = next++;
+        if (i >= items.length) break;
+        out[i] = await fn(items[i], i);
+      }
+    }),
+  );
+  return out;
+}
+
 function getIdentityIndex(): Promise<Map<string, string>> {
   if (!identityIndexPromise) {
     identityIndexPromise = (async () => {
@@ -308,23 +364,14 @@ function getIdentityIndex(): Promise<Map<string, string>> {
           routes.push(`/${dir.name}/${sub.name}/`);
         }
       }
-      // Read the pages concurrently, writing each result back at its route's index: the
-      // collation below then runs in directory order, so `!map.has(id)` still resolves
-      // duplicates first-wins exactly as the sequential loop did, independent of read order.
-      const htmls: (string | null)[] = new Array(routes.length).fill(null);
-      let next = 0;
-      await Promise.all(
-        Array.from(
-          { length: Math.min(IDENTITY_READ_CONCURRENCY, routes.length) },
-          async () => {
-            for (;;) {
-              const i = next++;
-              if (i >= routes.length) break;
-              // A missing index.html means a child-route container, not a page.
-              htmls[i] = await Deno.readTextFile(`.${routes[i]}index.html`).catch(() => null);
-            }
-          },
-        ),
+      // Read the pages concurrently (bounded), then collate in directory order: `!map.has(id)`
+      // still resolves duplicates first-wins exactly as the sequential loop did, independent of
+      // read order, because mapPool returns results in input order.
+      // A missing index.html means a child-route container, not a page.
+      const htmls = await mapPool(
+        routes,
+        IO_CONCURRENCY,
+        (route) => Deno.readTextFile(`.${route}index.html`).catch(() => null),
       );
       htmls.forEach((html, i) => {
         const m = html?.match(/chromestatus\.com\/feature\/(\d+)/);
@@ -345,6 +392,18 @@ function categoryTag(category: string): string {
     .replace("Browser Intervention", "Intervention");
 }
 
+// Route values come from directory names; escape at the point of interpolation (gendn-7xq).
+export function referenceTag(release: string, slug: string): string {
+  return `<a class="tag tag-live" href="/${escapeHTML(release)}/${
+    escapeHTML(slug)
+  }/">reference &rarr;</a>`;
+}
+export function crossReferenceTag(cross: string): string {
+  return `<a class="tag tag-live" href="${escapeHTML(cross)}">reference ${
+    escapeHTML(cross.split("/")[1] ?? "")
+  } &rarr;</a>`;
+}
+
 async function renderReleasePage(release: string, milestone: number): Promise<string> {
   const features = await getMilestoneFeatures(milestone);
   const identityIndex = await getIdentityIndex();
@@ -356,11 +415,11 @@ async function renderReleasePage(release: string, milestone: number): Promise<st
       const summary = (f.summary ?? "").slice(0, 220);
       let docTag: string;
       if (hasDoc) {
-        docTag = `<a class="tag tag-live" href="/${release}/${slug}/">reference &rarr;</a>`;
+        docTag = referenceTag(release, slug);
       } else {
         const cross = identityIndex.get(String(f.id));
         docTag = cross
-          ? `<a class="tag tag-live" href="${cross}">reference ${cross.split("/")[1]} &rarr;</a>`
+          ? crossReferenceTag(cross)
           : `<span class="tag tag-pending">doc pending</span>`;
       }
       return `<li class="demo-card">
@@ -416,6 +475,20 @@ async function renderReleasePage(release: string, milestone: number): Promise<st
 async function renderFeaturesCatalogue(channels: Channels): Promise<string> {
   const known = [...await knownReleaseMilestones(channels)].sort((a, b) => b - a);
 
+  // PARALLEL, ORDER-PRESERVING (gendn-4ti): milestones are fetched concurrently and the
+  // per-feature doc checks run through a bounded pool. The previous shape awaited every milestone
+  // in turn and then every Deno.stat one after another, so the response was the SUM of the
+  // milestone fetches followed by hundreds of serial stat() syscalls before the first HTML byte.
+  // renderReleasePage next door already parallelised the identical work, so the serial loop was
+  // an asymmetry rather than a deliberate bound.
+  //
+  // Order is preserved by construction: Promise.all keeps `known`'s (descending) milestone order,
+  // the flatten below appends in that same order, mapPool returns results in input order, and the
+  // filter keeps it — so the rows array is byte-for-byte the same list it was before.
+  //
+  // Error semantics are unchanged: the try/catch is INSIDE the per-milestone mapper, so a
+  // milestone whose fetch fails yields [] and is skipped (an all-or-nothing Promise.all here would
+  // turn one upstream failure into a blank page, which would be a regression).
   type Row = {
     mstone: number;
     id: number;
@@ -425,37 +498,55 @@ async function renderFeaturesCatalogue(channels: Channels): Promise<string> {
     hasDoc: boolean;
   };
 
-  const rows: Row[] = [];
-  for (const m of known) {
-    try {
-      const feats = await getMilestoneFeatures(m);
-      for (const g of feats.groups) {
-        for (const f of g.features) {
-          const slug = slugify(f.name);
-          const hasDoc = await featureHasDoc(`v${m}`, slug);
-          // The catalogue is the index of what's actually been written.
-          // Pending APIs still show up on the per-release pages.
-          if (!hasDoc) continue;
-          rows.push({
-            mstone: m,
-            id: f.id,
-            name: f.name,
-            summary: f.summary ?? "",
-            category: g.category,
-            hasDoc,
-          });
-        }
+  const perMilestone = await Promise.all(
+    known.map(async (m) => {
+      try {
+        return { m, feats: await getMilestoneFeatures(m) };
+      } catch {
+        // skip milestones we can't fetch
+        return { m, feats: null };
       }
-    } catch {
-      // skip milestones we can't fetch
+    }),
+  );
+
+  // Flatten in milestone order, then run ONE global pool over every doc check. A pool per
+  // milestone would multiply: ~10 concurrent milestones x 32 = up to ~320 stats in flight, which
+  // the first version of this fix actually produced (measured max in-flight 67 cold / 270 warm
+  // against an intended ceiling of 32). One pool over the whole flat list keeps the bound global
+  // while still preserving row order, because mapPool returns results in input order.
+  type MilestoneFeatures = Awaited<ReturnType<typeof getMilestoneFeatures>>;
+  type Group = MilestoneFeatures["groups"][number];
+  type Feature = Group["features"][number];
+  const items: { m: number; g: Group; f: Feature }[] = [];
+  for (const { m, feats } of perMilestone) {
+    if (!feats) continue;
+    for (const g of feats.groups) {
+      for (const f of g.features) items.push({ m, g, f });
     }
   }
+
+  const checked = await mapPool(items, IO_CONCURRENCY, async ({ m, g, f }) => {
+    const slug = slugify(f.name);
+    const hasDoc = await featureHasDoc(`v${m}`, slug);
+    // The catalogue is the index of what's actually been written.
+    // Pending APIs still show up on the per-release pages.
+    if (!hasDoc) return null;
+    return {
+      mstone: m,
+      id: f.id,
+      name: f.name,
+      summary: f.summary ?? "",
+      category: g.category,
+      hasDoc,
+    } as Row;
+  });
+  const rows: Row[] = checked.filter((r): r is Row => r !== null);
 
   const tableRows = rows.map((r) => {
     const slug = slugify(r.name);
     const cat = categoryTag(r.category);
     const docCell = r.hasDoc
-      ? `<a class="tag tag-live" href="/v${r.mstone}/${slug}/">reference &rarr;</a>`
+      ? `<a class="tag tag-live" href="/v${r.mstone}/${escapeHTML(slug)}/">reference &rarr;</a>`
       : `<span class="tag tag-pending">pending</span>`;
     const search = `${r.name} ${r.summary} ${cat} v${r.mstone}`.toLowerCase();
     return `<tr data-search="${escapeHTML(search)}" data-mstone="${r.mstone}" data-status="${
@@ -635,8 +726,73 @@ async function knownReleaseMilestones(channels: Channels): Promise<Set<number>> 
   return set;
 }
 
-Deno.serve({ port: PORT }, async (req) => {
-  const url = new URL(req.url);
+// ----- Defensive browser security headers (gendn-5tk) -----
+//
+// Threat-model findings addressed:
+//   - No browser security headers (notably CSP) on server responses
+//   - No defense-in-depth security headers (CSP, nosniff, Referrer-Policy) on any response
+//
+// Directives chosen deliberately against what gendn pages actually load:
+//   - default-src 'self': Restrict unspecified resource types to same-origin.
+//   - script-src 'self' 'sha256-KuiJqU/ZOCGu7VsWUb6EUZO+z/j7PyH/zkKtY2HByvg=':
+//       The only JavaScript across the entire site is the client-side table filter on /features.
+//       Rather than disabling protection wholesale with 'unsafe-inline', the allowance is
+//       scoped strictly to the exact SHA-256 hash of that inline script. No external scripts.
+//   - style-src 'self' 'unsafe-inline':
+//       Allows /public/styles.css plus inline <style> blocks and style="" attributes present
+//       across all 201 reference pages in v<N>/ and SSR templates for per-feature layout.
+//   - font-src 'self' https://fonts.gstatic.com:
+//       Allows local font assets (e.g. /fonts/avar2-demo.woff2) and Google Fonts woff2 sources
+//       referenced in public/styles.css.
+//   - img-src 'self' data::
+//       Allows same-origin image assets and data-URI SVG/raster images.
+//   - frame-src 'self' https://chrome-platform-showcase.paulkinlan-ea.deno.net:
+//       Allows embedding live interactive concept demos from the companion site
+//       chrome-platform-showcase (embedded by 24 reference pages across v147-v154).
+//   - connect-src 'self': Restricts fetch, XHR, and WebSocket connections to same-origin.
+//   - object-src 'none': Disallows plugin objects (Flash, Java, Silverlight).
+//   - base-uri 'self': Prevents <base href="..."> injection hijacking.
+//   - form-action 'self': Restricts form submissions to same-origin.
+//   - frame-ancestors 'self': Prevents clickjacking by disallowing framing from third-party sites.
+//
+// Defense-in-depth headers:
+//   - X-Content-Type-Options: nosniff (prevents MIME sniffing)
+//   - Referrer-Policy: strict-origin-when-cross-origin (protects outbound referrers)
+//   - X-Frame-Options: SAMEORIGIN (clickjacking protection for older UAs without CSP frame-ancestors)
+
+export const CSP_DIRECTIVES = [
+  "default-src 'self'",
+  "script-src 'self' 'sha256-KuiJqU/ZOCGu7VsWUb6EUZO+z/j7PyH/zkKtY2HByvg='",
+  "style-src 'self' 'unsafe-inline'",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data:",
+  "frame-src 'self' https://chrome-platform-showcase.paulkinlan-ea.deno.net",
+  "connect-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'self'",
+];
+
+export const CSP_HEADER_VALUE = CSP_DIRECTIVES.join("; ");
+
+export function addSecurityHeaders(res: Response): Response {
+  res.headers.set("x-content-type-options", "nosniff");
+  res.headers.set("referrer-policy", "strict-origin-when-cross-origin");
+  res.headers.set("content-security-policy", CSP_HEADER_VALUE);
+  res.headers.set("x-frame-options", "SAMEORIGIN");
+  return res;
+}
+
+export async function handleRequest(req: Request): Promise<Response> {
+  // A malformed request URL is a handled 400, not an unhandled throw (gendn-7xq); the message is
+  // generic so nothing from the request is reflected.
+  let url: URL;
+  try {
+    url = new URL(req.url);
+  } catch {
+    return new Response("Bad request", { status: 400 });
+  }
   const path = url.pathname;
 
   // Durable-demo contract: 301 old (pre-contract) routes to their current page. Checked before
@@ -660,7 +816,12 @@ Deno.serve({ port: PORT }, async (req) => {
         headers: { "content-type": "text/html; charset=utf-8" },
       });
     } catch (err) {
-      return new Response(`Failed to render conformance index: ${err}`, { status: 502 });
+      // Deliberate, and do not "fix" this to 500 (gendn-lde): a LOCAL server-side render error
+      // keeps the same 502 that serverError returns everywhere else. 500 is more idiomatic for
+      // a local SSR failure, but 502 is the established behaviour of this route on main and any
+      // health check keyed on it must not flip as a side effect of an error-handling hygiene
+      // change. Changing this status is a health-check surface decision, not a cleanup.
+      return serverError(req, "render conformance index", err);
     }
   }
   if (path === "/conformance/run-all" || path === "/conformance/run-all/") {
@@ -689,7 +850,7 @@ Deno.serve({ port: PORT }, async (req) => {
         headers: { "content-type": "text/html; charset=utf-8" },
       });
     } catch (err) {
-      return new Response(`Failed to render index: ${err}`, { status: 502 });
+      return serverError(req, "render index", err);
     }
   }
 
@@ -700,7 +861,7 @@ Deno.serve({ port: PORT }, async (req) => {
         headers: { "content-type": "text/html; charset=utf-8" },
       });
     } catch (err) {
-      return new Response(`Failed to render features: ${err}`, { status: 502 });
+      return serverError(req, "render features", err);
     }
   }
 
@@ -716,7 +877,7 @@ Deno.serve({ port: PORT }, async (req) => {
     try {
       channels = await getChannels();
     } catch (err) {
-      return new Response(`Failed to load channels: ${err}`, { status: 502 });
+      return serverError(req, "load channels", err);
     }
 
     const known = await knownReleaseMilestones(channels);
@@ -730,7 +891,7 @@ Deno.serve({ port: PORT }, async (req) => {
           headers: { "content-type": "text/html; charset=utf-8" },
         });
       } catch (err) {
-        return new Response(`Failed to render release: ${err}`, { status: 502 });
+        return serverError(req, `render release ${release}`, err);
       }
     }
 
@@ -739,6 +900,17 @@ Deno.serve({ port: PORT }, async (req) => {
   }
 
   return new Response("Not found", { status: 404 });
-});
+}
 
-console.log(`Listening on http://localhost:${PORT}`);
+if (import.meta.main) {
+  const server = Deno.serve({ port: PORT }, async (req) => {
+    try {
+      const res = await handleRequest(req);
+      return addSecurityHeaders(res);
+    } catch (err) {
+      return addSecurityHeaders(serverError(req, "unhandled request", err));
+    }
+  });
+
+  console.log(`Listening on http://localhost:${server.addr.port}`);
+}

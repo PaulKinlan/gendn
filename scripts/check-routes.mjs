@@ -24,41 +24,73 @@
 // PASS for: additive new ids, honest new stubs, in-place fixes that keep the same id + identity +
 // live route, and any change explicitly listed in migrations.json.
 //
-// Usage: deno run --allow-read --allow-run scripts/check-routes.mjs
+// Usage: deno run --allow-read --allow-run scripts/check-routes.mjs [--baseline <ref>]
+//
+// `--baseline <ref>` answers the question a lane actually has when this gate goes red: does MY
+// CHANGE remove a route, or does my BASE not have one yet? Without it a red verdict is
+// indistinguishable from a stale baseline (gendn-cct), so the failure text names the baseline and
+// its commit, and the run warns when HEAD does not contain the baseline commit.
 
 import { buildManifest } from "./route-manifest.mjs";
+import { gitRefExists, runGit } from "./lib/bounded-git.mjs";
 
 const BASELINE_SNAPSHOT = ".route-manifest.baseline.json";
 const MIGRATIONS = "migrations.json";
 
-async function gitRefExists(ref) {
+// The bounded runner is shared (gendn-8q2): this gate must not be able to hang on the same
+// object-store contention / forked-git-pipe-open failure that gendn-1tu fixed in check-conformance.
+
+// The baseline ref, and the resolved commit when we can name one, because a failure that says
+// "removed or renamed" without saying WHAT IT COMPARED AGAINST sent three lanes after a rename
+// they never made (gendn-cct: a branch cut before a page changed on main reads that page as
+// removed, and the merge is clean either way).
+async function resolveCommit(ref) {
   try {
-    const cmd = new Deno.Command("git", {
-      args: ["rev-parse", "--verify", "--quiet", ref],
-      stdout: "null",
-      stderr: "null",
+    // runGit resolves to { code, stdout, stderr } - NOT to the stdout string (it has to report the
+    // exit code, which is what makes the bounded runner useful) - so destructure rather than
+    // treating the result as text. Getting this wrong fails SILENTLY here, degrading the label to
+    // the ref alone, which is exactly the vagueness gendn-cct is about.
+    const { code, stdout } = await runGit(["rev-parse", "--verify", `${ref}^{commit}`], {
+      stdout: "piped",
     });
-    const { code } = await cmd.output();
-    return code === 0;
+    if (code !== 0) return null;
+    return stdout.trim().split("\n")[0] || null;
   } catch {
-    return false;
+    return null; // unknown commit: the label falls back to the ref alone
   }
 }
 
-async function loadBaseline() {
-  if (await gitRefExists("origin/main")) {
+async function loadBaseline(refOverride) {
+  const ref = refOverride ?? "origin/main";
+  if (await gitRefExists(ref)) {
     try {
-      const manifest = await buildManifest({ ref: "origin/main" });
-      return { source: "origin/main", manifest };
+      const manifest = await buildManifest({ ref });
+      return { source: ref, ref, commit: await resolveCommit(ref), manifest };
     } catch (err) {
-      console.error(`! could not build baseline from origin/main (${err.message}); falling back`);
+      if (refOverride) throw err; // an explicitly requested baseline must not silently fall back
+      console.error(`! could not build baseline from ${ref} (${err.message}); falling back`);
     }
+  } else if (refOverride) {
+    throw new Error(`--baseline ${refOverride} does not resolve to a ref`);
   }
   try {
     const raw = await Deno.readTextFile(BASELINE_SNAPSHOT);
-    return { source: BASELINE_SNAPSHOT, manifest: JSON.parse(raw) };
+    return { source: BASELINE_SNAPSHOT, ref: null, commit: null, manifest: JSON.parse(raw) };
   } catch {
-    return { source: "none", manifest: [] };
+    return { source: "none", ref: null, commit: null, manifest: [] };
+  }
+}
+
+// Does HEAD contain the baseline commit? If not, this branch was cut before the baseline moved and
+// a baseline-only change can read as a removal here. That is a property of the COMPARISON, not of
+// the branch, which is the whole point of gendn-cct.
+async function headContainsBaseline(commit) {
+  if (!commit) return null;
+  try {
+    const { code } = await runGit(["merge-base", "--is-ancestor", commit, "HEAD"], {});
+    return code === 0;
+  } catch {
+    return null; // cannot tell: say nothing rather than claim drift
   }
 }
 
@@ -100,11 +132,22 @@ export function referenceRouteMigration(migrations, id, route, currentReferenceR
   );
 }
 
-async function main() {
-  const { source, manifest: baseline } = await loadBaseline();
-  const current = await buildManifest();
-  const migrations = await loadMigrations();
+function supportOf(entry) {
+  return entry?.support ?? { desktop: "untested", mobile: "untested" };
+}
 
+// Keep the gate's accept/reject decision testable without git, the catalogue, or live routes.
+export async function evaluateRouteContract(
+  { baseline, current, migrations, pageExists = fileExists, baselineLabel = null, drift = null },
+) {
+  // Name what was compared, and say when the comparison itself is suspect (gendn-cct). Kept
+  // optional so the gate stays testable without git.
+  const where = baselineLabel ? ` [vs baseline ${baselineLabel}]` : "";
+  const driftNote = drift === false
+    ? "\n      NOTE: HEAD does not contain this baseline commit, so a change that exists ONLY on " +
+      "the baseline reads as a removal here. That is base drift, not your change: rebase onto the " +
+      "baseline (git rebase origin/main) and re-run before hunting for a rename."
+    : "";
   const baseById = indexById(baseline);
   const currById = indexById(current);
 
@@ -136,8 +179,10 @@ async function main() {
     // Condition 2: a built baseline route whose page file no longer resolves.
     if (b.status === "built") {
       const pagePath = `.${b.route}index.html`;
-      if (!(await fileExists(pagePath))) {
-        failures.push(`built route ${b.route} no longer resolves (missing ${pagePath})`);
+      if (!(await pageExists(pagePath))) {
+        failures.push(
+          `built route ${b.route} no longer resolves (missing ${pagePath})${where}${driftNote}`,
+        );
       }
     }
 
@@ -147,7 +192,8 @@ async function main() {
         migrated.push(`${b.id} (identity change via migration: ${b.identity} -> ${c.identity})`);
       } else {
         failures.push(
-          `identity changed for ${b.id}: feature ${b.identity} -> ${c.identity} (slug repurposed)`,
+          `identity changed for ${b.id}: feature ${b.identity} -> ${c.identity} (slug repurposed)` +
+            `${where}${driftNote}`,
         );
       }
     }
@@ -161,7 +207,8 @@ async function main() {
           migrated.push(`${b.id} (reference route alias: ${route} -> ${migration.to})`);
         } else {
           failures.push(
-            `${b.id}: published member/protocol route ${route} was removed or renamed without a server-backed move/alias to a current same-feature route`,
+            `${b.id}: published member/protocol route ${route} was removed or renamed without a ` +
+              `server-backed move/alias to a current same-feature route${where}${driftNote}`,
           );
         }
       }
@@ -172,7 +219,6 @@ async function main() {
   // A route recorded `ok` (validated) on a class must never silently drop back to untested/broken
   // without a migration record; and no route may be recorded `broken` on a class it claims to
   // support. Many `untested` pages are fine (that's the audit backlog).
-  const supportOf = (e) => e?.support ?? { desktop: "untested", mobile: "untested" };
   for (const b of baseline) {
     const c = currById.get(b.id);
     if (!c) continue;
@@ -224,6 +270,34 @@ async function main() {
     if (c && b.demo && !c.demo) demoDropped.push(`${b.id} lost its showcase demo link (${b.demo})`);
   }
 
+  return { failures, migrated, added, fixedInPlace, demoDropped };
+}
+
+function parseBaselineArg(argv) {
+  const i = argv.indexOf("--baseline");
+  if (i === -1) return null;
+  const ref = argv[i + 1];
+  if (!ref || ref.startsWith("--")) {
+    throw new Error("--baseline needs a ref, e.g. --baseline origin/main");
+  }
+  return ref;
+}
+
+async function main() {
+  const { source, commit, manifest: baseline } = await loadBaseline(parseBaselineArg(Deno.args));
+  const current = await buildManifest();
+  const migrations = await loadMigrations();
+  // null = cannot determine; only `false` (definitely not contained) justifies the note.
+  const drift = await headContainsBaseline(commit);
+  const baselineLabel = commit ? `${source} @ ${commit.slice(0, 7)}` : source;
+  const { failures, migrated, added, fixedInPlace, demoDropped } = await evaluateRouteContract({
+    baseline,
+    current,
+    migrations,
+    baselineLabel,
+    drift,
+  });
+
   // Support coverage lines (reported, not failed-on for untested).
   const cov = (cls) => {
     const ok = current.filter((e) => supportOf(e)[cls] === "ok").length;
@@ -234,7 +308,13 @@ async function main() {
   };
 
   console.log("route regression gate");
-  console.log(`  baseline source : ${source}`);
+  console.log(`  baseline source : ${source}${commit ? ` @ ${commit.slice(0, 7)}` : ""}`);
+  if (drift === false) {
+    console.log(
+      "  ! BASE DRIFT    : HEAD does not contain the baseline commit - removals below may be " +
+        "baseline-only changes (rebase onto the baseline before treating one as your regression)",
+    );
+  }
   console.log(`  published        : ${baseline.length} baseline -> ${current.length} current`);
   console.log(`    built/stub     : ${countByStatus(current)}`);
   console.log(
