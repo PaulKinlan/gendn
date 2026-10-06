@@ -188,6 +188,73 @@ interface SubApps {
     </table>
     </div>
     <span class="citation">Source: <a href="https://chromestatus.com/feature/6260680824061952" target="_blank" rel="noopener">chromestatus.com/feature/6260680824061952</a></span>
+
+    <p>Each policy is expanded below from the definition the Chrome Enterprise policy list publishes for it (policy ids 1448, 1449, 1450). Three facts are common to all three: they are defined for <strong>ChromeOS 150 and later</strong> only (<code>supported_on: chrome_os:150-</code>), they are <strong>per profile</strong>, and they support <strong>dynamic policy refresh</strong>, so a changed value applies without a browser restart. Precedence is fixed by the definitions: <code>SubAppsWithoutPromptsBlockedForOrigins</code> overrides <code>SubAppsWithoutPromptsAllowedForOrigins</code>, which overrides <code>DefaultSubAppsWithoutPromptsSetting</code> — so an origin listed in both lists is never prompt-free. The examples below are the managed-policy JSON form of each definition&#39;s own published <code>example_value</code>; the definitions publish a value domain and an example value but no per-platform deployment path, so none is claimed here.</p>
+
+    <h3 id="default-subapps-without-prompts-setting"><code>DefaultSubAppsWithoutPromptsSetting</code></h3>
+    <p>Caption from the definition: &ldquo;Control use of the Sub Apps Add API&rdquo;. This is the global default for whether an IWA origin may add sub apps at all, and whether the confirmation prompt described at <a href="#add-install-paths"><code>add(install_paths)</code></a> is shown.</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>DefaultSubAppsWithoutPromptsSetting — published definition (policy id 1448)</caption>
+      <tr><th scope="row">Value grammar</th><td>Integer enum — published type <code>int-enum</code>, schema <code>{ "type": "integer", "enum": [1, 2, 3] }</code></td></tr>
+      <tr><th scope="row">Accepted values</th><td><code>1</code> = <code>AllowSubApps</code>, &ldquo;Allow Isolated Web App origins to add Sub Apps without user prompt&rdquo;; <code>2</code> = <code>BlockSubApps</code>, &ldquo;Block Isolated Web App origins from adding Sub Apps&rdquo;; <code>3</code> = <code>AskSubApps</code>, &ldquo;Allow Isolated Web App origins to add Sub Apps but require user prompt&rdquo;</td></tr>
+      <tr><th scope="row">Unset</th><td>No default value is published (<code>default: null</code>); the definition states that leaving the policy unset behaves as <code>3</code> — IWA origins may add sub apps upon user confirmation</td></tr>
+      <tr><th scope="row">Effect on <code>add()</code></th><td>At <code>3</code> or unset, the single system prompt documented at <a href="#add-install-paths"><code>add(install_paths)</code></a> is shown and declining it rejects that call with <code>NotAllowedError</code>. At <code>1</code>, the definition says the origin may &ldquo;bypass user gesture or user confirmation requirements&rdquo;. At <code>2</code>, IWA origins are blocked from adding sub apps</td></tr>
+      <tr><th scope="row">Precedence</th><td>Overridden per origin by <code>SubAppsWithoutPromptsAllowedForOrigins</code> and by <code>SubAppsWithoutPromptsBlockedForOrigins</code></td></tr>
+      <tr><th scope="row">Supported on</th><td>ChromeOS 150 and later. No other platform is listed under <code>supported_on</code>; <code>chrome.*</code> appears only under <code>future_on</code>, so Windows, macOS, Linux, Android and iOS support is not claimed for this policy</td></tr>
+      <tr><th scope="row">Refresh and scope</th><td>Dynamic Policy Refresh (a change applies without a restart); Per Profile</td></tr>
+      <tr><th scope="row">Not specified</th><td>The definition publishes a closed enum and no behavior for a value outside <code>[1, 2, 3]</code>, and it does not name the <code>DOMException</code> an <code>add()</code> call rejects with when <code>2</code> blocks the origin. Both are recorded as open questions in this page&#39;s critique rather than guessed</td></tr>
+    </table>
+    </div>
+<pre><code>// Managed-policy JSON form of the published example_value (3)
+{ "DefaultSubAppsWithoutPromptsSetting": 3 }   // AskSubApps  - prompt the user (same as unset)
+{ "DefaultSubAppsWithoutPromptsSetting": 1 }   // AllowSubApps - prompt-free for every IWA origin
+{ "DefaultSubAppsWithoutPromptsSetting": 2 }   // BlockSubApps - IWA origins cannot add sub apps</code></pre>
+
+    <h3 id="subapps-without-prompts-allowed-for-origins"><code>SubAppsWithoutPromptsAllowedForOrigins</code></h3>
+    <p>Caption from the definition: &ldquo;Allow Isolated Web Apps to use Sub Apps Add API without user prompt&rdquo;. The definition states that by default IWA origins can add sub apps provided the user confirms the prompt interactively, and that this policy controls which IWA origins may add sub apps without the user being prompted.</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>SubAppsWithoutPromptsAllowedForOrigins — published definition (policy id 1449)</caption>
+      <tr><th scope="row">Value grammar</th><td>Array of strings — published type <code>list</code>, schema <code>{ "type": "array", "items": { "type": "string" } }</code></td></tr>
+      <tr><th scope="row">Accepted values</th><td>IWA origins. Both published example values use the <code>isolated-app://</code> scheme (reproduced below). No wildcard or URL-pattern grammar is published</td></tr>
+      <tr><th scope="row">Effect on <code>add()</code></th><td>A listed IWA origin may add sub apps without the user being prompted; an origin that is not listed keeps the confirmation prompt documented at <a href="#add-install-paths"><code>add(install_paths)</code></a></td></tr>
+      <tr><th scope="row">Precedence</th><td>Overrides <code>DefaultSubAppsWithoutPromptsSetting</code>, and is itself overridden by <code>SubAppsWithoutPromptsBlockedForOrigins</code> — an origin present in both lists is not prompt-free</td></tr>
+      <tr><th scope="row">Supported on</th><td>ChromeOS 150 and later. No other platform is listed under <code>supported_on</code>; <code>chrome.*</code> appears only under <code>future_on</code></td></tr>
+      <tr><th scope="row">Refresh and scope</th><td>Dynamic Policy Refresh (a change applies without a restart); Per Profile</td></tr>
+      <tr><th scope="row">Not specified</th><td>No origin-matching rule beyond the string itself, no behavior for a malformed entry (an invalid origin, a wrong scheme, or an empty list), and no statement of whether the exemption also reaches a sub-app update — the definition speaks only of adding. Recorded as open questions in this page&#39;s critique rather than guessed</td></tr>
+    </table>
+    </div>
+<pre><code>// Managed-policy JSON form of the definition&#39;s own published example_value
+{
+  "SubAppsWithoutPromptsAllowedForOrigins": [
+    "isolated-app://egoxo6biqdjrk62rman4vvr5cbq2ozsyydig7jmdxcmohdob2ecaaaic",
+    "isolated-app://anayaszofsyqapbofoli7ljxoxkp32qkothweire2o6t7xy6taz6oaacai"
+  ]
+}</code></pre>
+
+    <h3 id="subapps-without-prompts-blocked-for-origins"><code>SubAppsWithoutPromptsBlockedForOrigins</code></h3>
+    <p>Caption from the definition: &ldquo;Block Isolated Web Apps from using Sub Apps Add API without user prompt&rdquo;. It controls which IWA origins are blocked from adding sub apps without the user being prompted interactively — the deciding policy wherever it overlaps the other two.</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <caption>SubAppsWithoutPromptsBlockedForOrigins — published definition (policy id 1450)</caption>
+      <tr><th scope="row">Value grammar</th><td>Array of strings — published type <code>list</code>, schema <code>{ "type": "array", "items": { "type": "string" } }</code></td></tr>
+      <tr><th scope="row">Accepted values</th><td>IWA origins. Both published example values use the <code>isolated-app://</code> scheme (reproduced below). No wildcard or URL-pattern grammar is published</td></tr>
+      <tr><th scope="row">Effect on <code>add()</code></th><td>A listed IWA origin may only add sub apps with the user prompted interactively, even where <code>DefaultSubAppsWithoutPromptsSetting</code> is <code>1</code> or the origin also appears in <code>SubAppsWithoutPromptsAllowedForOrigins</code></td></tr>
+      <tr><th scope="row">Precedence</th><td>The definition states it &ldquo;overrides the behavior of DefaultSubAppsWithoutPromptsSetting and SubAppsWithoutPromptsAllowedForOrigins&rdquo; — the highest-priority of the three</td></tr>
+      <tr><th scope="row">Supported on</th><td>ChromeOS 150 and later. No other platform is listed under <code>supported_on</code>; <code>chrome.*</code> appears only under <code>future_on</code></td></tr>
+      <tr><th scope="row">Refresh and scope</th><td>Dynamic Policy Refresh (a change applies without a restart); Per Profile</td></tr>
+      <tr><th scope="row">Not specified</th><td>No origin-matching rule beyond the string itself and no behavior for a malformed entry (an invalid origin, a wrong scheme, or an empty list). Recorded as open questions in this page&#39;s critique rather than guessed</td></tr>
+    </table>
+    </div>
+<pre><code>// Managed-policy JSON form of the definition&#39;s own published example_value
+{
+  "SubAppsWithoutPromptsBlockedForOrigins": [
+    "isolated-app://egoxo6biqdjrk62rman4vvr5cbq2ozsyydig7jmdxcmohdob2ecaaaic",
+    "isolated-app://anayaszofsyqapbofoli7ljxoxkp32qkothweire2o6t7xy6taz6oaacai"
+  ]
+}</code></pre>
+    <span class="citation">Source: <a href="https://chromeenterprise.google/policies/#DefaultSubAppsWithoutPromptsSetting" target="_blank" rel="noopener">DefaultSubAppsWithoutPromptsSetting</a>, <a href="https://chromeenterprise.google/policies/#SubAppsWithoutPromptsAllowedForOrigins" target="_blank" rel="noopener">SubAppsWithoutPromptsAllowedForOrigins</a> and <a href="https://chromeenterprise.google/policies/#SubAppsWithoutPromptsBlockedForOrigins" target="_blank" rel="noopener">SubAppsWithoutPromptsBlockedForOrigins</a> on the Chrome Enterprise policy list — captions, descriptions, value schemas, enum members, example values, <code>supported_on</code>, dynamic refresh and per-profile flags, and the precedence statements — as published in the <a href="https://chromeenterprise.google/static/json/policy_templates_en-US.json" target="_blank" rel="noopener">policy definition data that list renders</a> (policy ids 1448, 1449, 1450; fetched 2026-10-06).</span>
   </section>
 
   <section>
@@ -210,12 +277,18 @@ for (const [installPath, exception] of Object.entries(failedApps)) {
   console.error(`failed: ${installPath} — ${exception.name}`);
 }
 
-// Later: enumerate and remove
+// Later: enumerate and remove. The second id is deliberately not one of this
+// parent IWA's sub apps, so the response shows BOTH of its members: removedApps
+// for the ids it uninstalled, failedApps for the ids it could not (NotFoundError).
 const all = await window.subApps.list();          // record&lt;ManifestId, { appName }&gt;
 const calcId = Object.keys(all).find((id) =&gt; all[id].appName === "Calculator");
 if (calcId) {
-  const { removedApps } = await window.subApps.remove([calcId]);
+  const { removedApps, failedApps: notRemoved } =
+    await window.subApps.remove([calcId, "stale-manifest-id"]);
   console.log("removed:", removedApps);
+  for (const [manifestId, exception] of Object.entries(notRemoved)) {
+    console.error(`not removed: ${manifestId} — ${exception.name}`);
+  }
 }</code></pre>
     <span class="citation">Source: <a href="https://github.com/WICG/sub-apps/blob/main/README.md" target="_blank" rel="noopener">WICG Sub Apps explainer — examples</a></span>
   </section>
