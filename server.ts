@@ -12,6 +12,8 @@ import {
   getMilestoneFeatures,
   slugify,
 } from "./lib/chromestatus.ts";
+import { renderCommitAnchor } from "./lib/external-url.ts";
+import { escapeHTML } from "./lib/html.ts";
 import {
   renderConformanceIndex,
   renderCritique,
@@ -78,14 +80,9 @@ const MIME: Record<string, string> = {
   woff2: "font/woff2",
 };
 
-function escapeHTML(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
+// escapeHTML now lives in lib/html.ts so the commit-line renderer (lib/external-url.ts) escapes
+// exactly as the server does — one implementation, not a copy. Encoding only: it is NOT a
+// URL-scheme check (gendn-0cu).
 
 // ----- Last-commit info (fetched from GitHub, cached for 5 minutes) -----
 
@@ -135,6 +132,9 @@ async function getLatestCommit(): Promise<CommitInfo | null> {
       sha: data.sha,
       shortSha: String(data.sha).slice(0, 7),
       date: data.commit?.author?.date ?? data.commit?.committer?.date ?? "",
+      // Stored raw; rendered through the scheme allowlist in lib/external-url.ts (gendn-0cu).
+      // This is the value's ONLY sink — it reaches no JSON, feed or other template (checked by
+      // grep for htmlUrl/html_url across the repo: interface, this assignment, and the render).
       htmlUrl: data.html_url,
     };
     commitCache = { at: Date.now(), value };
@@ -170,9 +170,7 @@ function formatCommitLine(c: CommitInfo | null): string {
     : "";
   return `<p class="updated-line">Last updated ${escapeHTML(relative)} <span class="updated-abs">(${
     escapeHTML(absolute)
-  })</span> &middot; commit <a href="${
-    escapeHTML(c.htmlUrl)
-  }" target="_blank" rel="noopener"><code>${escapeHTML(c.shortSha)}</code></a></p>`;
+  })</span> &middot; commit ${renderCommitAnchor(c.htmlUrl, c.shortSha)}</p>`;
 }
 
 async function readPublicAsset(path: string): Promise<Response> {
