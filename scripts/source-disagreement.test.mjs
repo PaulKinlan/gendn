@@ -270,6 +270,16 @@ assert(
 // match, and a dated entry that is NOT named breaks it too. The set matches the table
 // EXACTLY in both directions; adding or removing a dated page is a deliberate two-site
 // edit (table + set), which is what a curated table should force.
+// THE HONEST BOUNDARY (review-demonstrated, not theoretical): this guards MEMBERSHIP, not
+// token content. Weakening a named page's date token to a shorter page-present substring,
+// or swapping co-present tokens between two named pages, stays green — and anyone willing
+// to edit pinned tokens can equally rewrite this set. That is the ceiling of a
+// self-contained fixture; what the set buys is raising fabrication from an invisible
+// array-shuffle (the old count) to a deliberate rewrite of the guard's own pinned data.
+// A token-alignment tightening (audiopreferred -> "fetched 2026-07-28") was evaluated and
+// REJECTED by measurement: that spelling sits in different notes on that page (:72, :102),
+// not in the divergence note whose own date the entry pins — trading a true anchor for
+// swap-resistance would violate the dates array's contract (the NOTE's date tokens).
 const DATED_PAGES = new Set([
   "v151/algorithm-updates-in-webcrypto/index.html",
   "v152/deprecate-and-remove-xslt/index.html",
@@ -280,7 +290,7 @@ const DATED_PAGES = new Set([
 ]);
 const datedInTable = new Set(PAGES.filter((e) => e.dates.length > 0).map((e) => e.page));
 assert(
-  "dated-pages set matches the table exactly in BOTH directions (a count is defeatable by fabrication; names are not)",
+  "dated-pages set matches the table exactly in BOTH directions (a count is defeatable by membership fabrication; a named match is not — token edits within named pages are the recorded ceiling)",
   DATED_PAGES.size === datedInTable.size &&
     [...DATED_PAGES].every((p) => datedInTable.has(p)) &&
     [...datedInTable].every((p) => DATED_PAGES.has(p)),
