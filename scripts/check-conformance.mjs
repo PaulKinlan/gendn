@@ -35,10 +35,11 @@ import {
   collectReferenceContracts,
   declaredSurfaceMembers,
   declaredSurfaceSummary,
+  skippedSurfaceDeclarations,
+  surfaceNotePages,
   validateContractOwnership,
   validateDeclaredSurface,
   validateReferenceContract,
-  skippedSurfaceDeclarations, surfaceNotePages,
 } from "./lib/reference-contract.mjs";
 
 const MIGRATIONS = "migrations.json";
@@ -282,7 +283,9 @@ async function main() {
             const skipped = skippedSurfaceDeclarations(pageHtml);
             if (skipped.length > 0) {
               surfaceNotes.push(
-                `  ${id}: parser skipped ${skipped.length} anonymous special operation(s) - nothing to account for: ${skipped.join(" | ")}`,
+                `  ${id}: parser skipped ${skipped.length} anonymous special operation(s) - nothing to account for: ${
+                  skipped.join(" | ")
+                }`,
               );
             }
           }
@@ -356,7 +359,9 @@ async function main() {
   console.log(`  baseline suites    : ${baselineChecked} checked for weakening`);
   if (surfaceNotes.length) {
     console.log(
-      `  declared surfaces  : ${surfaceNotePages(surfaceNotes)} touched contract(s) - inventory N + outOfScope M of the page's declared members`,
+      `  declared surfaces  : ${
+        surfaceNotePages(surfaceNotes)
+      } touched contract(s) - inventory N + outOfScope M of the page's declared members`,
     );
     for (const note of surfaceNotes) console.log(note);
   }
