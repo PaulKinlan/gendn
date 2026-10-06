@@ -15,7 +15,11 @@
 // RULES:
 //   1. EVERY <iframe> must carry a referrerpolicy attribute (full-URL leakage is never needed).
 //   2. A THIRD-PARTY iframe (absolute http(s) src to a host that is not first-party) must also
-//      carry a sandbox attribute — or a named exemption in EXEMPTIONS below with a reason.
+//      carry a sandbox whose VALUE is sanctioned — it must include allow-scripts and stay within
+//      the sanctioned token set unless recorded as a SANDBOX_VARIANTS entry with a reason — or a
+//      named exemption in EXEMPTIONS below. Presence alone is not enough: sandbox="" blanks the
+//      demo and sandbox="allow-forms" permits nothing a demo needs, yet both satisfy a presence
+//      check while doing the wrong thing.
 //   3. A FIRST-PARTY iframe (relative src, srcdoc, or a host in FIRST_PARTY_HOSTS) is NOT forced
 //      to be sandboxed: it is this site, and sandboxing your own iframe flips it to an opaque
 //      origin, which can silently break it (storage/IDB/same-origin fetch). It still needs a
@@ -59,6 +63,16 @@ const FIRST_PARTY_UNSANDBOXED = [
   // { file: "...", why: "..." },
 ];
 
+// The sanctioned sandbox value for third-party demo embeds (rationale in .claude/routine-prompt.md
+// step 6): allow-scripts keeps the demo interactive, allow-same-origin keeps its own storage/IDB
+// working (safe because a CROSS-origin child can never reach the parent). Anything else is a
+// per-embed variant and must be listed here WITH the reason it is required — a variant that
+// silently adds allow-top-navigation changes the risk story, not just the demo.
+const SANCTIONED_SANDBOX_TOKENS = new Set(["allow-scripts", "allow-same-origin"]);
+const SANDBOX_VARIANTS = [
+  // { file: "...", sandbox: "...", why: "..." },
+];
+
 /** Classify an iframe src: "first-party" | "third-party" | "opaque" (srcdoc/about/data/blob). */
 export function classifySrc(src, pageUrl = "https://gendn.invalid/page/") {
   if (src === null) return "first-party"; // no src / srcdoc: the document is the embedder's own
@@ -93,7 +107,32 @@ export function auditIframeTag(tag, file) {
   const sandboxed = hasAttr("sandbox");
   if (cls === "third-party" || cls === "opaque") {
     const exempt = EXEMPTIONS.some((e) => e.file === file);
-    if (!sandboxed && !exempt) problems.push(`${cls} iframe without sandbox (no named exemption)`);
+    if (!sandboxed && !exempt) {
+      problems.push(`${cls} iframe without sandbox (no named exemption)`);
+    } else if (sandboxed && !exempt) {
+      // VALUE, not presence: sandbox="" strips scripts and silently blanks the demo; a sandbox
+      // without allow-scripts permits nothing an interactive embed needs. Both pass a presence
+      // check while doing the wrong thing, so the sanctioned token set is required and any
+      // deviation must be a recorded variant with a reason.
+      const value = attr("sandbox") ?? "";
+      const tokens = value.split(/[\t\n\f\r ]+/).filter(Boolean);
+      const variant = SANDBOX_VARIANTS.find((v) => v.file === file);
+      if (tokens.length === 0) {
+        problems.push('sandbox="" strips scripts and would blank the demo');
+      } else if (!tokens.includes("allow-scripts")) {
+        problems.push(
+          `sandbox lacks allow-scripts (value: "${value}") — useless for an interactive embed`,
+        );
+      } else if (!variant && tokens.some((t) => !SANCTIONED_SANDBOX_TOKENS.has(t))) {
+        problems.push(
+          `sandbox tokens beyond the sanctioned set (${
+            tokens.filter((t) => !SANCTIONED_SANDBOX_TOKENS.has(t)).join(", ")
+          }) without a recorded SANDBOX_VARIANTS reason`,
+        );
+      } else if (variant && value !== variant.sandbox) {
+        problems.push(`sandbox value does not match its recorded variant ("${variant.sandbox}")`);
+      }
+    }
   } else if (cls === "first-party" && !sandboxed) {
     // Rule 3: first-party unsandboxed is allowed but must be DELIBERATE — relative-src showcase
     // fallbacks and srcdoc snippets are self-evidently this site; anything with an absolute
@@ -169,6 +208,24 @@ assert(
   assert(
     "canary: sandbox alone (no referrerpolicy) is flagged",
     auditIframeTag(noRp, "canary/norp.html") !== null,
+  );
+  const emptySandbox =
+    `<iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/x/y/" sandbox="" referrerpolicy="strict-origin-when-cross-origin">`;
+  assert(
+    'canary: sandbox="" (presence but scripts stripped — demo blanks) is flagged',
+    auditIframeTag(emptySandbox, "canary/empty.html") !== null,
+  );
+  const uselessSandbox =
+    `<iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/x/y/" sandbox="allow-forms" referrerpolicy="strict-origin-when-cross-origin">`;
+  assert(
+    'canary: sandbox="allow-forms" (a sandbox that permits nothing a demo needs) is flagged',
+    auditIframeTag(uselessSandbox, "canary/useless.html") !== null,
+  );
+  const sneakyVariant =
+    `<iframe src="https://evil.example/demo/" sandbox="allow-scripts allow-top-navigation" referrerpolicy="strict-origin-when-cross-origin">`;
+  assert(
+    "canary: an unrecorded variant adding allow-top-navigation (risk-story change) is flagged",
+    auditIframeTag(sneakyVariant, "canary/variant.html") !== null,
   );
   const compliant =
     `<iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/x/y/" sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin">`;
