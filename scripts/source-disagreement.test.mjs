@@ -240,6 +240,38 @@ const PAGES = [
     sideB: ["WindowOrWorkerGlobalScope", "worker usability is unknown"],
     dates: [],
   },
+  {
+    // gendn-c26, applied in-unit per coord's 22:30Z ruling (a divergence found in a page already open in a B1 unit is fixed in that unit). The page records the Chrome 147 developer trial while its own cited ChromeStatus record reads Proposed; the record's stages array states the reconciliation itself (DevTrial stage at 147, active ship stage at 149), so both sides are carried and neither is chosen.
+    page: "v147/clip-text-overflow-on-user-interaction/index.html",
+    marker: "Status disagreement, both sides reported rather than resolved",
+    sideA: ["Chrome 147 developer trial"],
+    sideB: ["5146265241387008", "Proposed", "ship-target-149"],
+    dates: ["fetched 2026-10-06"],
+  },
+  {
+    // gendn-idm: the page's rollout milestone disagreed with its own cited ChromeStatus record, and a second feature id the page cited no longer resolves. The dead link was removed and the milestone divergence is now disclosed on the page.
+    page: "v147/local-network-access-restrictions/index.html",
+    marker: "Rollout disagreement, both sides reported rather than resolved",
+    sideA: ["started in Chrome 123"],
+    sideB: ["5152728072060928", "In development", "desktop 142"],
+    dates: ["fetched 2026-10-06"],
+  },
+  {
+    // gendn-1v5: the page recorded the feature as shipped while its cited ChromeStatus record still reads Proposed with accurate_as_of 2026-03-24.
+    page: "v147/local-network-access-restrictions-for-webtransport/index.html",
+    marker: "Shipped-versus-proposed disagreement, both sides reported rather than resolved",
+    sideA: ["records the feature as shipped"],
+    sideB: ["5126430912544768", "Proposed", "accurate_as_of"],
+    dates: ["fetched 2026-10-06"],
+  },
+  {
+    // gendn-aji: the cited draft has since been published as RFC 10024, which declares the X25519Kyber768Draft00 registry entry obsolete while the page still presents both groups as things to support.
+    page: "v147/x25519kyber768-key-encapsulation-for-tls/index.html",
+    marker: "Group-status disagreement, both sides reported rather than resolved",
+    sideA: ["X25519Kyber768Draft00"],
+    sideB: ["RFC 10024", "obsolete", "draft-tls-westerbaan-xyber768d00-02"],
+    dates: ["fetched 2026-10-06"],
+  },
 ];
 
 let failures = 0;
@@ -287,6 +319,10 @@ const DATED_PAGES = new Set([
   "v151/no-auto-rewind-for-animationtrigger-play-methods/index.html",
   "v147/autofill-event/index.html",
   "v152/deprecate-and-remove-xslt/xsltprocessor/index.html",
+  "v147/clip-text-overflow-on-user-interaction/index.html",
+  "v147/local-network-access-restrictions/index.html",
+  "v147/local-network-access-restrictions-for-webtransport/index.html",
+  "v147/x25519kyber768-key-encapsulation-for-tls/index.html",
 ]);
 const datedInTable = new Set(PAGES.filter((e) => e.dates.length > 0).map((e) => e.page));
 assert(
