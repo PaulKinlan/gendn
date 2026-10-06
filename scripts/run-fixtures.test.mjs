@@ -13,12 +13,29 @@
 //
 // Run: deno task test-run-fixtures
 
-import { isAggregateTaskCommand, recursionRefusal, RUN_MARKER } from "./run-fixtures.mjs";
+import {
+  environHasToken,
+  isAggregateTaskCommand,
+  recursionRefusal,
+  RUN_MARKER,
+  SWEEP_TOKEN,
+} from "./run-fixtures.mjs";
 
 const REPO = new URL("..", import.meta.url).pathname;
 const PROBE = "fixture-timeout-probe";
 const PROBE_SCRIPT = "fixture-timeout-probe.mjs";
 const BOUND_MS = 2000;
+
+// Run the runner with the SAME permission flags its real task declares, so this fixture cannot pass
+// under permissions production does not have (measured: the first gendn-ebf run spawned the runner
+// with --allow-read, and Deno gates /proc behind --allow-all, so the sweep crashed and the test
+// reported a false negative the real task never had). Derived from deno.json rather than copied, so
+// adding a flag to the task cannot silently leave the fixture testing a weaker runner.
+const RUNNER_TASK = JSON.parse(await Deno.readTextFile(`${REPO}deno.json`)).tasks["test-fixtures"];
+const RUNNER_FLAGS = RUNNER_TASK.match(/--allow-[\w-]+(?:=[^\s]+)?/g) ?? [];
+if (RUNNER_FLAGS.length === 0) {
+  throw new Error(`could not parse permission flags from the test-fixtures task: ${RUNNER_TASK}`);
+}
 
 let failures = 0;
 let passed = 0;
@@ -118,10 +135,7 @@ function runRunner(args, env = {}) {
   return new Deno.Command(Deno.execPath(), {
     args: [
       "run",
-      "--allow-read",
-      "--allow-write",
-      "--allow-run",
-      "--allow-env",
+      ...RUNNER_FLAGS,
       `${REPO}scripts/run-fixtures.mjs`,
       ...args,
     ],
@@ -286,6 +300,124 @@ try {
       excludedNames.includes("test-fixtures") && !excludedNames.includes("test-everything"),
       `excluded: ${excludedNames.join(", ")}`,
     );
+  }
+
+  // ---- gendn-ebf: a timed-out fixture's DETACHED descendants are swept by TOKEN, not by name ----
+
+  // Pure discrimination first, so the sweep's identity check is assertable without spawning anything.
+  {
+    assert(
+      "ebf: the sweep matches the exact NUL-separated token entry",
+      environHasToken(`A=1\0${SWEEP_TOKEN}=t1\0B=2`, "t1"),
+    );
+    assert(
+      "ebf: ...and does NOT match a token that is only a PREFIX of another (t1 vs t10)",
+      !environHasToken(`A=1\0${SWEEP_TOKEN}=t10\0`, "t1"),
+    );
+    assert(
+      "ebf: ...and does not match when the variable is absent",
+      !environHasToken("A=1\0B=2", "t1"),
+    );
+  }
+
+  // CASE A (detector): a fixture that DETACHES a child (setsid --fork, so its own session) and then
+  // exceeds its bound. The group kill cannot reach that child; before gendn-ebf it survived the
+  // timeout silently, which is exactly the leak this proves is now reclaimed.
+  {
+    const dir = await Deno.makeTempDir({ prefix: "run-fixtures-detach-" });
+    const childPidFile2 = `${dir}/child.pid`;
+    const detachBound = 4000;
+    const startedA = Date.now();
+    const r = await runRunner(["--tasks", "fixture-detach-hang"], {
+      GENDN_FIXTURE_TIMEOUT_MS: String(detachBound),
+      PROBE_PID_FILE: `${dir}/own.pid`,
+      PROBE_CHILD_PID_FILE: childPidFile2,
+    });
+    const elapsedA = Date.now() - startedA;
+    const outA = new TextDecoder().decode(r.stdout);
+    const bothA = outA + new TextDecoder().decode(r.stderr);
+    const childPid2 = Number((await Deno.readTextFile(childPidFile2).catch(() => "")).trim());
+    try {
+      assert(
+        "ebf: a fixture with a DETACHED child is reported TIMEOUT and exits non-zero",
+        r.code !== 0 && /TIMEOUT fixture-detach-hang/.test(outA),
+        `exit=${r.code} ${outA.trim().split("\n").pop()?.slice(0, 80)}`,
+      );
+      assert(
+        "ebf: the runner EXITS promptly despite the detached child",
+        elapsedA < detachBound + 20_000,
+        `${elapsedA}ms for a ${detachBound}ms bound`,
+      );
+      assert(
+        "ebf: the sweep IDENTIFIED the detached descendant outside the process group (by token)",
+        /timeout sweep — 1 descendant\(s\) outside the process group/.test(bothA),
+        bothA.split("\n").find((l) => l.includes("timeout sweep"))?.trim() ?? "no sweep line",
+      );
+      assert(
+        "ebf: ...and it was killed with no survivor reported",
+        /1 killed/.test(bothA) && /0 still alive/.test(bothA),
+        "",
+      );
+      assert(
+        "ebf: no LEAK was reported for the swept fixture",
+        !/^LEAK /m.test(bothA),
+        "",
+      );
+      assert(
+        "ebf: the detached child's RECORDED pid is DEAD after the sweep",
+        Number.isInteger(childPid2) && childPid2 > 0 && !alive(childPid2),
+        Number.isInteger(childPid2) && childPid2 > 0
+          ? `pid ${childPid2} alive=${alive(childPid2)}`
+          : "the probe never recorded a detached child pid",
+      );
+    } finally {
+      if (Number.isInteger(childPid2) && childPid2 > 0 && alive(childPid2)) {
+        try {
+          Deno.kill(childPid2, "SIGKILL");
+        } catch {
+          // already gone
+        }
+      }
+      await Deno.remove(dir, { recursive: true }).catch(() => {});
+    }
+  }
+
+  // CASE B (negative control): the SAME detached child, but the fixture COMPLETES inside its bound.
+  // The runner must NOT touch it — the sweep is a TIMEOUT behaviour, not a general reaper. This is the
+  // assertion that keeps a fix for a leak from becoming a worse defect (killing a fixture's own server).
+  {
+    const dir = await Deno.makeTempDir({ prefix: "run-fixtures-detach-" });
+    const childPidFile3 = `${dir}/child.pid`;
+    const r = await runRunner(["--tasks", "fixture-detach-exit"], {
+      GENDN_FIXTURE_TIMEOUT_MS: "15000",
+      PROBE_PID_FILE: `${dir}/own.pid`,
+      PROBE_CHILD_PID_FILE: childPidFile3,
+    });
+    const outB = new TextDecoder().decode(r.stdout);
+    const childPid3 = Number((await Deno.readTextFile(childPidFile3).catch(() => "")).trim());
+    try {
+      assert(
+        "ebf NEGATIVE CONTROL: a fixture with a detached child that COMPLETES is PASS",
+        r.code === 0 && /PASS fixture-detach-exit/.test(outB),
+        `exit=${r.code} ${outB.trim().split("\n").pop()?.slice(0, 80)}`,
+      );
+      assert(
+        "ebf NEGATIVE CONTROL: on success the runner does NOT kill the fixture's detached child",
+        Number.isInteger(childPid3) && childPid3 > 0 && alive(childPid3),
+        Number.isInteger(childPid3) && childPid3 > 0
+          ? `pid ${childPid3} alive=${alive(childPid3)}`
+          : "the probe never recorded a detached child pid",
+      );
+    } finally {
+      if (Number.isInteger(childPid3) && childPid3 > 0 && alive(childPid3)) {
+        try {
+          Deno.kill(childPid3, "SIGKILL");
+        } catch {
+          // already gone
+        }
+      }
+      await Deno.remove(dir, { recursive: true }).catch(() => {});
+    }
   }
 
   // SECONDARY, repo-local only (see my argument on the bead): the aggregate's task still exists and

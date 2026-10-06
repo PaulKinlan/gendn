@@ -366,6 +366,7 @@ deno task check-verdict-emission <log> [--phase run-all|responsive|behavioural] 
 sh scripts/kill-probe.sh <log> [--after <seconds>] -- <command>  # LANDING GATE (behavioural phase): run the kill probe itself; the wrapper appends the kill-evidence line the checker requires
 deno task test-verdict-emission # validate the CHECKER against synthetic logs — the landing gate is where it meets the runner's real output, so this alone cannot detect a runner that stopped printing `verdict:`
 deno task test-fixtures        # run EVERY `test-*` task deno.json declares (discovered by scripts/run-fixtures.mjs, browser-backed suites excluded with a reason). CI runs this, so a NEW fixture is enrolled automatically — before gendn-cp7 the fixture tasks were green when typed and invoked by NOTHING, which is one commit away from being deleted by accident.
+                               # TIMEOUT SEMANTICS (gendn-ebf): a fixture owns the processes it starts; on SUCCESS the runner leaves them alone, and on TIMEOUT it kills the fixture's process GROUP and then sweeps by a per-invocation env token (GENDN_FIXTURE_TOKEN, read from /proc/<pid>/environ) so a child that detached with setsid is still reclaimed and reported. A fixture must not leave DETACHED processes behind after its own work; any the runner cannot attribute or kill are printed as a LEAK rather than silently left.
 ```
 
 **FLOW CHANGE (gendn-3t2) — the behavioural phase now requires KILL EVIDENCE.** `check-verdict-emission

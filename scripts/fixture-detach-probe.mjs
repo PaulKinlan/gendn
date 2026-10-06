@@ -1,0 +1,54 @@
+// fixture-detach-probe.mjs — the probe that gendn-ebf's descendant sweep is tested on.
+//
+// It starts a DETACHED child (`setsid --fork`), which puts that child in its OWN session and therefore
+// outside the fixture's process group — exactly the descendant a group kill cannot reach. The child
+// records ITS OWN pid (the shell writes $$ and then execs sleep, so the recorded pid IS the sleeper),
+// and then this fixture either:
+//
+//   PROBE_MODE=hang  — waits past the fixture bound, so run-fixtures.mjs times it out and must sweep
+//                      the detached child by the inherited GENDN_FIXTURE_TOKEN; or
+//   PROBE_MODE=exit  — returns promptly, the NEGATIVE CONTROL that pins "on success the runner does
+//                      not touch a fixture's children" (the detached child must still be alive).
+//
+// It is deliberately NOT a `test-*` task: discovery would enrol it into the aggregate, where the hang
+// mode would sleep for the full bound (and the exit mode would leak a sleeper) in CI.
+//
+// WORST-CASE PROCESS COUNT — bounded, not a fork bomb: the runner + the `deno task` shell + this
+// script + ONE detached `sleep` (plus, transiently, the `setsid` parent that execs into it) = at most
+// 5 processes per invocation, and the test kills the detached sleeper by its recorded pid in a
+// `finally`. This bead exists because the previous proof in this area ran an UNBOUNDED recursion and
+// the VM reaper had to kill it at 1292 processes / 6 GB, so the probe is intentionally finite.
+
+const ownPidFile = Deno.env.get("PROBE_PID_FILE");
+const childPidFile = Deno.env.get("PROBE_CHILD_PID_FILE");
+const mode = Deno.env.get("PROBE_MODE") ?? "hang";
+
+if (ownPidFile) await Deno.writeTextFile(ownPidFile, String(Deno.pid));
+
+// Pass the FULL environment explicitly rather than relying on merge semantics, because the detached
+// child MUST inherit GENDN_FIXTURE_TOKEN — that token is the only thing that makes it attributable.
+const env = { ...Deno.env.toObject(), PROBE_CHILD_PID_FILE: childPidFile ?? "" };
+const child = new Deno.Command("setsid", {
+  args: ["--fork", "sh", "-c", 'printf %s "$$" > "$PROBE_CHILD_PID_FILE"; exec sleep 600'],
+  stdout: "null",
+  stderr: "null",
+  env,
+}).spawn();
+console.log(`fixture-detach-probe: mode=${mode} own=${Deno.pid} detached=${child.pid}`);
+
+// Wait until the sleeper has recorded its own pid, so the test's pid assertions are never racing the
+// child's startup. Bounded, so a broken probe fails fast instead of sleeping for the whole bound.
+if (childPidFile) {
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    const text = await Deno.readTextFile(childPidFile).catch(() => "");
+    if (Number(text.trim()) > 0) break;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+}
+
+if (mode === "hang") {
+  // A pending TIMER, not a never-resolving top-level await: Deno reports "Top-level await promise
+  // never resolved" and exits for the latter, which would make the probe pass-by-exiting.
+  setInterval(() => {}, 60_000);
+}

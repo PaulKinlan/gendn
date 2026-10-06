@@ -19,6 +19,30 @@
 // immediately); the marker is the load-bearing guard, because a renamed or second aggregate is not
 // covered by any name-based entry.
 //
+// TIMED-OUT FIXTURES AND THEIR DESCENDANTS (gendn-ebf): a fixture OWNS the processes it starts while
+// it runs, and the runner does NOT touch them on SUCCESS — a fixture may legitimately leave a server
+// up for a later step in its own suite, and killing on success would be a silent behaviour change.
+// On TIMEOUT the contract is stronger than a group kill: the runner kills the fixture's process
+// GROUP (as below), then SWEEPS for every process it can ATTRIBUTE to that fixture — including a
+// child that used setsid and is therefore outside the group. Attribution is by a per-invocation
+// TOKEN in the environment (SWEEP_TOKEN below), read back out of /proc/<pid>/environ: setsid does
+// not clear the environment, so a detached grandchild still carries the token, and NOTHING is matched
+// by NAME. The sweep is BOUNDED (SWEEP_MAX_PIDS / SWEEP_BUDGET_MS). Survivors are not left silent:
+// after the sweep the runner re-scans and reports how many descendants it identified, how many it
+// killed, and how many still survive (a LEAK), so a leak is a reported fact rather than a resource
+// the next run happens to inherit. A pid whose /proc/<pid>/environ cannot be read (permission, a
+// race, a process exiting mid-scan) is SKIPPED and never counted as a survivor, so an unreadable
+// process cannot manufacture a false leak.
+//
+// WHY THE AGGREGATE TASK IS --allow-all (gendn-ebf): Deno refuses `Deno.readDir("/proc")` and
+// `Deno.readFile("/proc/<pid>/environ")` under --allow-read, --allow-read=/proc and even
+// --allow-read --allow-sys; the permission gate requires --allow-all (measured on deno 2.9.7: any
+// narrower flag yields `NotCapable: Requires all access to "/proc"`). Reading a descendant's
+// environment is the identity mechanism the sweep depends on, so the runner process needs it. This is
+// NOT a capability widening in practice: the aggregate already holds --allow-run (it spawns
+// `deno task` for every fixture), which is arbitrary code execution as this user, and Deno permissions
+// are per-process, so a fixture keeps exactly the flags its own deno.json task declares.
+//
 // EXCLUSIONS are explicit and printed, never silent (see EXCLUDED below): browser-backed suites run
 // at the landing gate, where a Chrome is available.
 //
@@ -36,6 +60,10 @@
 const FIXTURE_TIMEOUT_MS = Number(Deno.env.get("GENDN_FIXTURE_TIMEOUT_MS") ?? 300_000);
 // How long to wait for the group kill to take effect before giving up on a fixture's output.
 const KILL_GRACE_MS = 10_000;
+// Hard bounds on the post-timeout descendant sweep (gendn-ebf): at most this many pids killed per
+// fixture, and never longer than this budget for the whole sweep (scan + kill + re-scan).
+const SWEEP_MAX_PIDS = 64;
+const SWEEP_BUDGET_MS = 5_000;
 
 // Excluded with a reason each, so the next reader can see the decision rather than infer it.
 const EXCLUDED = new Map([
@@ -55,6 +83,92 @@ const EXCLUDED = new Map([
 // one through --tasks cannot evade it. Its sibling is the name-keyed EXCLUDED entry, which is only a
 // courtesy for the one aggregate we know the name of.
 export const RUN_MARKER = "GENDN_FIXTURE_RUN";
+// The environment variable that makes a descendant ATTRIBUTABLE to the fixture that started it. It is
+// set (with a unique per-invocation value) in each fixture's spawn environment and inherited by every
+// process the fixture starts, including one that detaches with setsid.
+export const SWEEP_TOKEN = "GENDN_FIXTURE_TOKEN";
+
+/** The exact `KEY=value` entry a fixture's descendants carry in their environment. */
+export function tokenEntry(token) {
+  return `${SWEEP_TOKEN}=${token}`;
+}
+
+/**
+ * Does this /proc/<pid>/environ payload carry OUR token?
+ *
+ * An exact NUL-separated ENTRY, not a substring: a token that is merely a PREFIX of another ("t1" vs
+ * "t10") must not match, or the sweep would kill a sibling fixture's processes. Pure, so the
+ * discrimination can be asserted without spawning anything.
+ */
+export function environHasToken(environText, token) {
+  return environText.split("\0").includes(tokenEntry(token));
+}
+
+/** Every live pid (other than this process) whose environment carries `token`, and how many adjacent
+ * pids could not be read at all. Stops early at `deadline` so the sweep stays inside its budget. */
+async function scanForToken(token, deadline) {
+  const found = [];
+  let unreadable = 0;
+  for await (const entry of Deno.readDir("/proc")) {
+    if (!/^\d+$/.test(entry.name)) continue;
+    const pid = Number(entry.name);
+    if (pid === Deno.pid) continue;
+    if (Date.now() > deadline) break;
+    let raw;
+    try {
+      raw = await Deno.readFile(`/proc/${pid}/environ`);
+    } catch {
+      unreadable++; // cannot attribute -> skip; never a false survivor
+      continue;
+    }
+    if (environHasToken(new TextDecoder().decode(raw), token)) found.push(pid);
+  }
+  return { found, unreadable };
+}
+
+/**
+ * Kill every process attributable to `token` that is still alive, bounded by pids and wall time.
+ *
+ * Called AFTER the group kill, so the pids this finds are the ones a group kill cannot reach (a setsid
+ * child is in its own session). Returns what it did so the caller can REPORT it rather than swallow it.
+ */
+async function sweepByToken(token, { maxPids, budgetMs }) {
+  const deadline = Date.now() + budgetMs;
+  const first = await scanForToken(token, deadline);
+  const capped = first.found.length > maxPids;
+  const targets = first.found.slice(0, maxPids);
+  let killed = 0;
+  for (const pid of targets) {
+    try {
+      Deno.kill(pid, "SIGKILL");
+      killed++;
+    } catch {
+      // Already exited between the scan and the kill: nothing to reclaim.
+    }
+  }
+  if (targets.length === 0) {
+    return {
+      identified: first.found.length,
+      killed,
+      survivors: [],
+      capped,
+      unreadable: first.unreadable,
+    };
+  }
+  // SIGKILL is immediate, but /proc can lag a moment; re-scan for anything still carrying the token.
+  // Give the re-scan a small floor even if the scanning budget is spent, because a false "0 survivors"
+  // is worse than the read cost (the re-scan only runs after a timeout, which is already rare).
+  const rescanDeadline = deadline > Date.now() ? deadline : Date.now() + 500;
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  const after = await scanForToken(token, rescanDeadline);
+  return {
+    identified: first.found.length,
+    killed,
+    survivors: after.found,
+    capped,
+    unreadable: first.unreadable,
+  };
+}
 
 /**
  * null when a run may start; the refusal reason when this run would recurse.
@@ -142,8 +256,14 @@ if (import.meta.main) {
   }
 
   const results = [];
+  const leaks = [];
+  const sweepFailures = [];
+  let fixtureCounter = 0;
   for (const name of runnable) {
     const started = Date.now();
+    // Unique per invocation: the token that tells the sweep which processes belong to THIS fixture.
+    // The runner pid keeps the refusal/leak messages traceable to the run that started the chain.
+    const token = `${Deno.pid}-${name}-${++fixtureCounter}`;
     // The fixture runs in its OWN PROCESS GROUP via setsid, with its output redirected to a FILE
     // rather than to pipes (gendn-cp7 review). Both halves matter:
     //  - signalling the task process alone leaves the Deno script it spawned alive;
@@ -157,10 +277,12 @@ if (import.meta.main) {
       cwd: repoRoot,
       stdout: "null",
       stderr: "null",
-      // Set the marker for the child, which the shell, the fixture task, its script and anything they
-      // spawn all inherit — so a nested aggregate refuses instead of recursing (gendn-0bm). Deno
-      // merges this with the inherited environment.
-      env: { [RUN_MARKER]: String(Deno.pid) },
+      // Set the marker AND the sweep token for the child, which the shell, the fixture task, its
+      // script and anything they spawn all inherit — so a nested aggregate refuses instead of
+      // recursing (gendn-0bm), and a detached descendant stays attributable by IDENTITY on a timeout
+      // (gendn-ebf). One place sets both, so neither can be forgotten independently. Deno merges this
+      // with the inherited environment.
+      env: { [RUN_MARKER]: String(Deno.pid), [SWEEP_TOKEN]: token },
     }).spawn();
     const pid = child.pid;
 
@@ -193,6 +315,42 @@ if (import.meta.main) {
         // Even the group kill did not settle it: report and move on rather than hanging the suite.
         console.error(`fixture ${name}: the process group did not exit within ${KILL_GRACE_MS}ms`);
       }
+      // The group kill cannot reach a descendant that detached with setsid, so sweep by the token the
+      // fixture's children inherited. Always report the sweep, even when it found nothing: "we looked
+      // and found none" is the fact that makes a leak attributable later.
+      const sweep = await sweepByToken(token, {
+        maxPids: SWEEP_MAX_PIDS,
+        budgetMs: SWEEP_BUDGET_MS,
+      }).catch((err) => {
+        // A sweep that cannot run is REPORTED, never swallowed: the timeout is still a failure, but
+        // "we could not look" must not be mistaken for "there was nothing to find".
+        sweepFailures.push(name);
+        console.error(
+          `fixture ${name}: timeout sweep FAILED (${err}) — descendants outside the process group ` +
+            `were NOT reclaimed`,
+        );
+        return null;
+      });
+      if (sweep) {
+        console.error(
+          `fixture ${name}: timeout sweep — ${sweep.identified} descendant(s) outside the process group` +
+            `, ${sweep.killed} killed${sweep.capped ? ` (capped at ${SWEEP_MAX_PIDS})` : ""}` +
+            `, ${sweep.survivors.length} still alive` +
+            (sweep.survivors.length ? ` (pids ${sweep.survivors.join(", ")})` : "") +
+            (sweep.identified > 0
+              ? `; ${sweep.unreadable} pid(s) had unreadable environ and were skipped`
+              : ""),
+        );
+        if (sweep.survivors.length > 0) {
+          // A surviving descendant is its own reported failure kind, distinct from TIMEOUT: the timeout
+          // was handled correctly and the reclaim was incomplete, which needs a different response.
+          leaks.push(name);
+          console.error(
+            `LEAK ${name}: ${sweep.survivors.length} descendant(s) survived the timeout sweep ` +
+              `(pids ${sweep.survivors.join(", ")})`,
+          );
+        }
+      }
     } else {
       code = (await child.output()).code;
     }
@@ -217,7 +375,9 @@ if (import.meta.main) {
   const failed = results.filter((r) => r.code !== 0);
   console.log(
     `\ntest-fixtures: ${results.length - failed.length}/${results.length} fixture(s) passed` +
-      (failed.length ? ` — FAILED: ${failed.map((f) => f.name).join(", ")}` : ""),
+      (failed.length ? ` — FAILED: ${failed.map((f) => f.name).join(", ")}` : "") +
+      (leaks.length ? ` — LEAKED: ${leaks.join(", ")}` : "") +
+      (sweepFailures.length ? ` — SWEEP FAILED: ${sweepFailures.join(", ")}` : ""),
   );
-  Deno.exit(failed.length ? 1 : 0);
+  Deno.exit(failed.length || leaks.length || sweepFailures.length ? 1 : 0);
 }
