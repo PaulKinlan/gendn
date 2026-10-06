@@ -397,6 +397,108 @@ dictionary D {
     "the enum type could not be discharged via outOfScope + rationale, so the rule would block pages",
   );
 
+  // ---- BARE WebIDL TYPEDEFS were invisible (gendn-u9m) ----------------------------------------
+  // Measured before the fix: a block whose ONLY declaration is a typedef yields NOTHING. Unlike the
+  // bare enum it carries no brace, so it reaches no member-shaped statement either, and the statement
+  // loop skips it DELIBERATELY (`typedef|callback|namespace`) - the skip that fixed the gendn-4kq P2
+  // false positive where `typedef USVString ManifestId;` was reported as a member of the interface
+  // beside it. A block whose only declaration is a typedef is the opposite case: the identifier IS
+  // the whole declared surface. Reported by the IDENTIFIER, not the referents, because the page's h1
+  // is the identifier, the parent contract already inventories it by that name
+  // (`{"name":"WebPrintingMediaSizeDimension","kind":"other"}`), and the referents are either
+  // inventoried separately (`WebPrintingRange`) or primitives with no inventory identity
+  // (`unsigned long`).
+  const typePage = (declaration) =>
+    `<!doctype html><main><section><h2 id="syntax">Syntax</h2><pre><code>${declaration}</code></pre></section></main>`;
+  for (
+    const [identifier, declaration] of [
+      // the real page that carries the gap: a parenthesised union type
+      [
+        "WebPrintingMediaSizeDimension",
+        "typedef (WebPrintingRange or unsigned long) WebPrintingMediaSizeDimension;",
+      ],
+      // the shape the P2 false positive was about - bare here, so it must now be named
+      ["ManifestId", "typedef USVString ManifestId;"],
+      // an escaped generic, exactly as the real v147/autofill-event page writes it
+      ["AutofillValueEntry", "typedef sequence&lt;any&gt; AutofillValueEntry;"],
+      // a nullable alias
+      ["MaybeFoo", "typedef Foo? MaybeFoo;"],
+    ]
+  ) {
+    const seen = declaredSurfaceMembers(typePage(declaration));
+    assert(
+      JSON.stringify(seen) === JSON.stringify([identifier]),
+      `a bare ${identifier} typedef was not reported as ${JSON.stringify([identifier])} (got ${
+        JSON.stringify(seen)
+      })`,
+    );
+  }
+  // An extended attribute before the typedef, and a comment before it, must not hide the identifier.
+  assert(
+    JSON.stringify(
+      declaredSurfaceMembers(typePage("[Exposed=Window] typedef USVString ManifestId;")),
+    ) === JSON.stringify(["ManifestId"]),
+    "an extended attribute before a bare typedef hid the identifier",
+  );
+  assert(
+    JSON.stringify(
+      declaredSurfaceMembers(
+        typePage("// the manifest id, not a member\ntypedef USVString ManifestId;"),
+      ),
+    ) === JSON.stringify(["ManifestId"]),
+    "a comment before a bare typedef hid the identifier",
+  );
+  // Several typedefs in one block are each named, once.
+  assert(
+    JSON.stringify(
+      declaredSurfaceMembers(typePage("typedef USVString ManifestId;\ntypedef USVString AppId;")),
+    ) === JSON.stringify(["AppId", "ManifestId"]),
+    "a block with two bare typedefs did not name both",
+  );
+  // NO REGRESSION (the scoping that keeps existing contracts green): a MIXED block that already
+  // reports a dictionary/interface member must NOT also report its typedef identifier - that was the
+  // gendn-4kq P2 false positive, and it is the same block `methodPage` below already pins.
+  const mixedTypedefPage = typePage(
+    "typedef USVString ManifestId;\ndictionary SubAppsAddResponse { record&lt;USVString, ManifestId&gt; installedApps; };",
+  );
+  assert(
+    JSON.stringify(declaredSurfaceMembers(mixedTypedefPage)) === JSON.stringify(["installedApps"]),
+    `a mixed typedef+dictionary block reported the typedef identifier instead of only its member: ${
+      JSON.stringify(declaredSurfaceMembers(mixedTypedefPage))
+    }`,
+  );
+  // SATISFIABILITY: a contract must acknowledge the typedef, and can discharge it either by
+  // inventorying the identifier (the parent contract's existing form) or by outOfScope + rationale.
+  const mediaSizePage = typePage(
+    "typedef (WebPrintingRange or unsigned long) WebPrintingMediaSizeDimension;",
+  );
+  assert(
+    validateDeclaredSurface(surfaceContract(["alpha"]), mediaSizePage).some((e) =>
+      e.includes('declared surface member "WebPrintingMediaSizeDimension"')
+    ),
+    "a bare-typedef page passed with a contract that never acknowledges the typedef",
+  );
+  assert(
+    validateDeclaredSurface(
+      surfaceContract(["WebPrintingMediaSizeDimension"]),
+      mediaSizePage,
+    ).length === 0,
+    "a contract inventorying the typedef by its identifier was rejected",
+  );
+  assert(
+    validateDeclaredSurface(
+      {
+        ...surfaceContract(["alpha"]),
+        outOfScope: [{
+          name: "WebPrintingMediaSizeDimension",
+          rationale: "The union is specified by WebIDL, not documented as prose on this page.",
+        }],
+      },
+      mediaSizePage,
+    ).length === 0,
+    "the typedef could not be discharged via outOfScope + rationale, so the rule would block pages",
+  );
+
   // The ratio a reviewer reads: 1 inventoried + 1 excluded of 2 declared must not look like a clean
   // 2/2, so the summary is part of the guard rather than left to counting entries by eye.
   assert(
