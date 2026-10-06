@@ -27,11 +27,11 @@
 
 import { isMdnStubHtml } from "./lib/artifacts.mjs";
 
-const PAGE_RE = /^v\d+\/[^/]+\/index\.html$/;
+export const PAGE_RE = /^v\d+\/[^/]+\/index\.html$/;
 const FEATURE_ID_RE = /chromestatus\.com\/feature\/(\d+)/;
 const SHOWCASE_HOST = "chrome-platform-showcase.paulkinlan-ea.deno.net";
 
-function pathToIdentityFields(pagePath, html) {
+export function pathToIdentityFields(pagePath, html) {
   // pagePath: `v<N>/<slug>/index.html`
   const parts = pagePath.split("/");
   const release = parts[0]; // v<N>
@@ -45,7 +45,7 @@ function pathToIdentityFields(pagePath, html) {
   const status = isMdnStubHtml(html) ? "stub" : "built";
 
   // The embedded-demo identity: the showcase route this page links to for its OWN feature.
-  // Prefer a link whose path matches this page's `/v<N>/<slug>`; fall back to null.
+  // Prefer a link whose path matches this page's `/v<N>/<slug>`; otherwise use the first showcase link.
   let demo = null;
   const showcaseRe = new RegExp(
     `${SHOWCASE_HOST.replace(/\./g, "\\.")}(/v\\d+/[a-z0-9-]+/?[a-z0-9-]*/?)`,

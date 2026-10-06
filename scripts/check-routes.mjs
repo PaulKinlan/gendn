@@ -100,11 +100,14 @@ export function referenceRouteMigration(migrations, id, route, currentReferenceR
   );
 }
 
-async function main() {
-  const { source, manifest: baseline } = await loadBaseline();
-  const current = await buildManifest();
-  const migrations = await loadMigrations();
+function supportOf(entry) {
+  return entry?.support ?? { desktop: "untested", mobile: "untested" };
+}
 
+// Keep the gate's accept/reject decision testable without git, the catalogue, or live routes.
+export async function evaluateRouteContract(
+  { baseline, current, migrations, pageExists = fileExists },
+) {
   const baseById = indexById(baseline);
   const currById = indexById(current);
 
@@ -136,7 +139,7 @@ async function main() {
     // Condition 2: a built baseline route whose page file no longer resolves.
     if (b.status === "built") {
       const pagePath = `.${b.route}index.html`;
-      if (!(await fileExists(pagePath))) {
+      if (!(await pageExists(pagePath))) {
         failures.push(`built route ${b.route} no longer resolves (missing ${pagePath})`);
       }
     }
@@ -172,7 +175,6 @@ async function main() {
   // A route recorded `ok` (validated) on a class must never silently drop back to untested/broken
   // without a migration record; and no route may be recorded `broken` on a class it claims to
   // support. Many `untested` pages are fine (that's the audit backlog).
-  const supportOf = (e) => e?.support ?? { desktop: "untested", mobile: "untested" };
   for (const b of baseline) {
     const c = currById.get(b.id);
     if (!c) continue;
@@ -223,6 +225,19 @@ async function main() {
     const c = currById.get(b.id);
     if (c && b.demo && !c.demo) demoDropped.push(`${b.id} lost its showcase demo link (${b.demo})`);
   }
+
+  return { failures, migrated, added, fixedInPlace, demoDropped };
+}
+
+async function main() {
+  const { source, manifest: baseline } = await loadBaseline();
+  const current = await buildManifest();
+  const migrations = await loadMigrations();
+  const { failures, migrated, added, fixedInPlace, demoDropped } = await evaluateRouteContract({
+    baseline,
+    current,
+    migrations,
+  });
 
   // Support coverage lines (reported, not failed-on for untested).
   const cov = (cls) => {
