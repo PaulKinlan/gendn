@@ -220,11 +220,15 @@ export async function validateReferenceContract(contract, root = ".") {
 //     dictionary/enum/namespace/callback/typedef/mixin/partial, no line-leading attribute) is read as
 //     NOT-IDL, so a surface spelled in a shape we do not recognise there is invisible - the same
 //     failure an operations-only `namespace` had before gendn-zuz broadened the gate and added the
-//     loud failure below. Broadening further was rejected deliberately: failing on anything would
-//     flag every JSON/JS/CSS/ABNF block that shares a syntax section (all four shapes occur on current
-//     pages), and a check that cries wolf stops being read. So this rule is NECESSARY, not sufficient
-//     - prose correctness and the real spec surface remain independent-review obligations, and a
-//     member that cannot be honestly justified as context is a finding, not an entry.
+//     loud failure below. The shapes currently in that class are the no-parameter-list special
+//     declarations - `stringifier;`, `iterable<T>;`, `maplike<K,V>;`, `setlike<T>;` - which carry
+//     neither a call shape nor a line-leading `attribute`, so the member hint does not fire and the
+//     block reads as declaring nothing (no page in this repo declares one today). Broadening further
+//     was rejected deliberately: failing on anything would flag every JSON/JS/CSS/ABNF block that
+//     shares a syntax section - all four shapes DO occur on current pages - and a check that cries
+//     wolf stops being read. So this rule is NECESSARY, not sufficient: prose correctness and the
+//     real spec surface remain independent-review obligations, and a member that cannot be honestly
+//     justified as context is a finding, not an entry.
 //
 // IT CANNOT PROVE THE INVENTORY IS COMPLETE, and it has a known blind spot: a page that declares NO
 // IDL in its syntax block yields no members to compare against, so a collapsed contract on such a
@@ -272,18 +276,12 @@ const WEBIDL_KEYWORDS = new Set([
   "or",
 ]);
 
-// A block that LOOKS like WebIDL but yields no members is the silent-skip shape (gendn-zuz): the
-// extractor's gate ignores a block it does not recognise, the page reports an EMPTY surface, and an
-// empty surface passes the collapsed-contract check for the wrong reason. Silently skipping a shape
-// is the same failure mode as a green that only ran because the check did not run, so it must be
-// loud. The hint below is deliberately DECLARATION-SHAPED rather than a bare keyword list: a JSON
-// syntax block that happens to contain the key "attribute" (v151/speculation-rules-form-submission-
-// field) is not IDL and must stay silent, while `namespace X {` and a line-leading `attribute` are.
-// `(?<!@)` keeps a CSS `@namespace` block from being mistaken for IDL.
-// What makes a block IDL FOR EXTRACTION: a declaration keyword, or a bare `attribute`. The `(?<!@)`
-// guard keeps a CSS `@namespace` at-rule from being read as WebIDL. `namespace` and friends are in
-// this list because leaving them out is what made an operations-only namespace invisible - the block
-// WAS parseable, the gate hid it (gendn-zuz).
+// What makes a block IDL FOR EXTRACTION: a declaration keyword, or a bare `attribute`. `namespace`
+// and its neighbours are in this list because leaving them out is what made an operations-only
+// namespace invisible - that block WAS parseable all along, the gate hid it (gendn-zuz). `(?<!@)`
+// keeps a CSS `@namespace` at-rule from being read as WebIDL, and the list is deliberately narrower
+// than "anything IDL-ish" so a JSON syntax block that merely contains the key "attribute"
+// (v151/speculation-rules-form-submission-field) stays silent.
 const IDL_BLOCK_GATE =
   /(?<!@)\b(?:interface|dictionary|enum|attribute|namespace|callback|typedef|mixin|partial)\b/;
 
@@ -387,8 +385,6 @@ export function declaredSurfaceMembers(html) {
   return [...names].filter((n) => !WEBIDL_KEYWORDS.has(n.toLowerCase())).sort();
 }
 
-// Blocks that LOOK like IDL yet yield no member: the detector cannot read this page's surface, so
-// say so instead of reporting an empty surface as a pass. Returns a short excerpt for the message.
 // Blocks the detector CANNOT READ: IDL-shaped, declaring something member-shaped, yet yielding no
 // member. Skipping those silently would report an EMPTY surface, and an empty surface passes the
 // collapsed-contract check for the wrong reason - so they are reported instead. The brace
