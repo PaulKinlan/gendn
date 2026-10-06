@@ -707,7 +707,7 @@ try {
     );
     assert(
       "n3e static sweep: a localhost loopback literal IS excused",
-      !sweepFinding("scripts/vendor-fonts.mjs", "await fetch(`http://localhost:8000/x`);"),
+      !sweepFinding("scripts/vendor-fonts.mjs", "await fetch(`http://localhost/x`);"),
     );
     assert(
       "n3e static sweep: the fetchBounded definition site IS excused",
