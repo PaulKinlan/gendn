@@ -1,0 +1,329 @@
+{
+  "schemaVersion": 1,
+  "id": "v147/local-network-access-restrictions-for-websockets",
+  "route": "/v147/local-network-access-restrictions-for-websockets/",
+  "kind": "policy",
+  "completeness": "implementation-sufficient",
+  "assessedAt": "2026-10-06",
+  "assessor": "gendn-impl campaign B1 unit (worker-drafted, implementer-committed under gendn-xpz; independent cross-family review pending)",
+  "sources": [
+    {
+      "id": "lna-spec",
+      "label": "WICG Local Network Access editor's draft — permissions model (incl. loopback-network delegation, 9 hits) and §3.3 Integration with WebSockets; WICG draft, not a W3C Recommendation (fetched 2026-10-06, HTTP 200)",
+      "url": "https://wicg.github.io/local-network-access/",
+      "kind": "normative-spec"
+    },
+    {
+      "id": "chromestatus",
+      "label": "ChromeStatus feature 5197681148428288 'Local network access restrictions for WebSockets' — spec_link wicg #integration-with-websockets, explainer wicg #websockets, crbug 421156866, rollout 'Will ship enabled for all users', first enterprise notification milestone 141, and all three LNA enterprise policies listed as applying (API record fetched 2026-10-06)",
+      "url": "https://chromestatus.com/feature/5197681148428288",
+      "kind": "browser-data"
+    },
+    {
+      "id": "chrome-blog",
+      "label": "Chrome for Developers — New permission prompt for Local Network Access (the page's 'what changes' citation and see-also link; fetched 2026-10-06, HTTP 200)",
+      "url": "https://developer.chrome.com/blog/local-network-access",
+      "kind": "release-doc"
+    },
+    {
+      "id": "intent-ship",
+      "label": "blink-dev Intent to Ship — Local network access restrictions for WebSockets, April 2026 (thread resolves to blink-dev/c/O6GMKt44Ups/m/ZbrM0EdrBQAJ; quotes the WICG explainer #websockets, the spec anchor, and the enterprise-policy list; fetched 2026-10-06). href added by this unit to the page's two existing plain-text citations — mark-up only, no text added or reworded",
+      "url": "https://groups.google.com/a/chromium.org/d/msgid/blink-dev/69976492.2b0a0220.19817b.07d3.GAE%40google.com",
+      "kind": "intent"
+    },
+    {
+      "id": "showcase-demo",
+      "label": "chrome-platform-showcase — this page's own live-demo see-also link",
+      "url": "https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/local-network-access-restrictions-for-websockets/",
+      "kind": "other"
+    }
+  ],
+  "inventory": [
+    {
+      "id": "websocket-lna-permission-check",
+      "name": "Local Network Access permission check for WebSocket connections: connections from public secure pages to loopback, RFC 1918 private, or link-local targets require a user permission grant; denial (or a non-secure initiating page) blocks the connection (Chrome/Edge 147)",
+      "kind": "capability",
+      "sourceRefs": [
+        "lna-spec",
+        "intent-ship",
+        "chromestatus",
+        "chrome-blog"
+      ]
+    },
+    {
+      "id": "loopback-network-delegation",
+      "name": "loopback-network permission delegation: WebSocket connections from iframe content to local addresses proceed only when the iframe carries allow=\"loopback-network\" (the same delegation is referenced for Isolated Web App manifests)",
+      "kind": "directive",
+      "sourceRefs": [
+        "lna-spec",
+        "chrome-blog",
+        "intent-ship"
+      ]
+    },
+    {
+      "id": "lna-enterprise-policies",
+      "name": "Chrome enterprise policies for the restriction: LocalNetworkAccessAllowedForUrls (per-origin allow without prompt), LocalNetworkAccessBlockedForUrls (per-origin block), LocalNetworkAccessRestrictionsTemporaryOptOut (enterprise-wide temporary opt-out during rollout) — confirmed verbatim by the ChromeStatus record as the applying policy set",
+      "kind": "other",
+      "sourceRefs": [
+        "chromestatus",
+        "intent-ship"
+      ]
+    }
+  ],
+  "documentation": [
+    {
+      "inventoryId": "websocket-lna-permission-check",
+      "href": "#what-changes",
+      "dimensions": {
+        "syntax": {
+          "status": "documented",
+          "selector": "#mitigation-for-developers",
+          "rationale": "The restriction adds no grammar of its own; the declarable surface it gates is the WebSocket constructor call into a local address — new WebSocket(\"ws://127.0.0.1:8787/bridge\") — shown in the page's <pre><code> block with its open/error listeners. That connection form is the syntax of record.",
+          "sourceRefs": [
+            "lna-spec",
+            "intent-ship"
+          ]
+        },
+        "inputs": {
+          "status": "documented",
+          "selector": "#affected-address-ranges",
+          "rationale": "The trigger set is the target address family: loopback (127.0.0.1, localhost, ::1), RFC 1918 private (10.x, 172.16–31.x, 192.168.x), link-local (169.254.x, fe80::/10) — enumerated with examples in the address-range table.",
+          "sourceRefs": [
+            "lna-spec",
+            "chromestatus"
+          ]
+        },
+        "outputs": {
+          "status": "documented",
+          "selector": "#what-changes",
+          "rationale": "The observable outcomes are stated: the browser shows the Local Network Access permission prompt, and on denial the WebSocket connection is blocked.",
+          "sourceRefs": [
+            "chrome-blog",
+            "intent-ship"
+          ]
+        },
+        "errors": {
+          "status": "documented",
+          "selector": "#what-changes",
+          "rationale": "The documented failure mode is the blocked connection — the user denies the prompt, or no prompt is shown because the site is not secure. The example block registers the WebSocket error event (\"Local WebSocket blocked.\") as the page-side signal; no dedicated exception surface is documented.",
+          "sourceRefs": [
+            "chrome-blog",
+            "lna-spec"
+          ]
+        },
+        "context": {
+          "status": "documented",
+          "selector": "#requirements-for-the-connection-to-proceed",
+          "rationale": "The conditions under which the check runs and passes: HTTPS secure context, iframe delegation via allow=\"loopback-network\", and the user's permission grant.",
+          "sourceRefs": [
+            "lna-spec",
+            "chrome-blog"
+          ]
+        },
+        "lifecycle": {
+          "status": "documented",
+          "selector": "#at-a-glance",
+          "rationale": "Shipped in Chrome 147 and Edge 147 (desktop, Android), enabled by default, with flag chrome://flags/#local-network-access-check-websockets and a temporary enterprise opt-out during rollout.",
+          "sourceRefs": [
+            "chromestatus",
+            "intent-ship"
+          ]
+        },
+        "examples": {
+          "status": "documented",
+          "selector": "#mitigation-for-developers",
+          "rationale": "The page's <pre><code> block connects a public HTTPS page to a companion app on ws://127.0.0.1:8787/bridge and logs the error path — the exact flow the permission gates.",
+          "sourceRefs": [
+            "intent-ship",
+            "showcase-demo"
+          ]
+        },
+        "compatibility": {
+          "status": "documented",
+          "selector": "#browser-support",
+          "rationale": "Support table: Chrome 147+ and Edge 147+ enabled by default (desktop, Android); Firefox and Safari listed with no position.",
+          "sourceRefs": [
+            "chromestatus",
+            "intent-ship"
+          ]
+        },
+        "securityPrivacy": {
+          "status": "documented",
+          "selector": "#why-it-exists",
+          "rationale": "The page documents the threat model the feature exists to close: silent cross-origin WebSocket access to unauthenticated private-network devices (routers, printers, dev servers) from public sites; the prompt makes that reachability user-visible and deniable.",
+          "sourceRefs": [
+            "lna-spec",
+            "intent-ship",
+            "chrome-blog"
+          ]
+        }
+      }
+    },
+    {
+      "inventoryId": "loopback-network-delegation",
+      "href": "#requirements-for-the-connection-to-proceed",
+      "dimensions": {
+        "syntax": {
+          "status": "documented",
+          "selector": "#requirements-for-the-connection-to-proceed",
+          "rationale": "Disclosed edge case: the complete declaration form is the iframe attribute value allow=\"loopback-network\", documented in the requirements list as inline code. The page's single <pre><code> block demonstrates the gated WebSocket call rather than an iframe, so this dimension rests on the in-context attribute form — no grammar has been invented or decorated beyond it.",
+          "sourceRefs": [
+            "lna-spec"
+          ]
+        },
+        "inputs": {
+          "status": "documented",
+          "selector": "#requirements-for-the-connection-to-proceed",
+          "rationale": "The delegation input is the presence of allow=\"loopback-network\" on the iframe whose content initiates the local WebSocket connection.",
+          "sourceRefs": [
+            "lna-spec"
+          ]
+        },
+        "outputs": {
+          "status": "documented",
+          "selector": "#what-changes",
+          "rationale": "With delegation and a granted prompt the connection proceeds; the page's what-changes section states the prompt/deny outcome for the connection the iframe initiates.",
+          "sourceRefs": [
+            "lna-spec",
+            "chrome-blog"
+          ]
+        },
+        "errors": {
+          "status": "documented",
+          "selector": "#what-changes",
+          "rationale": "Without the required delegation the iframe's local WebSocket falls under the default failure mode: the connection is blocked when permission is not granted.",
+          "sourceRefs": [
+            "lna-spec"
+          ]
+        },
+        "context": {
+          "status": "documented",
+          "selector": "#mitigation-for-developers",
+          "rationale": "The mitigation section documents the other contexts of the same attribute — Isolated Web Apps can use allow=\"loopback-network\" in the manifest, and pages served from http://localhost are themselves a local context under different rules than public pages.",
+          "sourceRefs": [
+            "lna-spec",
+            "chrome-blog"
+          ]
+        },
+        "lifecycle": {
+          "status": "documented",
+          "selector": "#at-a-glance",
+          "rationale": "The delegation requirement ships with the same Chrome/Edge 147 rollout, enabled-by-default status, and feature flag as the restriction it scopes.",
+          "sourceRefs": [
+            "chromestatus",
+            "intent-ship"
+          ]
+        },
+        "examples": {
+          "status": "documented",
+          "selector": "#mitigation-for-developers",
+          "rationale": "The page carries one <pre><code> block — the gated loopback WebSocket connection this delegation authorizes for embedded content; the iframe usage itself appears in the requirements list rather than in the code example.",
+          "sourceRefs": [
+            "intent-ship",
+            "showcase-demo"
+          ]
+        },
+        "compatibility": {
+          "status": "documented",
+          "selector": "#browser-support",
+          "rationale": "Delegation is part of the Chromium-only rollout (Chrome/Edge 147+); Firefox and Safari have no position on the underlying Local Network Access work.",
+          "sourceRefs": [
+            "chromestatus"
+          ]
+        },
+        "securityPrivacy": {
+          "status": "documented",
+          "selector": "#why-it-exists",
+          "rationale": "The delegation bounds which embedded content may reach the user's private network at all — it is one of the security controls that closes the silent cross-origin access described in the page's threat model.",
+          "sourceRefs": [
+            "lna-spec"
+          ]
+        }
+      }
+    },
+    {
+      "inventoryId": "lna-enterprise-policies",
+      "href": "#enterprise-policy",
+      "dimensions": {
+        "syntax": {
+          "status": "documented",
+          "selector": "#enterprise-policy",
+          "rationale": "Disclosed edge case: the declarable surface is the three policy-name keys — LocalNetworkAccessAllowedForUrls, LocalNetworkAccessBlockedForUrls, LocalNetworkAccessRestrictionsTemporaryOptOut — documented as inline code in the policy table. The page carries no <pre><code> grammar for admin policy configuration and none has been invented here; the schema forces this dimension to documented.",
+          "sourceRefs": [
+            "chromestatus",
+            "intent-ship"
+          ]
+        },
+        "inputs": {
+          "status": "documented",
+          "selector": "#enterprise-policy",
+          "rationale": "Each policy's input shape is stated in the table: origin lists for the allow/block policies, and an enterprise-wide toggle for the temporary opt-out.",
+          "sourceRefs": [
+            "chromestatus"
+          ]
+        },
+        "outputs": {
+          "status": "documented",
+          "selector": "#enterprise-policy",
+          "rationale": "The documented effects: allowed origins connect without a prompt, blocked origins are barred from local-network connections, and the opt-out disables the restriction enterprise-wide during rollout.",
+          "sourceRefs": [
+            "chromestatus",
+            "intent-ship"
+          ]
+        },
+        "errors": {
+          "status": "documented",
+          "selector": "#what-changes",
+          "rationale": "Absent an enterprise exemption, the default failure mode from what-changes applies: a denied or unprompted (non-secure) local WebSocket connection is blocked.",
+          "sourceRefs": [
+            "chromestatus",
+            "chrome-blog"
+          ]
+        },
+        "context": {
+          "status": "documented",
+          "selector": "#enterprise-policy",
+          "rationale": "The policies are Chrome enterprise deployment controls; the ChromeStatus record notes enterprise notification from milestone 141, ahead of the 147 ship.",
+          "sourceRefs": [
+            "chromestatus"
+          ]
+        },
+        "lifecycle": {
+          "status": "documented",
+          "selector": "#at-a-glance",
+          "rationale": "LocalNetworkAccessRestrictionsTemporaryOptOut is explicitly a rollout-period mechanism; the same at-a-glance table records the flag and enabled-by-default state of the restriction it tempers.",
+          "sourceRefs": [
+            "chromestatus",
+            "intent-ship"
+          ]
+        },
+        "examples": {
+          "status": "documented",
+          "selector": "#mitigation-for-developers",
+          "rationale": "The page's single <pre><code> block illustrates the gated loopback connection these policies exempt; no policy-configuration example exists on the page and none has been added.",
+          "sourceRefs": [
+            "intent-ship"
+          ]
+        },
+        "compatibility": {
+          "status": "documented",
+          "selector": "#browser-support",
+          "rationale": "Enterprise policies are Chromium mechanisms riding the Chrome/Edge 147 rollout; the browser-support table records no position for Firefox or Safari.",
+          "sourceRefs": [
+            "chromestatus"
+          ]
+        },
+        "securityPrivacy": {
+          "status": "documented",
+          "selector": "#enterprise-policy",
+          "rationale": "The policies are themselves the security control surface: enterprise administrators scope which origins may reach the private network, and whether the per-user permission prompt is bypassed entirely.",
+          "sourceRefs": [
+            "chromestatus",
+            "intent-ship"
+          ]
+        }
+      }
+    }
+  ],
+  "notes": "B1 unit edit (2026-10-06): section ids added to the seven h2/h3 headings; one <pre><code> example block added inside the existing mitigation-for-developers section (a public HTTPS page connecting to a companion app on ws://127.0.0.1:8787/bridge with open/error listeners); the two existing plain-text blink-dev Intent to Ship citations wrapped in anchors to the thread URL (groups.google.com/a/chromium.org/d/msgid/blink-dev/69976492.2b0a0220.19817b.07d3.GAE%40google.com) — mark-up on existing text, no sentence added, removed, or reworded. Source verification (all fetched 2026-10-06, HTTP 200): the ChromeStatus API record names the feature exactly, lists the WICG spec (spec_link anchored at #integration-with-websockets where the page links the document root — same document, anchor differs), the WICG explainer #websockets, rollout 'Will ship enabled for all users', and all three enterprise policy names verbatim as the applying set; the WICG Local Network Access editor's draft (a WICG draft, not a W3C Recommendation) contains the permissions/delegation model (loopback-network) and §3.3 Integration with WebSockets; the blink-dev intent thread resolves to blink-dev/c/O6GMKt44Ups/m/ZbrM0EdrBQAJ and quotes the same summary. CORRECTED BY THE IMPLEMENTER (the worker reported \"no source disagreements found\" and framed this as a gap rather than a disagreement; re-fetching the record showed a real divergence of the SAME class already disclosed on the two sibling LNA pages, so it is disclosed and pinned here too). Divergence: the page's 'Shipped in Chrome 147, Edge 147' claim was not contradicted by any fetched source, but the ChromeStatus API record exposed no shipping-milestone field to positively confirm 147 (only rollout plan and first enterprise notification milestone 141). Uncited page material: the enterprise-policy section's 'Chrome enterprise release notes, April 2026' citation is plain text with no URL anywhere on the page, so the contract cannot cite it; the policy names are instead confirmed by the ChromeStatus record. Two disclosed syntax edge cases per the B1 batch policy: loopback-network-delegation's declaration grammar is the iframe attribute value documented inline in the requirements list (the page's single example block shows the gated connection, not an iframe), and lna-enterprise-policies' declarable surface is the three inline-code policy-name keys with no <pre><code> grammar on the page — in both cases nothing was invented, and the schema's forced syntax:documented is flagged rather than hidden. IN-UNIT PROSE REPAIR (coord 22:30Z): the page now carries the disclosure sentence for the shipped-vs-Proposed divergence, both sides with their values and the fetch date inside the sentence, and the case is pinned in the curated table in scripts/source-disagreement.test.mjs."
+}

@@ -38,7 +38,7 @@
   </div>
 
   <section>
-    <h2>at a glance</h2>
+    <h2 id="at-a-glance">at a glance</h2>
     <table class="doc-table">
       <tr><th>Shipped in</th><td>Chrome 147, Edge 147 (desktop, Android)</td></tr>
       <tr><th>Status</th><td>Enabled by default</td></tr>
@@ -46,19 +46,27 @@
       <tr><th>Spec</th><td><a href="https://wicg.github.io/local-network-access/" target="_blank" rel="noopener">WICG Local Network Access spec</a></td></tr>
       <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5197681148428288" target="_blank" rel="noopener">5197681148428288 — Local network access restrictions for WebSockets</a></td></tr>
     </table>
-  </section>
+  
+    <p>Shipped-versus-recorded-status disagreement, both sides reported rather than resolved: this page records
+      the feature as shipped in Chrome 147 (desktop and Android), while the ChromeStatus record for feature
+      <code>5197681148428288</code> still reads status &ldquo;Proposed&rdquo; with <code>is_released false</code> and
+      <code>accurate_as_of</code> 2026-03-24 (fetched 2026-10-06). That record's own rollout plan says
+      &ldquo;Will ship enabled for all users&rdquo;, which is consistent with the page's enabled-by-default ship if the
+      milestone lands as recorded &mdash; so the two are reported together rather than one being chosen.
+    </p>
+</section>
 
   <section>
-    <h2>why it exists</h2>
+    <h2 id="why-it-exists">why it exists</h2>
     <p>Private network devices (printers, routers, smart home hubs, development servers) often lack authentication and CORS headers, making them easy targets. A malicious public website could silently open a WebSocket to <code>ws://192.168.1.1</code> and interact with a home router's local admin interface without the user's knowledge. Chrome already gated subresource fetches (HTTP/HTTPS) to local addresses behind LNA checks; Chrome 147 closes the same gap for WebSocket connections.</p>
-    <span class="citation">Source: blink-dev Intent to Ship — Local network access restrictions for WebSockets, April 2026.</span>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/69976492.2b0a0220.19817b.07d3.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a> — Local network access restrictions for WebSockets, April 2026.</span>
   </section>
 
   <section>
-    <h2>what changes</h2>
+    <h2 id="what-changes">what changes</h2>
     <p>WebSocket connection attempts from secure public pages to local/private addresses now require a user permission grant. The browser shows a permission prompt; if the user denies (or no prompt is shown because the site is not secure), the WebSocket connection is blocked.</p>
 
-    <h3>Affected address ranges</h3>
+    <h3 id="affected-address-ranges">Affected address ranges</h3>
     <table class="doc-table">
       <thead><tr><th>Address range</th><th>Examples</th></tr></thead>
       <tr><td>Loopback</td><td><code>127.0.0.1</code>, <code>localhost</code>, <code>::1</code></td></tr>
@@ -66,7 +74,7 @@
       <tr><td>Link-local</td><td><code>169.254.x.x</code>, <code>fe80::/10</code></td></tr>
     </table>
 
-    <h3>Requirements for the connection to proceed</h3>
+    <h3 id="requirements-for-the-connection-to-proceed">Requirements for the connection to proceed</h3>
     <ul>
       <li>The page must be served over HTTPS (secure context).</li>
       <li>For WebSocket connections from <code>&lt;iframe&gt;</code> content, the iframe must include <code>allow="loopback-network"</code>.</li>
@@ -76,7 +84,7 @@
   </section>
 
   <section>
-    <h2>enterprise policy</h2>
+    <h2 id="enterprise-policy">enterprise policy</h2>
     <p>Enterprise deployments can bypass the restriction via Chrome policies:</p>
     <table class="doc-table">
       <thead><tr><th>Policy</th><th>Effect</th></tr></thead>
@@ -88,7 +96,7 @@
   </section>
 
   <section>
-    <h2>mitigation for developers</h2>
+    <h2 id="mitigation-for-developers">mitigation for developers</h2>
     <p>If your web application connects via WebSocket to a local server (e.g. a companion native app or dev-mode tool), you have several options:</p>
     <ul>
       <li><strong>Use a local HTTPS server</strong> (with a self-signed cert or mkcert): Chrome may allow the connection with permission after the user trusts the cert.</li>
@@ -96,11 +104,21 @@
       <li><strong>Inform users</strong>: If the permission prompt is expected, explain it in your onboarding UI — users may dismiss an unexpected prompt and assume something is broken.</li>
       <li><strong>Switch to Isolated Web Apps (IWAs)</strong>: IWAs have different network access rules and can use <code>allow="loopback-network"</code> in the manifest.</li>
     </ul>
-    <span class="citation">Source: blink-dev Intent to Ship — Local network access restrictions for WebSockets, April 2026.</span>
+
+    <pre><code>// A public HTTPS page connecting to a companion app on the user's own
+// machine. Chrome 147 shows the Local Network Access permission prompt
+// before the connection is established; a denied prompt blocks it.
+const socket = new WebSocket("ws://127.0.0.1:8787/bridge");
+
+socket.addEventListener("open", () =&gt; socket.send("ping"));
+socket.addEventListener("error", () =&gt; console.warn("Local WebSocket blocked."));
+</code></pre>
+
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/69976492.2b0a0220.19817b.07d3.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a> — Local network access restrictions for WebSockets, April 2026.</span>
   </section>
 
   <section>
-    <h2>browser support</h2>
+    <h2 id="browser-support">browser support</h2>
     <table class="doc-table">
       <thead><tr><th>Browser</th><th>Support</th></tr></thead>
       <tr><td>Chrome 147+ (desktop, Android)</td><td>Enabled by default</td></tr>
