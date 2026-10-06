@@ -24,22 +24,29 @@
 // The table's provenance is cumulative and its BOUNDARY is stated plainly (rule 67 — a
 // coverage claim wider than the code removes a check): the filing named three pages; a
 // vocabulary grep of main's content tree ("disagree" and kin) found the fourth
-// (capability-elements); the cross-family review sweep found TWO MORE that no vocabulary
-// grep surfaces — v152/deprecate-and-remove-xslt ("One source discrepancy is recorded
-// honestly") and v152/audiopreferred-capture-in-getdisplaymedia-api (listing status vs
-// trunk status). So SIX pages are pinned. The boundary: a disagreement carried WITHOUT
-// explicit disagreement vocabulary is invisible to sweeps — this TABLE is the coverage, it
-// is not complete by construction, and widening it is a deliberate act. A new page that
-// gains a carried disagreement should be ADDED here; a side silently dropped from a pinned
-// page fails, which is the failure mode the check exists for.
+// (capability-elements); the first cross-family review sweep found two more that no
+// "disagree" grep surfaces (v152/deprecate-and-remove-xslt, "One source discrepancy is
+// recorded honestly", and v152/audiopreferred-capture-in-getdisplaymedia-api, listing
+// status vs trunk status); the second review's DIVERGENCE-vocabulary sweep found three
+// more (v151/no-auto-rewind-for-animationtrigger-play-methods with a dedicated
+// spec-vs-implementation block, v147/web-printing-api/entry-point, and
+// v147/device-bound-session-credentials/challenge-header). So NINE pages are pinned, and
+// the sweeps that found them are named so the method is reproducible. The boundary: a
+// disagreement carried WITHOUT any recognized vocabulary is invisible to sweeps — this
+// TABLE is the coverage, it is not complete by construction, and widening it is a
+// deliberate act. A new page that gains a carried disagreement should be ADDED here; a
+// side silently dropped from a pinned page fails, which is the failure mode the check
+// exists for.
 //
 // MUTATION PROOFS (logs on the bead, not inline; cp-based backups per rule 107):
 //   M1 delete the carried disagreement sentence (webcrypto marker)  -> FAIL on the marker.
-//   M2 drop a date token ("updated 2026-09-11" -> "updated")         -> FAIL on the dates.
+//   M2 drop a date token ("fetched 2026-10-06" -> "fetched")         -> FAIL on the dates.
 //   M3 drop one side's attribution (webrtc trunk token renamed)      -> FAIL on sideB.
 //   M4 reword the xslt discrepancy sentence's marker phrase          -> FAIL on the marker (P1 entry).
 //   M5 drop audiopreferred's side-A listing token                    -> FAIL on sideA (sweep entry).
 //   M6 empty a table entry's marker                                  -> FAIL on non-vacuity (guard).
+//   M7 drop a sweep-2 entry's side-B token (no-auto-rewind)          -> FAIL on sideB.
+//   M8 empty a DATED entry's dates array in the table (webcrypto)    -> FAIL on the dated-pages floor.
 // Each restored to green. A check that cannot fail on a silently dropped side is a claim, not
 // a detector (rule 64: the signal must be shown to fire on the shape it was added for).
 //
@@ -109,6 +116,46 @@ const PAGES = [
     sideB: ["GetDisplayMediaAudioSelection", "at trunk"],
     dates: ["2026-07-28"],
   },
+  {
+    // Found by the second review's divergence-vocabulary sweep: a DEDICATED
+    // "Spec-vs-implementation divergence (read before citing)" block — three layers out of
+    // sync, each claim labelled with its layer. Side A = the spec layers (animation-triggers-1
+    // ED's pre-resolution table; web-animations-2 ED's OLD trigger model, which Chromium does
+    // not implement); side B = Chromium 151 shipping the #12611 action-set model. Per-layer
+    // fetch dates carried, so dates pinned.
+    page: "v151/no-auto-rewind-for-animationtrigger-play-methods/index.html",
+    marker: "Spec-vs-implementation divergence",
+    sideA: [
+      "animation-triggers-1 ED",
+      "web-animations-2",
+      "Chromium does not implement that shape",
+    ],
+    sideB: ["Chromium 151", "#12611 action-set model"],
+    dates: ["fetched 2026-07-28"],
+  },
+  {
+    // Same sweep: the normative WICG IDL associates the manager with Window, while
+    // Chromium's binding is WindowOrWorkerGlobalScope — the page names the gap an
+    // implementation/spec divergence and refuses to treat worker usability as normative.
+    // No dates carried by this note, so none are pinned.
+    page: "v147/web-printing-api/entry-point/index.html",
+    marker: "not a normative worker contract",
+    sideA: ["normative IDL"],
+    sideB: ["WindowOrWorkerGlobalScope"],
+    dates: [],
+  },
+  {
+    // Same sweep, and the fixture's own philosophy verbatim in the page's lede: "records the
+    // divergence rather than selecting a settled form". Four sources conflict on the header
+    // grammar (ED header section sf-string vs the ED cache algorithm vs Chromium's ParseList
+    // vs the Chrome developer guide); side A = the draft's two voices, side B = Chromium's
+    // parser. No dates carried by this note, so none are pinned.
+    page: "v147/device-bound-session-credentials/challenge-header/index.html",
+    marker: "conflicting source descriptions",
+    sideA: ["sf-string", "cache algorithm"],
+    sideB: ["Chromium parser code", "ParseList"],
+    dates: [],
+  },
 ];
 
 let failures = 0;
@@ -121,14 +168,24 @@ function assert(name, ok, detail = "") {
 // have a NON-EMPTY marker (html.includes("") is vacuously true), BOTH sides, and a dates
 // ARRAY (an absent one would throw an unnamed TypeError instead of failing a named check).
 assert(
-  "table is non-vacuous: at least six carried-disagreement pages, each with a non-empty marker, BOTH sides pinned, and a dates array",
-  PAGES.length >= 6 &&
+  "table is non-vacuous: at least nine carried-disagreement pages, each with a non-empty marker, BOTH sides pinned, and a dates array",
+  PAGES.length >= 9 &&
     PAGES.every(
       (e) =>
         typeof e.marker === "string" && e.marker.length > 0 &&
         e.sideA.length > 0 && e.sideB.length > 0 && Array.isArray(e.dates),
     ),
   `${PAGES.length} entries`,
+);
+
+// Dated-pages floor (review finding F3): emptying a DATED entry's array in the table would
+// silently drop its dates assertion (the per-entry check is conditional on dates.length > 0).
+// Floor = the count measured at authoring (webcrypto, xslt, audiopreferred, no-auto-rewind);
+// raise it deliberately when a new dated page is pinned.
+assert(
+  "dated-pages floor: every page measured as carrying as-of dates still pins them",
+  PAGES.filter((e) => e.dates.length > 0).length >= 4,
+  `${PAGES.filter((e) => e.dates.length > 0).length} dated entries`,
 );
 
 for (const entry of PAGES) {
