@@ -71,10 +71,14 @@ export function pathToIdentityFields(pagePath, html) {
 async function runGitChecked(args) {
   const { code, stdout, stderr } = await runGit(args, { stdout: "piped", stderr: "piped" });
   if (code !== 0) {
-    // Name what git said, not just the code (gendn-r1q): the last stderr line is the `fatal: ...`
-    // that tells a human WHICH ref or object was wrong. Kept to the last line so a multi-line git
-    // diagnostic cannot swamp the gate's output.
-    const detail = stderr.trim().split("\n").filter(Boolean).pop();
+    // Name what git said, not just the code (gendn-r1q): the `fatal:`/`error:` line is the one that
+    // tells a human WHICH ref or object was wrong. NOT simply the last line: git prints `fatal: ...`
+    // FIRST and then hints, so taking the tail picked the hint (review counterexamples: `git show ""`
+    // ended on `'git <command> [<revision>...] -- [<file>...]'`, and an unknown option ended on a
+    // usage flag list, both discarding the actual cause). One line only, so a multi-line diagnostic
+    // cannot swamp the gate's output; falls back to the first non-empty line if git labelled nothing.
+    const lines = stderr.trim().split("\n").map((l) => l.trim()).filter(Boolean);
+    const detail = lines.find((l) => /^(fatal|error):/i.test(l)) ?? lines[0];
     throw new Error(
       `git ${args.join(" ")} failed with exit code ${code}${detail ? `: ${detail}` : ""}`,
     );

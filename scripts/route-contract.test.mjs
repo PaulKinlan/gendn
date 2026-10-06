@@ -8,13 +8,15 @@ import { metadataFromHtml } from "./lib/artifacts.mjs";
 
 let passed = 0;
 let failures = 0;
-function assert(name, condition) {
+function assert(name, condition, detail) {
   if (condition) {
     passed++;
     console.log(`PASS: ${name}`);
   } else {
     failures++;
-    console.error(`FAIL: ${name}`);
+    // Print the supplied detail on failure (gendn-r1q review): a failing pin whose message is
+    // discarded makes the reader re-derive what went wrong, which is the opposite of a diagnostic.
+    console.error(`FAIL: ${name}${detail ? ` :: ${detail}` : ""}`);
   }
 }
 
@@ -227,6 +229,22 @@ try {
   assert(
     "a bad ref's error names git's stderr (the 'fatal: ...' line), not just the exit code",
     /exit code 128/.test(msg) && /fatal:/.test(msg),
+    msg,
+  );
+}
+
+// gendn-r1q review counterexample, pinned so the fix cannot silently regress: git prints `error:`/
+// `fatal:` FIRST and then usage or hints, so a rule that takes the LAST stderr line picks the hint.
+// An unknown option is the cheapest reliable multi-line case (exit 129, `error: unknown option ...`
+// followed by a usage block), and this asserts we report the CAUSE rather than a usage flag.
+try {
+  await buildManifest({ ref: "--invalid-option" });
+  assert("an invalid option must REJECT rather than return a manifest", false);
+} catch (e) {
+  const msg = String(e?.message ?? e);
+  assert(
+    "a MULTI-LINE git failure reports the 'error:'/'fatal:' cause, not the last usage line",
+    /exit code 129/.test(msg) && /error: unknown option/.test(msg),
     msg,
   );
 }
