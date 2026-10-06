@@ -8,8 +8,13 @@
 //
 // It asserts:
 //   1. THREAT_MODEL.md exists at the repo root and is a real document (not a stub).
-//   2. Every "THREAT_MODEL.md invariant #N" citation anywhere in lib/, server.ts and scripts/
-//      resolves to a numbered invariant entry in the document.
+//   2. Every "THREAT_MODEL.md invariant #N" citation in the SCANNED SURFACE — lib/** and
+//      scripts/** (RECURSIVE, so scripts/lib/ is covered — a non-recursive scan left a blind
+//      spot a bogus citation could hide in, measured by the review: '#99' in scripts/lib/
+//      produced zero failures) plus server.ts — resolves to a numbered invariant entry in the
+//      document. The scan does NOT cover .claude/, .github/, CLAUDE.md, deno.json or the
+//      content tree; a citation placed there is not caught, and this header must never claim
+//      wider (gendn-zoq review P1b: a coverage claim broader than the code removes a check).
 //   3. The four KNOWN citing files still cite — if a citation is removed or moves, the guard is
 //      updated deliberately rather than silently narrowing.
 //   4. Invariants #7 and #8 still contain the phrases the citing comments depend on ("timeout"
@@ -61,23 +66,33 @@ assert(
   doc === null ? "no document" : `${doc.length} chars`,
 );
 
-// ---- 2. every citation in code resolves to a numbered invariant ----
+// ---- 2. every citation in the scanned surface resolves to a numbered invariant ----
 const CITATION_RE = /THREAT_MODEL\.md\s+invariant\s+#(\d+)/g;
-const scanDirs = ["lib", "scripts"];
-const scanFiles = ["server.ts"];
-const sources = [];
-for (const dir of scanDirs) {
-  for await (const entry of Deno.readDir(join(dir))) {
-    if (entry.isFile && (entry.name.endsWith(".ts") || entry.name.endsWith(".mjs"))) {
-      // The guard's own comments DESCRIBE the citation pattern; that is not a deferral. Scanning
-      // it would make the fixture a citer of itself (measured on first run: 5 citations across
-      // 5 files, one of them this file).
-      if (entry.name === "threat-model-citations.test.mjs") continue;
-      sources.push(join(dir, entry.name));
+// Manual recursion, not Deno.readDir({recursive:true}): this Deno's recursive mode returns
+// BASENAMES with no path information (measured: nested entries arrive flattened and
+// unjoinable), which would silently mis-scan or double-count. A hand walk keeps the paths.
+async function walkSourceFiles(dir) {
+  const out = [];
+  for await (const entry of Deno.readDir(dir)) {
+    const p = `${dir}/${entry.name}`;
+    if (entry.isDirectory) {
+      out.push(...await walkSourceFiles(p));
+    } else if (entry.isFile && (entry.name.endsWith(".ts") || entry.name.endsWith(".mjs"))) {
+      out.push(p);
     }
   }
+  return out;
 }
-for (const f of scanFiles) sources.push(join(f));
+const sources = [
+  ...await walkSourceFiles(join("lib")),
+  ...await walkSourceFiles(join("scripts")),
+  join("server.ts"),
+].filter(
+  // The guard's own comments DESCRIBE the citation pattern; that is not a deferral. Scanning
+  // it would make the fixture a citer of itself (measured on first run: 5 citations across
+  // 5 files, one of them this file).
+  (p) => !p.endsWith("threat-model-citations.test.mjs"),
+);
 
 // The numbered invariant entries live in "## 6. Security Invariants". Scoping to that section
 // is load-bearing, not cosmetic: §4 (Untrusted Attack Surfaces) is ALSO a numbered bold list, and
@@ -148,7 +163,7 @@ for (const known of KNOWN_CITERS) {
 // ---- 4. #7 and #8 still carry the phrases the citing comments depend on ----
 const seven = invariantEntry(7) ?? "";
 assert(
-  "invariant #7 still contains 'timeout' and 'byte bound' — the phrases lib/mdn.ts and scripts/mdn-has.test.mjs defer to",
+  "invariant #7 still contains 'timeout' and 'byte bound' — the phrase pair lib/mdn.ts defers to ('the same timeout and byte bound'); scripts/mdn-has.test.mjs cites the same invariant in its own words ('no timeout and no size bound')",
   seven.includes("timeout") && seven.includes("byte bound"),
 );
 const eight = invariantEntry(8) ?? "";

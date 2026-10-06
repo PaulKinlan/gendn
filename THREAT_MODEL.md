@@ -6,7 +6,10 @@ invariant #7` in `lib/mdn.ts` and `scripts/mdn-has.test.mjs`; `invariant #8` in
 `lib/external-url.ts` and `lib/html.ts`). A guard fixture
 (`scripts/threat-model-citations.test.mjs`, task `test-threat-model-citations`) fails if a cited
 invariant number stops resolving in this document or if #7/#8 lose the phrases the citing
-comments depend on._
+comments depend on. The guard's scanned surface is `lib/**`, `scripts/**` (recursive) and
+`server.ts`; citations placed in other paths (`.claude/`, `.github/`, `CLAUDE.md`, the content
+tree) are NOT resolved by it — stated here so the coverage claim is exactly as wide as the
+code._
 
 **Provenance.** Reconstructed from the software-factory threat-model station's rescued draft
 (run `threat-model-gendn-merger-20261006-141239`, output rejected on a schema field-name
@@ -19,8 +22,15 @@ reader does not re-believe them:
 2. The draft scoped itself to "repository `gendn-merger`" — that is a factory lane name, not
    the repository.
 3. The draft listed "the `modern-web-guidance` npm package … fetched at run time" as a
-   dependency surface — `deno.json` `imports` is **empty** and `server.ts`/`lib/*.ts` import no
-   third-party modules; the package is referenced only as guidance text inside lifecycle views.
+   dependency surface — `deno.json` HAS NO `imports` KEY AT ALL (absent, not empty) and
+   `server.ts`/`lib/*.ts` import no third-party modules; the package is referenced only as
+   guidance text inside lifecycle views.
+4. The draft's finding TM-1 (and this document's first draft, copying it) named THREE unescaped
+   id-to-href sinks; audit of the third found `lib/lifecycle.ts` ESCAPES its identity
+   interpolation (`esc(s.identity)`, a full escaper) — so it is not an unescaped sink and was
+   removed from that list, reclassified below as escaped-but-un-narrowed. A reader who saw the
+   earlier three-sink claim (the station output, the gendn-b2s bead) needs to know it was
+   corrected here, not silently edited.
 
 ## 1. System Overview & Architecture
 
@@ -68,8 +78,8 @@ Components:
 - **Routine — Claude Code, cron `30 */2 * * *`** (CLAUDE.md), fresh checkout of `main`, one
   commit per feature, pushes directly to `main`.
 - **Runtime:** Deno (Deno Deploy or a local/CI process); no database, no user accounts, no
-  server-side session state, **no third-party runtime dependencies** (`deno.json` `imports` is
-  empty).
+  server-side session state, **no third-party runtime dependencies** (`deno.json` has no
+  `imports` key).
 
 ## 2. Trust Boundaries & Actors
 
@@ -122,9 +132,12 @@ Audits **must not** flag the following as vulnerabilities:
 ## 4. Untrusted Attack Surfaces
 
 1. **chromestatus.com JSON → SSR.** `name`, `summary`, `category`, `id` and channel/date fields
-   are rendered. Most are escaped; `id` in three href sinks is not (finding TM-1 = bead
-   `gendn-b2s`, fix in flight: `server.ts` `renderReleasePage`, `server.ts`
-   `renderFeaturesCatalogue`, `lib/lifecycle.ts`).
+   are rendered. Most are escaped; `id` in TWO href sinks in `server.ts` is not (finding TM-1 =
+   bead `gendn-b2s`, fix in flight: `renderReleasePage`, `renderFeaturesCatalogue`). A third
+   href site — `lib/lifecycle.ts` `renderConformanceIndex` — ESCAPES the identity (`esc()`) but
+   did not NARROW it: an encoding-only site cannot emit a hostile attribute, but it can emit a
+   well-formed link to a malformed identity (identity-validity, not injection — the same b2s
+   work narrows it).
 2. **`api.github.com` commit JSON → "last updated" line.** `html_url` is the historic
    scheme-injection sink (fixed by `lib/external-url.ts`); `sha`/`date` are escaped.
 3. **Repo-authored page HTML served same-origin.** A `<script>` or injected attribute in a
@@ -145,7 +158,7 @@ Audits **must not** flag the following as vulnerabilities:
 8. **Process environment / `/proc`.** The fixture runner reads descendants'
    `/proc/<pid>/environ`; a deliberately cleared environment can bypass the recursion guard
    (bounded accidental recursion, not a hostile fixture).
-9. **Declared external runtime dependencies.** None: `deno.json` `imports` is empty and the
+9. **Declared external runtime dependencies.** None: `deno.json` has no `imports` key and the
    server/lib code imports no third-party modules. Upstream *data* (chromestatus, GitHub, MDN)
    is the dependency surface, covered above.
 
@@ -169,8 +182,13 @@ Audits **must not** flag the following as vulnerabilities:
 ## 6. Security Invariants for Auditors
 
 Each invariant carries its enforcement anchor (file + symbol, not line numbers — lines rot).
-#1–#8 are the numbers source comments already cite; #9–#13 were observed in code and are
-numbered here for the first time.
+#7 and #8 are the numbers source comments already cite; #1–#6 renumber the CLAUDE.md critical
+invariants; #9–#13 were observed in code and are numbered here for the first time. Phrase note,
+deliberately HERE rather than inside entry #7: the pair lib/mdn.ts defers to is “timeout and
+byte bound”; scripts/mdn-has.test.mjs cites the same invariant in its own words (“no timeout
+and no size bound”). A quoted copy of the phrase inside the entry would let the guard’s
+phrase-detector pass with the operative sentence deleted (measured: the M3 mutation stopped
+firing when this note lived inside #7), so the entry must carry the phrase exactly once.
 
 **Content identity & integrity (from CLAUDE.md critical invariants):**
 
@@ -203,8 +221,9 @@ numbered here for the first time.
 8. **External URL scheme validation.** Externally sourced URLs must be scheme-validated before
    use in `href`/`src` (e.g. reject `javascript:`/`data:`) by the http/https **allowlist**,
    separately from encoding: `escapeHTML` encodes characters and performs NO scheme check.
-   _Anchors: `lib/external-url.ts` `safeExternalUrl` (allowlist, not blocklist);
-   `server.ts` `renderCommitAnchor`; `lib/html.ts` header comment._
+   _Anchors: `lib/external-url.ts` `safeExternalUrl` (allowlist, not blocklist) and
+   `renderCommitAnchor` (DEFINED there; `server.ts`'s last-updated line is the seam that
+   consumes it); `lib/html.ts` header comment._
 
 **Additional invariants observed in code, numbered here for the first time:**
 
