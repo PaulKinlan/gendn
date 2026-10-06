@@ -32,6 +32,7 @@ import {
   loadSupport,
   metadataFromHtml,
   normalizeAssertions,
+  pageMetadata,
   readJson,
   renderedMarkup,
   SHOWCASE_HOST,
@@ -88,7 +89,7 @@ assert(
 assert("status built when no MDN eyebrow", meta.status === "built");
 assert("experimental = built AND experimental marker in the html", meta.experimental === true);
 assert(
-  "sections are extracted from the RAW html — comments, script strings and closed <details> h2s ARE counted (actual contract, pinned as-is; contrast: stub detection uses renderedMarkup). Counting a superset is the conservative direction for coverage gates, but the asymmetry is a FINDING reported on gendn-dd7, not something this fixture may 'fix' by re-deriving.",
+  "sections are extracted from the RAW html — comments, script strings and closed <details> h2s ARE counted (actual contract, pinned as-is). CORRECTED RATIONALE (gendn-n2k; the dd7-era text claimed re-deriving 'would move gate verdicts' — FALSE): sections/h1 are DEAD FIELDS — a repo-wide grep (dd7 review, re-verified locally) finds no gate, generator or serializer reading meta.sections or meta.h1; the min-sections/single-h1 checks are browser js-eval strings (gen-conformance.mjs:207), not derived from these fields. Pinned as documented behaviour only. The asymmetry that DOES feed a verdict (isRemoval) now derives from renderedMarkup and is pinned below.",
   JSON.stringify(meta.sections) ===
     JSON.stringify([
       "Syntax",
@@ -160,6 +161,59 @@ assert(
   "isRemoval from an h2 mentioning deprecation",
   metadataFromHtml("v900/thing/index.html", "<h1>Thing</h1><h2>Deprecation timeline</h2>")
     .isRemoval === true,
+);
+
+// gendn-n2k PIN: isRemoval feeds gen-conformance.mjs:211 (removal pages SKIP the
+// support/example assertions), so its h1/h2 scan must read the RENDERED markup. Every input
+// below says "Removal"/"deprecat" ONLY in invisible places — the raw-html derivation flips
+// isRemoval to true and would silently drop gate assertions; the rendered derivation does not.
+// MUTATION PROOF (log on the bead): switching the scan back to raw html FAILS these pins.
+const hiddenRemovalComment = "<h1>Thing</h1><!-- <h2>Removal plan</h2> -->";
+const hiddenRemovalScript = "<h1>Thing</h1><script>var s = '<h2>Deprecation notes</h2>';</script>";
+const hiddenRemovalDetails =
+  "<h1>Thing</h1><details><summary>s</summary><h2>Removal timeline</h2></details>";
+const hiddenRemovalH1Comment = "<!-- <h1>Removed API</h1> --><h1>Thing</h1>";
+assert(
+  "n2k pin: 'Removal' h2 inside a COMMENT does not make a page a removal",
+  metadataFromHtml("v900/thing/index.html", hiddenRemovalComment).isRemoval === false,
+);
+assert(
+  "n2k pin: 'Deprecation' h2 inside a SCRIPT string does not make a page a removal",
+  metadataFromHtml("v900/thing/index.html", hiddenRemovalScript).isRemoval === false,
+);
+assert(
+  "n2k pin: 'Removal' h2 inside a CLOSED <details> does not make a page a removal",
+  metadataFromHtml("v900/thing/index.html", hiddenRemovalDetails).isRemoval === false,
+);
+assert(
+  "n2k pin: a commented-out 'Removed' h1 does not make a page a removal",
+  metadataFromHtml("v900/thing/index.html", hiddenRemovalH1Comment).isRemoval === false,
+);
+assert(
+  "n2k pin: a VISIBLE removal h2 still flips isRemoval (the pin did not neuter the signal)",
+  metadataFromHtml("v900/thing/index.html", hiddenRemovalComment + "<h2>Removal plan</h2>")
+    .isRemoval === true,
+);
+// n2k RESIDUE, pinned as CURRENT BEHAVIOUR per coord's evasion-surface acceptance: the
+// stripping is markup-level, so an <h2> hidden only by an external stylesheet CLASS still
+// counts — no markup-level derivation can read stylesheets. This assertion documents the
+// residue; if a future stylesheet-aware derivation lands, THIS assertion is the one that
+// must be deliberately flipped (and the limitation text in artifacts.mjs removed with it).
+assert(
+  "n2k residue: a CLASS-hidden removal h2 (external stylesheet only) STILL flips isRemoval — stated limitation of markup-level stripping, not an oversight",
+  metadataFromHtml(
+    "v900/thing/index.html",
+    '<h1>Thing</h1><h2 class="hidden-by-css">Removal plan</h2>',
+  )
+    .isRemoval === true,
+);
+assert(
+  "n2k residue boundary: an INLINE display:none removal h2 IS stripped (attribute-level hiding is covered)",
+  metadataFromHtml(
+    "v900/thing/index.html",
+    '<h1>Thing</h1><h2 style="display:none">Removal plan</h2>',
+  )
+    .isRemoval === false,
 );
 
 // demo fallback: no own-prefix link -> the FIRST showcase link wins; own prefix found later overrides
@@ -332,6 +386,56 @@ assert(
   supportForRoute({ routes: { "/v9/x/": { desktop: "ok", mobile: "broken" } } }, "/v9/x/")
     .mobile === "broken",
 );
+
+// ---------- pageMetadata: the file-reading seam check-conformance depends on (gendn-vgs) ----
+// check-conformance.mjs:225/:271 gate per-page behaviour (built pages get extra assertions;
+// :271 builds the builtPages list) through pageMetadata — but the dd7 fixture only ever called
+// metadataFromHtml directly, so a wrapper that FABRICATED metadata and never read the file
+// still passed 54/54 (reviewer-proven). These assertions exercise the wrapper itself: real
+// file reading, the root parameter, delegation equality, and the missing-file contract.
+{
+  const vtmp = await Deno.makeTempDir({ prefix: "vgs-pagemeta-" });
+  try {
+    await Deno.mkdir(`${vtmp}/v900/seam`, { recursive: true });
+    const SEAM_HTML =
+      `<h1>Seam Page</h1><p>Record: <a href="https://chromestatus.com/feature/4242424242">cs</a></p>`;
+    await Deno.writeTextFile(`${vtmp}/v900/seam/index.html`, SEAM_HTML);
+    const viaWrapper = await pageMetadata("v900/seam/index.html", vtmp);
+    const viaDirect = metadataFromHtml("v900/seam/index.html", SEAM_HTML);
+    assert(
+      "pageMetadata reads the REAL file and delegates to metadataFromHtml (field-for-field equality)",
+      JSON.stringify(viaWrapper) === JSON.stringify(viaDirect),
+    );
+    assert(
+      "pageMetadata honors the root parameter and derives identity from the FILE'S content (a fabricating wrapper ignoring the html fails this)",
+      viaWrapper.identity === "4242424242" && viaWrapper.status === "built" &&
+        viaWrapper.h1 === "Seam Page",
+      String(viaWrapper.identity),
+    );
+    await Deno.mkdir(`${vtmp}/v900/seam2`, { recursive: true });
+    await Deno.writeTextFile(
+      `${vtmp}/v900/seam2/index.html`,
+      `<p class="eyebrow">Covered on MDN</p><h1>Stub Page</h1>`,
+    );
+    const viaStub = await pageMetadata("v900/seam2/index.html", vtmp);
+    assert(
+      "pageMetadata distinguishes files under the same root (stub file reads as stub, built as built)",
+      viaStub.status === "stub" && viaWrapper.status === "built",
+    );
+    let missingThrew = false;
+    try {
+      await pageMetadata("v900/absent/index.html", vtmp);
+    } catch (e) {
+      missingThrew = e instanceof Deno.errors.NotFound;
+    }
+    assert(
+      "pageMetadata: a missing page file THROWS NotFound (no silent null metadata)",
+      missingThrew,
+    );
+  } finally {
+    await Deno.remove(vtmp, { recursive: true }).catch(() => {});
+  }
+}
 
 // ---------- temp-catalogue boundaries ------------------------------------------------------
 const tmp = await Deno.makeTempDir({ prefix: "artifacts-units-" });
