@@ -697,9 +697,17 @@ try {
         "await fetch(url, { signal: AbortSignal.timeout(4000) });",
       ),
     );
+    // BOTH alternatives of the production loopback rule are exercised (gendn-ecc): the first canary
+    // only used 127.0.0.1, so narrowing the rule to drop `localhost` - a real narrowing of a check
+    // that exists to keep loopback polls from being reported as outbound fetches - left the fixture
+    // GREEN. One canary per alternative means neither can be silently dropped.
     assert(
-      "n3e static sweep: a loopback literal IS excused",
+      "n3e static sweep: a 127.0.0.1 loopback literal IS excused",
       !sweepFinding("scripts/vendor-fonts.mjs", "await fetch(`http://127.0.0.1:8000/x`);"),
+    );
+    assert(
+      "n3e static sweep: a localhost loopback literal IS excused",
+      !sweepFinding("scripts/vendor-fonts.mjs", "await fetch(`http://localhost/x`);"),
     );
     assert(
       "n3e static sweep: the fetchBounded definition site IS excused",
