@@ -3,7 +3,7 @@
 // anomaly warning, its per-line dedupe, parse fidelity vs the merged dfc4c2c behaviour, and
 // TMPDIR root resolution (incl. the empty-string → /tmp-like-unset case). No Chrome. Runs as
 // `deno task test-cdp` and chained first in `deno task test-reference-contract`.
-import { isLocalNavigation, parseProcessListForDir, tmpRoot } from "./lib/cdp.mjs";
+import { classifyOrigin, isLocalNavigation, parseProcessListForDir, tmpRoot } from "./lib/cdp.mjs";
 
 const DIR = "/tmp/gendn-cdp-424242-fixture";
 let failures = 0;
@@ -86,6 +86,19 @@ assert("lookalike host refused", !isLocalNavigation("http://localhost.evil.examp
 assert("userinfo trick refused", !isLocalNavigation("http://localhost@evil.example/"));
 assert("IPv6 loopback allowed", isLocalNavigation("http://[::1]:3000/"));
 assert("IPv4-mapped IPv6 refused", !isLocalNavigation("http://[::ffff:8.8.8.8]/"));
+assert(
+  "chrome-error classified as navigation failure",
+  classifyOrigin("chrome-error://chromewebdata/") === "navigation-failed",
+);
+assert("local href classified local", classifyOrigin("http://127.0.0.1:1234/x") === "local");
+assert(
+  "external href classified off-origin",
+  classifyOrigin("https://example.com/") === "off-origin",
+);
+assert(
+  "other localhost port stays local (hostname-only, documented)",
+  classifyOrigin("http://localhost:9/") === "local",
+);
 assert("file: refused", !isLocalNavigation("file:///etc/passwd"));
 assert("garbage refused", !isLocalNavigation("not a url"));
 
