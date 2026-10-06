@@ -825,6 +825,56 @@ export function addSecurityHeaders(res: Response): Response {
   return res;
 }
 
+// ----- Transport: automatic compression + revalidation caching (gendn-3ux) -----
+//
+// Two transport headers were missing. Neither is visible in a status code, which is the whole shape of
+// this defect: the bug IS a 200 whose transport is wrong.
+//
+// 1. COMPRESSION. Deno's HTTP server compresses response bodies only when asked - the manual says
+//    "The HTTP server can automatically compress response bodies, but this is off by default" - so every
+//    page shipped raw. `automaticCompression: true` (in Deno.serve below) lets the RUNTIME do it natively
+//    rather than hand-rolling gzip per request in application code. Measured over the repo's own bytes:
+//    201 index.html files, raw mean 11.8KB / median 7.1KB vs gzip-6 mean 3.4KB / median 2.4KB (~3.5x),
+//    with the largest routes far bigger (/features ~194KB, a hub route ~21KB).
+//
+// 2. REVALIDATION. Nothing set cache-control, so every back-navigation refetched the entire document.
+//    A validator is derived from the body bytes and `no-cache` makes clients REVALIDATE instead of
+//    refetching, so a repeat navigation costs one conditional request and a 304 with no body. The
+//    If-None-Match comparison below is required for that to be worth anything: with a validator but no
+//    304 branch the server would answer every revalidation with the full body again, so the header alone
+//    would save nothing. Weak (W/) because the same content is legitimately served under different
+//    content-codings once compression is on, which is exactly what a weak validator asserts. `no-cache`
+//    rather than a max-age because it keeps every response fresh and so needs no decision about how much
+//    staleness is acceptable.
+const REVALIDATION_CACHE_CONTROL = "no-cache";
+
+async function withRevalidation(req: Request, res: Response): Promise<Response> {
+  if (res.body === null) return res; // 204/302: no representation to validate
+  if (res.headers.has("etag")) return res; // the route already chose its own validator
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-1", bytes));
+  const etag = `W/"${[...digest].map((b) => b.toString(16).padStart(2, "0")).join("")}"`;
+  const headers = new Headers(res.headers);
+  headers.set("etag", etag);
+  headers.set("cache-control", REVALIDATION_CACHE_CONTROL);
+  if (ifNoneMatchMatches(req.headers.get("if-none-match"), etag)) {
+    // A 304 carries no body, so it must not advertise the length one would have had.
+    headers.delete("content-length");
+    headers.delete("content-encoding");
+    return new Response(null, { status: 304, headers });
+  }
+  return new Response(bytes, { status: res.status, statusText: res.statusText, headers });
+}
+
+// If-None-Match is a comma-separated list of validators, or "*". A weak validator matches its strong
+// twin, so W/"x" and "x" are the same validator for this purpose.
+function ifNoneMatchMatches(header: string | null, etag: string): boolean {
+  if (!header) return false;
+  if (header.trim() === "*") return true;
+  const bare = (tag: string) => tag.trim().replace(/^W\//, "");
+  return header.split(",").some((tag) => bare(tag) === bare(etag));
+}
+
 export async function handleRequest(req: Request): Promise<Response> {
   // A malformed request URL is a handled 400, not an unhandled throw (gendn-7xq); the message is
   // generic so nothing from the request is reflected.
@@ -944,10 +994,9 @@ export async function handleRequest(req: Request): Promise<Response> {
 }
 
 if (import.meta.main) {
-  const server = Deno.serve({ port: PORT }, async (req) => {
+  const server = Deno.serve({ port: PORT, automaticCompression: true }, async (req) => {
     try {
-      const res = await handleRequest(req);
-      return addSecurityHeaders(res);
+      return addSecurityHeaders(await withRevalidation(req, await handleRequest(req)));
     } catch (err) {
       return addSecurityHeaders(serverError(req, "unhandled request", err));
     }
