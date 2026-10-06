@@ -380,11 +380,18 @@ const ANONYMOUS_SPECIAL_OPERATION =
 // and the enclosing declaration header is removed. Extracted from memberNamesFromIdl when
 // skippedSurfaceDeclarations was added, because two copies of a statement splitter is exactly how a
 // fix lands in one path and not the other.
-function idlStatements(idl) {
-  const bare = idl
+// Comments and line-leading extended attributes stripped from a raw IDL block. Extracted from
+// idlStatements when the enum-name reader needed the same strip, because two copies of the strip is
+// exactly how the two readers drift apart on what counts as a declaration vs a comment.
+function strippedIdl(idl) {
+  return idl
     .replace(/(^|[^:])\/\/[^\n]*/g, "$1 ")
     .replace(/\/\*[\s\S]*?\*\//g, " ")
     .replace(/^[ \t]*\[[^\]]*\][ \t]*/gm, " ");
+}
+
+function idlStatements(idl) {
+  const bare = strippedIdl(idl);
   const out = [];
   for (const raw of bare.split(";")) {
     const statement = raw
@@ -469,6 +476,27 @@ function memberNamesFromIdl(idl) {
       /^(?:(?:\([^)]*\)|[\w<>?\[\],]+)\s+)+?(\w+)\s*(?:=\s*[^;()]+)?$/,
     );
     if (member) names.add(member[1]);
+  }
+  // BARE ENUM DECLARATIONS (gendn-kda): `enum WebPrinterState { "idle", "processing" };` names a
+  // TYPE whose identifier is the only name the declaration carries - its values are string literals
+  // with no identifier of their own. idlStatements strips the `enum Name {` header, so the
+  // identifier must be read from the comment-stripped block, or the whole declaration is invisible:
+  // the block passes IDL_BLOCK_GATE, then yields no member and no unreadable report (the values
+  // carry no member hint). This is gendn-5t3 one step earlier - a construct the parser refused to
+  // NAME, fixed by naming it rather than labelling the page.
+  // REPORTED ONLY WHEN THE BLOCK YIELDS NOTHING ELSE, so this closes the bare-enum gap without
+  // changing the member set of a block that already reports interface/dictionary members - those
+  // contracts validate exactly as they do today, and widening the fallback to every enum in a mixed
+  // block would add uncovered identifiers to contracts that were already correct.
+  // Reported once, by the type's own name, and NOT expanded into its values: a contract must
+  // acknowledge the enum type, while the values are specified by the enum itself and are the natural
+  // home for outOfScope-with-rationale when they are not written as prose - the cheapest form that
+  // is SATISFIABLE, mirroring the parameterless specials. The identifier is not a WebIDL keyword, so
+  // unlike SURFACE_CONSTRUCTS it needs no keyword-filter exception (the gendn-5t3 divergence).
+  if (names.size === 0) {
+    for (const match of strippedIdl(idl).matchAll(/\benum\s+([A-Za-z_$][\w$]*)\s*\{/g)) {
+      names.add(match[1]);
+    }
   }
   return names;
 }
