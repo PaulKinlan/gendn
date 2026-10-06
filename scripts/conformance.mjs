@@ -324,13 +324,29 @@ function renderRollup(runAll) {
 // A scoped run merges into whatever the report already holds; a missing or unparseable report is
 // treated as empty rather than aborting the scan (the scan's own results are still written).
 export async function readResponsiveRows(path, { warn = console.error } = {}) {
+  return await readReportRows(path, { warn, what: "rows" });
+}
+
+// The reader the merge depends on, shared for the same reason the merge is (gendn-502). It has to
+// handle BOTH report shapes, because they differ: the responsive report is a top-level ARRAY of
+// rows, while results.json is an OBJECT carrying its array at `suites`. My first version of this
+// only handled the array, and the unit probe passed because it fed the shared helper arrays - the
+// end-to-end scoped run still truncated 198 suites to 1 with the warning filtered out of sight.
+export async function readReportRows(
+  path,
+  { warn = console.error, what = "entries", key = null } = {},
+) {
+  const shape = key ? `an object carrying an array of ${what} at ${key}` : `an array of ${what}`;
   try {
     const parsed = JSON.parse(await Deno.readTextFile(path));
-    if (!Array.isArray(parsed)) {
-      warn(`! ${path} is not an array of rows - treating it as empty`);
+    const rows = Array.isArray(parsed)
+      ? parsed
+      : (key && Array.isArray(parsed?.[key]) ? parsed[key] : null);
+    if (!rows) {
+      warn(`! ${path} is not ${shape} - treating it as empty`);
       return [];
     }
-    return parsed.filter((row) => row && typeof row === "object" && typeof row.id === "string");
+    return rows.filter((row) => row && typeof row === "object" && typeof row.id === "string");
   } catch (err) {
     if (err instanceof Deno.errors.NotFound) return []; // first scoped run: nothing to merge into
     // A CORRUPT report is the dangerous case, not the missing one: the merge would silently rewrite
@@ -338,7 +354,7 @@ export async function readResponsiveRows(path, { warn = console.error } = {}) {
     // review P2). The tolerant behaviour stays - the scan's own results are still worth writing.
     warn(
       `! ${path} is unreadable (${err.message}) - treating it as empty; a scoped run will write ` +
-        `only the pages it scanned`,
+        `only the entries it scanned`,
     );
     return [];
   }
@@ -353,20 +369,34 @@ export async function readResponsiveRows(path, { warn = console.error } = {}) {
 // regenerates wholesale (that is how catalogue additions and removals reach the report), while a
 // SCOPED run merges - other pages keep their rows, the scanned pages replace their own rows IN
 // PLACE so the file order stays stable, and a newly scanned page is appended.
-export function responsiveReportRows({ existing = [], scanned = [], scoped = false } = {}) {
+// ---------- THE SHARED SHAPE (gendn-502): a tracked report must be WHOLESALE on a full run and
+// MERGED on a scoped one, for EVERY report this runner writes, not just the responsive one --------
+// gendn-jvh found the class on reports/conformance/responsive.json (a `responsive --page` run
+// truncated 198 rows to 1). gendn-502 found the same shape in the SAME runner's own output: a
+// `conformance --page` run rewrote reports/conformance/results.json from 198 suites to 1 and the
+// index rollup from 229 lines to 32, so a lane running the documented evidence command and then
+// committing would ship a diff that READS as a routine report refresh while deleting 197 suites.
+// Per the gendn-8q2 decision (close the CLASS, not the instance) the merge lives HERE once and both
+// reports call it, rather than a second hand-rolled copy per report - the copy is how the third
+// artefact stays broken.
+export function mergeReportRows({ existing = [], scanned = [], scoped = false, key = "id" } = {}) {
   if (!scoped) return scanned;
   const rows = [...existing];
-  const indexOf = new Map(rows.map((row, i) => [row?.id, i]));
+  const indexOf = new Map(rows.map((row, i) => [row?.[key], i]));
   for (const row of scanned) {
-    const at = indexOf.get(row?.id);
+    const at = indexOf.get(row?.[key]);
     if (at === undefined) {
-      indexOf.set(row?.id, rows.length); // a page the report has never carried
+      indexOf.set(row?.[key], rows.length); // an entry the report has never carried
       rows.push(row);
     } else {
-      rows[at] = row;
+      rows[at] = row; // replace IN PLACE so the file's order stays stable
     }
   }
   return rows;
+}
+
+export function responsiveReportRows({ existing = [], scanned = [], scoped = false } = {}) {
+  return mergeReportRows({ existing, scanned, scoped });
 }
 
 // A scoped run must not describe itself as a full one: the row count it reports is the REPORT's
@@ -375,6 +405,34 @@ export function responsiveReportLine(scannedCount, totalRows, scoped) {
   return scoped
     ? `responsive-check: ${scannedCount} page(s) scanned (merged into ${OUT_DIR}/responsive.json; report now ${totalRows} rows)`
     : `responsive-check: ${scannedCount} pages scanned → ${OUT_DIR}/responsive.json`;
+}
+
+// The run-all summary line, same discipline: the FULL shape is pinned by check-verdict-emission (it
+// is the shape the landing gate sends) and stays byte-identical, while a scoped run says out loud
+// that it merged and how big the report now is (gendn-502).
+export function runAllReportLine({ scannedSuites, totalSuites, scoped, agg }) {
+  if (scoped) {
+    return `run-all: ${scannedSuites} suite(s) scanned (merged into ${OUT_DIR}/results.json; report now ${totalSuites} suites)`;
+  }
+  return `run-all: ${scannedSuites} suites · assertions ${agg.pass} pass / ${agg.fail} fail / ${agg.blocked} blocked (of ${agg.total})`;
+}
+
+// The DECISION for the run-all report, extracted so a fixture can pin it rather than only the merge
+// arithmetic (gendn-502). The write site itself needs Chrome and the whole scan harness, so the
+// choice of wholesale-vs-merge AND which aggregate the file carries are gathered here. The `agg`
+// returned is the REPORT's aggregate over the MERGED set - not the scan's - and that distinction is
+// a bug I introduced and caught only by running the command: reassigning the scan's aggregate to the
+// merged set made a one-suite scoped run announce the whole catalogue's failures as its verdict.
+export function scopedResultsReport({ existing = [], scanned = [], scoped = false } = {}) {
+  const suites = mergeReportRows({ existing, scanned, scoped });
+  const agg = suites.reduce((o, s) => {
+    o.total += s.total;
+    o.pass += s.pass;
+    o.fail += s.fail;
+    o.blocked += s.blocked;
+    return o;
+  }, { total: 0, pass: 0, fail: 0, blocked: 0 });
+  return { suites, agg, merged: scoped };
 }
 
 async function main() {
@@ -523,6 +581,24 @@ async function main() {
               : ""),
         );
       }
+      // SCOPED RUNS MERGE (gendn-502): `--page`/`--limit` is the documented way to run ONE suite,
+      // and the reporter used to write only what it had scanned, so a scoped run truncated the
+      // tracked catalogue report from 198 suites to 1 (and the rollup from 229 lines to 32). The
+      // scope decides, exactly as it does for the responsive report: a full run regenerates
+      // WHOLESALE (that is how catalogue additions and removals reach the report), a scoped run
+      // keeps the other suites, replaces the scanned ones IN PLACE, and appends a new one. The
+      // aggregate is recomputed over the MERGED set, because it describes the report rather than
+      // the scan.
+      const scopedRun = Boolean(only) || Number.isFinite(limit);
+      const report = scopedResultsReport({
+        existing: scopedRun
+          ? await readReportRows(`${OUT_DIR}/results.json`, { what: "suites", key: "suites" })
+          : [],
+        scanned: runAll,
+        scoped: scopedRun,
+      });
+      const suites = report.suites;
+      const reportAgg = report.agg;
       const agg = runAll.reduce((o, s) => {
         o.total += s.total;
         o.pass += s.pass;
@@ -532,12 +608,23 @@ async function main() {
       }, { total: 0, pass: 0, fail: 0, blocked: 0 });
       await Deno.writeTextFile(
         `${OUT_DIR}/results.json`,
-        JSON.stringify({ generatedAt: new Date().toISOString(), agg, suites: runAll }, null, 2) +
+        JSON.stringify(
+          { generatedAt: new Date().toISOString(), agg: reportAgg, suites },
+          null,
+          2,
+        ) +
           "\n",
       );
-      await Deno.writeTextFile(`${OUT_DIR}/index.html`, renderRollup(runAll));
+      await Deno.writeTextFile(`${OUT_DIR}/index.html`, renderRollup(suites));
       console.log(
-        `\nrun-all: ${runAll.length} suites · assertions ${agg.pass} pass / ${agg.fail} fail / ${agg.blocked} blocked (of ${agg.total})`,
+        `\n${
+          runAllReportLine({
+            scannedSuites: runAll.length,
+            totalSuites: suites.length,
+            scoped: scopedRun,
+            agg,
+          })
+        }`,
       );
       console.log(`rollup → ${OUT_DIR}/index.html · results → ${OUT_DIR}/results.json`);
       // Verdict visibility (gendn-m9j): a full run-all EXITS 0 by design (it is the backlog
