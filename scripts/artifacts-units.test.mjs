@@ -437,6 +437,32 @@ assert(
   }
 }
 
+// gendn-4l6 (accepted follow-up from the vgs review): the DEFAULT-root path — root="." is what
+// check-conformance.mjs:225/:271 actually pass — pinned explicitly. The fixture process runs
+// with cwd = repo root, so pageMetadata(page) with NO root argument must read the real
+// catalogue and agree field-by-field with metadataFromHtml on the same file. A broken default
+// already fails loudly at the repo gate; this pin makes the fixture itself a detector too.
+{
+  const [firstPage] = await collectPublishedPages(".");
+  const direct = metadataFromHtml(
+    firstPage,
+    await Deno.readTextFile(`${REPO}/${firstPage}`),
+  );
+  let defaultRootOk = false;
+  let detail = String(firstPage);
+  try {
+    const viaDefaultRoot = await pageMetadata(firstPage);
+    defaultRootOk = JSON.stringify(viaDefaultRoot) === JSON.stringify(direct);
+  } catch (e) {
+    detail = `threw: ${e}`;
+  }
+  assert(
+    "pageMetadata DEFAULT root ('.'): reads the real catalogue from cwd and matches metadataFromHtml field-by-field (the check-conformance call path)",
+    !!firstPage && defaultRootOk,
+    detail,
+  );
+}
+
 // ---------- temp-catalogue boundaries ------------------------------------------------------
 const tmp = await Deno.makeTempDir({ prefix: "artifacts-units-" });
 try {
