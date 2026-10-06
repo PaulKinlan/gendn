@@ -20,14 +20,21 @@ export const REQUIRED_DIMENSIONS = [
   "securityPrivacy",
 ];
 
+// CONCURRENT, ORDER-PRESERVING (gendn-kq4): the loop awaited one ownerId at a time, and the callers
+// (validate-artifacts.mjs, check-conformance.mjs) pass the FULL published page-id set, so the serial
+// form paid one round-trip per page - mostly a stat/ENOENT for a page with no contract (measured: 153
+// of 201 pageIds) - for no reason: the reads are independent and readJson already resolves an absent
+// file to null rather than throwing. Promise.all preserves INPUT order, and filtering the nulls after
+// it keeps exactly the records (and order) the loop returned.
 export async function collectReferenceContracts(root = ".", pageIds = []) {
-  const records = [];
-  for (const ownerId of pageIds) {
-    const path = `${root}/${ownerId}/${REFERENCE_CONTRACT}`;
-    const contract = await readJson(path);
-    if (contract) records.push({ ownerId, path, contract });
-  }
-  return records;
+  const records = await Promise.all(
+    pageIds.map(async (ownerId) => {
+      const path = `${root}/${ownerId}/${REFERENCE_CONTRACT}`;
+      const contract = await readJson(path);
+      return contract ? { ownerId, path, contract } : null;
+    }),
+  );
+  return records.filter((record) => record !== null);
 }
 
 export function validateContractOwnership(record) {
