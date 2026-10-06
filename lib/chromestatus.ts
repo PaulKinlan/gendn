@@ -7,7 +7,17 @@
 //   on every request. Process restarts (and Deno Deploy isolate restarts) will
 //   refetch.
 
-const BASE = "https://chromestatus.com/api/v0";
+// Injectable base for TESTS ONLY (gendn-14o): when CHROMESTATUS_BASE is set at import time, the
+// wrapper targets a local HTTP stub instead of the live API, so parsing/cache/grouping behaviour
+// can be tested with no live chromestatus dependency. Production (Deno Deploy, deno task start)
+// never sets it, so the default below is the only real behaviour. The try/catch keeps the module
+// importable without --allow-env (Deno.env.get would throw a PermissionDenied at import time).
+let BASE = "https://chromestatus.com/api/v0";
+try {
+  BASE = Deno.env.get("CHROMESTATUS_BASE") ?? BASE;
+} catch {
+  // no env permission: production default
+}
 const TTL_MS = 5 * 60 * 1000;
 const XSSI_PREFIX = ")]}'";
 
