@@ -286,7 +286,6 @@ assert(
 // The list only ever SHRINKS: a page leaves it in the same change that postures it and gives it a
 // contract (v152/sub-apps was the first, v151/speculation-rules-form-submission-field the second).
 const DEFERRED_PAGES = [
-  "v150/webrtc-diagnostic-logging-api/index.html",
   "v151/algorithm-updates-in-webcrypto/index.html",
 ];
 assert(
