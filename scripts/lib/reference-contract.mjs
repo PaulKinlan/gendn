@@ -371,8 +371,16 @@ function memberNamesFromIdl(idl) {
     // THE IMPLIED MEMBERS ARE DELIBERATELY NOT EXPANDED, and this file must not be read as claiming
     // otherwise: enumerating them would impose a long list of new obligations and invite false
     // positives, so this narrows the blind spot (the construct must now be acknowledged) without
-    // closing it. Matched ONLY when the statement is the special alone, so `stringifier attribute
+    // closing it. WHAT A GREEN THEREFORE MEANS, precisely: the contract ACKNOWLEDGED the construct
+    // - it does NOT mean the page documents or inventories the members the construct implies.
+    // Matched ONLY when the statement is the special alone, so `stringifier attribute
     // DOMString foo;` still reaches the attribute path below and keeps reporting `foo`.
+    // ESCAPING MATTERS FOR THE GENERIC FORMS: `maplike<DOMString, Node>;` inside a `<pre>` is only
+    // visible to this parser when the page writes `&lt;`/`&gt;`; a RAW `<...>` reads as an HTML tag
+    // and the markup stripper removes it, so an unescaped nested generic degrades to `maplike>;` and
+    // is missed. Measured across this catalogue: all 35 IDL-looking syntax blocks escape their
+    // generics (the only angle brackets in them are `<code>` tags), so the hazard is unreachable
+    // here - it would need a page shipping raw IDL inside `<pre>`.
     const special = statement.match(/^(stringifier|iterable|maplike|setlike)\s*(?:<[\s\S]*>)?$/i);
     if (special) {
       names.add(special[1]);
