@@ -362,9 +362,20 @@ deno task build-goals          # roll critique followUpGoals into goals.json
 deno task validate-artifacts   # schemas + suiteHash + implementation-sufficiency mappings
 deno task test-reference-contract # fail-closed validator regression tests
 deno task check-conformance    # coverage + immutability + touched-page sufficiency gate
-deno task check-verdict-emission <log> [--phase run-all|responsive|behavioural]  # LANDING GATE: assert the emitted verdict block of a REAL gate log (`--phase behavioural` is required for the kill probe)
+deno task check-verdict-emission <log> [--phase run-all|responsive|behavioural]  # LANDING GATE: assert the emitted verdict block of a REAL gate log (`--phase behavioural` is required for the kill probe, and requires the kill evidence below)
+sh scripts/kill-probe.sh <log> [--after <seconds>] -- <command>  # LANDING GATE (behavioural phase): run the kill probe itself; the wrapper appends the kill-evidence line the checker requires
 deno task test-verdict-emission # validate the CHECKER against synthetic logs — the landing gate is where it meets the runner's real output, so this alone cannot detect a runner that stopped printing `verdict:`
 ```
+
+**FLOW CHANGE (gendn-3t2) — the behavioural phase now requires KILL EVIDENCE.** `check-verdict-emission
+--phase behavioural` used to accept any log with the harness banner, so a truncated run-all log
+mis-declared as the probe passed with "owes 0"; a crashed run and a SIGKILLed probe are identical in
+a log because a signal leaves no trace in the command's own output. The probe must now be run through
+`scripts/kill-probe.sh`, which kills the probe's process group after its window and appends
+`kill-probe: signal=<NAME> exit=<code>` as the log's last line. The checker requires that line, and
+requires the recorded death to be a real signal (a probe that COMPLETED inside its window records
+`signal=none` and is refused). A probe run by hand, or an unsummarised run declared as behavioural,
+will fail the landing gate.
 
 **Gate before every push (in addition to `deno task check-routes`):** `deno task validate-artifacts`,
 `deno task test-reference-contract`, and `deno task check-conformance` must pass. `blocked` in a run is explicit (manual-evidenced or

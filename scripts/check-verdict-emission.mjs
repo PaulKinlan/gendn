@@ -21,8 +21,9 @@
 //   run-all       its completion summary `run-all: <n> suites …`                   exactly 1
 //   responsive    its completion summary `responsive-check: <n> pages scanned …`   exactly 1
 //   behavioural   no completion summary, PLUS probe-initiation evidence (the         exactly 0
-//                 harness banner `Task <name> … scripts/conformance.mjs`) PLUS an
-//                 explicit `--phase behavioural` from the caller
+//                 harness banner `Task <name> … scripts/conformance.mjs`), PLUS an
+//                 explicit `--phase behavioural` from the caller, PLUS the kill
+//                 EVIDENCE line written by scripts/kill-probe.sh
 //
 // The expectation is a function of the phase's OWN evidence, not a number handed down: the runner
 // emits its verdict once per phase from a single terminal if/else whose two arms are mutually
@@ -36,11 +37,22 @@
 // when the caller declares it and the log carries probe-initiation evidence:
 //   - a bare `--phase behavioural /etc/hosts`, or the runner's own source, FAILS: neither is a gate
 //     log, so neither carries the banner;
-//   - the declaration is load-bearing, not decorative: a SIGKILLed probe and a run that crashed at
-//     the same point have the SAME log shape (banner, no summary, no verdict — a signal leaves no
-//     trace in a log), so the caller's `--phase behavioural` is the assertion that this file is the
-//     probe rather than a run that died before its terminal block. The check does not guess it, and
-//     it demands the banner as corroboration, so an arbitrary file can never be checked as the probe.
+//   - the declaration alone was still a promise, not evidence (gendn-3t2): a truncated run-all log
+//     carries the SAME banner as a probe, so declaring it `--phase behavioural` made it pass with
+//     "owes 0". The gate now also REQUIRES the kill-evidence line that scripts/kill-probe.sh writes
+//     — `kill-probe: signal=<NAME> exit=<code>` — and requires the recorded death to be a real
+//     signal from the producer's own map with an exit status that AGREES with it (128 + signum,
+//     e.g. TERM/143, KILL/137), because a probe that completed inside its kill window is not a
+//     probe and a corrupted or hand-written line is not evidence either (that last part is
+//     defence in depth: the same actor writes the evidence and runs the check, so it catches a
+//     typo rather than tampering):
+//       * a crashed/truncated run-all log carries no such line and FAILS, however it is declared;
+//       * a wrapper run whose probe finished early records `signal=none` and FAILS;
+//       * `signal=BANANA exit=137`, `signal=KILL exit=0` and `signal=TERM exit=137` all FAIL
+//         (unknown signal name, and exit disagreeing with the signal);
+//       * a probe that was actually killed carries `signal=KILL|TERM|…` and passes.
+//     A signal leaves no trace in the command's OWN output, which is exactly why the wrapper writes
+//     it: the evidence cannot be produced by a run that merely died.
 //
 // A COMPLETED single-suite run (`deno task conformance --page <id>`, the landing gate's behavioural
 // accumulation runs) takes the run-all arm and prints `run-all: 1 suites …`, so it is a run-all
@@ -60,13 +72,16 @@
 // stopped printing `verdict:` altogether, only a real-log landing run would notice.
 //
 // Exit codes: 0 = exactly the phase's expected emission; 1 = mismatch, an unsummarised log whose
-// phase cannot be derived, an unsummarised log that was not declared as the probe, or an empty log;
-// 2 = usage error (bad arguments or an unreadable log).
+// phase cannot be derived, an unsummarised log that was not declared as the probe, or a behavioural
+// log without kill evidence; 2 = usage error (bad arguments or an unreadable log).
 //
 // Usage:
 //   deno run --allow-read scripts/check-verdict-emission.mjs <log-path> [--phase <name>]
 //   deno task check-verdict-emission /tmp/gate-conformance.log --phase run-all
 //   deno task check-verdict-emission /tmp/gate-kill-probe.log --phase behavioural
+//
+// The behavioural log must have been produced by scripts/kill-probe.sh, which appends the required
+// evidence line. A hand-run probe that bypasses the wrapper will be refused.
 
 const VERDICT_LINE = /^verdict:/;
 
@@ -116,8 +131,86 @@ export const PHASE_UNKNOWN = "unknown";
 
 // Probe-initiation evidence: the harness banner naming a task that runs the conformance runner. A
 // run that crashed carries the same banner, which is why this is evidence of a GATE LOG and not
-// proof of the kill probe — the proof is the caller's `--phase behavioural` declaration.
+// proof of the kill probe — the proof is the caller's `--phase behavioural` declaration PLUS the
+// kill-evidence line below.
 const PROBE_INITIATION = /^Task \S+\b[^\n]*scripts\/conformance\.mjs/m;
+
+// EVIDENCE OF A KILL (gendn-3t2), written by scripts/kill-probe.sh as the last line of the probe
+// log: `kill-probe: signal=<NAME|none> exit=<code>`. Its absence means the log was not produced by
+// the probe wrapper, so it cannot be the probe — however it is declared. A recorded `signal=none`
+// means the probe COMPLETED inside its kill window, which is a run, not a kill.
+// Anchored to the END OF THE LOG, not the end of a line: the gendn-3t2 review found that an /m
+// anchor with $ accepted a marker placed mid-log followed by more output, which breaks the property
+// this evidence exists to establish — "the evidence is the last thing the log says". Trailing BLANK
+// lines are tolerated (the producer prepends a separator unconditionally, and a final newline always
+// leaves one); any non-blank line after the marker is not.
+const KILL_EVIDENCE = /^kill-probe: signal=(\S+) exit=(\d+)$/;
+
+// The producer's map (scripts/kill-probe.sh) and the shell convention that a signal death is
+// reported as 128 + signum. Evidence that does not satisfy both is refused.
+const SIGNAL_NUMBERS = { HUP: 1, INT: 2, QUIT: 3, ABRT: 6, KILL: 9, PIPE: 13, ALRM: 14, TERM: 15 };
+
+/** null when the evidence is usable, otherwise the reason it is refused. */
+export function killEvidenceProblem(kill) {
+  if (!kill) {
+    return "the behavioural phase requires KILL EVIDENCE and this log has none: expected a " +
+      "`kill-probe: signal=<NAME> exit=<code>` line written by scripts/kill-probe.sh. A run " +
+      "that crashed or was truncated looks identical to a probe in a log, so an unsummarised " +
+      "log is only accepted as the probe when the wrapper recorded the kill — run the probe " +
+      "through that script rather than declaring an arbitrary log as behavioural";
+  }
+  if (!kill.last) {
+    return `the behavioural log's kill evidence is on line ${kill.lineNumber} but ${kill.linesAfter} ` +
+      "non-blank line(s) of output follow it: the evidence must be the LAST thing the log says, " +
+      "because a marker left behind mid-log proves the probe was still producing output after the " +
+      "supposed kill";
+  }
+  if (kill.signal === "none") {
+    return `the behavioural log records signal=none (exit ${kill.exit}): the probe COMPLETED ` +
+      "inside its kill window, so it is a run and not a kill — there is no killed run to verify. " +
+      "Give the probe less to do or leave the kill window long enough that it is still running";
+  }
+  const number = SIGNAL_NUMBERS[kill.signal];
+  if (!number) {
+    return `the behavioural log records signal=${kill.signal}, which is not a signal the producer ` +
+      `writes (expected one of ${Object.keys(SIGNAL_NUMBERS).join("/")}) — evidence that no kill ` +
+      "produced is not evidence";
+  }
+  const implied = 128 + number;
+  if (kill.exit !== implied) {
+    return `the behavioural log records signal=${kill.signal} exit=${kill.exit}, but a shell ` +
+      `reports a signal death as 128 + ${number} = ${implied}: the line is internally ` +
+      "inconsistent, so it is not evidence of a kill";
+  }
+  return null;
+}
+
+export function killEvidence(logText) {
+  const lines = stripAnsi(logText).split("\n");
+  let last = lines.length - 1;
+  while (last >= 0 && lines[last].trim() === "") last--;
+  if (last < 0) return null;
+  const tail = lines[last].trim();
+  const m = tail.match(KILL_EVIDENCE);
+  if (m) {
+    return { signal: m[1], exit: Number(m[2]), line: tail, lineNumber: last + 1, last: true };
+  }
+  // Present, but the log says something else afterwards — reported specifically, because "no
+  // evidence" and "evidence that is not last" are different mistakes.
+  const idx = lines.findIndex((line) => KILL_EVIDENCE.test(line.trim()));
+  if (idx !== -1) {
+    const after = lines.slice(idx + 1).filter((line) => line.trim() !== "").length;
+    return {
+      signal: lines[idx].trim().match(KILL_EVIDENCE)[1],
+      exit: Number(lines[idx].trim().match(KILL_EVIDENCE)[2]),
+      line: lines[idx].trim(),
+      lineNumber: idx + 1,
+      last: false,
+      linesAfter: after,
+    };
+  }
+  return null;
+}
 
 export function classifyPhase(logText) {
   const text = stripAnsi(logText);
@@ -192,6 +285,7 @@ async function main() {
   const declaredExpected = declared === null ? null : expectedVerdictLines(declared);
   const derivedKnown = derived.name !== PHASE_UNKNOWN;
   const expected = derivedKnown ? expectedVerdictLines(derived.name) : null;
+  const kill = killEvidence(logText);
 
   console.log(`check-verdict-emission: ${logPath}`);
   console.log(`  phase    : ${derived.name}`);
@@ -209,6 +303,11 @@ async function main() {
       : "  expected : — the phase cannot be derived from this log, so nothing is verifiable",
   );
   if (declared !== null) console.log(`  declared : ${declared} (owes ${declaredExpected})`);
+  if (derived.name === "behavioural") {
+    console.log(
+      `  kill-ev  : ${kill ? kill.line : "MISSING — run the probe through scripts/kill-probe.sh"}`,
+    );
+  }
 
   const problems = [];
   if (logText.trim() === "") problems.push("the log is empty: no phase to verify");
@@ -256,6 +355,13 @@ async function main() {
       problems.push(
         `${derived.name} owes ${expected} verdict line(s), emitted ${emitted.length} — ${reason}`,
       );
+    }
+    if (derived.name === "behavioural") {
+      // The declaration is no longer the only evidence (gendn-3t2): the probe wrapper records how
+      // the probe died, and a log without that record was not produced by the wrapper — a crashed
+      // or truncated run carries the same banner, so without this a mis-declared run-all passed.
+      const killProblem = killEvidenceProblem(kill);
+      if (killProblem) problems.push(killProblem);
     }
   }
 
