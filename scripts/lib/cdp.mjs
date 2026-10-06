@@ -302,6 +302,30 @@ async function removeProfileDir(path, delays = [0, 150, 400, 900, 1900]) {
   return false;
 }
 
+// NAVIGATION WHITELIST (gendn-8na). The gate Chrome runs with --no-sandbox (decision below), so the
+// control that actually bounds the exposure is that it only ever navigates to LOCAL gendn routes.
+// NOT a control: CSP frame-src. It limits which origins gendn may embed; it says nothing about what
+// an embedded origin does, and it does not apply to top-level navigation at all.
+// Other controls: the only third-party content is the operator's own showcase iframes, all
+// loading="lazy" and below the fold, so a gate that never scrolls never loads them (if a gate starts
+// scrolling, or an iframe moves above the fold, lazy stops being a control); tests evaluate only
+// same-origin DOM.
+export function isLocalNavigation(url) {
+  if (url === "about:blank") return true;
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return false;
+  }
+  return (u.protocol === "http:" || u.protocol === "https:") &&
+    ["localhost", "127.0.0.1", "[::1]"].includes(u.hostname);
+}
+
+// POSTURE DECISION (gendn-8na): keep --no-sandbox. Chrome does start with its sandbox on this VM
+// (verified as uid 1000), but the gates also run in CI/containers where unprivileged user
+// namespaces are commonly unavailable and the sandboxed launch fails outright. Enabling it by
+// default would trade a hard gate failure for marginal protection given the whitelist above.
 export async function launch({ port = 9333 } = {}) {
   const bins = findChrome();
   await sweepStaleProfileDirs();
@@ -503,6 +527,9 @@ class Page {
     this.consoleErrors = [];
     this.failedRequests = [];
     this._reqUrls = new Map();
+    if (!isLocalNavigation(url)) {
+      throw new Error(`gate browser refused non-local navigation: ${url}`);
+    }
     const loaded = new Promise((resolve) => this._loadWaiters.push(resolve));
     await this.sendSession("Page.navigate", { url });
     await Promise.race([

@@ -3,7 +3,7 @@
 // anomaly warning, its per-line dedupe, parse fidelity vs the merged dfc4c2c behaviour, and
 // TMPDIR root resolution (incl. the empty-string → /tmp-like-unset case). No Chrome. Runs as
 // `deno task test-cdp` and chained first in `deno task test-reference-contract`.
-import { parseProcessListForDir, tmpRoot } from "./lib/cdp.mjs";
+import { isLocalNavigation, parseProcessListForDir, tmpRoot } from "./lib/cdp.mjs";
 
 const DIR = "/tmp/gendn-cdp-424242-fixture";
 let failures = 0;
@@ -72,6 +72,50 @@ Deno.env.set("TMPDIR", "rel/dir");
 assert("relative TMPDIR resolves against the CWD", tmpRoot() === `${Deno.cwd()}/rel/dir`);
 if (savedTmpdir === undefined) Deno.env.delete("TMPDIR");
 else Deno.env.set("TMPDIR", savedTmpdir);
+
+// gendn-8na: the gate browser's navigation whitelist (the control that bounds --no-sandbox).
+assert("localhost route allowed", isLocalNavigation("http://localhost:3000/v150/x/"));
+assert("127.0.0.1 allowed", isLocalNavigation("http://127.0.0.1:4000/"));
+assert("about:blank allowed", isLocalNavigation("about:blank"));
+assert("off-site https refused", !isLocalNavigation("https://example.com/"));
+assert(
+  "showcase origin refused",
+  !isLocalNavigation("https://chrome-platform-showcase.paulkinlan-ea.deno.net/v1/x"),
+);
+assert("lookalike host refused", !isLocalNavigation("http://localhost.evil.example/"));
+assert("userinfo trick refused", !isLocalNavigation("http://localhost@evil.example/"));
+assert("file: refused", !isLocalNavigation("file:///etc/passwd"));
+assert("garbage refused", !isLocalNavigation("not a url"));
+
+// gendn-8na: lazy loading is the control that keeps third-party iframes unloaded by a non-scrolling
+// gate. If any external iframe loses loading="lazy", that control is gone: fail.
+{
+  const bad = [];
+  let external = 0;
+  for await (const rel of Deno.readDir(".")) {
+    if (!(rel.isDirectory && /^v\d+$/.test(rel.name))) continue;
+    for await (const slug of Deno.readDir(rel.name)) {
+      if (!slug.isDirectory) continue;
+      const page = `${rel.name}/${slug.name}/index.html`;
+      let html;
+      try {
+        html = await Deno.readTextFile(page);
+      } catch {
+        continue;
+      }
+      for (const m of html.matchAll(/<iframe\b[^>]*>/gi)) {
+        if (!/\bsrc\s*=\s*["']?https?:\/\//i.test(m[0])) continue;
+        external++;
+        if (!/\bloading\s*=\s*["']?lazy/i.test(m[0])) bad.push(page);
+      }
+    }
+  }
+  assert(
+    `every third-party iframe is loading=lazy (${external} checked)`,
+    external > 0 && bad.length === 0,
+  );
+  if (bad.length) console.error(bad.join("\n"));
+}
 
 if (failures > 0) {
   console.error(`cdp.test.mjs: ${failures} assertion(s) failed`);
