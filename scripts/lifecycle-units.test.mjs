@@ -24,6 +24,20 @@
 // module diff. A suite that has never been shown to fail on a plausible wrong implementation
 // is a claim, not a detector.
 //
+// gendn-xt9 ADDED the site-local pins further down, because the aggregate "hostile fields appear
+// ESCAPED" assertion is a PRESENCE check: the escaped payload is present from ANY hostile field, so
+// a site interpolating raw at its own site can satisfy it (the name overstates what it asserts -
+// the less urgent and MORE dangerous of the two weak-check shapes). Proofs for the additions, each
+// mutation restored to green with an empty module diff: dropping esc() at the describe, category,
+// kind, deviceClass or reason site FAILS that site's own row pin (and the aggregate net, which
+// names only the suite) - never a neighbouring row; and a VALID prefix-style whitelist, which keeps
+// every older assertion green, FAILS the s-status row pin plus gendn-imh's two count canaries.
+// ONE CORRECTION FOUND BY RUNNING IT, not reading it: my first draft of the s-status pin also
+// asserted "no raw payload anywhere in the suite", so every unrelated site mutation tripped it - a
+// site pin failing for reasons outside its site is the same mislabelling defect this bead is about,
+// one level up. It is now the s-status ROW alone, and the suite-wide check is a separate assertion
+// whose name says AGGREGATE.
+//
 // Run: deno task test-lifecycle-units
 
 const REPO = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
@@ -46,6 +60,9 @@ const tmp = await Deno.makeTempDir({ prefix: "lifecycle-units-" });
 const j = (o) => JSON.stringify(o, null, 1);
 
 const EVIL = `<script>alert(1)</script>`;
+// gendn-xt9 site-local payload: a DIFFERENT literal from EVIL so a site pin can never be satisfied
+// by an escaped form that leaked in from the other fixtures.
+const SITE = `<script>alert(7)</script>`;
 const EVIL_ATTR = `"><script>alert(9)</script>`;
 // gendn-imh: a status that a PREFIX-style whitelist would wave through. The value never reaches
 // markup (only the whitelisted state does), so the only way to tell an exact whitelist from a
@@ -142,6 +159,35 @@ await Deno.writeTextFile(
     ],
   }),
 );
+// gendn-xt9: SITE-LOCAL rows. Each row is hostile in exactly ONE field, so the escaped literal
+// can only have come from that site, and each pin hardcodes the ENTIRE row markup (never esc(),
+// which would just assert the function agrees with itself). A leak at one site therefore fails
+// that row's pin and nothing else - unlike the presence check below, whose name ("appear ESCAPED")
+// overstates it, because any OTHER field's escaped form satisfies it.
+await Deno.mkdir(`${tmp}/v900/sites`, { recursive: true });
+await Deno.writeTextFile(
+  `${tmp}/v900/sites/conformance.json`,
+  j({
+    id: "v900/sites",
+    route: "/v900/sites/",
+    identity: "900",
+    milestone: 900,
+    status: "built",
+    demo: null,
+    cpsFeature: null,
+    suiteHash: "ef".repeat(32),
+    generatedAt: "2026-01-01",
+    author: "gendn",
+    assertions: [
+      { id: "s-describe", describe: SITE, category: "C", kind: "K", deviceClass: "B" },
+      { id: "s-category", describe: "D", category: SITE, kind: "K", deviceClass: "B" },
+      { id: "s-kind", describe: "D", category: "C", kind: SITE, deviceClass: "B" },
+      { id: "s-device", describe: "D", category: "C", kind: "K", deviceClass: SITE },
+      { id: "s-reason", describe: "D", category: "C", kind: "K", deviceClass: "B" },
+      { id: "s-status", describe: "D", category: "C", kind: "K", deviceClass: "B" },
+    ],
+  }),
+);
 await Deno.mkdir(`${tmp}/reports/conformance`, { recursive: true });
 await Deno.writeTextFile(
   `${tmp}/reports/conformance/results.json`,
@@ -157,6 +203,17 @@ await Deno.writeTextFile(
           { id: "a-unknown", status: "weird-unknown-status" },
           { id: "a-prefix", status: PREFIX_VERDICT },
           { id: "a-skipped", status: "skipped" },
+        ],
+      },
+      {
+        id: "v900/sites",
+        results: [
+          { id: "s-describe", status: "pass" },
+          { id: "s-category", status: "pass" },
+          { id: "s-kind", status: "pass" },
+          { id: "s-device", status: "pass" },
+          { id: "s-reason", status: "blocked", reason: SITE },
+          { id: "s-status", status: `pass${EVIL_ATTR}` },
         ],
       },
       {
@@ -181,6 +238,7 @@ const out = {
   runAll: await renderRunAll(),
   suiteEvil: await renderSuite("v900", "evil"),
   suiteOk: await renderSuite("v900", "ok"),
+  suiteSites: await renderSuite("v900", "sites"),
   suiteMissing: await renderSuite("v900", "absent"),
   critiqueEvil: await renderCritique("v900", "evil"),
   critiqueMissing: await renderCritique("v900", "absent"),
@@ -224,6 +282,64 @@ if (proc2.code !== 0) {
   Deno.exit(1);
 }
 const R2 = JSON.parse(new TextDecoder().decode(proc2.stdout));
+
+// ---------- gendn-xt9: SITE-LOCAL escaping pins ----------------------------------------------
+// The aggregate assertion above ("hostile fields appear ESCAPED") is a PRESENCE check whose name
+// overstates it: the escaped form of the payload is present in the render from ANY hostile field,
+// so a specific site interpolating RAW at its own site can still satisfy it (the leak would be
+// caught by the "no raw <script>" guard, but that guard cannot say WHICH field). A check that can
+// fail without asserting the thing it names is the shape this bead closes. Below, each row of the
+// v900/sites suite is hostile in exactly ONE field and the pin hardcodes the ROW'S ENTIRE MARKUP,
+// so a leak localises to one failing assertion - and the expected bytes are literals, never esc(),
+// which would only assert that the function agrees with itself.
+assert(
+  "site s-describe: escaped at its OWN <td>, and the rest of the row byte-exact",
+  R.suiteSites.includes(
+    `<tr><td><code>s-describe</code></td><td>&lt;script&gt;alert(7)&lt;/script&gt;</td><td><span class="tag">C</span></td><td>K</td><td>B</td><td><span class="v v-pass">pass</span></td></tr>`,
+  ),
+);
+assert(
+  'site s-category: escaped inside its OWN <span class="tag">',
+  R.suiteSites.includes(
+    `<tr><td><code>s-category</code></td><td>D</td><td><span class="tag">&lt;script&gt;alert(7)&lt;/script&gt;</span></td><td>K</td><td>B</td><td><span class="v v-pass">pass</span></td></tr>`,
+  ),
+);
+assert(
+  "site s-kind: escaped in its OWN bare <td>",
+  R.suiteSites.includes(
+    `<tr><td><code>s-kind</code></td><td>D</td><td><span class="tag">C</span></td><td>&lt;script&gt;alert(7)&lt;/script&gt;</td><td>B</td><td><span class="v v-pass">pass</span></td></tr>`,
+  ),
+);
+assert(
+  "site s-device: escaped in the deviceClass cell, not the kind cell beside it",
+  R.suiteSites.includes(
+    `<tr><td><code>s-device</code></td><td>D</td><td><span class="tag">C</span></td><td>K</td><td>&lt;script&gt;alert(7)&lt;/script&gt;</td><td><span class="v v-pass">pass</span></td></tr>`,
+  ),
+);
+assert(
+  'site s-reason: escaped inside its OWN <div class="meta">',
+  R.suiteSites.includes(
+    `<tr><td><code>s-reason</code></td><td>D</td><td><span class="tag">C</span></td><td>K</td><td>B</td><td><span class="v v-blocked">blocked</span><div class="meta">&lt;script&gt;alert(7)&lt;/script&gt;</div></td></tr>`,
+  ),
+);
+// SHAPE 1 (audit's stronger whitelist canary): a status of `pass"><script>…` must land as n/a.
+// Also SITE-LOCAL: the assertion is the s-status ROW, so a mutation at any OTHER site cannot make
+// it fail (my first draft also checked the whole suite here, which meant every unrelated leak
+// tripped it - a site pin that fails for reasons outside its site is the same mislabelling defect
+// this bead is about, one level up). This kills a startsWith-style whitelist, which a count-based
+// canary alone cannot: the widening renders the row as PASS-styled while the suite stays green.
+assert(
+  "site s-status: an attribute-breakout status renders v-n/a in its OWN row",
+  R.suiteSites.includes(
+    `<tr><td><code>s-status</code></td><td>D</td><td><span class="tag">C</span></td><td>K</td><td>B</td><td><span class="v v-n/a">n/a</span></td></tr>`,
+  ),
+);
+// The belt-and-braces net, named as an AGGREGATE so nobody reads it as site-local: it can only
+// say "somewhere in this suite", never which site - that is what the five row pins above are for.
+assert(
+  "AGGREGATE (not site-local): no raw hostile payload survives anywhere in the site suite",
+  !R.suiteSites.includes(SITE) && !R.suiteSites.includes("<script>alert(9)"),
+);
 
 // ---------- missing-artifact contracts -------------------------------------------------------
 assert(
@@ -313,7 +429,8 @@ assert(
 );
 
 // ---------- structure sanity -------------------------------------------------------------------
-assert("index counts every suite in the catalogue", R.index.includes("2 suites"));
+// 3 = v900/evil + v900/ok + v900/sites (the gendn-xt9 site-local suite added above).
+assert("index counts every suite in the catalogue", R.index.includes("3 suites"));
 assert(
   "suite page carries the hash prefix and author",
   R.suiteOk.includes("cdcdcdcdcdcdcdcd") && R.suiteOk.includes("gendn"),
