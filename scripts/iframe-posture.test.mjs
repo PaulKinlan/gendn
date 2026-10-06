@@ -27,8 +27,20 @@
 //      reason — deliberate, never default.
 //
 // DETECTOR PROOF: the canary section runs the SAME rule function against synthesized tags —
-// including the exact pre-fix shape (third-party iframe, no sandbox, no referrerpolicy) — and
-// requires it to be flagged. A guard that cannot fail is decoration.
+// including the exact pre-fix shape (third-party iframe, no sandbox, no referrerpolicy), a
+// PRESENCE-BUT-WRONG sandbox (sandbox="" and sandbox="allow-forms"), and an unrecorded variant
+// adding allow-top-navigation — and requires every one to be flagged. A guard that cannot fail is
+// decoration.
+//
+// KNOWN LIMITS — state them so greenness is never read as more than it is:
+//   - This is a STATIC source check over checked-in HTML. An iframe injected at RUNTIME by
+//     JavaScript (createElement/innerHTML) is invisible to it; the served-build equivalence is
+//     demonstrated by the (manual, networked) scripts/iframe-posture-sweep.mjs, not by this file.
+//   - Server-rendered templates (server.ts) are not scanned as HTML; they are covered only insofar
+//     as they embed none today (verified 2026-10-06) and the served-build sweep would catch one.
+//   - Attribute parsing is regex-grade: it reads sandbox/referrerpolicy/src tokens from the tag
+//     text. Exotic encodings (entity-escaped attribute values, tags split by template logic) could
+//     evade or confuse it — another reason the canaries pin the rule function, not the prose.
 //
 // Run: deno task test-iframe-posture
 

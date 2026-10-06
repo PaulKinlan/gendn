@@ -20,6 +20,9 @@ import { launch } from "./lib/cdp.mjs";
 const REPO = new URL("..", import.meta.url).pathname;
 const SHOWCASE = "https://chrome-platform-showcase.paulkinlan-ea.deno.net";
 const OUT = "/tmp/kjq-sweep";
+// Results are appended HERE as they accumulate (not buffered to the end): if this sweep is killed
+// at a time bound, the partial evidence survives with explicit gaps rather than vanishing.
+const RESULTS = `${OUT}/results.jsonl`;
 
 let failures = 0;
 let passed = 0;
@@ -30,6 +33,14 @@ function assert(name, ok, detail = "") {
   } else {
     failures++;
     console.error(`FAIL: ${name}${detail ? ` :: ${detail}` : ""}`);
+  }
+  try {
+    const line = JSON.stringify({ name, ok, detail }) + "\n";
+    const f = Deno.openSync(RESULTS, { append: true, create: true });
+    f.writeSync(new TextEncoder().encode(line));
+    f.close();
+  } catch {
+    // evidence file is best-effort; never fail the sweep over it
   }
 }
 
@@ -66,6 +77,12 @@ console.log(`sweep: ${embeds.length} embed page(s) discovered`);
 
 const serverPort = freePort();
 const cdpPort = freePort();
+await Deno.mkdir(OUT, { recursive: true });
+try {
+  Deno.removeSync(RESULTS);
+} catch {
+  // absent is fine
+}
 const server = new Deno.Command(Deno.execPath(), {
   args: ["run", "--allow-net", "--allow-read", "--allow-env", "server.ts"],
   env: { ...Deno.env.toObject(), PORT: String(serverPort) },
@@ -211,6 +228,38 @@ try {
     server.kill("SIGTERM");
   } catch {
     // ignore
+  }
+  // TEARDOWN VERIFICATION — by PID and by PORT, not by name: nothing of this sweep may survive.
+  const status = await Promise.race([
+    server.status,
+    new Promise((r) => setTimeout(() => r("timeout"), 5000)),
+  ]);
+  if (status === "timeout") {
+    try {
+      server.kill("SIGKILL");
+    } catch {
+      // ignore
+    }
+    await server.status.catch(() => {});
+  }
+  let listenersLeft = 0;
+  for (const port of [serverPort, cdpPort]) {
+    try {
+      const c = await Deno.connect({ port, hostname: "127.0.0.1" });
+      c.close();
+      listenersLeft++;
+    } catch {
+      // refused = correctly gone
+    }
+  }
+  console.log(
+    `teardown: server child exited=${
+      status !== "timeout"
+    }, ports ${serverPort}/${cdpPort} still listening=${listenersLeft}`,
+  );
+  if (listenersLeft > 0) {
+    failures++;
+    console.error("FAIL: sweep left a port listening after teardown");
   }
 }
 
