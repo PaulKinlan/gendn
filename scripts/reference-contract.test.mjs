@@ -3,8 +3,9 @@ import { isMdnStubHtml } from "./lib/artifacts.mjs";
 import {
   declaredSurfaceMembers,
   declaredSurfaceSummary,
-  skippedSurfaceDeclarations,
   resolveDocumentationHref,
+  skippedSurfaceDeclarations,
+  surfaceNotePages,
   unreadableSyntaxBlocks,
   validateContractOwnership,
   validateDeclaredSurface,
@@ -685,6 +686,31 @@ dictionary D {
       assert(
         unreadableSyntaxBlocks(callShapeOnly).length === 0 && unreadableSyntaxBlocks(keywordOnly).length === 0,
         `the fourth edge requires BOTH conditions, so call-shape-only and keyword-only must stay silent; got ${JSON.stringify([unreadableSyntaxBlocks(callShapeOnly), unreadableSyntaxBlocks(keywordOnly)])}`,
+      );
+    }
+
+    // ONE PAGE, TWO NOTES, ONE CONTRACT - the count the gate PRINTS must count what it NAMES. The
+    // heading used to print surfaceNotes.length, which is a count of NOTES; a page emitting both a
+    // declared-surface line and a skipped-operations line was therefore reported as two contracts. The
+    // negative case below is the one that was wrong: two notes, one page.
+    {
+      const onePage = [
+        "  v150/some-page: declared 4 = inventory 4 + outOfScope 0",
+        "  v150/some-page: parser skipped 1 anonymous special operation(s) - nothing to account for: x",
+      ];
+      assert(
+        surfaceNotePages(onePage) === 1,
+        `two notes for ONE page must count as one contract; got ${surfaceNotePages(onePage)}`,
+      );
+      const twoPages = [...onePage, "  v151/other-page: declared 8 = inventory 8 + outOfScope 0"];
+      assert(surfaceNotePages(twoPages) === 2, `three notes across TWO pages must count 2; got ${surfaceNotePages(twoPages)}`);
+      assert(
+        surfaceNotePages([]) === 0 && surfaceNotePages(undefined) === 0,
+        "no notes must count 0, and a missing list must not throw",
+      );
+      assert(
+        surfaceNotePages([42, "no colon here"]) === 0,
+        "malformed notes must not be counted as pages rather than crashing the gate",
       );
     }
 

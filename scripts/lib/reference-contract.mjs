@@ -616,6 +616,28 @@ export function declaredSurfaceSummary(contract, html) {
   };
 }
 
+/**
+ * THE NUMBER OF DISTINCT PAGES A SET OF SURFACE NOTES REFERS TO (gendn-ijf).
+ *
+ * Each surface note is built as `${id}: ...`, and ONE page can emit more than one of them - the
+ * declared-surface line and the skipped-operations line. So counting NOTES overstates the number of
+ * CONTRACTS, which is what the heading used to do: a page with both a named member and a skipped
+ * accessor was reported as two touched contracts. That is the same defect class the rest of this file
+ * exists to catch - a printed count that is not a count of the thing it names - and it would have
+ * shipped in a line lanes are told to read. Counting distinct ids is the fix; a count cannot be
+ * verified by reading it, so this is a pure function and the fixture pins it.
+ */
+export function surfaceNotePages(notes) {
+  const ids = new Set();
+  for (const note of notes ?? []) {
+    if (typeof note !== "string") continue;
+    const trimmed = note.trim();
+    const colon = trimmed.indexOf(":");
+    if (colon > 0) ids.add(trimmed.slice(0, colon).trim());
+  }
+  return ids.size;
+}
+
 export function resolveDocumentationHref(id, href, root = ".") {
   if (typeof href !== "string" || !href) return { ok: false, error: "href is empty" };
   if (/^[a-z][a-z0-9+.-]*:/i.test(href) || href.startsWith("//")) {

@@ -37,7 +37,7 @@ import {
   validateContractOwnership,
   validateDeclaredSurface,
   validateReferenceContract,
-  skippedSurfaceDeclarations,
+  skippedSurfaceDeclarations, surfaceNotePages,
 } from "./lib/reference-contract.mjs";
 
 const MIGRATIONS = "migrations.json";
@@ -337,7 +337,7 @@ async function main() {
   console.log(`  baseline suites    : ${baselineChecked} checked for weakening`);
   if (surfaceNotes.length) {
     console.log(
-      `  declared surfaces  : ${surfaceNotes.length} touched contract(s) - inventory N + outOfScope M of the page's declared members`,
+      `  declared surfaces  : ${surfaceNotePages(surfaceNotes)} touched contract(s) - inventory N + outOfScope M of the page's declared members`,
     );
     for (const note of surfaceNotes) console.log(note);
   }
