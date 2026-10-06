@@ -312,6 +312,16 @@ const PAGES = [
     sideB: ["5143784390262784", "no iOS milestone at all", "5777/5778"],
     dates: ["fetched 2026-10-06"],
   },
+  {
+    // gendn-xpz wave-2a: page presented a flag-gated Developer trial; the record says Proposed with no milestone
+    // and "remaining gated by Document Policy", and the cited spec really does define js-profiling-mode /
+    // NotAllowedError. Verified by the implementer; disclosed in-unit per coord's 22:30Z ruling.
+    page: "v147/js-profiling-in-dedicated-workers/index.html",
+    marker: "Gating and status divergence, both sides reported rather than resolved",
+    sideA: ["Developer trial"],
+    sideB: ["5159559872249856", "remaining gated by Document Policy", "js-profiling-mode"],
+    dates: ["fetched 2026-10-06"],
+  },
 ];
 
 let failures = 0;
@@ -359,6 +369,7 @@ const DATED_PAGES = new Set([
   "v151/no-auto-rewind-for-animationtrigger-play-methods/index.html",
   "v147/autofill-event/index.html",
   "v152/deprecate-and-remove-xslt/xsltprocessor/index.html",
+  "v147/js-profiling-in-dedicated-workers/index.html",
   "v147/remove-inline-xslt-for-production-of-svg/index.html",
   "v147/gamepad-event-driven-input-api/index.html",
   "v147/pwa-origin-migration/index.html",
