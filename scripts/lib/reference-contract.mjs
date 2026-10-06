@@ -181,6 +181,146 @@ export async function validateReferenceContract(contract, root = ".") {
   return errors;
 }
 
+// DECLARED-SURFACE COVERAGE (gendn-4kq).
+//
+// WHY: the structural rules above are BIDIRECTIONAL (every inventory item must map to
+// documentation, and vice versa), so the cheapest way to satisfy them is to SHRINK the inventory
+// until everything maps. A contract can therefore claim `implementation-sufficient` while
+// enumerating one member of a twenty-five-member surface, and the validator says nothing, because
+// it never compares the inventory against anything outside the contract.
+//
+// WHAT IT CHECKS: the members the PAGE ITSELF declares in its `#syntax` IDL block. Every declared
+// member must be either matched by an inventory item (a name/id token) or listed in the contract's
+// `outOfScope` array with a rationale. A collapsed inventory therefore FAILS unless the author
+// writes down, member by member, what they are dropping and why. The failure names the dropped
+// member; the summary (declaredSurfaceSummary) reports the RATIO - inventory N, outOfScope M - so a
+// contract with 1 inventoried and 24 excluded reads as that shape at a glance.
+//
+// SCOPED TO TOUCHED PAGES (coord, 2026-10-06): this rule is enforced by check-conformance for
+// feature ids in the touched set, NOT by the general artifact validator. A new check must not go
+// red for PRE-EXISTING state: 7 of the 43 older contracts quote a surrounding interface as context
+// (audiopreferred-capture prints all of DisplayMediaStreamOptions; gamepad-button-type prints all
+// of GamepadButton) and would red for a pattern that is not the defect this catches. A collapsed
+// contract is authored at the moment a page is touched, so the touched set is where it bites.
+// Cleanup of those 7 (adding honest outOfScope entries) is tracked separately as gendn-1j4.
+//
+// IT CANNOT PROVE THE INVENTORY IS COMPLETE, and it has a known blind spot: a page that declares NO
+// IDL in its syntax block yields no members to compare against, so a collapsed contract on such a
+// page passes. The collapsed v151/speculation-rules-form-submission-field contract is exactly that
+// case - its syntax block shows a JSON structure, not IDL - and it is NOT caught here. A green from
+// this rule means "not SILENTLY smaller than the page's declared IDL", nothing more: prose
+// correctness and the real spec surface remain independent-review obligations, as the header says.
+export function declaredSurfaceMembers(html) {
+  const markup = renderedMarkup(html);
+  const start = markup.search(/\bid=["']syntax["']/i);
+  if (start < 0) return [];
+  const rest = markup.slice(start);
+  const nextHeading = rest.slice(10).search(/<h2\b/i);
+  const fragment = nextHeading < 0 ? rest : rest.slice(0, nextHeading + 10);
+  const names = new Set();
+  for (const pre of fragment.matchAll(/<pre\b[^>]*>([\s\S]*?)<\/pre\s*>/gi)) {
+    const idl = pre[1]
+      .replace(/<[^>]+>/g, "")
+      .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
+    if (!/\b(?:interface|dictionary|enum|attribute)\b/.test(idl)) continue;
+    // Strip WebIDL extended attributes ([Exposed=Window], [RuntimeEnabled=X], ...) so they are
+    // never mistaken for members.
+    const bare = idl.replace(/\[[^\]]*\]/g, " ");
+    for (
+      const m of bare.matchAll(
+        /(?:attribute\s+[\w<>?\[\], ]+?\s+|Promise<[^>]+>\s+|\bundefined\s+|\bboolean\s+|\bDOMString\s+|\bunsigned long\s+|\bdouble\s+)(\w+)\s*(?:\(|;)/g,
+      )
+    ) names.add(m[1]);
+    for (
+      const m of bare.matchAll(/^\s*(?:required\s+)?[\w<>?\[\], ]+\s+(\w+)\s*(?:=\s*[^;]+)?;/gm)
+    ) {
+      names.add(m[1]);
+    }
+  }
+  const KEYWORDS = new Set([
+    "interface",
+    "dictionary",
+    "enum",
+    "partial",
+    "mixin",
+    "stringifier",
+    "readonly",
+    "required",
+    "attribute",
+    "static",
+    "getter",
+    "setter",
+    "deleter",
+    "constructor",
+  ]);
+  return [...names].filter((n) => !KEYWORDS.has(n.toLowerCase())).sort();
+}
+
+function nameTokens(value) {
+  return String(value ?? "").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+}
+
+export function validateDeclaredSurface(contract, html) {
+  const errors = [];
+  const id = contract?.id ?? "(unknown)";
+  const members = declaredSurfaceMembers(html);
+  if (members.length === 0) return errors;
+  const covered = new Set();
+  for (const item of contract?.inventory ?? []) {
+    for (const token of nameTokens(item?.name)) covered.add(token);
+    for (const token of nameTokens(item?.id)) covered.add(token);
+  }
+  const excluded = new Map();
+  for (const entry of contract?.outOfScope ?? []) {
+    const name = String(entry?.name ?? "");
+    if (!name) {
+      errors.push(`${id}: outOfScope entry is missing a name`);
+      continue;
+    }
+    if (!meaningful(entry?.rationale, 20)) {
+      errors.push(`${id}: outOfScope ${name} needs a rationale (20+ characters)`);
+    }
+    if (excluded.has(name.toLowerCase())) {
+      errors.push(`${id}: outOfScope lists ${name} twice`);
+    }
+    excluded.set(name.toLowerCase(), entry);
+  }
+  for (const [name] of excluded) {
+    if (!members.some((m) => m.toLowerCase() === name)) {
+      errors.push(
+        `${id}: outOfScope ${name} matches no member declared in the page's syntax block`,
+      );
+    }
+  }
+  for (const member of members) {
+    if (covered.has(member.toLowerCase())) continue;
+    if (excluded.has(member.toLowerCase())) continue;
+    errors.push(
+      `${id}: declared surface member "${member}" is neither inventoried nor listed in outOfScope - ` +
+        `a contract claiming implementation-sufficient must account for every member the page declares`,
+    );
+  }
+  return errors;
+}
+
+export function declaredSurfaceSummary(contract, html) {
+  const members = declaredSurfaceMembers(html);
+  const covered = new Set();
+  for (const item of contract?.inventory ?? []) {
+    for (const token of nameTokens(item?.name)) covered.add(token);
+    for (const token of nameTokens(item?.id)) covered.add(token);
+  }
+  const excluded = new Set(
+    (contract?.outOfScope ?? []).map((e) => String(e?.name ?? "").toLowerCase()),
+  );
+  return {
+    declared: members.length,
+    inventory: members.filter((m) => covered.has(m.toLowerCase())).length,
+    outOfScope: members.filter((m) => excluded.has(m.toLowerCase())).length,
+  };
+}
+
 export function resolveDocumentationHref(id, href, root = ".") {
   if (typeof href !== "string" || !href) return { ok: false, error: "href is empty" };
   if (/^[a-z][a-z0-9+.-]*:/i.test(href) || href.startsWith("//")) {

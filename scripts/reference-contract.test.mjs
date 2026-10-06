@@ -1,8 +1,11 @@
 import { referenceRouteMigration } from "./check-routes.mjs";
 import { isMdnStubHtml } from "./lib/artifacts.mjs";
 import {
+  declaredSurfaceMembers,
+  declaredSurfaceSummary,
   resolveDocumentationHref,
   validateContractOwnership,
+  validateDeclaredSurface,
   validateReferenceContract,
 } from "./lib/reference-contract.mjs";
 
@@ -86,6 +89,97 @@ try {
 
   const validErrors = await validateReferenceContract(contract, root);
   assert(validErrors.length === 0, `valid contract failed:\n${validErrors.join("\n")}`);
+
+  // ---- declared-surface coverage: a collapsed inventory must not pass silently (gendn-4kq) ----
+  const idl = `<pre><code>partial interface Thing {
+  readonly attribute boolean alpha;
+  Promise&lt;void&gt; beta(long count);
+};</code></pre>`;
+  const idlPage =
+    `<!doctype html><main><section><h2 id="syntax">Syntax</h2>${idl}</section></main>`;
+  assert(
+    JSON.stringify(declaredSurfaceMembers(idlPage)) === JSON.stringify(["alpha", "beta"]),
+    `declared-surface parser found ${JSON.stringify(declaredSurfaceMembers(idlPage))}`,
+  );
+  const surfaceContract = (inventory, outOfScope) => ({
+    id,
+    completeness: "implementation-sufficient",
+    inventory: inventory.map((n) => ({ id: n.toLowerCase(), name: n, sourceRefs: ["spec"] })),
+    ...(outOfScope ? { outOfScope } : {}),
+  });
+  assert(
+    validateDeclaredSurface(surfaceContract(["alpha", "beta"]), idlPage).length === 0,
+    "an inventory that accounts for every declared member was rejected",
+  );
+  const collapsed = validateDeclaredSurface(surfaceContract(["alpha"]), idlPage);
+  assert(
+    collapsed.some((e) => e.includes('declared surface member "beta"')),
+    "a contract that dropped a declared member was not flagged",
+  );
+  assert(
+    validateDeclaredSurface(
+      surfaceContract(["alpha"], [{
+        name: "beta",
+        rationale: "Quoted context from the surrounding interface; not part of this feature.",
+      }]),
+      idlPage,
+    ).length === 0,
+    "a specific outOfScope rationale did not account for a declared member",
+  );
+  assert(
+    validateDeclaredSurface(
+      surfaceContract(["alpha"], [{ name: "beta", rationale: "context" }]),
+      idlPage,
+    ).some((e) => e.includes("outOfScope beta needs a rationale")),
+    "a bare outOfScope exclusion was accepted as a rationale",
+  );
+  assert(
+    validateDeclaredSurface(
+      surfaceContract(["alpha", "beta"], [{
+        name: "gamma",
+        rationale: "Names something the page never declares at all.",
+      }]),
+      idlPage,
+    ).some((e) => e.includes("matches no member declared")),
+    "an outOfScope entry naming an undeclared member was accepted",
+  );
+  // LIMIT, asserted so it cannot silently regress into a false sense of coverage: a page with no
+  // IDL in its syntax block declares no surface, so nothing is compared.
+  assert(
+    validateDeclaredSurface(
+      surfaceContract(["alpha"]),
+      '<!doctype html><main><section><h2 id="syntax">Syntax</h2><pre><code>await thing.doWork("x");</code></pre></section></main>',
+    ).length === 0,
+    "a page with no declared IDL surface produced a phantom coverage failure",
+  );
+  // The ratio a reviewer reads: 1 inventoried + 1 excluded of 2 declared must not look like a clean
+  // 2/2, so the summary is part of the guard rather than left to counting entries by eye.
+  assert(
+    JSON.stringify(
+      declaredSurfaceSummary(
+        surfaceContract(["alpha"], [{
+          name: "beta",
+          rationale: "Quoted context from the surrounding interface; not part of this feature.",
+        }]),
+        idlPage,
+      ),
+    ) === JSON.stringify({ declared: 2, inventory: 1, outOfScope: 1 }),
+    "declared-surface summary did not report the inventory/outOfScope ratio",
+  );
+
+  // SCOPING (coord, 2026-10-06): the general validator must NOT apply this rule, because pre-existing
+  // contracts that quote a surrounding interface as context would red for a pattern that is not the
+  // defect. It is enforced by check-conformance for TOUCHED pages only.
+  await Deno.writeTextFile(`${root}/${id}/index.html`, idlPage);
+  const surfaceErrors = await validateReferenceContract(
+    { ...structuredClone(contract), inventory: [{ id: "do-work", sourceRefs: ["spec"] }] },
+    root,
+  );
+  assert(
+    !surfaceErrors.some((e) => e.includes("declared surface member")),
+    "the general validator applied the declared-surface rule; it must be scoped to touched pages",
+  );
+  await Deno.remove(`${root}/${id}/index.html`);
 
   assert(
     !isMdnStubHtml('<!-- documented on MDN --><p class="eyebrow">v999 · web api</p>'),
