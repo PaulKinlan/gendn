@@ -425,10 +425,21 @@ of the "look like MDN" goal:
    <figure class="example-embed">
      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v<N>/<slug>/<concept>/"
        title="Live example — <concept name>" loading="lazy" width="100%" height="520"
-       style="border:2px solid var(--border-black)"></iframe>
+       style="border:2px solid var(--border-black)"
+       sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
      <figcaption>Live example from the Chrome Platform Showcase.<span class="citation">Source: chrome-platform-showcase</span></figcaption>
    </figure>
    ```
+   EVERY iframe embed carries exactly that `sandbox` + `referrerpolicy` pair (gendn-kjq) — the
+   showcase is a cross-origin third party to gendn, even though it is a sibling project. The
+   sandbox keeps the demo interactive (`allow-scripts`) and keeps its own storage/IDB working
+   (`allow-same-origin`; safe because a cross-origin child can never touch the gendn parent),
+   while the WITHHELD tokens are the hardening: the framed page cannot navigate the top window,
+   open popups or modals, submit forms, trigger downloads or take pointer lock. The
+   referrerpolicy stops gendn leaking the full page URL to the embed. Never drop either attribute,
+   never blanket `sandbox=""` (it strips scripts and blanks the demo), and any exemption must be
+   recorded with a reason in the `test-iframe-posture` fixture's allowlist — the fixture FAILS the
+   aggregate on any published iframe missing the pair.
    If the showcase route is NOT 200 yet (demo not built), fall back to a text link to the showcase
    feature and a code snippet — do not embed a broken iframe.
 7. `<h2>Browser compatibility</h2>` — a **real per-version compat table** built from the BCD data
