@@ -35,6 +35,37 @@ function findChrome() {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// CDP AWAITS ARE BOUNDED (gendn-1tu). Page.goto bounded only its LOAD wait: the underlying
+// Page.navigate and every Runtime.evaluate went through sendSession/Conn.send, which parked a
+// {resolve,reject} in the pending map and never deleted or bounded it. A dead or wedged Chrome
+// target therefore hung the caller FOREVER - and because these are awaited at the top of a gate,
+// that presents as "Top-level await promise never resolved" with zero output. A timeout now rejects
+// with the method named. The bound is a parameter with a default so a test can use a small value
+// without any env var or flag that could be abused to disable it.
+const CDP_TIMEOUT_MS = 30_000;
+
+function pendingCall(conn, ws, payload, method, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      conn.pending.delete(payload.id);
+      reject(
+        new Error(`CDP ${method} did not reply within ${timeoutMs}ms (target dead or wedged)`),
+      );
+    }, timeoutMs);
+    conn.pending.set(payload.id, {
+      resolve: (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      reject: (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    });
+    ws.send(JSON.stringify(payload));
+  });
+}
+
 // ---------- Chrome process termination ----------
 
 // Terminate a spawned Chrome deterministically: SIGTERM with a bounded wait, then SIGKILL.
@@ -409,7 +440,7 @@ export async function launch({ port = 9333 } = {}) {
   return new Browser(child, wsUrl, userDataDir, port);
 }
 
-class Conn {
+export class Conn {
   constructor(ws) {
     this.ws = ws;
     this.nextId = 1;
@@ -427,14 +458,11 @@ class Conn {
       }
     };
   }
-  send(method, params = {}, sessionId) {
+  send(method, params = {}, sessionId, timeoutMs = CDP_TIMEOUT_MS) {
     const id = this.nextId++;
     const payload = { id, method, params };
     if (sessionId) payload.sessionId = id && sessionId;
-    return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
-      this.ws.send(JSON.stringify(payload));
-    });
+    return pendingCall(this, this.ws, payload, method, timeoutMs);
   }
   on(fn) {
     this.listeners.push(fn);
@@ -495,13 +523,16 @@ class Page {
   cmd(method, params) {
     return this.sendSession(method, params);
   }
-  sendSession(method, params = {}) {
+  sendSession(method, params = {}, timeoutMs = CDP_TIMEOUT_MS) {
     // send with sessionId (flat protocol)
     const id = this.conn.nextId++;
-    return new Promise((resolve, reject) => {
-      this.conn.pending.set(id, { resolve, reject });
-      this.conn.ws.send(JSON.stringify({ id, method, params, sessionId: this.sessionId }));
-    });
+    return pendingCall(
+      this.conn,
+      this.conn.ws,
+      { id, method, params, sessionId: this.sessionId },
+      method,
+      timeoutMs,
+    );
   }
   async init({ width, height, mobile, deviceScaleFactor }) {
     this.conn.on((msg) => {
