@@ -379,6 +379,70 @@ print(json.dumps([m.slugify(n) for n in json.loads(sys.argv[1])]))`,
   }
 }
 
+// ---------- growth-asymmetry tripwire (gendn-cps) -------------------------------------------
+// The divergence class documented at the pin above GROWS SILENTLY: python's drop-set follows
+// its Unicode database (any codepoint with class != 0) while the TS strip range is frozen at
+// U+0300-U+036F, so each new out-of-block mark widens the class without either file changing
+// — and a single-codepoint pin plus a fixed parity table cannot notice. This tripwire turns
+// the documented class into a DETECTED one: both slugifies are recomputed over boundary
+// codepoints and must produce the measured DIVERGENT pair. If either side is ever harmonised
+// ("fixed" toward the other), the pair collapses to agreement and this assertion fails — the
+// route-surface decision is forced into the open instead of drifting. Table spans BOTH
+// polarities of the measured boundary (gendn-puw, sweep of 922 marks + block + decomposables):
+//   U+0483 / U+20D0 / U+FE20 — out-of-block class != 0: python drops (joins), TS dashes.
+//   U+034F — in-block COMBINING GRAPHEME JOINER, class 0: TS's range strips (joins),
+//            python's class filter keeps (dashes) — the opposite polarity.
+// A Unicode DB reclassification of any of these (e.g. a class change for U+034F) ALSO trips
+// this — correctly: the measured boundary moved, so the pin's comment and the route analysis
+// must be re-derived, not silently trusted.
+{
+  const TRIPWIRE = [
+    { input: "b\u0483c", ts: "b-c", py: "bc" },
+    { input: "b\u20D0c", ts: "b-c", py: "bc" },
+    { input: "b\uFE20c", ts: "b-c", py: "bc" },
+    { input: "b\u034Fc", ts: "bc", py: "b-c" },
+  ];
+  let pyTw = null;
+  try {
+    const py = new Deno.Command("python3", {
+      args: [
+        "-c",
+        `import importlib.util, json, sys
+spec = importlib.util.spec_from_file_location("fixslugs", ".claude/fix-slugs.py")
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+print(json.dumps([m.slugify(n) for n in json.loads(sys.argv[1])]))`,
+        JSON.stringify(TRIPWIRE.map((t) => t.input)),
+      ],
+      cwd: REPO,
+      stdout: "piped",
+      stderr: "piped",
+    });
+    const out = await py.output();
+    if (out.code === 0) pyTw = JSON.parse(new TextDecoder().decode(out.stdout));
+  } catch {
+    // python3 unavailable — embedded fallback below
+  }
+  if (!pyTw) {
+    // Generated from .claude/fix-slugs.py slugify on 2026-10-06 (python3 absent at run time).
+    pyTw = ["bc", "bc", "bc", "b-c"];
+  }
+  const broken = TRIPWIRE.map((t, i) => {
+    const problems = [];
+    const ts = slugify(t.input);
+    if (ts !== t.ts) problems.push(`ts=${JSON.stringify(ts)} expected ${JSON.stringify(t.ts)}`);
+    if (pyTw[i] !== t.py) {
+      problems.push(`py=${JSON.stringify(pyTw[i])} expected ${JSON.stringify(t.py)}`);
+    }
+    return problems.length ? `${JSON.stringify(t.input)}: ${problems.join("; ")}` : null;
+  }).filter(Boolean);
+  assert(
+    "divergence tripwire: the four boundary codepoints still produce the measured DIVERGENT pair in both slugifies — agreement on any of them means one side was harmonised (a silent route-rename surface) or the Unicode DB moved the boundary",
+    broken.length === 0,
+    broken.join(" | ") || "4/4 boundary codepoints diverge as measured (both polarities)",
+  );
+}
+
 if (failures > 0) {
   console.error(`chromestatus-units.test.mjs: ${failures} assertion(s) failed`);
   Deno.exit(1);
