@@ -1,8 +1,11 @@
 import { referenceRouteMigration } from "./check-routes.mjs";
 import { isMdnStubHtml } from "./lib/artifacts.mjs";
 import {
+  declaredSurfaceMembers,
+  declaredSurfaceSummary,
   resolveDocumentationHref,
   validateContractOwnership,
+  validateDeclaredSurface,
   validateReferenceContract,
 } from "./lib/reference-contract.mjs";
 
@@ -86,6 +89,191 @@ try {
 
   const validErrors = await validateReferenceContract(contract, root);
   assert(validErrors.length === 0, `valid contract failed:\n${validErrors.join("\n")}`);
+
+  // ---- declared-surface coverage: a collapsed inventory must not pass silently (gendn-4kq) ----
+  const idl = `<pre><code>partial interface Thing {
+  readonly attribute boolean alpha;
+  Promise&lt;void&gt; beta(long count);
+};</code></pre>`;
+  const idlPage =
+    `<!doctype html><main><section><h2 id="syntax">Syntax</h2>${idl}</section></main>`;
+  assert(
+    JSON.stringify(declaredSurfaceMembers(idlPage)) === JSON.stringify(["alpha", "beta"]),
+    `declared-surface parser found ${JSON.stringify(declaredSurfaceMembers(idlPage))}`,
+  );
+  const surfaceContract = (inventory, outOfScope) => ({
+    id,
+    completeness: "implementation-sufficient",
+    inventory: inventory.map((n) => ({ id: n.toLowerCase(), name: n, sourceRefs: ["spec"] })),
+    ...(outOfScope ? { outOfScope } : {}),
+  });
+
+  // REGRESSIONS from the gendn-4kq review:
+  //  P1 - methods with a custom return type, `void`, or a nested generic were INVISIBLE, so a
+  //       contract could omit the page's primary method and still report zero unaccounted.
+  //  P2 - `typedef X Y;` reported Y as a member, and a method's default-valued trailing parameter
+  //       (`optional unsigned long? length = null`) leaked in as a member.
+  const methodPage =
+    `<!doctype html><main><section><h2 id="syntax">Syntax</h2><pre><code>[Exposed=Window]
+typedef USVString ManifestId;
+interface Thing {
+  readonly attribute boolean alpha;
+  SpeculationData getSpeculations();
+  void doIt();
+  Promise&lt;record&lt;USVString, SubAppsListResult&gt;&gt; list();
+  Promise&lt;void&gt; supports(Identifier algorithm, optional unsigned long? length = null);
+};</code></pre></section></main>`;
+  assert(
+    JSON.stringify(declaredSurfaceMembers(methodPage)) ===
+      JSON.stringify(["alpha", "doIt", "getSpeculations", "list", "supports"]),
+    `method/typedef/parameter parsing: ${JSON.stringify(declaredSurfaceMembers(methodPage))}`,
+  );
+  assert(
+    validateDeclaredSurface(surfaceContract(["alpha"]), methodPage)
+      .some((e) => e.includes('declared surface member "getSpeculations"')),
+    "a contract that omitted the page's primary METHOD was not flagged",
+  );
+  // P1a regression: a WebIDL comment carrying parens sits on the SAME `;`-statement as the method
+  // below it on the real page, and used to win the match and hide the method.
+  const commentIdl =
+    `<!doctype html><main><section><h2 id="syntax">Syntax</h2><pre><code>// partial interface Performance (core/timing/performance.idl)
+[Exposed=Window, RuntimeEnabled=SpeculationMeasurement]
+SpeculationData getSpeculations();</code></pre></section></main>`;
+  assert(
+    JSON.stringify(declaredSurfaceMembers(commentIdl)) === JSON.stringify(["getSpeculations"]),
+    `comment-before-method parsing: ${JSON.stringify(declaredSurfaceMembers(commentIdl))}`,
+  );
+  // P2 regression: `A includes B;` names a mixin, not a member; a union-typed member must be seen;
+  // members sharing a line with the opening brace must be seen.
+  const shapesIdl =
+    `<!doctype html><main><section><h2 id="syntax">Syntax</h2><pre><code>interface A { readonly attribute boolean alpha; };
+HTMLCameraElement includes HTMLMediaCaptureElementBase;
+dictionary D { (boolean or MediaTrackConstraints) video = true; };</code></pre></section></main>`;
+  assert(
+    JSON.stringify(declaredSurfaceMembers(shapesIdl)) === JSON.stringify(["alpha", "video"]),
+    `includes/union/brace-shared parsing: ${JSON.stringify(declaredSurfaceMembers(shapesIdl))}`,
+  );
+  // P1 regression (review 3): WebIDL defaults written with braces or brackets are extremely common,
+  // and a greedy header strip / blind extended-attribute strip used to swallow the whole declaration.
+  const defaultsIdl =
+    `<!doctype html><main><section><h2 id="syntax">Syntax</h2><pre><code>interface A {
+  undefined setConstraints(optional Foo constraints = {});
+};
+dictionary D {
+  sequence&lt;DOMString&gt; protocols = [];
+  sequence&lt;DOMString&gt; names = ["a", "b"];
+  Foo opts = {};
+};</code></pre></section></main>`;
+  assert(
+    JSON.stringify(declaredSurfaceMembers(defaultsIdl)) ===
+      JSON.stringify(["names", "opts", "protocols", "setConstraints"]),
+    `brace/bracket default parsing: ${JSON.stringify(declaredSurfaceMembers(defaultsIdl))}`,
+  );
+  // ...and a union-typed member declared AFTER keywords: the word before "(" is the keyword
+  // `attribute`, which must not be mistaken for a method name nor hide the member.
+  const unionAttrIdl =
+    `<!doctype html><main><section><h2 id="syntax">Syntax</h2><pre><code>interface A { readonly attribute (Foo or Bar) baz; };</code></pre></section></main>`;
+  assert(
+    JSON.stringify(declaredSurfaceMembers(unionAttrIdl)) === JSON.stringify(["baz"]),
+    `union-attribute parsing: ${JSON.stringify(declaredSurfaceMembers(unionAttrIdl))}`,
+  );
+  // The syntax section is found by heading TEXT too, because several pages ship `<h2>Syntax</h2>`
+  // with no id - the rule must not be silently dead there.
+  const noIdPage =
+    `<!doctype html><main><h2>Syntax</h2><pre><code>dictionary D { DOMString name; };</code></pre><h2>Examples</h2></main>`;
+  assert(
+    JSON.stringify(declaredSurfaceMembers(noIdPage)) === JSON.stringify(["name"]),
+    `heading-text fallback parsing: ${JSON.stringify(declaredSurfaceMembers(noIdPage))}`,
+  );
+  assert(
+    validateDeclaredSurface(
+      surfaceContract(["alpha", "getSpeculations", "doIt", "list", "supports"]),
+      methodPage,
+    ).length === 0,
+    "an inventory accounting for every declared member and method was rejected",
+  );
+  assert(
+    validateDeclaredSurface(surfaceContract(["alpha", "beta"]), idlPage).length === 0,
+    "an inventory that accounts for every declared member was rejected",
+  );
+  const collapsed = validateDeclaredSurface(surfaceContract(["alpha"]), idlPage);
+  assert(
+    collapsed.some((e) => e.includes('declared surface member "beta"')),
+    "a contract that dropped a declared member was not flagged",
+  );
+  assert(
+    validateDeclaredSurface(
+      surfaceContract(["alpha"], [{
+        name: "beta",
+        rationale: "Quoted context from the surrounding interface; not part of this feature.",
+      }]),
+      idlPage,
+    ).length === 0,
+    "a specific outOfScope rationale did not account for a declared member",
+  );
+  assert(
+    validateDeclaredSurface(
+      surfaceContract(["alpha"], [{ name: "beta", rationale: "context" }]),
+      idlPage,
+    ).some((e) => e.includes("outOfScope beta needs a rationale")),
+    "a bare outOfScope exclusion was accepted as a rationale",
+  );
+  assert(
+    validateDeclaredSurface(
+      surfaceContract(["alpha", "beta"], [{
+        name: "gamma",
+        rationale: "Names something the page never declares at all.",
+      }]),
+      idlPage,
+    ).some((e) => e.includes("matches no member declared")),
+    "an outOfScope entry naming an undeclared member was accepted",
+  );
+  // LIMIT, asserted so it cannot silently regress into a false sense of coverage: a page with no
+  // IDL in its syntax block declares no surface, so nothing is compared.
+  const noIdlPage =
+    '<!doctype html><main><section><h2 id="syntax">Syntax</h2><pre><code>{"prerender":[{"form_submission":true}]}</code></pre></section></main>';
+  assert(
+    validateDeclaredSurface(surfaceContract(["alpha"]), noIdlPage).length === 0,
+    "a page with no declared IDL surface produced a phantom coverage failure",
+  );
+  assert(
+    validateDeclaredSurface(
+      {
+        ...surfaceContract(["alpha"]),
+        outOfScope: [{ name: "alpha", rationale: "too short" }],
+      },
+      noIdlPage,
+    ).some((e) => e.includes("outOfScope alpha needs a rationale")),
+    "outOfScope was not validated on a page that declares no IDL",
+  );
+  // The ratio a reviewer reads: 1 inventoried + 1 excluded of 2 declared must not look like a clean
+  // 2/2, so the summary is part of the guard rather than left to counting entries by eye.
+  assert(
+    JSON.stringify(
+      declaredSurfaceSummary(
+        surfaceContract(["alpha"], [{
+          name: "beta",
+          rationale: "Quoted context from the surrounding interface; not part of this feature.",
+        }]),
+        idlPage,
+      ),
+    ) === JSON.stringify({ declared: 2, inventory: 1, outOfScope: 1 }),
+    "declared-surface summary did not report the inventory/outOfScope ratio",
+  );
+
+  // SCOPING (coord, 2026-10-06): the general validator must NOT apply this rule, because pre-existing
+  // contracts that quote a surrounding interface as context would red for a pattern that is not the
+  // defect. It is enforced by check-conformance for TOUCHED pages only.
+  await Deno.writeTextFile(`${root}/${id}/index.html`, idlPage);
+  const surfaceErrors = await validateReferenceContract(
+    { ...structuredClone(contract), inventory: [{ id: "do-work", sourceRefs: ["spec"] }] },
+    root,
+  );
+  assert(
+    !surfaceErrors.some((e) => e.includes("declared surface member")),
+    "the general validator applied the declared-surface rule; it must be scoped to touched pages",
+  );
+  await Deno.remove(`${root}/${id}/index.html`);
 
   assert(
     !isMdnStubHtml('<!-- documented on MDN --><p class="eyebrow">v999 · web api</p>'),

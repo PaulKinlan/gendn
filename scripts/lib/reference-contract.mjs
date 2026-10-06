@@ -181,6 +181,233 @@ export async function validateReferenceContract(contract, root = ".") {
   return errors;
 }
 
+// DECLARED-SURFACE COVERAGE (gendn-4kq).
+//
+// WHY: the structural rules above are BIDIRECTIONAL (every inventory item must map to
+// documentation, and vice versa), so the cheapest way to satisfy them is to SHRINK the inventory
+// until everything maps. A contract can therefore claim `implementation-sufficient` while
+// enumerating one member of a twenty-five-member surface, and the validator says nothing, because
+// it never compares the inventory against anything outside the contract.
+//
+// WHAT IT CHECKS: the members the PAGE ITSELF declares in its `#syntax` IDL block. Every declared
+// member must be either matched by an inventory item (a name/id token) or listed in the contract's
+// `outOfScope` array with a rationale. A collapsed inventory therefore FAILS unless the author
+// writes down, member by member, what they are dropping and why. The failure names the dropped
+// member; the summary (declaredSurfaceSummary) reports the RATIO - inventory N, outOfScope M - so a
+// contract with 1 inventoried and 24 excluded reads as that shape at a glance.
+//
+// SCOPED TO TOUCHED PAGES (coord, 2026-10-06): this rule is enforced by check-conformance for
+// feature ids in the touched set, NOT by the general artifact validator. A new check must not go
+// red for PRE-EXISTING state: 8 of the 43 older contracts quote a surrounding interface as context
+// (audiopreferred-capture prints all of DisplayMediaStreamOptions; gamepad-button-type prints all
+// of GamepadButton; no-auto-rewind quotes all of AnimationTrigger) and would red for a pattern that
+// is not the defect this catches. A collapsed
+// contract is authored at the moment a page is touched, so the touched set is where it bites.
+// Cleanup of those 8 (adding honest outOfScope entries) is tracked separately as gendn-1j4.
+//
+// HOW THE SYNTAX SECTION IS FOUND: by id="syntax" when the page has one, otherwise by the heading
+// TEXT (`<h2>Syntax</h2>`), because several pages ship the heading without an id and the rule must
+// not be silently dead there. The region stops at the next h2, since the syntax block legitimately
+// contains h3 member subheadings. A page with neither an id nor a "Syntax" heading yields no
+// members and is not checked.
+//
+// TWO KNOWN PARSER LIMITS (gendn-4kq review 4, both latent - no current page hits either):
+//   * an ANONYMOUS special operation with a non-keyword return type reports the TYPE as a member
+//     (`getter DOMString (index)` -> "DOMString"). It over-reports, so it fails safe; every getter on
+//     the current pages is named.
+//   * a <pre> block that declares members but contains none of the words interface/dictionary/enum/
+//     attribute is skipped, so an operations-only `namespace` would hide its members. It is not
+//     reached today (no page declares a namespace in IDL), and it fails unsafe - the inverse of the
+//     no-IDL limit below, and the reason the rule is necessary rather than sufficient.
+//
+// IT CANNOT PROVE THE INVENTORY IS COMPLETE, and it has a known blind spot: a page that declares NO
+// IDL in its syntax block yields no members to compare against, so a collapsed contract on such a
+// page passes. The collapsed v151/speculation-rules-form-submission-field contract is exactly that
+// case - its syntax block shows a JSON structure, not IDL - and it is NOT caught here. A green from
+// this rule means "not SILENTLY smaller than the page's declared IDL", nothing more: prose
+// correctness and the real spec surface remain independent-review obligations, as the header says.
+// WebIDL keywords and declaration words that must never be reported as members. Hoisted because the
+// method match needs them too: in `readonly attribute (Foo or Bar) baz` the word before "(" is
+// `attribute`, which is a KEYWORD, not a method name (gendn-4kq review 3).
+const WEBIDL_KEYWORDS = new Set([
+  "interface",
+  "dictionary",
+  "enum",
+  "partial",
+  "mixin",
+  "stringifier",
+  "readonly",
+  "required",
+  "attribute",
+  "static",
+  "getter",
+  "setter",
+  "deleter",
+  "constructor",
+  "typedef",
+  "callback",
+  "namespace",
+  "implements",
+  "includes",
+  "const",
+  "unsigned",
+  "long",
+  "short",
+  "double",
+  "float",
+  "boolean",
+  "byte",
+  "octet",
+  "void",
+  "undefined",
+  "sequence",
+  "record",
+  "optional",
+  "or",
+]);
+
+export function declaredSurfaceMembers(html) {
+  const markup = renderedMarkup(html);
+  // Locate the syntax section: by id when the page gives one, otherwise by the heading TEXT. The
+  // text fallback exists because several pages ship `<h2>Syntax</h2>` with no id - without it the
+  // rule would be silently dead on exactly those pages (gendn-4kq review P1b).
+  const heading = [...markup.matchAll(/<h([1-6])\b([^>]*)>([\s\S]*?)<\/h\1\s*>/gi)].find((h) =>
+    /\bid=["']syntax["']/i.test(h[2]) ||
+    h[3].replace(/<[^>]+>/g, "").trim().toLowerCase() === "syntax"
+  );
+  if (!heading) return [];
+  // Stop at the next h2: the syntax block legitimately contains h3 member subheadings.
+  let region = markup.slice(heading.index + heading[0].length);
+  const nextH2 = region.search(/<h2\b/i);
+  if (nextH2 >= 0) region = region.slice(0, nextH2);
+  const names = new Set();
+  for (const pre of region.matchAll(/<pre\b[^>]*>([\s\S]*?)<\/pre\s*>/gi)) {
+    const idl = pre[1]
+      .replace(/<[^>]+>/g, "")
+      .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
+    if (!/\b(?:interface|dictionary|enum|attribute)\b/.test(idl)) continue;
+    // Strip WebIDL comments FIRST: `// partial interface Performance (core/timing/performance.idl)`
+    // sits on the same `;`-statement as the method below it, and the "(" in that comment otherwise
+    // wins the match and hides the real method (gendn-4kq review P1a). The `[^:]` guard keeps the
+    // `//` in an https:// URL from truncating a line. Then strip extended attributes ([Exposed=...])
+    // so they are never mistaken for members.
+    const bare = idl
+      .replace(/(^|[^:])\/\/[^\n]*/g, "$1 ")
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      // Extended attributes are stripped ONLY at the start of a line, where WebIDL puts them. A
+      // blind /\[[^\]]*\]/g would also eat a default value such as `= []`, silently dropping the
+      // member (gendn-4kq review 3, P1).
+      .replace(/^[ \t]*\[[^\]]*\][ \t]*/gm, " ");
+    // Parse per `;`-statement, stripping the enclosing declaration header (everything up to the
+    // last "{") so members declared on the same line as the brace are still seen.
+    for (const raw of bare.split(";")) {
+      // Strip a LEADING declaration header only, and non-greedily: a greedy `[\s\S]*\{` matches the
+      // `{` of a default value such as `= {}` and swallows the whole declaration, dropping the
+      // method (gendn-4kq review 3, P1).
+      const statement = raw
+        .replace(
+          /^[\s\S]*?\b(?:partial\s+)?(?:interface|dictionary|enum|mixin|namespace|callback\s+interface)\b[^{]*\{/,
+          " ",
+        )
+        .replace(/^\}+/, "")
+        .trim();
+      if (!statement) continue;
+      // `typedef X Y;` / `callback` / `namespace` declare a NAME, not a member; and in
+      // `A implements B;` / `A includes B;` the B is a mixin name.
+      if (/^(?:typedef|callback|namespace)\b/.test(statement)) continue;
+      if (/^(?:[\w$]+\s+)?(?:implements|includes)\s+[\w$]+$/.test(statement)) continue;
+      // METHODS and ATTRIBUTES: the name before "(", whatever the return type. Return-type-agnostic
+      // on purpose: whitelisting types missed `SpeculationData getSpeculations();`, `void doIt();`
+      // and `Promise<record<K,V>> list();`. Only the FIRST match is taken so parameter lists cannot
+      // leak names.
+      const method = statement.match(/[\w>\]?)]\s+([A-Za-z_$][\w$]*)\s*\(/);
+      if (method && !WEBIDL_KEYWORDS.has(method[1].toLowerCase())) {
+        names.add(method[1]);
+        continue;
+      }
+      // DICTIONARY/INTERFACE MEMBERS: `Type name` / `Type name = default`, including a leading
+      // parenthesised union type such as `(boolean or MediaTrackConstraints) video = true`. The
+      // default group must not cross a paren: `optional unsigned long? length = null` is a
+      // PARAMETER of a method, not a member.
+      // DICTIONARY/INTERFACE MEMBERS: `Type name` / `Type name = default`. The type is a sequence
+      // of space-separated tokens, each either a plain token or a parenthesised union such as
+      // `(Foo or Bar)` - so a union typed member declared after keywords (`readonly attribute
+      // (Foo or Bar) baz;`) is seen. The default group must not cross a paren: a method's
+      // `optional unsigned long? length = null` is a PARAMETER, not a member.
+      const member = statement.match(
+        /^(?:(?:\([^)]*\)|[\w<>?\[\],]+)\s+)+?(\w+)\s*(?:=\s*[^;()]+)?$/,
+      );
+      if (member) names.add(member[1]);
+    }
+  }
+  return [...names].filter((n) => !WEBIDL_KEYWORDS.has(n.toLowerCase())).sort();
+}
+
+function nameTokens(value) {
+  return String(value ?? "").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+}
+
+export function validateDeclaredSurface(contract, html) {
+  const errors = [];
+  const id = contract?.id ?? "(unknown)";
+  const members = declaredSurfaceMembers(html);
+  const covered = new Set();
+  for (const item of contract?.inventory ?? []) {
+    for (const token of nameTokens(item?.name)) covered.add(token);
+    for (const token of nameTokens(item?.id)) covered.add(token);
+  }
+  const excluded = new Map();
+  for (const entry of contract?.outOfScope ?? []) {
+    const name = String(entry?.name ?? "");
+    if (!name) {
+      errors.push(`${id}: outOfScope entry is missing a name`);
+      continue;
+    }
+    if (!meaningful(entry?.rationale, 20)) {
+      errors.push(`${id}: outOfScope ${name} needs a rationale (20+ characters)`);
+    }
+    if (excluded.has(name.toLowerCase())) {
+      errors.push(`${id}: outOfScope lists ${name} twice`);
+    }
+    excluded.set(name.toLowerCase(), entry);
+  }
+  for (const [name] of excluded) {
+    if (!members.some((m) => m.toLowerCase() === name)) {
+      errors.push(
+        `${id}: outOfScope ${name} matches no member declared in the page's syntax block`,
+      );
+    }
+  }
+  if (members.length === 0) return errors;
+  for (const member of members) {
+    if (covered.has(member.toLowerCase())) continue;
+    if (excluded.has(member.toLowerCase())) continue;
+    errors.push(
+      `${id}: declared surface member "${member}" is neither inventoried nor listed in outOfScope - ` +
+        `a contract claiming implementation-sufficient must account for every member the page declares`,
+    );
+  }
+  return errors;
+}
+
+export function declaredSurfaceSummary(contract, html) {
+  const members = declaredSurfaceMembers(html);
+  const covered = new Set();
+  for (const item of contract?.inventory ?? []) {
+    for (const token of nameTokens(item?.name)) covered.add(token);
+    for (const token of nameTokens(item?.id)) covered.add(token);
+  }
+  const excluded = new Set(
+    (contract?.outOfScope ?? []).map((e) => String(e?.name ?? "").toLowerCase()),
+  );
+  return {
+    declared: members.length,
+    inventory: members.filter((m) => covered.has(m.toLowerCase())).length,
+    outOfScope: members.filter((m) => excluded.has(m.toLowerCase())).length,
+  };
+}
+
 export function resolveDocumentationHref(id, href, root = ".") {
   if (typeof href !== "string" || !href) return { ok: false, error: "href is empty" };
   if (/^[a-z][a-z0-9+.-]*:/i.test(href) || href.startsWith("//")) {
