@@ -392,6 +392,18 @@ function categoryTag(category: string): string {
     .replace("Browser Intervention", "Intervention");
 }
 
+// Route values come from directory names; escape at the point of interpolation (gendn-7xq).
+export function referenceTag(release: string, slug: string): string {
+  return `<a class="tag tag-live" href="/${escapeHTML(release)}/${
+    escapeHTML(slug)
+  }/">reference &rarr;</a>`;
+}
+export function crossReferenceTag(cross: string): string {
+  return `<a class="tag tag-live" href="${escapeHTML(cross)}">reference ${
+    escapeHTML(cross.split("/")[1] ?? "")
+  } &rarr;</a>`;
+}
+
 async function renderReleasePage(release: string, milestone: number): Promise<string> {
   const features = await getMilestoneFeatures(milestone);
   const identityIndex = await getIdentityIndex();
@@ -403,11 +415,11 @@ async function renderReleasePage(release: string, milestone: number): Promise<st
       const summary = (f.summary ?? "").slice(0, 220);
       let docTag: string;
       if (hasDoc) {
-        docTag = `<a class="tag tag-live" href="/${release}/${slug}/">reference &rarr;</a>`;
+        docTag = referenceTag(release, slug);
       } else {
         const cross = identityIndex.get(String(f.id));
         docTag = cross
-          ? `<a class="tag tag-live" href="${cross}">reference ${cross.split("/")[1]} &rarr;</a>`
+          ? crossReferenceTag(cross)
           : `<span class="tag tag-pending">doc pending</span>`;
       }
       return `<li class="demo-card">
@@ -534,7 +546,7 @@ async function renderFeaturesCatalogue(channels: Channels): Promise<string> {
     const slug = slugify(r.name);
     const cat = categoryTag(r.category);
     const docCell = r.hasDoc
-      ? `<a class="tag tag-live" href="/v${r.mstone}/${slug}/">reference &rarr;</a>`
+      ? `<a class="tag tag-live" href="/v${r.mstone}/${escapeHTML(slug)}/">reference &rarr;</a>`
       : `<span class="tag tag-pending">pending</span>`;
     const search = `${r.name} ${r.summary} ${cat} v${r.mstone}`.toLowerCase();
     return `<tr data-search="${escapeHTML(search)}" data-mstone="${r.mstone}" data-status="${
@@ -773,7 +785,14 @@ export function addSecurityHeaders(res: Response): Response {
 }
 
 export async function handleRequest(req: Request): Promise<Response> {
-  const url = new URL(req.url);
+  // A malformed request URL is a handled 400, not an unhandled throw (gendn-7xq); the message is
+  // generic so nothing from the request is reflected.
+  let url: URL;
+  try {
+    url = new URL(req.url);
+  } catch {
+    return new Response("Bad request", { status: 400 });
+  }
   const path = url.pathname;
 
   // Durable-demo contract: 301 old (pre-contract) routes to their current page. Checked before
