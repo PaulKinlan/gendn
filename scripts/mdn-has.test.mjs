@@ -12,11 +12,13 @@
 //   3. a genuine 200 caches true and is served from cache on the second call;
 //   4. a genuine 404 returns false and is cached (a real negative answer stays definitive);
 //   5. a 5xx is NOT cached (a server error is not a statement about the page);
-//   6. no bare fetch() survives in lib/mdn.ts (source-level check for acceptance item 3).
+//   6. no bare fetch() survives in lib/mdn.ts (source-level check for acceptance item 3);
+//   7. (gendn-5ua) mdnApiUrl/mdnCssUrl produce EXACT documented URLs — these builders form the
+//      reference links on every page; a drifted base path or locale segment must fail here.
 //
 // Run: deno task test-mdn-has   (or: deno run --allow-read scripts/mdn-has.test.mjs)
 
-import { mdnHas } from "../lib/mdn.ts";
+import { mdnApiUrl, mdnCssUrl, mdnHas } from "../lib/mdn.ts";
 
 let failures = 0;
 let passed = 0;
@@ -148,6 +150,39 @@ assert(
   "lib/mdn.ts contains no bare fetch() (bounded helper is the only transport call)",
   bareFetches.length === 0,
   `${bareFetches.length} bare fetch( occurrence(s)`,
+);
+
+// 7. (gendn-5ua) mdnApiUrl / mdnCssUrl exact-output pins. The builders are pure template
+// interpolation into fixed en-US base paths — NO escaping or encoding is applied, and these
+// assertions pin that ACTUAL contract (per the bead: do not invent semantics). A plausible
+// wrong base path (Web/Api, /docs/Web/API/, a different locale) fails the exact-equality pins;
+// mutation evidence is recorded on the bead.
+const API_BASE = "https://developer.mozilla.org/en-US/docs/Web/API/";
+const CSS_BASE = "https://developer.mozilla.org/en-US/docs/Web/CSS/";
+assert(
+  "mdnApiUrl: a normal interface name yields the exact en-US Web/API URL",
+  mdnApiUrl("PaymentRequest") === `${API_BASE}PaymentRequest`,
+  mdnApiUrl("PaymentRequest"),
+);
+assert(
+  "mdnCssUrl: a normal property name yields the exact en-US Web/CSS URL",
+  mdnCssUrl("grid-template-areas") === `${CSS_BASE}grid-template-areas`,
+  mdnCssUrl("grid-template-areas"),
+);
+assert(
+  "mdnApiUrl: empty input yields the bare base (actual contract — no validation, no throw)",
+  mdnApiUrl("") === API_BASE,
+  mdnApiUrl(""),
+);
+assert(
+  "mdnCssUrl: empty input yields the bare base (actual contract)",
+  mdnCssUrl("") === CSS_BASE,
+  mdnCssUrl(""),
+);
+assert(
+  "mdnApiUrl: interpolated raw — spaces/slashes are NOT escaped (actual contract: callers pass canonical identifiers; pinned so any future escaping change is deliberate)",
+  mdnApiUrl("a b/c") === `${API_BASE}a b/c`,
+  mdnApiUrl("a b/c"),
 );
 
 if (failures > 0) {
