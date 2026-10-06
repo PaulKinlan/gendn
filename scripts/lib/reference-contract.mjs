@@ -20,12 +20,32 @@ export const REQUIRED_DIMENSIONS = [
   "securityPrivacy",
 ];
 
+// CONCURRENT, ORDER-PRESERVING (gendn-kq4): the loop awaited one ownerId at a time, and the callers
+// (validate-artifacts.mjs, check-conformance.mjs) pass the FULL published page-id set, so the serial
+// form paid one round-trip per page - mostly a stat/ENOENT for a page with no contract (measured: 153
+// of 201 pageIds) - for no reason: the reads are independent and readJson already resolves an absent
+// file to null rather than throwing. INPUT order is preserved in both the success and the failure path:
+//
+// ERROR SEMANTICS: the serial loop reported the FIRST failing ownerId in input order. Promise.all would
+// instead report whichever rejection settled first, which is timing-dependent (review measured THREE
+// different outcomes in twelve runs of a two-failure fixture) - a flaky gate message. allSettled is used
+// and the first rejection IN INPUT ORDER is rethrown, which reproduces the serial behaviour exactly.
+// Unhandled-rejection safety is NOT the reason for allSettled - Promise.all subscribes to every element
+// too, so neither form can leak an unhandled rejection.
 export async function collectReferenceContracts(root = ".", pageIds = []) {
+  const settled = await Promise.allSettled(
+    pageIds.map(async (ownerId) => {
+      const path = `${root}/${ownerId}/${REFERENCE_CONTRACT}`;
+      const contract = await readJson(path);
+      return contract ? { ownerId, path, contract } : null;
+    }),
+  );
+  for (const result of settled) {
+    if (result.status === "rejected") throw result.reason;
+  }
   const records = [];
-  for (const ownerId of pageIds) {
-    const path = `${root}/${ownerId}/${REFERENCE_CONTRACT}`;
-    const contract = await readJson(path);
-    if (contract) records.push({ ownerId, path, contract });
+  for (const result of settled) {
+    if (result.status === "fulfilled" && result.value !== null) records.push(result.value);
   }
   return records;
 }
@@ -579,7 +599,7 @@ function memberNamesFromIdl(idl) {
 }
 
 export function declaredSurfaceMembers(html) {
-  const region = syntaxRegionOf(renderedMarkup(html));
+  const region = syntaxRegionOf(cachedRenderedMarkup(html));
   if (!region) return [];
   const names = new Set();
   for (const idl of preBlocksIn(region)) {
@@ -607,7 +627,7 @@ export function declaredSurfaceMembers(html) {
 // and never fail - the project's ruling is that a false positive in a gate is worse than a false
 // negative, because a gate that fails correct contracts teaches lanes to stop reading it.
 export function skippedSurfaceDeclarations(html) {
-  const region = syntaxRegionOf(renderedMarkup(html));
+  const region = syntaxRegionOf(cachedRenderedMarkup(html));
   if (!region) return [];
   const out = [];
   for (const idl of preBlocksIn(region)) {
@@ -622,7 +642,7 @@ export function skippedSurfaceDeclarations(html) {
 }
 
 export function unreadableSyntaxBlocks(html) {
-  const region = syntaxRegionOf(renderedMarkup(html));
+  const region = syntaxRegionOf(cachedRenderedMarkup(html));
   if (!region) return [];
   const out = [];
   for (const idl of preBlocksIn(region)) {
@@ -781,9 +801,39 @@ function validateSourceRefs(refs, sourceById, errors, tag) {
   }
 }
 
+// MEMOISED (gendn-b6f): renderedMarkup() is a PURE function of its input, but the validators call it
+// inside their hottest loops - hasId() once per (documentation item x coverage dimension), hasHref()
+// once per (coverage dimension x cited sourceRef) - and every call re-applies artifacts.mjs's chained
+// regex passes over the WHOLE document until they converge. Measured on the real corpus: 2529 hasId
+// calls across 281 documentation items. The cache is keyed on every distinct string passed to
+// renderedMarkup - which includes the FRAGMENTS stripMarkup() receives, NOT only whole documents (review
+// measured 1174 entries after validating all 48 contracts, 1336 via the census path, against only 201
+// published pageIds) - so the retained set is larger than the page count, and a future long-lived
+// importer would need eviction. The validators are one-shot CLI processes, so none is needed today.
+const renderedMarkupCache = new Map();
+
+function cachedRenderedMarkup(html) {
+  const cached = renderedMarkupCache.get(html);
+  if (cached !== undefined) return cached;
+  const rendered = renderedMarkup(html);
+  renderedMarkupCache.set(html, rendered);
+  return rendered;
+}
+
+// The matcher is a pure function of the id and a non-global RegExp (so .test() is stateless), which
+// makes caching it safe as well.
+const idMatcherCache = new Map();
+
+function idMatcher(id) {
+  const cached = idMatcherCache.get(id);
+  if (cached !== undefined) return cached;
+  const matcher = new RegExp(`\\bid=["']${escapeRegExp(id)}["']`, "i");
+  idMatcherCache.set(id, matcher);
+  return matcher;
+}
+
 function hasId(html, id) {
-  const escaped = escapeRegExp(id);
-  return new RegExp(`\\bid=["']${escaped}["']`, "i").test(renderedMarkup(html));
+  return idMatcher(id).test(cachedRenderedMarkup(html));
 }
 
 /**
@@ -836,7 +886,7 @@ function decodeHrefEntities(value) {
 export function hasHref(html, url) {
   const wanted = canonicalCitationUrl(url);
   if (wanted === null) return false; // fail closed (see the rule above)
-  for (const match of renderedMarkup(html).matchAll(HREF_ATTR)) {
+  for (const match of cachedRenderedMarkup(html).matchAll(HREF_ATTR)) {
     const got = canonicalCitationUrl(decodeHrefEntities(match[1] ?? match[2] ?? ""));
     if (got !== null && got === wanted) return true;
   }
@@ -844,7 +894,7 @@ export function hasHref(html, url) {
 }
 
 function fragmentAfterId(html, id) {
-  html = renderedMarkup(html);
+  html = cachedRenderedMarkup(html);
   const escaped = escapeRegExp(id);
   const match = new RegExp(`\\bid=["']${escaped}["']`, "i").exec(html);
   if (!match) return "";
@@ -854,7 +904,7 @@ function fragmentAfterId(html, id) {
 }
 
 function stripMarkup(value) {
-  return renderedMarkup(value)
+  return cachedRenderedMarkup(value)
     .replace(/<script\b[\s\S]*?<\/script>/gi, " ")
     .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
     .replace(/<[^>]+>/g, " ")
