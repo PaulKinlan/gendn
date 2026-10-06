@@ -283,6 +283,24 @@ try {
     );
   }
 
+  // Extract speculationrules script from /features (gendn-xdw)
+  const specMatch = /<script type="speculationrules">([\s\S]*?)<\/script>/i.exec(featuresHtml);
+  assert("/features contains speculationrules block", specMatch !== null);
+  if (specMatch) {
+    const specHash = await sha256Token(specMatch[1]);
+    const csp = featuresRes.headers.get("content-security-policy") ?? "";
+    const parsed = parseCsp(csp);
+    const scriptSrc = parsed.get("script-src") ?? [];
+
+    assert(
+      "CSP script-src contains exact SHA-256 hash of the speculationrules declaration",
+      scriptSrc.includes(specHash),
+      `actual: ${specHash}, declared in CSP: ${
+        scriptSrc.filter((t) => t.startsWith("'sha256-")).join(", ")
+      }`,
+    );
+  }
+
   // --- 4. Reference page iframe compatibility ---
   const refRes = await fetch(
     `${base}/v152/speculation-rules-moderate-viewport-heuristics-controls/`,

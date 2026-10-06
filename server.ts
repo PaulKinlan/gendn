@@ -211,6 +211,12 @@ async function readReleaseAsset(release: string, sub: string): Promise<Response 
 
 // ----- Index page -----
 
+// Speculation rules prefetch declaration for reference-doc navigation (gendn-xdw).
+// Moderate eagerness gates requests on reader intent (hover/pointerdown); prerender is off
+// so cross-origin showcase iframes are not triggered speculatively.
+export const SPECULATION_RULES =
+  '<script type="speculationrules">{"prefetch":[{"source":"document","where":{"href_matches":"/v*/**"},"eagerness":"moderate"}]}</script>';
+
 export async function renderIndex(channels: Channels): Promise<string> {
   const commit = await getLatestCommit();
   const prevStable = channels.stable.mstone - 1;
@@ -280,6 +286,7 @@ export async function renderIndex(channels: Channels): Promise<string> {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>gendn — generated web platform docs</title>
   <link rel="stylesheet" href="/public/styles.css">
+  ${SPECULATION_RULES}
 </head>
 <body>
   <main>
@@ -461,6 +468,7 @@ async function renderReleasePage(release: string, milestone: number): Promise<st
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>chrome ${milestone} reference — gendn</title>
   <link rel="stylesheet" href="/public/styles.css">
+  ${SPECULATION_RULES}
 </head>
 <body>
 <main>
@@ -604,6 +612,7 @@ export async function renderFeaturesCatalogue(channels: Channels): Promise<strin
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>all features — gendn</title>
   <link rel="stylesheet" href="/public/styles.css">
+  ${SPECULATION_RULES}
   <style>
     main { max-width: 1100px; }
     .filters {
@@ -775,10 +784,10 @@ export async function knownReleaseMilestones(channels: Channels): Promise<Set<nu
 //
 // Directives chosen deliberately against what gendn pages actually load:
 //   - default-src 'self': Restrict unspecified resource types to same-origin.
-//   - script-src 'self' 'sha256-KuiJqU/ZOCGu7VsWUb6EUZO+z/j7PyH/zkKtY2HByvg=':
-//       The only JavaScript across the entire site is the client-side table filter on /features.
-//       Rather than disabling protection wholesale with 'unsafe-inline', the allowance is
-//       scoped strictly to the exact SHA-256 hash of that inline script. No external scripts.
+//   - script-src 'self' 'sha256-KuiJqU/ZOCGu7VsWUb6EUZO+z/j7PyH/zkKtY2HByvg=' 'sha256-QwyzFy+aVtqlhWpm/o9TrKyuCXBZ7CCOnC55e6JBn+A=':
+//       The client-side table filter on /features, plus the speculation rules prefetch
+//       declaration on server-rendered routes (gendn-xdw). Rather than disabling protection
+//       wholesale with 'unsafe-inline', each inline script is permitted by its exact SHA-256 hash.
 //   - style-src 'self' 'unsafe-inline':
 //       Allows /public/styles.css plus inline <style> blocks and style="" attributes present
 //       across all 201 reference pages in v<N>/ and SSR templates for per-feature layout.
@@ -803,7 +812,7 @@ export async function knownReleaseMilestones(channels: Channels): Promise<Set<nu
 
 export const CSP_DIRECTIVES = [
   "default-src 'self'",
-  "script-src 'self' 'sha256-KuiJqU/ZOCGu7VsWUb6EUZO+z/j7PyH/zkKtY2HByvg='",
+  "script-src 'self' 'sha256-KuiJqU/ZOCGu7VsWUb6EUZO+z/j7PyH/zkKtY2HByvg=' 'sha256-QwyzFy+aVtqlhWpm/o9TrKyuCXBZ7CCOnC55e6JBn+A='",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data:",
