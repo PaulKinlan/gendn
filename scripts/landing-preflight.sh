@@ -7,7 +7,7 @@
 # landing this repo.
 #
 # USAGE
-#   scripts/landing-preflight.sh <source-ref> [target-ref] [--remote <name>] [--push] [--out <file>] [--probe-glob <glob>]
+#   scripts/landing-preflight.sh <source-ref> [target-ref] [--remote <name>] [--push] [--out <file>] [--probe-glob <glob>] [-h|--help]
 #
 #   <source-ref>   what to push (usually the merge commit; HEAD is the asserted value)
 #   [target-ref]   destination branch owner-side (default: main)
@@ -79,7 +79,7 @@ PROBE_GLOB="refs/heads/landing-preflight-probe-*"
 MIN_TOKEN_LEN=7
 
 usage() {
-  echo "landing-preflight: usage: $0 <source-ref> [target-ref] [--remote <name>] [--push] [--out <file>] [--probe-glob <glob>]" >&2
+  echo "landing-preflight: usage: $0 <source-ref> [target-ref] [--remote <name>] [--push] [--out <file>] [--probe-glob <glob>] [-h|--help]" >&2
 }
 
 # A value-taking option supplied as the LAST argument makes $2 unbound under set -u, which kills
