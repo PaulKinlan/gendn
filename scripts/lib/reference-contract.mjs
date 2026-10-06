@@ -239,6 +239,12 @@ export async function validateReferenceContract(contract, root = ".") {
 // WebIDL keywords and declaration words that must never be reported as members. Hoisted because the
 // method match needs them too: in `readonly attribute (Foo or Bar) baz` the word before "(" is
 // `attribute`, which is a KEYWORD, not a method name (gendn-4kq review 3).
+// The parameterless CONSTRUCTS this parser reports by their own name (gendn-5t3). They are also
+// WebIDL keywords, so the keyword filter below would otherwise discard them the moment they were
+// added - the filter exists to stop `readonly`/`attribute` being reported as members, not to hide a
+// declaration that the page really makes.
+const SURFACE_CONSTRUCTS = new Set(["stringifier", "iterable", "maplike", "setlike"]);
+
 const WEBIDL_KEYWORDS = new Set([
   "interface",
   "dictionary",
@@ -352,6 +358,26 @@ function memberNamesFromIdl(idl) {
     // `A implements B;` / `A includes B;` the B is a mixin name.
     if (/^(?:typedef|callback|namespace)\b/.test(statement)) continue;
     if (/^(?:[\w$]+\s+)?(?:implements|includes)\s+[\w$]+$/.test(statement)) continue;
+    // WebIDL PARAMETERLESS SPECIALS (gendn-5t3): `stringifier;`, `iterable<T>;`, `maplike<K,V>;` and
+    // `setlike<T>;` carry neither a parameter list nor a `Type name` shape, so without this they are
+    // INVISIBLE to the parser - measured on the real catalogue: the page declaring `stringifier;`
+    // yielded only its parse/parseAll members. They are not decoration either: maplike/setlike/
+    // iterable IMPLY members the spec defines for them (for maplike<K,V>: size, get, has, set,
+    // delete, entries, keys, values, forEach, @@iterator). Reported as the CONSTRUCT's own keyword so
+    // a contract must acknowledge it once - the cheapest form that is SATISFIABLE, because
+    // outOfScope with a rationale is the natural home when those implied members are specified in
+    // the spec rather than written as prose, and an obligation a contract cannot discharge would
+    // block pages instead of describing them.
+    // THE IMPLIED MEMBERS ARE DELIBERATELY NOT EXPANDED, and this file must not be read as claiming
+    // otherwise: enumerating them would impose a long list of new obligations and invite false
+    // positives, so this narrows the blind spot (the construct must now be acknowledged) without
+    // closing it. Matched ONLY when the statement is the special alone, so `stringifier attribute
+    // DOMString foo;` still reaches the attribute path below and keeps reporting `foo`.
+    const special = statement.match(/^(stringifier|iterable|maplike|setlike)\s*(?:<[\s\S]*>)?$/i);
+    if (special) {
+      names.add(special[1]);
+      continue;
+    }
     // METHODS and ATTRIBUTES: the name before "(", whatever the return type. Return-type-agnostic
     // on purpose: whitelisting types missed `SpeculationData getSpeculations();`, `void doIt();`
     // and `Promise<record<K,V>> list();`. Only the FIRST match is taken so parameter lists cannot
@@ -382,7 +408,11 @@ export function declaredSurfaceMembers(html) {
     if (!IDL_BLOCK_GATE.test(idl)) continue;
     for (const name of memberNamesFromIdl(idl)) names.add(name);
   }
-  return [...names].filter((n) => !WEBIDL_KEYWORDS.has(n.toLowerCase())).sort();
+  // `stringifier` is a keyword AND a construct this parser now reports, so the filter must not
+  // discard it: SURFACE_CONSTRUCTS is the explicit exception (gendn-5t3).
+  return [...names]
+    .filter((n) => !WEBIDL_KEYWORDS.has(n.toLowerCase()) || SURFACE_CONSTRUCTS.has(n.toLowerCase()))
+    .sort();
 }
 
 // Blocks the detector CANNOT READ: IDL-shaped, declaring something member-shaped, yet yielding no

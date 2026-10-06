@@ -247,6 +247,65 @@ dictionary D {
     ).some((e) => e.includes("outOfScope alpha needs a rationale")),
     "outOfScope was not validated on a page that declares no IDL",
   );
+  // ---- PARAMETERLESS WebIDL SPECIALS were invisible (gendn-5t3) -----------------------------
+  // Measured before the fix: `stringifier;`, `iterable<T>;`, `maplike<K,V>;` and `setlike<T>;` each
+  // yielded NOTHING; on a real page (v153/expose-cssstylevalue-hierarchy...) the detector saw only
+  // parse/parseAll while the syntax block also declared `stringifier;`. They imply members the spec
+  // defines for them (maplike<K,V> implies size/get/has/set/delete/entries/keys/values/forEach), so
+  // a contract could be silently smaller than the page's declared surface with this rule reporting
+  // nothing.
+  const specialPage = (idlBody) =>
+    `<!doctype html><main><section><h2 id="syntax">Syntax</h2><pre><code>interface Thing {\n${
+      idlBody.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    }\n};</code></pre></section></main>`;
+  for (
+    const [construct, line] of [
+      ["stringifier", "  stringifier;"],
+      ["iterable", "  iterable<DOMString>;"],
+      ["maplike", "  maplike<DOMString, Node>;"],
+      ["setlike", "  setlike<Node>;"],
+    ]
+  ) {
+    const seen = declaredSurfaceMembers(specialPage(line));
+    assert(
+      seen.includes(construct),
+      `${construct}; was not reported as a declared surface member (got ${JSON.stringify(seen)})`,
+    );
+  }
+  // NO REGRESSION: `stringifier attribute DOMString foo;` declares a NAMED attribute, so the
+  // construct branch must not swallow it.
+  assert(
+    JSON.stringify(
+      declaredSurfaceMembers(specialPage("  stringifier attribute DOMString foo;")),
+    ) ===
+      JSON.stringify(["foo"]),
+    "a stringifier ATTRIBUTE stopped being reported as its own name",
+  );
+  // SATISFIABILITY, the reason the construct is reported by its own name rather than expanded into
+  // its implied members: a contract must be ABLE to discharge the obligation, and outOfScope with a
+  // rationale is the natural home when those members are specified by WebIDL rather than written as
+  // prose. An obligation a contract cannot satisfy would block pages instead of describing them.
+  const maplikePage = specialPage("  maplike<DOMString, Node>;");
+  assert(
+    validateDeclaredSurface(surfaceContract(["alpha"]), maplikePage).some((e) =>
+      e.includes('declared surface member "maplike"')
+    ),
+    "a maplike page passed with a contract that never acknowledges the construct",
+  );
+  assert(
+    validateDeclaredSurface(
+      {
+        ...surfaceContract(["alpha"]),
+        outOfScope: [{
+          name: "maplike",
+          rationale: "The map's accessors are specified by WebIDL, not documented as prose here.",
+        }],
+      },
+      maplikePage,
+    ).length === 0,
+    "the construct could not be discharged via outOfScope + rationale, so the rule would block pages",
+  );
+
   // The ratio a reviewer reads: 1 inventoried + 1 excluded of 2 declared must not look like a clean
   // 2/2, so the summary is part of the guard rather than left to counting entries by eye.
   assert(
