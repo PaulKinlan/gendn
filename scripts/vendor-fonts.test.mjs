@@ -685,26 +685,76 @@ try {
     );
   }
 
-  // 6. the repo's real sheet must still be considered current by the real endpoint
-  const realCheck = new Deno.Command(Deno.execPath(), {
-    args: [
-      "run",
-      "--allow-net",
-      "--allow-read",
-      "--allow-write",
-      `${REPO}scripts/vendor-fonts.mjs`,
-      "--check",
-    ],
-    stdout: "piped",
-    stderr: "piped",
-  });
-  const rc = await realCheck.output();
-  const rcout = new TextDecoder().decode(rc.stdout);
+  // 6a. OFFLINE (repository state, no network): the vendored block in the repo's real sheet is
+  // structurally intact. A red here means OUR vendoring is wrong. Mutated copies must FAIL it.
+  const BEGIN_M = "/* --- BEGIN vendored @font-face";
+  const END_M = "/* --- END vendored @font-face --- */";
+  const vendoredBlockProblems = (text) => {
+    const problems = [];
+    const i = text.indexOf(BEGIN_M);
+    const j = text.indexOf(END_M);
+    if (i < 0 || j < 0 || j < i) return ["BEGIN/END markers missing or out of order"];
+    const block = text.slice(i, j);
+    const faces = block.match(/@font-face\s*\{[^}]*\}/g) ?? [];
+    if (faces.length === 0) problems.push("no @font-face rules in vendored block");
+    for (const f of faces) {
+      if (!/src:\s*url\(https:\/\/fonts\.gstatic\.com\/[^)]+\.woff2\)/.test(f)) {
+        problems.push("a rule lacks a fonts.gstatic.com woff2 src");
+      }
+    }
+    return problems;
+  };
   assert(
-    "REAL endpoint: deno task vendor-fonts --check on the repo sheet is still green",
-    rc.code === 0 && /up to date/.test(rcout),
-    `exit=${rc.code} ${rcout.trim()}`,
+    "OFFLINE (repo state): vendored block in public/styles.css is intact",
+    vendoredBlockProblems(REAL_SHEET_TEXT).length === 0,
+    vendoredBlockProblems(REAL_SHEET_TEXT).join("; "),
   );
+  assert(
+    "OFFLINE mutation: END marker removed -> detected",
+    vendoredBlockProblems(REAL_SHEET_TEXT.replace(END_M, "")).length > 0,
+  );
+  assert(
+    "OFFLINE mutation: a woff2 src corrupted -> detected",
+    vendoredBlockProblems(REAL_SHEET_TEXT.replace(".woff2)", ".woff)")).length > 0,
+  );
+  assert(
+    "OFFLINE mutation: block emptied -> detected",
+    vendoredBlockProblems(
+      REAL_SHEET_TEXT.slice(0, REAL_SHEET_TEXT.indexOf(BEGIN_M) + BEGIN_M.length) + " */\n" +
+        REAL_SHEET_TEXT.slice(REAL_SHEET_TEXT.indexOf(END_M)),
+    ).length > 0,
+  );
+
+  // 6b. LIVE (the INTERNET's state, opt-in): compares the repo sheet to Google Fonts right now.
+  // Run `deno task test-vendor-fonts --live` deliberately. A red here means UPSTREAM CHANGED (run
+  // `deno task vendor-fonts` to re-vendor), not that the repo is broken; it is not in the aggregate
+  // because a transient upstream mismatch must not red every lane (gendn-c6w).
+  if (!Deno.args.includes("--live")) {
+    console.log(
+      "SKIPPED (opt-in, NOT a pass): LIVE upstream --check against Google Fonts was not run; " +
+        "pass --live to compare with the real endpoint. Offline repo-state assertions above did run.",
+    );
+  } else {
+    const realCheck = new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        "--allow-net",
+        "--allow-read",
+        "--allow-write",
+        `${REPO}scripts/vendor-fonts.mjs`,
+        "--check",
+      ],
+      stdout: "piped",
+      stderr: "piped",
+    });
+    const rc = await realCheck.output();
+    const rcout = new TextDecoder().decode(rc.stdout);
+    assert(
+      "LIVE (upstream state): vendor-fonts --check on the repo sheet is still current",
+      rc.code === 0 && /up to date/.test(rcout),
+      `exit=${rc.code} ${rcout.trim()}`,
+    );
+  }
   const realAfter = await sha(REAL_SHEET);
   const realBefore = await sha(REAL_SHEET); // --check never writes; asserted below by re-run
   assert("--check did not modify the repo sheet", realAfter === realBefore);
