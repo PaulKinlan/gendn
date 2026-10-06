@@ -720,6 +720,24 @@ dictionary D {
       );
       const twoPages = [...onePage, "  v151/other-page: declared 8 = inventory 8 + outOfScope 0"];
       assert(surfaceNotePages(twoPages) === 2, `three notes across TWO pages must count 2; got ${surfaceNotePages(twoPages)}`);
+      const singleNote = ["  v150/some-page: declared 4 = inventory 4 + outOfScope 0"];
+      assert(
+        surfaceNotePages(singleNote) === 1,
+        `single note for ONE page must count as one contract; got ${surfaceNotePages(singleNote)}`,
+      );
+      // A touched page whose contract is not yet implementation-sufficient emits only a parser skip line
+      // (no declared-surface summary), so its note set is skip-only.
+      const skipOnly = [
+        "  v150/legacy-page: parser skipped 1 anonymous special operation(s) - nothing to account for: getter DOMString (unsigned long index)",
+      ];
+      assert(
+        surfaceNotePages(skipOnly) === 1,
+        `skip-only note set for an unassessed page must count as one contract; got ${surfaceNotePages(skipOnly)}`,
+      );
+      // Crash guards, not discrimination: passing [] or undefined exercises the null-handling
+      // path (notes ?? []) so a missing list does not throw. They cannot distinguish page-counting
+      // from note-counting, because (notes ?? []).length also returns 0 for both; the discriminating
+      // pin for the note-count defect is the one above (two notes for ONE page must count 1).
       assert(
         surfaceNotePages([]) === 0 && surfaceNotePages(undefined) === 0,
         "no notes must count 0, and a missing list must not throw",
