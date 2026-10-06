@@ -637,6 +637,13 @@ assert(
 // a suite hash checks CHANGE, not trust.
 const PREFIX = "chromestatus.com/feature/";
 const scanLib = [];
+// SHALLOW SCAN — A CONDITION, NOT A CHOICE (gendn-1ng, b2s delta-review P2): lib/ is FLAT today,
+// so this readDir covers 100% of what exists. If lib/ ever gains a subdirectory, this sweep
+// SILENTLY stops covering it — a raw construction site in lib/sub/ would be invisible to BOTH
+// site-keyed detectors below (the b2s feature-prefix sweep and the sxn milestone sweep share
+// this one scanAll list). Smallest cure at that point, per the reviewer: pass
+// { recursive: true } to Deno.readDir (no std/fs walker needed) or walk subdirectories
+// explicitly — and keep this comment honest about the coverage it states.
 for await (const entry of Deno.readDir(`${REPO}/lib`)) {
   if (entry.isFile && entry.name.endsWith(".ts")) scanLib.push(`lib/${entry.name}`);
 }
