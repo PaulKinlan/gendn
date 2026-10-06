@@ -99,6 +99,35 @@ const server = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
   if (url.pathname === "/features" && url.searchParams.get("milestone") === "112") {
     return json(`${XSSI}\n${JSON.stringify({ features_by_type: { "Origin trial": [] } })}`);
   }
+  // gendn-b2s review finding 2: milestone 141 carries HOSTILE ids for the seam-behaviour tests
+  // below. The ids arrive the way production does — as raw JSON values whose `number` type is a
+  // compile-time claim only: a string twin of 2^53 and an attribute-breaker string.
+  if (url.pathname === "/features" && url.searchParams.get("milestone") === "141") {
+    // Fixed summary on purpose: the shared feat() helper embeds the id in the summary, which
+    // would render the hostile id as ESCAPED TEXT (inert, but it would trip the "id appears
+    // nowhere" seam assertion for the wrong reason).
+    const seamFeat = (id, name) => ({ id, name, summary: "stub-summary" });
+    return json(
+      `${XSSI}\n${
+        JSON.stringify({
+          features_by_type: {
+            "Enabled by default": [
+              seamFeat(5198951632470016, "Benign Feature"),
+              seamFeat("9007199254740992", "Hostile Twin"),
+              seamFeat('1" onmouseover="alert(1)', "Attr Breaker"),
+            ],
+            "Origin trial": [],
+          },
+        })
+      }`,
+    );
+  }
+  if (
+    url.pathname === "/features" &&
+    ["142", "143"].includes(url.searchParams.get("milestone") ?? "")
+  ) {
+    return json(`${XSSI}\n${JSON.stringify({ features_by_type: { "Origin trial": [] } })}`);
+  }
   return json("not found", 404);
 });
 const base = `http://127.0.0.1:${server.addr.port}`;
@@ -381,7 +410,71 @@ print(json.dumps([m.slugify(n) for n in json.loads(sys.argv[1])]))`,
       JSON.stringify(pyResults[DIVERGENCE_INDEX])
     }`,
   );
+  // DETECTOR 3 — SEAM BEHAVIOUR, the level the review demanded (finding 2): a source-presence
+  // sweep is a PROXY (rule 51 — run the workflow, not a stand-in for it), and a per-file proxy can
+  // be satisfied by one seam while another in the SAME file concatenates raw. So each rendered
+  // seam is driven end-to-end through the real handleRequest against the stubbed API with hostile
+  // ids in the milestone-141 payload, and the assertions are on the RENDERED HTML: the hostile ids
+  // must produce no href in any form and appear nowhere in the output, while the benign id links
+  // canonically and the hostile NAMES still render as escaped plain text (fallback, not erasure).
+  const { handleRequest } = await import("../server.ts");
+  // The catalogue only indexes features whose doc directory exists (server.ts featureHasDoc ->
+  // `if (!hasDoc) return null`), and the repo has no v141 tree — so the seam test SYNTHESIZES
+  // the three doc directories here and removes the whole v141 tree in the stub's finally. The
+  // write permission is path-scoped (--allow-write=v141) and the directory exists only while
+  // this fixture runs.
+  const SEAM_SLUGS = ["benign-feature", "hostile-twin", "attr-breaker"];
+  for (const slug of SEAM_SLUGS) {
+    await Deno.mkdir(`v141/${slug}`, { recursive: true });
+    await Deno.writeTextFile(
+      `v141/${slug}/index.html`,
+      "<!doctype html><title>seam-test</title>",
+    );
+  }
+  const seamAssertions = (label, html) => {
+    assert(
+      `b2s seam (${label}): the benign numeric id renders its canonical chromestatus link`,
+      html.includes('href="https://chromestatus.com/feature/5198951632470016"'),
+    );
+    assert(
+      `b2s seam (${label}): the string twin of 2^53 produces NO href — identity validity is enforced through the rendered seam, not only inside the helper`,
+      !html.includes("feature/9007199254740992"),
+    );
+    assert(
+      `b2s seam (${label}): the attribute-breaker id reaches no href, raw or encoded`,
+      !html.includes('feature/1"') && !html.includes("feature/1&quot;"),
+    );
+    assert(
+      `b2s seam (${label}): the hostile id value appears NOWHERE in the rendered page (the fallback renders the name only, never the id)`,
+      !html.includes("onmouseover"),
+    );
+    assert(
+      `b2s seam (${label}): hostile feature NAMES still render as escaped plain text — fallback, not erasure`,
+      html.includes("Hostile Twin") && html.includes("Attr Breaker"),
+    );
+  };
+  const relRes = await handleRequest(new Request("http://local/v141/"));
+  assert(
+    "b2s seam (release page): /v141/ renders 200 through the real handleRequest routing",
+    relRes.status === 200,
+    `status ${relRes.status}`,
+  );
+  seamAssertions("release page renderReleasePage", await relRes.text());
+  const catRes = await handleRequest(new Request("http://local/features"));
+  assert(
+    "b2s seam (catalogue): /features renders 200 through the real handleRequest routing",
+    catRes.status === 200,
+    `status ${catRes.status}`,
+  );
+  seamAssertions("catalogue renderFeaturesCatalogue", await catRes.text());
 } finally {
+  try {
+    // Remove the synthesized seam-test tree so nothing downstream can observe it (the repo has
+    // no v141; the path-scoped write permission bounds the blast radius).
+    await Deno.remove("v141", { recursive: true });
+  } catch {
+    // ignore
+  }
   try {
     await server.shutdown();
   } catch {
@@ -536,9 +629,12 @@ assert(
 // not match the template shape. The URL PREFIX is the invariant signature of a construction
 // site, whatever the syntax, so the sweep asserts: the prefix appears EXACTLY ONCE across
 // server.ts and lib/ — inside the narrowed builder in lib/chromestatus.ts — and every seam
-// consumes chromeStatusUrl. gen-conformance.mjs is deliberately NOT scanned: it is repo-authoring
-// tooling whose meta.identity flows into conformance suites (validated + hash-pinned), not into
-// served markup.
+// consumes chromeStatusUrl. gen-conformance.mjs is deliberately NOT scanned, and the exclusion
+// is NARROWER than "not served" (gendn-b2s review): the generated suites ARE reachable as JSON
+// (server.ts serves each suite's conformance.json) and their descriptions render escaped
+// (lib/lifecycle.ts) — but the generated selector is never interpolated into served markup,
+// meta.identity is derived as ASCII digits from authored HTML (scripts/lib/artifacts.mjs), and
+// a suite hash checks CHANGE, not trust.
 const PREFIX = "chromestatus.com/feature/";
 const scanLib = [];
 for await (const entry of Deno.readDir(`${REPO}/lib`)) {
