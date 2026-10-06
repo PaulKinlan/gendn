@@ -21,26 +21,27 @@
 //   dates   — the note's date tokens where the note carries dates (a disagreement without its
 //             as-of dates is unauditable: the reader cannot tell which source is stale).
 //
-// The table's provenance is cumulative and its BOUNDARY is stated plainly (rule 67 — a
-// coverage claim wider than the code removes a check). FOURTEEN pages are pinned, found in
-// six named steps so the method is reproducible: (1) the filing named three pages; (2) a
-// vocabulary grep of main's content tree ("disagree" and kin) found the fourth
-// (capability-elements); (3) the FIRST cross-family review's sweep found two more that no
-// "disagree" grep surfaces (v152/deprecate-and-remove-xslt, "One source discrepancy is
-// recorded honestly"; v152/audiopreferred-capture-in-getdisplaymedia-api, listing status vs
-// trunk status); (4) the SECOND, independent review (the bounce) re-swept with DIVERGENCE
-// vocabulary and found three more (v151/no-auto-rewind-for-animationtrigger-play-methods,
+// The table is a CURATED set of the clearest carried-disagreement instances, selected by
+// judgement — NOT the output of an exhaustive sweep, and it makes no such claim. The
+// evidence that no completeness claim is available at any width: two independent sweeps of
+// the SAME tip with the SAME intent returned DIFFERENT page sets (one found a single page,
+// the other found four), because "carries a source disagreement" is a predicate fuzzy at
+// the edges — a property of the predicate, not a defect in the sweepers. So the claim is
+// narrow and provable: this guard protects the PINNED pages against regression — a side
+// silently dropped from any pinned page fails here — and says nothing about unpinned ones.
+// Provenance, so the JUDGEMENTS are reproducible: (1) the filing named three pages;
+// (2) a "disagree"-vocabulary grep of main's content tree found the fourth
+// (capability-elements); (3) the FIRST cross-family review's sweep found two more
+// (v152/deprecate-and-remove-xslt; v152/audiopreferred-capture-in-getdisplaymedia-api);
+// (4) the SECOND, independent review (the bounce) re-swept with DIVERGENCE vocabulary and
+// found three more (v151/no-auto-rewind-for-animationtrigger-play-methods,
 // v147/web-printing-api/entry-point,
 // v147/device-bound-session-credentials/challenge-header); (5) the first
 // delta-confirmation's re-sweep found four more (the animation-accessor
 // animationevent/transitionevent pair, v152/deprecate-and-remove-xslt/xsltprocessor,
 // v150/speculative-load-measurement); (6) the second delta-confirmation's re-sweep found
-// one more (v147/autofill-event, "Note on divergence"). Every re-run of a named sweep so
-// far has found more pages, so the honest claim is the narrow one: the sweeps are NOT
-// exhausted and the table is NOT complete by construction — it IS the coverage. A
-// disagreement carried WITHOUT any recognized vocabulary is invisible to sweeps entirely.
-// A new page that gains a carried disagreement should be ADDED here; a side silently
-// dropped from a pinned page fails, which is the failure mode the check exists for.
+// one more (v147/autofill-event). A new page that gains a carried disagreement should be
+// ADDED here; that is a deliberate act, which is exactly what a curated table forces.
 //
 // MUTATION PROOFS (logs on the bead, not inline; cp-based backups per rule 107):
 //   M1 delete the carried disagreement sentence (webcrypto marker)  -> FAIL on the marker.
