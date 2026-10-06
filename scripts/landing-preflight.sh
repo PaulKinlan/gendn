@@ -7,7 +7,7 @@
 # landing this repo.
 #
 # USAGE
-#   scripts/landing-preflight.sh <source-ref> [target-ref] [--remote <name>] [--push] [--out <file>]
+#   scripts/landing-preflight.sh <source-ref> [target-ref] [--remote <name>] [--push] [--out <file>] [--probe-glob <glob>]
 #
 #   <source-ref>   what to push (usually the merge commit; HEAD is the asserted value)
 #   [target-ref]   destination branch owner-side (default: main)
@@ -17,9 +17,6 @@
 #   --out          where the dry-run capture is written (default: a temp file, path printed)
 #   --probe-glob   probe-ref glob checked by the non-mutation belt
 #                  (default: refs/heads/landing-preflight-probe-*)
-#
-# USAGE: scripts/landing-preflight.sh <source-ref> [target-ref] [--remote <name>] [--push]
-#        [--out <file>] [--probe-glob <glob>]
 #
 # EXIT CODES (distinct so a caller cannot read "nothing to land" as success)
 #   0  WOULD-PUSH / PUSHED+readback agreed (see the line printed for which)
@@ -103,7 +100,11 @@ while [ $# -gt 0 ]; do
     --out) require_value --out $#; OUT=$2; shift 2 ;;
     --probe-glob) require_value --probe-glob $#; PROBE_GLOB=$2; shift 2 ;;
     --push) PUSH=1; shift ;;
-    -h|--help) sed -n '2,40p' "$0"; exit 0 ;;
+    # Help is PATTERN-DELIMITED, not line-numbered: read from line 2 to the header's own
+    # terminator (the `set -u` line) and drop that last line. A line range like '2,40p' silently
+    # truncates the help the moment anyone edits a comment above it — which is exactly what
+    # happened once already (gendn-04g review), so the range is anchored to content now.
+    -h|--help) sed -n '2,/^set -u$/p' "$0" | sed '$d'; exit 0 ;;
     -*) echo "landing-preflight: unknown option $1" >&2; usage; exit 6 ;;
     *)
       if [ -z "$SRC" ]; then SRC=$1; else TARGET=$1; fi
