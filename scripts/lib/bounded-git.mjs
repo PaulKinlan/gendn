@@ -52,9 +52,14 @@ export async function runGit(
     );
   }
   const result = await output;
+  const decode = (v) => new TextDecoder().decode(v);
   return {
     code: result.code,
-    stdout: stdout === "piped" ? new TextDecoder().decode(result.stdout) : "",
+    stdout: stdout === "piped" ? decode(result.stdout) : "",
+    // stderr is returned so a caller's non-zero-exit error can NAME what git said (gendn-r1q: the
+    // refactor to this module replaced "failed: <stderr>" with a bare exit code, and a one-line
+    // `fatal: ...` is the most useful thing a human debugging a bad ref can be given).
+    stderr: stderr === "piped" ? decode(result.stderr) : "",
   };
 }
 

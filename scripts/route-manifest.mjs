@@ -69,8 +69,16 @@ export function pathToIdentityFields(pagePath, html) {
 // Bounded and shared (gendn-8q2) so this gate cannot hang the way gendn-1tu found in
 // check-conformance; a timeout throws a named error instead of waiting forever.
 async function runGitChecked(args) {
-  const { code, stdout } = await runGit(args, { stdout: "piped", stderr: "piped" });
-  if (code !== 0) throw new Error(`git ${args.join(" ")} failed with exit code ${code}`);
+  const { code, stdout, stderr } = await runGit(args, { stdout: "piped", stderr: "piped" });
+  if (code !== 0) {
+    // Name what git said, not just the code (gendn-r1q): the last stderr line is the `fatal: ...`
+    // that tells a human WHICH ref or object was wrong. Kept to the last line so a multi-line git
+    // diagnostic cannot swamp the gate's output.
+    const detail = stderr.trim().split("\n").filter(Boolean).pop();
+    throw new Error(
+      `git ${args.join(" ")} failed with exit code ${code}${detail ? `: ${detail}` : ""}`,
+    );
+  }
   return stdout;
 }
 
