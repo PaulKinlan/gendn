@@ -47,10 +47,11 @@
 //   - Attribute parsing is regex-grade: it reads sandbox/referrerpolicy/src tokens from the tag
 //     text. Exotic encodings (entity-escaped attribute values, tags split by template logic) could
 //     evade or confuse it — another reason the canaries pin the rule function, not the prose.
-//   - FIVE PAGES ARE DELIBERATELY NOT HARDENED YET (PENDING_HARDENING in
-//     scripts/lib/iframe-posture.mjs, tracking bead gendn-sgc). This fixture's greenness means
-//     "every iframe is either deliberately postured or an exact-match reasoned deferral" — it
-//     does NOT mean "all 36 embed pages are hardened". 31 are; 5 are not, and the list says why.
+//   - FOUR PAGES ARE DELIBERATELY NOT HARDENED YET (PENDING_HARDENING in
+//     scripts/lib/iframe-posture.mjs, tracking bead gendn-sgc); v152/sub-apps left the list in the
+//     same change that postured it (gendn-sgc pilot). This fixture's greenness means "every iframe
+//     is either deliberately postured or an exact-match reasoned deferral" — it does NOT mean "all
+//     36 embed pages are hardened". 32 are; 4 are not, and the list says why.
 //
 // Run: deno task test-iframe-posture
 
@@ -192,12 +193,20 @@ for await (const rel of walkHtml(`${REPO}public`, "public")) pages.push(rel);
 let iframeCount = 0;
 const violations = [];
 const pendingSeen = new Set();
+const deferredPosture = new Map();
 for (const rel of pages) {
   const text = await Deno.readTextFile(`${REPO}${rel}`);
   for (const m of text.matchAll(/<iframe\b[^>]*>/gs)) {
     iframeCount++;
     const pending = PENDING_HARDENING.find((p) => p.file === rel);
     if (pending) {
+      // A deferred page SKIPS the posture audit below, so we audit it here purely to record whether
+      // the deferral is still doing any work: a deferral that covers only already-sanctioned iframes
+      // is stale on the POSTURE axis, the mirror of the contract axis checked underneath.
+      const posture = deferredPosture.get(rel) ?? { iframes: 0, unhardened: 0 };
+      posture.iframes++;
+      if (auditIframeTag(m[0], rel)) posture.unhardened++;
+      deferredPosture.set(rel, posture);
       // Exact-file reasoned deferral (rule 4) — and SELF-EXPIRING: the moment the page gains a
       // reference-contract.json, the ratchet no longer blocks hardening, so the deferral is over
       // and this fixture fails until the page is postured and the entry removed (gendn-sgc).
@@ -233,6 +242,27 @@ assert(
     ? `${violations.length} violation(s): ${violations.slice(0, 8).join(" | ")}`
     : `${iframeCount} iframe(s), all deliberate`,
 );
+// The deferral list is self-expiring on TWO axes, and only one of them used to be asserted. A
+// deferred page skips the posture audit, so the CONTRACT check above was the only thing that could
+// retire an entry — which meant a page that had been postured WITHOUT gaining a contract stayed in
+// the list indefinitely AND was never posture-audited. That is also the one swap the other
+// assertions could not catch (see the comment above DEFERRED_PAGES). This is the mirror: an entry
+// whose page carries no unhardened iframe has nothing left to defer, so it must be removed.
+{
+  const staleOnPosture = PENDING_HARDENING.filter((p) => {
+    const posture = deferredPosture.get(p.file);
+    return posture !== undefined && posture.iframes > 0 && posture.unhardened === 0;
+  }).map((p) => p.file);
+  assert(
+    "every PENDING_HARDENING deferral still carries an UNHARDENED iframe (an entry leaves the list in the same change that postures its page)",
+    staleOnPosture.length === 0,
+    staleOnPosture.length > 0
+      ? `STALE deferral(s) on posture: ${
+        staleOnPosture.join(", ")
+      } — posture the page and remove the entry`
+      : `${PENDING_HARDENING.length} deferral(s), each still carrying an unpostured iframe`,
+  );
+}
 assert(
   "every PENDING_HARDENING deferral names a real scanned page (the list cannot go stale silently)",
   PENDING_HARDENING.every((p) => pendingSeen.has(p.file)),
@@ -241,10 +271,36 @@ assert(
     "none"
   }`,
 );
+// The deferral list is asserted by EXACT SET, not by count (gendn-sgc pilot, coord's swap point).
+// WHY THE SET IS THE ASSERTION THAT MATTERS, verified against the scanner rather than argued: a
+// deferred page SKIPS the posture audit entirely, and the only other check it gets is the contract
+// staleness test above. So swapping one deferred entry for another page's entry is caught by the
+// violations assertion ONLY when the swapped-AWAY page is still unhardened (it stops being skipped
+// and auditIframeTag flags it). Swap onto a page that is ALREADY postured but still contractless and
+// every other assertion passes — the count, the bead, pendingSeen, and the contract check (that page
+// is skipped, and its deferral is not stale by that test) — so the set assertion was the ONLY thing
+// standing between that swap and a widening. The posture-axis assertion added above, which retires an
+// entry once its page has no unhardened iframe left, now closes the path on the other side too.
+// Proven by mutation, not assumed: dropping an id from DEFERRED_PAGES fails; and with DEFERRED_PAGES
+// edited to match a swap onto an already-postured page, the posture-axis assertion is what fails.
+// The list only ever SHRINKS: a page leaves it in the same change that postures it and gives it a
+// contract (v152/sub-apps was the first).
+const DEFERRED_PAGES = [
+  "v150/speculative-load-measurement/index.html",
+  "v150/webrtc-diagnostic-logging-api/index.html",
+  "v151/algorithm-updates-in-webcrypto/index.html",
+  "v151/speculation-rules-form-submission-field/index.html",
+];
 assert(
-  "the deferral list did not widen (exact 5 entries, each naming its tracking bead)",
-  PENDING_HARDENING.length === 5 && PENDING_HARDENING.every((p) => p.bead === "gendn-sgc"),
-  `${PENDING_HARDENING.length} entries`,
+  "the deferral list is EXACTLY the deferred pages (a swap cannot hide a widening)",
+  JSON.stringify(PENDING_HARDENING.map((p) => p.file).sort()) ===
+    JSON.stringify([...DEFERRED_PAGES].sort()),
+  `got: ${PENDING_HARDENING.map((p) => p.file).join(", ")}`,
+);
+assert(
+  "every deferral names its tracking bead",
+  PENDING_HARDENING.every((p) => p.bead === "gendn-sgc"),
+  PENDING_HARDENING.map((p) => `${p.file}->${p.bead}`).join(", "),
 );
 
 // --- canary: the rules MUST flag the pre-fix shape (the guard can fail) ---------------

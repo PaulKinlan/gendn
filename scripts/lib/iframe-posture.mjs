@@ -44,10 +44,4 @@ export const PENDING_HARDENING = [
       "built page with no reference-contract.json yet; touching it trips the conformance ratchet",
     bead: "gendn-sgc",
   },
-  {
-    file: "v152/sub-apps/index.html",
-    why:
-      "built page with no reference-contract.json yet; touching it trips the conformance ratchet",
-    bead: "gendn-sgc",
-  },
 ];
