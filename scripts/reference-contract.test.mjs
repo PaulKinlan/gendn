@@ -661,6 +661,31 @@ dictionary D {
       );
     }
 
+    // A HOLE WITH NO HINT OF ITS OWN, beside a skip that HAS one - the P0 a reviewer found in the
+    // first version of the skip fix. `setter undefined (...)` carries a member hint of its own
+    // ("undefined ("); `Foo;` does not. Subtracting the skip BEFORE testing the hint deleted the only
+    // evidence the block declared anything, so the unreadable declaration went silently unreported.
+    // Measured shape: 0 members, 1 skip, and it MUST report 1 unreadable block.
+    {
+      const hintlessHole = specialPage("  setter undefined (unsigned long index, DOMString value);\n  Foo;");
+      assert(
+        unreadableSyntaxBlocks(hintlessHole).length === 1,
+        `a hole with no hint of its own must still be reported when a skipped statement supplies the
+         only hint: reporting it as readable is a FALSE NEGATIVE introduced by the skip exemption.
+         Got: ${JSON.stringify(unreadableSyntaxBlocks(hintlessHole))}`,
+      );
+      // and the exemption itself must still hold: a block that is ONLY a skip is not a hole.
+      const onlySkip = specialPage("  setter undefined (unsigned long index, DOMString value);");
+      assert(
+        unreadableSyntaxBlocks(onlySkip).length === 0 &&
+          skippedSurfaceDeclarations(onlySkip).length === 1,
+        `an all-skip block must stay exempt: ${JSON.stringify([
+          unreadableSyntaxBlocks(onlySkip),
+          skippedSurfaceDeclarations(onlySkip),
+        ])}`,
+      );
+    }
+
   console.log("PASS — reference-contract structural tests");
 } finally {
   await Deno.remove(root, { recursive: true });

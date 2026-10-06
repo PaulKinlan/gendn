@@ -232,11 +232,15 @@ export async function validateReferenceContract(contract, root = ".") {
 //     validation loudly. Measured: 7 of 201 pages contain `constructor(`, and 0 of them are misread
 //     (each also declares a readable member). This is a limit of the DECLARED-SURFACE check - a
 //     constructor is not a member name - and it is loud, which is the property that matters.
-//   * A `mixin` TOKEN INSIDE A QUOTED STRING IS NOT A HOLE, and this was measured rather than
-//     assumed: the JSON near-miss stays SILENT (members=[], unreadable=0, the intended behaviour for
-//     a non-IDL block), and all 5 pages containing a quoted `mixin` read their real surface
-//     correctly with 0 unreadable blocks. An accurate limit, not a bug (rule 71): the gate is
-//     necessary but not sufficient, and this shape is outside what it claims to cover.
+//   * THE `mixin` TOKEN IS NOT A LIMIT IN PRACTICE, and the first version of this note described it
+//     wrongly - it claimed 5 pages carry a QUOTED `mixin` and read correctly. Measured by a reviewer
+//     across the catalogue: ZERO pages contain `"mixin"` or `'mixin'` inside a quoted string. Five
+//     pages contain the token at all, and every one of them uses it as a DECLARATION HEADER
+//     (`interface mixin Body {`), which the declaration-header strip handles by design. So the
+//     hazard is theoretical (a regex-grade gate would be opened by a quoted word) and the cost on
+//     this catalogue is nothing, while the JSON near-miss stays silent (members=[], unreadable=0) as
+//     intended for a non-IDL block. Recording it as a LIMIT would have been the worse error: a
+//     header that documents a limit which is not the limit is worse than no header.
 //   * THE TRIGGER IS A HEURISTIC, and its negative direction is a DECISION rather than an oversight.
 //     A block whose members are declared without any declaration-shaped token (no interface/
 //     dictionary/enum/namespace/callback/typedef/mixin/partial, no line-leading attribute) is read as
@@ -374,8 +378,17 @@ function idlStatements(idl) {
         /^[\s\S]*?\b(?:partial\s+)?(?:interface|dictionary|enum|mixin|namespace|callback\s+interface)\b[^{]*\{/,
         " ",
       )
-      .replace(/^\}+/, "")
-      .trim();
+      // STRIP LEADING WHITESPACE *BEFORE* THE CLOSING BRACES. The previous form was /^\}+/,
+      // which cannot match a "}" that follows a newline - and since a block conventionally ends
+      // "};", the split on ";" left a final statement that was just "}". That leftover was not
+      // inert: it made `remaining` non-empty in unreadableSyntaxBlocks(), so the all-skip
+      // exemption could never fire and an all-skip block was reported as an unreadable hole. It
+      // cannot be fixed by filtering later either, because a "}" statement carries no member hint,
+      // so filtering it before or after the hint test decided WHICH defect you got: a false
+      // positive on skips, or a false negative on a hint-less hole beside one. A statement that
+      // is only closing braces is never a declaration, so it goes here, once, for both readers.
+      .replace(/^[\s}]+/, "")
+      .replace(/\s+$/, "");
     if (statement) out.push(statement);
   }
   return out;
@@ -496,14 +509,21 @@ export function unreadableSyntaxBlocks(html) {
   for (const idl of preBlocksIn(region)) {
     if (!IDL_BLOCK_GATE.test(idl)) continue;
     if (!idl.includes("{")) continue;
-    // DELIBERATE SKIPS ARE NOT HOLES: judge readability on the statements that are not skipped, so a
-    // block whose only member-shaped content is an anonymous special operation is not reported as
-    // unreadable (that would fail a correct page - and it did, in the first attempt at this fix).
-    // A block that mixes a skip with a genuinely unreadable declaration still reports, because the
-    // hint and the member count below are computed over what remains.
-    const statements = idlStatements(idl).filter((st) => !ANONYMOUS_SPECIAL_OPERATION.test(st));
-    if (statements.length === 0) continue;
-    if (!IDL_MEMBER_HINT.test(statements.join("; "))) continue;
+    // DELIBERATE SKIPS ARE NOT HOLES, BUT THE HINT MUST BE JUDGED BEFORE THEY ARE SUBTRACTED.
+    // Two mistakes meet here, and the order is what separates them (the first attempt at this fix
+    // made the second, and a reviewer caught it as a P0):
+    //   * subtracting skips before the hint makes a block whose ONLY member-shaped content is an
+    //     anonymous special look unreadable, which would fail a correct page;
+    //   * subtracting them before the hint ALSO deletes evidence: an anonymous special carries a hint
+    //     of its own ("undefined ("), so a block like `setter undefined (...); Foo;` - a skip beside a
+    //     genuinely unreadable declaration - would lose the only hint and go SILENTLY UNREPORTED.
+    //     That is a false negative introduced by a fix for a false positive; both are real, and the
+    //     order below keeps the hint whole while still exempting an all-skip block.
+    const statements = idlStatements(idl);
+    const hasHint = IDL_MEMBER_HINT.test(statements.join("; "));
+    const remaining = statements.filter((st) => !ANONYMOUS_SPECIAL_OPERATION.test(st));
+    if (remaining.length === 0) continue;
+    if (!hasHint) continue;
     if (memberNamesFromIdl(idl).size > 0) continue;
     out.push(idl.replace(/\s+/g, " ").trim().slice(0, 120));
   }
