@@ -321,6 +321,51 @@ function renderRollup(runAll) {
 
 // ---------- main ----------
 
+// A scoped run merges into whatever the report already holds; a missing or unparseable report is
+// treated as empty rather than aborting the scan (the scan's own results are still written).
+async function readResponsiveRows(path) {
+  try {
+    const parsed = JSON.parse(await Deno.readTextFile(path));
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((row) => row && typeof row === "object" && typeof row.id === "string");
+  } catch {
+    return [];
+  }
+}
+
+// ---------- the tracked responsive report: WHOLESALE on a full run, MERGED on a scoped run -------
+// gendn-jvh, measured during the sgc pilot: `responsive --page <id>` is the documented way to check
+// ONE page, but the reporter wrote only the pages it had scanned, so a scoped run TRUNCATED the
+// tracked reports/conformance/responsive.json from 198 rows to 1 (2 insertions / 3154 deletions in
+// a tracked file). A tracked generated file is a mutation target no assertion covered, and the
+// resulting diff reads like a deliberate regeneration. So the scope decides: a FULL run still
+// regenerates wholesale (that is how catalogue additions and removals reach the report), while a
+// SCOPED run merges - other pages keep their rows, the scanned pages replace their own rows IN
+// PLACE so the file order stays stable, and a newly scanned page is appended.
+export function responsiveReportRows({ existing = [], scanned = [], scoped = false } = {}) {
+  if (!scoped) return scanned;
+  const rows = [...existing];
+  const indexOf = new Map(rows.map((row, i) => [row?.id, i]));
+  for (const row of scanned) {
+    const at = indexOf.get(row?.id);
+    if (at === undefined) {
+      indexOf.set(row?.id, rows.length); // a page the report has never carried
+      rows.push(row);
+    } else {
+      rows[at] = row;
+    }
+  }
+  return rows;
+}
+
+// A scoped run must not describe itself as a full one: the row count it reports is the REPORT's
+// size, not the number of pages scanned, and conflating them is how the truncation went unnoticed.
+export function responsiveReportLine(scannedCount, totalRows, scoped) {
+  return scoped
+    ? `responsive-check: ${scannedCount} page(s) scanned (merged into ${OUT_DIR}/responsive.json; report now ${totalRows} rows)`
+    : `responsive-check: ${scannedCount} pages scanned → ${OUT_DIR}/responsive.json`;
+}
+
 async function main() {
   const args = Deno.args;
   const pageIdx = args.indexOf("--page");
@@ -403,8 +448,14 @@ async function main() {
         await Deno.writeTextFile(`./${SUPPORT_SIDECAR}`, JSON.stringify(support, null, 2) + "\n");
         console.log(`\nwrote ${SUPPORT_SIDECAR} (${Object.keys(support.routes).length} routes)`);
       }
-      await Deno.writeTextFile(`${OUT_DIR}/responsive.json`, JSON.stringify(rows, null, 2) + "\n");
-      console.log(`\nresponsive-check: ${rows.length} pages scanned → ${OUT_DIR}/responsive.json`);
+      const scoped = Boolean(only) || Number.isFinite(limit);
+      const existingRows = scoped ? await readResponsiveRows(`${OUT_DIR}/responsive.json`) : [];
+      const reportRows = responsiveReportRows({ existing: existingRows, scanned: rows, scoped });
+      await Deno.writeTextFile(
+        `${OUT_DIR}/responsive.json`,
+        JSON.stringify(reportRows, null, 2) + "\n",
+      );
+      console.log(`\n${responsiveReportLine(rows.length, reportRows.length, scoped)}`);
       // Verdict visibility (gendn-m9j): the scan's summary line above carries no verdict, so
       // REVIEW pages were only visible in per-page output. Print them explicitly at the end —
       // additive only; per-page lines and exit code (0) are unchanged. The classification is
