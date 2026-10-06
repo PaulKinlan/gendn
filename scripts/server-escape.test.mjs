@@ -29,9 +29,11 @@ const stubServer = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
 
 Deno.env.set("CHROMESTATUS_BASE", `http://127.0.0.1:${stubServer.addr.port}`);
 
+const { milestonePathSegment } = await import("../lib/chromestatus.ts");
 const {
   crossReferenceTag,
   handleRequest,
+  knownReleaseMilestones,
   referenceTag,
   renderFeaturesCatalogue,
   renderIndex,
@@ -104,6 +106,46 @@ assert(
 assert(
   "renderFeaturesCatalogue: invalid milestone drops href and does not emit clickable '#' fallback",
   !catalogueHtml.includes('href="#"'),
+);
+
+// gendn-f3t: knownReleaseMilestones is the boundary filtering hostile or unbounded channel data
+// before milestones reach catalogue options, feature fetches, or route dispatch.
+// If the milestonePathSegment narrow in knownReleaseMilestones is removed (mutated to set.add(Number(raw))),
+// hostile non-numeric strings become NaN, and out-of-range milestone values (e.g. 99999, 10000, 0, -1)
+// pollute the admitted set.
+const known = await knownReleaseMilestones(hostileChannels);
+assert(
+  "knownReleaseMilestones: hostile channel milestone does not inject NaN or non-milestone into known set",
+  !known.has(NaN) &&
+    ![...known].some((m) => typeof m !== "number" || !Number.isInteger(m) || m < 1 || m > 9999),
+);
+assert(
+  "knownReleaseMilestones: every admitted milestone strictly satisfies milestonePathSegment bound (1..9999)",
+  [...known].every((m) =>
+    milestonePathSegment(m) !== null && Number(milestonePathSegment(m)) === m
+  ),
+);
+
+const outOfBoundsChannels = {
+  dev: { mstone: 99999, version: 151, branch_point: "", stable_date: "" },
+  beta: { mstone: 10000, version: 150, branch_point: "", stable_date: "" },
+  stable: { mstone: 0, version: 149, branch_point: "", stable_date: "" },
+};
+const knownOutOfBounds = await knownReleaseMilestones(outOfBoundsChannels);
+assert(
+  "knownReleaseMilestones: out-of-range channel milestones (99999, 10000, 0, -1) are filtered",
+  !knownOutOfBounds.has(99999) &&
+    !knownOutOfBounds.has(10000) &&
+    !knownOutOfBounds.has(0) &&
+    !knownOutOfBounds.has(-1),
+);
+
+// public/styles.css (gendn-f3t): .release-card-link:hover does not apply hover affordance to aria-disabled cards
+const css = await Deno.readTextFile("public/styles.css");
+assert(
+  "public/styles.css: .release-card-link:hover does not apply to aria-disabled cards",
+  !css.includes(".release-card-link:hover") &&
+    css.includes('.release-card-link:not([aria-disabled="true"]):hover'),
 );
 
 await stubServer.shutdown();

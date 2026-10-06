@@ -741,7 +741,7 @@ export async function renderFeaturesCatalogue(channels: Channels): Promise<strin
 </html>`;
 }
 
-async function knownReleaseMilestones(channels: Channels): Promise<Set<number>> {
+export async function knownReleaseMilestones(channels: Channels): Promise<Set<number>> {
   const set = new Set<number>();
   for (
     const raw of [
