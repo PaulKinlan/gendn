@@ -427,7 +427,9 @@ function memberNamesFromIdl(idl) {
     // its return type is reported as a member (see the header's measured limits).
     if (ANONYMOUS_SPECIAL_OPERATION.test(statement)) continue;
     // `typedef X Y;` / `callback` / `namespace` declare a NAME, not a member; and in
-    // `A implements B;` / `A includes B;` the B is a mixin name.
+    // `A implements B;` / `A includes B;` the B is a mixin name. The skip is right in a MIXED block
+    // and is complemented - not reversed - for a bare typedef by the block-scoped fallback at the
+    // end of this function (gendn-u9m), which names the type only when the block yields nothing else.
     if (/^(?:typedef|callback|namespace)\b/.test(statement)) continue;
     if (/^(?:[\w$]+\s+)?(?:implements|includes)\s+[\w$]+$/.test(statement)) continue;
     // WebIDL PARAMETERLESS SPECIALS (gendn-5t3): `stringifier;`, `iterable<T>;`, `maplike<K,V>;` and
@@ -495,6 +497,34 @@ function memberNamesFromIdl(idl) {
   // unlike SURFACE_CONSTRUCTS it needs no keyword-filter exception (the gendn-5t3 divergence).
   if (names.size === 0) {
     for (const match of strippedIdl(idl).matchAll(/\benum\s+([A-Za-z_$][\w$]*)\s*\{/g)) {
+      names.add(match[1]);
+    }
+    // BARE TYPEDEF DECLARATIONS (gendn-u9m): `typedef (WebPrintingRange or unsigned long)
+    // WebPrintingMediaSizeDimension;` names a TYPE, and a typedef carries NO BRACE, so unlike the
+    // bare enum above it never reaches a member-shaped statement either. The statement loop skips it
+    // DELIBERATELY (see the `typedef|callback|namespace` guard), and that skip is correct for a
+    // MIXED block: the identifier of `typedef USVString ManifestId;` beside a `partial interface` is
+    // NOT one of that interface's members, and reporting it was the gendn-4kq P2 false positive.
+    // A block whose ONLY declaration is a typedef is the opposite case - the identifier IS the whole
+    // declared surface - and the block-scoped fallback is what separates the two.
+    //
+    // IDENTIFIER, NOT ITS REFERENTS, and that is MEASURED rather than chosen (the same question
+    // gendn-kda answered for enums, answered the same way):
+    //   * the page documents the identifier as its subject - its `<h1>` is
+    //     `WebPrintingMediaSizeDimension`, not the union members (measured on
+    //     v147/web-printing-api/types/media-size-dimension/index.html);
+    //   * the contract that already exists inventories it BY IDENTIFIER -
+    //     `{"name": "WebPrintingMediaSizeDimension", "kind": "other"}` in
+    //     v147/web-printing-api/reference-contract.json - so the member is CHECKABLE and the existing
+    //     contract already SATISFIES it without an edit;
+    //   * the referents are already inventoried separately where they need to be (`WebPrintingRange`
+    //     is its own `dictionary` entry) and a primitive referent (`unsigned long`) has no inventory
+    //     identity at all, so expanding the union would add obligations no contract could discharge.
+    // The identifier is read as the LAST identifier before the terminating `;`, which is what
+    // `typedef Type Identifier;` guarantees; `[^;]*?` cannot cross a statement boundary, so a block
+    // containing several typedefs yields each one. Reported once, and not expanded into the referent
+    // type - for the same reason the enum is not expanded into its values.
+    for (const match of strippedIdl(idl).matchAll(/\btypedef\b[^;]*?([A-Za-z_$][\w$]*)\s*;/g)) {
       names.add(match[1]);
     }
   }
