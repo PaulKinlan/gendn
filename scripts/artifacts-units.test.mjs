@@ -88,7 +88,7 @@ assert(
 assert("status built when no MDN eyebrow", meta.status === "built");
 assert("experimental = built AND experimental marker in the html", meta.experimental === true);
 assert(
-  "sections are extracted from the RAW html — comments, script strings and closed <details> h2s ARE counted (actual contract, pinned as-is; contrast: stub detection uses renderedMarkup). Counting a superset is the conservative direction for coverage gates, but the asymmetry is a FINDING reported on gendn-dd7, not something this fixture may 'fix' by re-deriving.",
+  "sections are extracted from the RAW html — comments, script strings and closed <details> h2s ARE counted (actual contract, pinned as-is). CORRECTED RATIONALE (gendn-n2k; the dd7-era text claimed re-deriving 'would move gate verdicts' — FALSE): sections/h1 are DEAD FIELDS — a repo-wide grep (dd7 review, re-verified locally) finds no gate, generator or serializer reading meta.sections or meta.h1; the min-sections/single-h1 checks are browser js-eval strings (gen-conformance.mjs:207), not derived from these fields. Pinned as documented behaviour only. The asymmetry that DOES feed a verdict (isRemoval) now derives from renderedMarkup and is pinned below.",
   JSON.stringify(meta.sections) ===
     JSON.stringify([
       "Syntax",
@@ -159,6 +159,38 @@ assert(
 assert(
   "isRemoval from an h2 mentioning deprecation",
   metadataFromHtml("v900/thing/index.html", "<h1>Thing</h1><h2>Deprecation timeline</h2>")
+    .isRemoval === true,
+);
+
+// gendn-n2k PIN: isRemoval feeds gen-conformance.mjs:211 (removal pages SKIP the
+// support/example assertions), so its h1/h2 scan must read the RENDERED markup. Every input
+// below says "Removal"/"deprecat" ONLY in invisible places — the raw-html derivation flips
+// isRemoval to true and would silently drop gate assertions; the rendered derivation does not.
+// MUTATION PROOF (log on the bead): switching the scan back to raw html FAILS these pins.
+const hiddenRemovalComment = "<h1>Thing</h1><!-- <h2>Removal plan</h2> -->";
+const hiddenRemovalScript = "<h1>Thing</h1><script>var s = '<h2>Deprecation notes</h2>';</script>";
+const hiddenRemovalDetails =
+  "<h1>Thing</h1><details><summary>s</summary><h2>Removal timeline</h2></details>";
+const hiddenRemovalH1Comment = "<!-- <h1>Removed API</h1> --><h1>Thing</h1>";
+assert(
+  "n2k pin: 'Removal' h2 inside a COMMENT does not make a page a removal",
+  metadataFromHtml("v900/thing/index.html", hiddenRemovalComment).isRemoval === false,
+);
+assert(
+  "n2k pin: 'Deprecation' h2 inside a SCRIPT string does not make a page a removal",
+  metadataFromHtml("v900/thing/index.html", hiddenRemovalScript).isRemoval === false,
+);
+assert(
+  "n2k pin: 'Removal' h2 inside a CLOSED <details> does not make a page a removal",
+  metadataFromHtml("v900/thing/index.html", hiddenRemovalDetails).isRemoval === false,
+);
+assert(
+  "n2k pin: a commented-out 'Removed' h1 does not make a page a removal",
+  metadataFromHtml("v900/thing/index.html", hiddenRemovalH1Comment).isRemoval === false,
+);
+assert(
+  "n2k pin: a VISIBLE removal h2 still flips isRemoval (the pin did not neuter the signal)",
+  metadataFromHtml("v900/thing/index.html", hiddenRemovalComment + "<h2>Removal plan</h2>")
     .isRemoval === true,
 );
 

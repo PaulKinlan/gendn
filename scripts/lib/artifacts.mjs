@@ -83,9 +83,24 @@ export function metadataFromHtml(pagePath, html) {
   const experimental = status === "built" && EXPERIMENTAL_RE.test(html);
   // Removal / deprecation references don't ship an interactive example or a cross-browser support
   // table — the example/support assertions don't apply to them.
+  //
+  // gendn-n2k: the h1/h2 scan reads the RENDERED markup (comments, <script>/<style>/template
+  // strings and hidden blocks stripped), NOT the raw html. This field feeds a gate —
+  // gen-conformance.mjs:211 skips the support/example assertions for removal pages — so a
+  // commented-out or scripted "Removal" heading must never flip a page's suite shape. Measured
+  // over all 201 published pages (2026-10-06, evidence on the bead): the raw and rendered
+  // derivations agree on every page (0 diffs, 11 removal pages), so this choice changes no
+  // current verdict; it is made on robustness grounds and is PINNED by
+  // scripts/artifacts-units.test.mjs — switching the scan back to raw html FAILS that suite.
+  // The slug-prefix test stays path-derived (the path is not markup).
+  const visibleMarkup = renderedMarkup(html);
   const isRemoval = /^(deprecate|remove|disable)/.test(slug) ||
-    /\bremov(e|ed|al)\b|\bdeprecat/i.test(html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i)?.[1] ?? "") ||
-    [...html.matchAll(/<h2[^>]*>([\s\S]*?)<\/h2>/gi)].some((m) => /remov|deprecat/i.test(m[1]));
+    /\bremov(e|ed|al)\b|\bdeprecat/i.test(
+      visibleMarkup.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i)?.[1] ?? "",
+    ) ||
+    [...visibleMarkup.matchAll(/<h2[^>]*>([\s\S]*?)<\/h2>/gi)].some((m) =>
+      /remov|deprecat/i.test(m[1])
+    );
 
   const h1 = (html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i)?.[1] ?? "").replace(/<[^>]+>/g, "").trim();
   const sections = [...html.matchAll(/<h2[^>]*>([\s\S]*?)<\/h2>/gi)].map((m) =>
