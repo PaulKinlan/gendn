@@ -38,7 +38,7 @@
   </div>
 
   <section>
-    <h2>at a glance</h2>
+    <h2 id="at-a-glance">at a glance</h2>
     <table class="doc-table">
       <tr><th>Shipped in</th><td>Chrome 147 (desktop, Android)</td></tr>
       <tr><th>Status</th><td>Enabled by default</td></tr>
@@ -49,14 +49,14 @@
   </section>
 
   <section>
-    <h2>why it exists</h2>
+    <h2 id="why-it-exists">why it exists</h2>
     <p>Chrome's Local Network Access protections prevent public websites from silently reaching devices on the user's private network. Earlier work applied LNA checks to <code>fetch()</code> requests initiated from service workers. However, service workers can also trigger subframe navigations via <code>WindowClient.navigate()</code> — and that path was not covered. A compromised or malicious service worker from a public origin could navigate an embedded subframe to a local admin interface or device URL without the user's knowledge. Chrome 147 closes this hole by applying the same initiator-based LNA logic to <code>WindowClient.navigate()</code> calls.</p>
     <p>Only subframe <code>WindowClient</code> navigations are affected. Chrome does not currently enforce LNA restrictions on main-frame navigations.</p>
     <span class="citation">Source: blink-dev Intent to Ship — Local Network Access restrictions on Service Worker WindowClient.navigate(), April 2026.</span>
   </section>
 
   <section>
-    <h2>what changes</h2>
+    <h2 id="what-changes">what changes</h2>
     <p>When a service worker calls <code>windowClient.navigate(url)</code>:</p>
     <ul>
       <li>If the <code>WindowClient</code> is a <strong>main frame</strong>: no change, no LNA check is applied.</li>
@@ -69,7 +69,18 @@
       </li>
     </ul>
 
-    <h3>Affected address ranges</h3>
+    <pre><code>// A service worker navigating a subframe WindowClient to a local-network address.
+// Chrome 147 uses the subframe's origin as the navigation initiator, so this
+// call triggers the Local Network Access permission check and may be blocked.
+self.addEventListener("message", async (event) =&gt; {
+  const client = await self.clients.get(event.source.id);
+  if (client?.frameType === "nested") {
+    await client.navigate("http://192.168.1.1:8080/status");
+  }
+});
+</code></pre>
+
+    <h3 id="affected-address-ranges">Affected address ranges</h3>
     <table class="doc-table">
       <thead><tr><th>Address range</th><th>Examples</th></tr></thead>
       <tr><td>Loopback</td><td><code>127.0.0.1</code>, <code>localhost</code>, <code>::1</code></td></tr>
@@ -80,7 +91,7 @@
   </section>
 
   <section>
-    <h2>browser support</h2>
+    <h2 id="browser-support">browser support</h2>
     <table class="doc-table">
       <thead><tr><th>Browser</th><th>Support</th></tr></thead>
       <tr><td>Chrome 147+ (desktop, Android)</td><td>Enabled by default</td></tr>
