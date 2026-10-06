@@ -26,6 +26,7 @@
 //   (add `--pretty` for indented output)
 
 import { isMdnStubHtml } from "./lib/artifacts.mjs";
+import { runGit } from "./lib/bounded-git.mjs";
 
 export const PAGE_RE = /^v\d+\/[^/]+\/index\.html$/;
 const FEATURE_ID_RE = /chromestatus\.com\/feature\/(\d+)/;
@@ -65,25 +66,20 @@ export function pathToIdentityFields(pagePath, html) {
   return { id, route, identity, status, demo };
 }
 
-async function runGit(args) {
-  const cmd = new Deno.Command("git", {
-    args,
-    stdout: "piped",
-    stderr: "piped",
-  });
-  const { code, stdout, stderr } = await cmd.output();
-  if (code !== 0) {
-    throw new Error(`git ${args.join(" ")} failed: ${new TextDecoder().decode(stderr)}`);
-  }
-  return new TextDecoder().decode(stdout);
+// Bounded and shared (gendn-8q2) so this gate cannot hang the way gendn-1tu found in
+// check-conformance; a timeout throws a named error instead of waiting forever.
+async function runGitChecked(args) {
+  const { code, stdout } = await runGit(args, { stdout: "piped", stderr: "piped" });
+  if (code !== 0) throw new Error(`git ${args.join(" ")} failed with exit code ${code}`);
+  return stdout;
 }
 
 async function collectFromRef(ref) {
-  const tree = await runGit(["ls-tree", "-r", "--name-only", ref]);
+  const tree = await runGitChecked(["ls-tree", "-r", "--name-only", ref]);
   const pages = tree.split("\n").filter((p) => PAGE_RE.test(p)).sort();
   const entries = [];
   for (const pagePath of pages) {
-    const html = await runGit(["show", `${ref}:${pagePath}`]);
+    const html = await runGitChecked(["show", `${ref}:${pagePath}`]);
     entries.push(pathToIdentityFields(pagePath, html));
   }
   return entries;
@@ -124,7 +120,7 @@ async function loadReferenceRoutes(ref, id) {
   let raw;
   try {
     raw = ref
-      ? await runGit(["show", `${ref}:${id}/reference-contract.json`])
+      ? await runGitChecked(["show", `${ref}:${id}/reference-contract.json`])
       : await Deno.readTextFile(`${id}/reference-contract.json`);
   } catch {
     return [];
@@ -147,7 +143,7 @@ async function loadSupportRoutes(ref) {
   let raw = null;
   try {
     raw = ref
-      ? await runGit(["show", `${ref}:responsive-support.json`])
+      ? await runGitChecked(["show", `${ref}:responsive-support.json`])
       : await Deno.readTextFile("responsive-support.json");
   } catch {
     return {};
