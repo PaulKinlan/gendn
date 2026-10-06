@@ -379,6 +379,18 @@ assert(
   "index escapes hostile suite identity",
   R.index.includes("1234&lt;script&gt;") || R.index.includes("#1234&lt;script&gt;"),
 );
+// gendn-b2s review finding 2: the lifecycle seam's BEHAVIOUR with the hostile identity — a
+// source-presence check is a proxy; this asserts on the rendered index HTML itself. The narrow's
+// null fallback must keep the hostile identity out of every href, while a benign STRING identity
+// still links canonically (the fallback is not universal — non-vacuity).
+assert(
+  "b2s seam (conformance index): the hostile suite identity produces NO chromestatus href in any form (raw or encoded)",
+  !R.index.includes("feature/1234&lt;") && !R.index.includes("feature/1234<"),
+);
+assert(
+  "b2s seam (conformance index): a benign STRING identity ('4321') renders the canonical link — the narrow accepts real ids through the string path",
+  R.index.includes('href="https://chromestatus.com/feature/4321"'),
+);
 
 // ---------- verdicts: the class-attribute injection + whitelist --------------------------------
 assert(
