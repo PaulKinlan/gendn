@@ -37,6 +37,7 @@ import {
   validateContractOwnership,
   validateDeclaredSurface,
   validateReferenceContract,
+  skippedSurfaceDeclarations,
 } from "./lib/reference-contract.mjs";
 
 const MIGRATIONS = "migrations.json";
@@ -255,6 +256,16 @@ async function main() {
                 );
               }
             }
+          }
+          // PARSER SKIPS ARE REPORTED AND NEVER FAIL (gendn-ijf): an anonymous special operation
+          // declares no name, so the parser cannot turn it into a member - a limit of the CHECK, not a
+          // defect in the page. Printed so the limit stays visible, and deliberately kept out of
+          // `failures`, because a gate that fails correct contracts teaches lanes to stop reading it (rule 87).
+          const skipped = skippedSurfaceDeclarations(pageHtml);
+          if (skipped.length > 0) {
+            surfaceNotes.push(
+              `  ${id}: parser skipped ${skipped.length} anonymous special operation(s) - nothing to account for: ${skipped.join(" | ")}`,
+            );
           }
           for (const error of structuralErrors) {
             failures.push(`touched built reference ${id}: ${error}`);

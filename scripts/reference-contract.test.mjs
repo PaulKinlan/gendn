@@ -3,6 +3,7 @@ import { isMdnStubHtml } from "./lib/artifacts.mjs";
 import {
   declaredSurfaceMembers,
   declaredSurfaceSummary,
+  skippedSurfaceDeclarations,
   resolveDocumentationHref,
   unreadableSyntaxBlocks,
   validateContractOwnership,
@@ -587,6 +588,78 @@ dictionary D {
       }`,
     );
   }
+
+    // gendn-ijf: AN ANONYMOUS SPECIAL OPERATION DECLARES NO NAME. `getter DOMString (unsigned long
+    // index);` used to be reported as a member named "DOMString" - the RETURN TYPE - and that is a
+    // FALSE POSITIVE in the declared-surface rule, which then demands the contract account for a
+    // member that does not exist. A gate that fails a CORRECT contract is worse than one that misses a
+    // defect (a false positive teaches lanes to stop reading the gate), so the shape is skipped and
+    // REPORTED through skippedSurfaceDeclarations(), which consumers warn about and never fail on.
+    // Measured with the real detector before the fix: members=["DOMString"] with unreadable=0 - a
+    // confident wrong answer rather than a loud hole, which is what made it dangerous.
+    {
+      const anonGetter = specialPage("  getter DOMString (unsigned long index);");
+      const namedGetter = specialPage("  getter DOMString item(unsigned long index);");
+      assert(
+        declaredSurfaceMembers(anonGetter).length === 0,
+        `an anonymous indexed getter must not report its return type as a member: ${
+          JSON.stringify(declaredSurfaceMembers(anonGetter))
+        }`,
+      );
+      assert(
+        skippedSurfaceDeclarations(anonGetter).length === 1 &&
+          /^getter DOMString \(unsigned long index\)$/.test(skippedSurfaceDeclarations(anonGetter)[0]),
+        `an anonymous indexed getter must be reported as a deliberate skip: ${
+          JSON.stringify(skippedSurfaceDeclarations(anonGetter))
+        }`,
+      );
+      assert(
+        unreadableSyntaxBlocks(anonGetter).length === 0,
+        `a deliberate skip is NOT a hole: reporting it as unreadable would fail a correct page: ${
+          JSON.stringify(unreadableSyntaxBlocks(anonGetter))
+        }`,
+      );
+      assert(
+        validateDeclaredSurface(surfaceContract([]), anonGetter).length === 0,
+        `THE POINT OF THE FIX: a correct contract on such a page must NOT be failed. Got: ${
+          JSON.stringify(validateDeclaredSurface(surfaceContract([]), anonGetter))
+        }`,
+      );
+      // THE NEGATIVE CONTROL, without which the fix could have been "stop reporting getters at all".
+      assert(
+        declaredSurfaceMembers(namedGetter).join(",") === "item",
+        `a NAMED indexed getter must still report its own name: ${
+          JSON.stringify(declaredSurfaceMembers(namedGetter))
+        }`,
+      );
+      assert(
+        skippedSurfaceDeclarations(namedGetter).length === 0,
+        `a NAMED indexed getter must not be swallowed by the skip: ${
+          JSON.stringify(skippedSurfaceDeclarations(namedGetter))
+        }`,
+      );
+      const anonSetter = specialPage("  setter undefined (unsigned long index, DOMString value);");
+      assert(
+        declaredSurfaceMembers(anonSetter).length === 0 &&
+          skippedSurfaceDeclarations(anonSetter).length === 1 &&
+          unreadableSyntaxBlocks(anonSetter).length === 0,
+        `an anonymous setter must be a warn-only skip, not an unreadable hole: ${
+          JSON.stringify([
+            declaredSurfaceMembers(anonSetter),
+            skippedSurfaceDeclarations(anonSetter),
+            unreadableSyntaxBlocks(anonSetter),
+          ])
+        }`,
+      );
+      // AND A REAL HOLE CANNOT HIDE BEHIND A SKIP.
+      const mixed = specialPage("  getter DOMString (unsigned long index);\n  parse();");
+      assert(
+        unreadableSyntaxBlocks(mixed).length === 1,
+        `a real unreadable block must still be reported when a skip sits beside it: ${
+          JSON.stringify(unreadableSyntaxBlocks(mixed))
+        }`,
+      );
+    }
 
   console.log("PASS — reference-contract structural tests");
 } finally {

@@ -211,10 +211,32 @@ export async function validateReferenceContract(contract, root = ".") {
 // contains h3 member subheadings. A page with neither an id nor a "Syntax" heading yields no
 // members and is not checked.
 //
-// TWO KNOWN PARSER LIMITS (gendn-4kq review 4, both latent - no current page hits either):
-//   * an ANONYMOUS special operation with a non-keyword return type reports the TYPE as a member
-//     (`getter DOMString (index)` -> "DOMString"). It over-reports, so it fails safe; every getter on
-//     the current pages is named.
+// THREE MEASURED PARSER LIMITS (gendn-ijf, measured with the REAL detector across all 201 pages
+// rather than by grep, because the reachability claim and the behaviour claim are different facts):
+//   * AN ANONYMOUS SPECIAL OPERATION REPORTS ITS RETURN TYPE AS A MEMBER
+//     (`getter DOMString (unsigned long index);` -> ["DOMString"], while the named control
+//     `getter DOMString item(unsigned long index);` -> ["item"]). THIS DOES NOT FAIL SAFE, and the
+//     earlier note here claimed it did - that was the wrong conclusion: the declared-surface rule
+//     reads a reported member as something the contract must account for, so a page with such a
+//     getter and a CORRECT contract is told to inventory a member named "DOMString", i.e. the
+//     detector fails correct work. Over-reporting is a FALSE POSITIVE, and a false positive in a
+//     gate is worse than a false negative (rule 87). It is now SKIPPED rather than reported, and
+//     surfaced through skippedSurfaceDeclarations() which WARNS and never fails. Reachability: 0 of
+//     201 pages carry the shape today, so the fix is preventive - but the shape is valid WebIDL and
+//     the failure mode is silent, which is why it is fixed rather than filed. The anonymous SETTER
+//     form (`setter undefined (...)`) already landed in the loud unreadable channel by accident -
+//     its type token IS a keyword, so the filter dropped it and the block read as unparseable - and
+//     it now takes the same warn-only path as the getter.
+//   * A CONSTRUCTOR-ONLY INTERFACE IS A FAIL-LOUD HOLE, not a silent one: a block declaring only
+//     `constructor(...)` yields no member AND is reported by unreadableSyntaxBlocks(), so it fails
+//     validation loudly. Measured: 7 of 201 pages contain `constructor(`, and 0 of them are misread
+//     (each also declares a readable member). This is a limit of the DECLARED-SURFACE check - a
+//     constructor is not a member name - and it is loud, which is the property that matters.
+//   * A `mixin` TOKEN INSIDE A QUOTED STRING IS NOT A HOLE, and this was measured rather than
+//     assumed: the JSON near-miss stays SILENT (members=[], unreadable=0, the intended behaviour for
+//     a non-IDL block), and all 5 pages containing a quoted `mixin` read their real surface
+//     correctly with 0 unreadable blocks. An accurate limit, not a bug (rule 71): the gate is
+//     necessary but not sufficient, and this shape is outside what it claims to cover.
 //   * THE TRIGGER IS A HEURISTIC, and its negative direction is a DECISION rather than an oversight.
 //     A block whose members are declared without any declaration-shaped token (no interface/
 //     dictionary/enum/namespace/callback/typedef/mixin/partial, no line-leading attribute) is read as
@@ -326,26 +348,27 @@ function preBlocksIn(region) {
   return blocks;
 }
 
-function memberNamesFromIdl(idl) {
-  const names = new Set();
-  // Strip WebIDL comments FIRST: `// partial interface Performance (core/timing/performance.idl)`
-  // sits on the same `;`-statement as the method below it, and the "(" in that comment otherwise
-  // wins the match and hides the real method (gendn-4kq review P1a). The `[^:]` guard keeps the
-  // `//` in an https:// URL from truncating a line. Then strip extended attributes ([Exposed=...])
-  // so they are never mistaken for members.
+// AN ANONYMOUS SPECIAL OPERATION: `getter DOMString (unsigned long index);`. The token before "("
+// is the RETURN TYPE, not a member name, so the statement declares nothing this check can name.
+// The pattern requires the "(" IMMEDIATELY after a single type token (optionally generic), which is
+// what separates it from the NAMED form: `getter DOMString item(...)` has an identifier in between
+// and is still reported by its own name. Written narrowly on purpose - a broader "starts with
+// getter/setter/deleter" test would swallow the named forms and lose real members.
+const ANONYMOUS_SPECIAL_OPERATION =
+  /^(?:getter|setter|deleter)\s+[\w$.]+(?:\s*<[^>]*>)?\s*\(\s*[^)]*\)$/i;
+
+// The per-statement view of an IDL block, shared by member extraction and the skip report so the two
+// cannot drift apart: comments and extended attributes are stripped here, the block is split on ";",
+// and the enclosing declaration header is removed. Extracted from memberNamesFromIdl when
+// skippedSurfaceDeclarations was added, because two copies of a statement splitter is exactly how a
+// fix lands in one path and not the other.
+function idlStatements(idl) {
   const bare = idl
     .replace(/(^|[^:])\/\/[^\n]*/g, "$1 ")
     .replace(/\/\*[\s\S]*?\*\//g, " ")
-    // Extended attributes are stripped ONLY at the start of a line, where WebIDL puts them. A
-    // blind /\[[^\]]*\]/g would also eat a default value such as `= []`, silently dropping the
-    // member (gendn-4kq review 3, P1).
     .replace(/^[ \t]*\[[^\]]*\][ \t]*/gm, " ");
-  // Parse per `;`-statement, stripping the enclosing declaration header (everything up to the
-  // last "{") so members declared on the same line as the brace are still seen.
+  const out = [];
   for (const raw of bare.split(";")) {
-    // Strip a LEADING declaration header only, and non-greedily: a greedy `[\s\S]*\{` matches the
-    // `{` of a default value such as `= {}` and swallows the whole declaration, dropping the
-    // method (gendn-4kq review 3, P1).
     const statement = raw
       .replace(
         /^[\s\S]*?\b(?:partial\s+)?(?:interface|dictionary|enum|mixin|namespace|callback\s+interface)\b[^{]*\{/,
@@ -353,7 +376,22 @@ function memberNamesFromIdl(idl) {
       )
       .replace(/^\}+/, "")
       .trim();
-    if (!statement) continue;
+    if (statement) out.push(statement);
+  }
+  return out;
+}
+
+function memberNamesFromIdl(idl) {
+  const names = new Set();
+  // Strip WebIDL comments FIRST: `// partial interface Performance (core/timing/performance.idl)`
+  // sits on the same `;`-statement as the method below it, and the "(" in that comment otherwise
+  // wins the match and hides the real method (gendn-4kq review P1a). The `[^:]` guard keeps the
+  // `//` in an https:// URL from truncating a line. Then strip extended attributes ([Exposed=...])
+  // so they are never mistaken for members.
+  for (const statement of idlStatements(idl)) {
+    // An anonymous special operation declares no name: skip it BEFORE the method/member matches, or
+    // its return type is reported as a member (see the header's measured limits).
+    if (ANONYMOUS_SPECIAL_OPERATION.test(statement)) continue;
     // `typedef X Y;` / `callback` / `namespace` declare a NAME, not a member; and in
     // `A implements B;` / `A includes B;` the B is a mixin name.
     if (/^(?:typedef|callback|namespace)\b/.test(statement)) continue;
@@ -429,6 +467,28 @@ export function declaredSurfaceMembers(html) {
 // requirement keeps JS/HTML scaffolding out: a code sample that merely CALLS something
 // (`document.querySelector("video")`) is not a declaration, and WebIDL members always live inside a
 // `{ }` body. Returns a short excerpt for the message.
+// Statements this parser SKIPS BY DESIGN - currently only anonymous special operations, whose return
+// type it must not report as a member (see the header). Reported separately from
+// unreadableSyntaxBlocks ON PURPOSE, because the two demand OPPOSITE handling: an unreadable block is
+// a hole in the check and FAILS validation, while a skipped anonymous special is a correct page that
+// the check simply cannot name, and failing it would fail correct work. Consumers WARN on this list
+// and never fail - the project's ruling is that a false positive in a gate is worse than a false
+// negative, because a gate that fails correct contracts teaches lanes to stop reading it.
+export function skippedSurfaceDeclarations(html) {
+  const region = syntaxRegionOf(renderedMarkup(html));
+  if (!region) return [];
+  const out = [];
+  for (const idl of preBlocksIn(region)) {
+    if (!IDL_BLOCK_GATE.test(idl)) continue;
+    for (const statement of idlStatements(idl)) {
+      if (ANONYMOUS_SPECIAL_OPERATION.test(statement)) {
+        out.push(statement.replace(/\s+/g, " ").trim().slice(0, 80));
+      }
+    }
+  }
+  return out;
+}
+
 export function unreadableSyntaxBlocks(html) {
   const region = syntaxRegionOf(renderedMarkup(html));
   if (!region) return [];
@@ -436,7 +496,14 @@ export function unreadableSyntaxBlocks(html) {
   for (const idl of preBlocksIn(region)) {
     if (!IDL_BLOCK_GATE.test(idl)) continue;
     if (!idl.includes("{")) continue;
-    if (!IDL_MEMBER_HINT.test(idl)) continue;
+    // DELIBERATE SKIPS ARE NOT HOLES: judge readability on the statements that are not skipped, so a
+    // block whose only member-shaped content is an anonymous special operation is not reported as
+    // unreadable (that would fail a correct page - and it did, in the first attempt at this fix).
+    // A block that mixes a skip with a genuinely unreadable declaration still reports, because the
+    // hint and the member count below are computed over what remains.
+    const statements = idlStatements(idl).filter((st) => !ANONYMOUS_SPECIAL_OPERATION.test(st));
+    if (statements.length === 0) continue;
+    if (!IDL_MEMBER_HINT.test(statements.join("; "))) continue;
     if (memberNamesFromIdl(idl).size > 0) continue;
     out.push(idl.replace(/\s+/g, " ").trim().slice(0, 120));
   }
