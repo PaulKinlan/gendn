@@ -16,6 +16,7 @@
 // Run: deno run --allow-read --allow-net --allow-run --allow-env --allow-write scripts/iframe-posture-sweep.mjs
 
 import { launch } from "./lib/cdp.mjs";
+import { PENDING_HARDENING } from "./lib/iframe-posture.mjs";
 
 const REPO = new URL("..", import.meta.url).pathname;
 const SHOWCASE = "https://chrome-platform-showcase.paulkinlan-ea.deno.net";
@@ -65,15 +66,32 @@ for await (const e of Deno.readDir(REPO)) {
     for await (const rel of walkHtml(`${REPO}${e.name}`, e.name)) pages.push(rel);
   }
 }
-const embeds = []; // { route, src }
+const embeds = []; // { route, src, file, pending }
+const pendingFiles = new Set(PENDING_HARDENING.map((p) => p.file));
 for (const rel of pages) {
   const text = await Deno.readTextFile(`${REPO}${rel}`);
   for (const m of text.matchAll(/<iframe\b[^>]*>/gs)) {
     const src = /src="([^"]+)"/.exec(m[0])?.[1];
-    if (src) embeds.push({ route: `/${rel.replace(/index\.html$/, "")}`, src });
+    if (src) {
+      embeds.push({
+        route: `/${rel.replace(/index\.html$/, "")}`,
+        src,
+        file: rel,
+        pending: pendingFiles.has(rel),
+      });
+    }
   }
 }
-console.log(`sweep: ${embeds.length} embed page(s) discovered`);
+const deferred = embeds.filter((e) => e.pending);
+const hardened = embeds.filter((e) => !e.pending);
+console.log(
+  `sweep: ${embeds.length} embed page(s) discovered; ${deferred.length} deliberately deferred (PENDING_HARDENING, gendn-8pp)`,
+);
+for (const d of deferred) {
+  console.log(
+    `PENDING (could NOT verify posture/demo for this page — deferred to gendn-8pp): ${d.file}`,
+  );
+}
 
 const serverPort = freePort();
 const cdpPort = freePort();
@@ -136,13 +154,14 @@ try {
 
   const page = await browser.newPage({ width: 1280, height: 900 });
   const samples = new Set([
-    embeds[0]?.route,
-    embeds[Math.floor(embeds.length / 2)]?.route,
-    embeds[embeds.length - 1]?.route,
+    hardened[0]?.route,
+    hardened[Math.floor(hardened.length / 2)]?.route,
+    hardened[hardened.length - 1]?.route,
   ]);
   await Deno.mkdir(OUT, { recursive: true });
 
-  for (const { route, src } of embeds) {
+  for (const { route, src, pending } of embeds) {
+    if (pending) continue; // deferred to gendn-8pp; logged above as could-NOT-verify
     const label = route.replace(/\/$/, "");
     // 1. raw SERVED html carries the posture (acceptance: served build, not source)
     const raw = await (await fetch(`${base}${route}`, { signal: AbortSignal.timeout(10000) }))
@@ -268,5 +287,5 @@ if (failures > 0) {
   Deno.exit(1);
 }
 console.log(
-  `iframe-posture sweep: all ${passed} assertions passed across ${embeds.length} embed page(s)`,
+  `iframe-posture sweep: all ${passed} assertions passed across ${hardened.length} hardened embed page(s); ${deferred.length} deferred to gendn-8pp (NOT verified)`,
 );

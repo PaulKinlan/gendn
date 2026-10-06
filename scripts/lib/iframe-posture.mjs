@@ -1,0 +1,53 @@
+// scripts/lib/iframe-posture.mjs — shared constants for the gendn-kjq iframe posture work.
+// Single source of truth for BOTH the guard fixture (scripts/iframe-posture.test.mjs) and the
+// acceptance sweep (scripts/iframe-posture-sweep.mjs), so the two can never disagree about which
+// pages are deliberately deferred.
+
+// The sanctioned posture for third-party demo embeds (rationale in .claude/routine-prompt.md
+// step 6): sandbox="allow-scripts allow-same-origin" + referrerpolicy="strict-origin-when-cross-origin".
+export const SANCTIONED_SANDBOX = "allow-scripts allow-same-origin";
+export const SANCTIONED_REFERRERPOLICY = "strict-origin-when-cross-origin";
+
+// Pages whose hardening is DELIBERATELY DEFERRED by coord ruling 2026-10-06 (option c: split and
+// file). They are built pages with NO reference-contract.json, so touching their content trips
+// check-conformance's touched-page ratchet (a touched built page must be implementation-sufficient).
+// EXACT file match only — never a wildcard, never a pattern, and a NEW unsandboxed third-party
+// iframe anywhere else still fails the guard.
+//
+// EXIT CONDITION (temporary by construction): gendn-8pp authors the 5 implementation-sufficient
+// contracts from source, applies the posture to these 5 pages, and REMOVES this list in the same
+// change. The guard fixture additionally SELF-EXPIRES each entry: if a listed page gains a
+// reference-contract.json before it is hardened and delisted, the fixture FAILS — the exemption
+// cannot outlive its reason.
+export const PENDING_HARDENING = [
+  {
+    file: "v150/speculative-load-measurement/index.html",
+    why:
+      "built page with no reference-contract.json yet; touching it trips the conformance ratchet",
+    bead: "gendn-8pp",
+  },
+  {
+    file: "v150/webrtc-diagnostic-logging-api/index.html",
+    why:
+      "built page with no reference-contract.json yet; touching it trips the conformance ratchet",
+    bead: "gendn-8pp",
+  },
+  {
+    file: "v151/algorithm-updates-in-webcrypto/index.html",
+    why:
+      "built page with no reference-contract.json yet; touching it trips the conformance ratchet",
+    bead: "gendn-8pp",
+  },
+  {
+    file: "v151/speculation-rules-form-submission-field/index.html",
+    why:
+      "built page with no reference-contract.json yet; touching it trips the conformance ratchet",
+    bead: "gendn-8pp",
+  },
+  {
+    file: "v152/sub-apps/index.html",
+    why:
+      "built page with no reference-contract.json yet; touching it trips the conformance ratchet",
+    bead: "gendn-8pp",
+  },
+];

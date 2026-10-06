@@ -25,6 +25,12 @@
 //      origin, which can silently break it (storage/IDB/same-origin fetch). It still needs a
 //      referrerpolicy and, if unsandboxed, must be listed in FIRST_PARTY_UNSANDBOXED with a
 //      reason — deliberate, never default.
+//   4. PENDING_HARDENING (scripts/lib/iframe-posture.mjs) is an exact-file, reasoned, self-
+//      expiring deferral list: 5 built pages with no reference-contract.json cannot be touched
+//      without tripping check-conformance's touched-page ratchet (coord ruling 2026-10-06,
+//      option c: split and file). gendn-8pp hardens them and deletes the list; if a listed page
+//      gains a contract before that, this fixture FAILS so the exemption cannot outlive its
+//      reason. A new unsandboxed third-party iframe on ANY other page still fails.
 //
 // DETECTOR PROOF: the canary section runs the SAME rule function against synthesized tags —
 // including the exact pre-fix shape (third-party iframe, no sandbox, no referrerpolicy), a
@@ -41,8 +47,14 @@
 //   - Attribute parsing is regex-grade: it reads sandbox/referrerpolicy/src tokens from the tag
 //     text. Exotic encodings (entity-escaped attribute values, tags split by template logic) could
 //     evade or confuse it — another reason the canaries pin the rule function, not the prose.
+//   - FIVE PAGES ARE DELIBERATELY NOT HARDENED YET (PENDING_HARDENING in
+//     scripts/lib/iframe-posture.mjs, tracking bead gendn-8pp). This fixture's greenness means
+//     "every iframe is either deliberately postured or an exact-match reasoned deferral" — it
+//     does NOT mean "all 36 embed pages are hardened". 31 are; 5 are not, and the list says why.
 //
 // Run: deno task test-iframe-posture
+
+import { PENDING_HARDENING, SANCTIONED_SANDBOX } from "./lib/iframe-posture.mjs";
 
 const REPO = new URL("..", import.meta.url).pathname;
 
@@ -75,12 +87,11 @@ const FIRST_PARTY_UNSANDBOXED = [
   // { file: "...", why: "..." },
 ];
 
-// The sanctioned sandbox value for third-party demo embeds (rationale in .claude/routine-prompt.md
-// step 6): allow-scripts keeps the demo interactive, allow-same-origin keeps its own storage/IDB
-// working (safe because a CROSS-origin child can never reach the parent). Anything else is a
-// per-embed variant and must be listed here WITH the reason it is required — a variant that
-// silently adds allow-top-navigation changes the risk story, not just the demo.
-const SANCTIONED_SANDBOX_TOKENS = new Set(["allow-scripts", "allow-same-origin"]);
+// The sanctioned sandbox value for third-party demo embeds comes from the shared module (single
+// source of truth with the sweep); anything beyond it is a per-embed variant and must be listed
+// here WITH the reason it is required — a variant that silently adds allow-top-navigation changes
+// the risk story, not just the demo.
+const SANCTIONED_SANDBOX_TOKENS = new Set(SANCTIONED_SANDBOX.split(/\s+/).filter(Boolean));
 const SANDBOX_VARIANTS = [
   // { file: "...", sandbox: "...", why: "..." },
 ];
@@ -180,10 +191,31 @@ for await (const rel of walkHtml(`${REPO}public`, "public")) pages.push(rel);
 
 let iframeCount = 0;
 const violations = [];
+const pendingSeen = new Set();
 for (const rel of pages) {
   const text = await Deno.readTextFile(`${REPO}${rel}`);
   for (const m of text.matchAll(/<iframe\b[^>]*>/gs)) {
     iframeCount++;
+    const pending = PENDING_HARDENING.find((p) => p.file === rel);
+    if (pending) {
+      // Exact-file reasoned deferral (rule 4) — and SELF-EXPIRING: the moment the page gains a
+      // reference-contract.json, the ratchet no longer blocks hardening, so the deferral is over
+      // and this fixture fails until the page is postured and the entry removed (gendn-8pp).
+      pendingSeen.add(rel);
+      let contractExists = false;
+      try {
+        Deno.statSync(`${REPO}${rel.replace(/index\.html$/, "")}reference-contract.json`);
+        contractExists = true;
+      } catch {
+        // no contract — deferral still valid
+      }
+      if (contractExists) {
+        violations.push(
+          `${rel}: STALE deferral — reference-contract.json now exists, so harden the iframe and remove the PENDING_HARDENING entry (gendn-8pp)`,
+        );
+      }
+      continue;
+    }
     const v = auditIframeTag(m[0], rel);
     if (v) violations.push(v);
   }
@@ -195,11 +227,24 @@ assert(
   `${pages.length} page(s), ${iframeCount} iframe(s)`,
 );
 assert(
-  "every published iframe carries a deliberate posture (referrerpolicy, and sandbox or a named exemption)",
+  "every published iframe carries a deliberate posture (referrerpolicy, and a SANCTIONED sandbox value or a named exemption)",
   violations.length === 0,
   violations.length > 0
     ? `${violations.length} violation(s): ${violations.slice(0, 8).join(" | ")}`
     : `${iframeCount} iframe(s), all deliberate`,
+);
+assert(
+  "every PENDING_HARDENING deferral names a real scanned page (the list cannot go stale silently)",
+  PENDING_HARDENING.every((p) => pendingSeen.has(p.file)),
+  `expected ${PENDING_HARDENING.length}, saw ${pendingSeen.size}: missing ${
+    PENDING_HARDENING.filter((p) => !pendingSeen.has(p.file)).map((p) => p.file).join(", ") ||
+    "none"
+  }`,
+);
+assert(
+  "the deferral list did not widen (exact 5 entries, each naming its tracking bead)",
+  PENDING_HARDENING.length === 5 && PENDING_HARDENING.every((p) => p.bead === "gendn-8pp"),
+  `${PENDING_HARDENING.length} entries`,
 );
 
 // --- canary: the rules MUST flag the pre-fix shape (the guard can fail) ---------------
@@ -254,6 +299,11 @@ assert(
   assert(
     "canary: an opaque data: URL without posture is flagged",
     auditIframeTag(dataUrl, "canary/data.html") !== null,
+  );
+  // The deferral is EXACT-FILE: the same unhardened tag on any other page is still flagged.
+  assert(
+    "canary: the pre-fix tag on a NON-deferred page is flagged (the deferral never widens)",
+    auditIframeTag(PREFIX_SHAPE, "v153/some-new-page/index.html") !== null,
   );
 }
 
