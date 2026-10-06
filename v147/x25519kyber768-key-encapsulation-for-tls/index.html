@@ -38,7 +38,7 @@
   </div>
 
   <section>
-    <h2>at a glance</h2>
+    <h2 id="at-a-glance">at a glance</h2>
     <table class="doc-table">
       <tr><th>Initially shipped</th><td>Chrome 124 (desktop, enabled by default)</td></tr>
       <tr><th>Chrome 147 change</th><td>Stepped rollout completes; <code>PostQuantumKeyAgreementEnabled</code> enterprise override removed</td></tr>
@@ -50,28 +50,30 @@
   </section>
 
   <section>
-    <h2>why it exists</h2>
+    <h2 id="why-it-exists">why it exists</h2>
     <p>A sufficiently large quantum computer would break the Elliptic Curve Diffie-Hellman key exchange underpinning today's TLS connections. Even though such computers do not yet exist, a "harvest now, decrypt later" attack is possible: an adversary records encrypted traffic today and decrypts it once quantum hardware is available.</p>
     <p>X25519Kyber768 is a hybrid mechanism: it runs classical X25519 and post-quantum ML-KEM-768 simultaneously and combines both shared secrets. This means the connection is secure against both classical and quantum attackers — classical security is not weakened, and quantum security is added on top. ML-KEM-768 is based on a NIST Post-Quantum Cryptography standard (FIPS 203).</p>
     <p>The key shares for Kyber are approximately 35&times; larger than an X25519 key exchange, adding around 1–2 KB to TLS handshakes and a 4–6% latency increase in microbenchmarks. In practice, the impact is minimal for most connections.</p>
-    <span class="citation">Source: <a href="https://chromestatus.com/feature/5257822742249472" target="_blank" rel="noopener">chromestatus.com/feature/5257822742249472</a>; IETF draft-ietf-tls-ecdhe-mlkem</span>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5257822742249472" target="_blank" rel="noopener">chromestatus.com/feature/5257822742249472</a>; <a href="https://datatracker.ietf.org/doc/draft-ietf-tls-ecdhe-mlkem/" target="_blank" rel="noopener">IETF draft-ietf-tls-ecdhe-mlkem</a></span>
   </section>
 
   <section>
-    <h2>what changed in Chrome 147</h2>
+    <h2 id="what-changed">what changed in Chrome 147</h2>
     <p>Chrome 124 first shipped X25519Kyber768 as the default key agreement for TLS on desktop. Between Chrome 124 and 146, an enterprise policy (<code>PostQuantumKeyAgreementEnabled</code>) allowed IT administrators to disable the hybrid KEM and fall back to classical X25519 only — useful for testing compatibility with TLS middleboxes that could not handle the larger key shares.</p>
     <p>In Chrome 147 this policy escape hatch is removed and X25519Kyber768 becomes mandatory for TLS connections with servers that support it. Servers that do not advertise ML-KEM-768 support continue to negotiate classical X25519 only.</p>
     <span class="citation">Source: <a href="https://chromestatus.com/feature/5257822742249472" target="_blank" rel="noopener">chromestatus.com/feature/5257822742249472</a></span>
   </section>
 
   <section>
-    <h2>impact on developers and administrators</h2>
+    <h2 id="impact">impact on developers and administrators</h2>
     <p>For most web developers there is nothing to do — Chrome handles key negotiation automatically. The change is relevant to:</p>
     <ul>
       <li><strong>TLS middlebox operators</strong> (enterprise proxies, deep-packet inspection appliances): ensure your TLS termination hardware supports ClientHello messages with the <code>X25519Kyber768Draft00</code> or <code>X25519MLKEM768</code> groups. Devices that cannot handle the larger handshake may need firmware updates.</li>
       <li><strong>Enterprise Chrome administrators</strong> who relied on <code>PostQuantumKeyAgreementEnabled = false</code>: this policy is gone in Chrome 147. Update TLS infrastructure before deploying Chrome 147 to avoid connectivity failures with internal TLS proxies.</li>
       <li><strong>Server operators</strong>: no action required if your server negotiates TLS normally. Servers that only support classical groups will continue to work; Chrome will fall back to X25519 only in that case.</li>
     </ul>
+    <pre><code># OpenSSL 3.5+: inspect the negotiated TLS 1.3 group on a supporting server
+openssl s_client -connect www.cloudflare.com:443 -servername www.cloudflare.com -tls1_3 -groups X25519MLKEM768 &lt;/dev/null 2&gt;&amp;1 | grep 'Server Temp Key'</code></pre>
     <span class="citation">Source: <a href="https://chromestatus.com/feature/5257822742249472" target="_blank" rel="noopener">chromestatus.com/feature/5257822742249472</a></span>
   </section>
 
