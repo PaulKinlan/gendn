@@ -27,23 +27,13 @@
 // Usage: deno run --allow-read --allow-run scripts/check-routes.mjs
 
 import { buildManifest } from "./route-manifest.mjs";
+import { gitRefExists } from "./lib/bounded-git.mjs";
 
 const BASELINE_SNAPSHOT = ".route-manifest.baseline.json";
 const MIGRATIONS = "migrations.json";
 
-async function gitRefExists(ref) {
-  try {
-    const cmd = new Deno.Command("git", {
-      args: ["rev-parse", "--verify", "--quiet", ref],
-      stdout: "null",
-      stderr: "null",
-    });
-    const { code } = await cmd.output();
-    return code === 0;
-  } catch {
-    return false;
-  }
-}
+// The bounded runner is shared (gendn-8q2): this gate must not be able to hang on the same
+// object-store contention / forked-git-pipe-open failure that gendn-1tu fixed in check-conformance.
 
 async function loadBaseline() {
   if (await gitRefExists("origin/main")) {
