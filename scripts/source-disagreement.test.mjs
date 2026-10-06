@@ -40,7 +40,10 @@
 // delta-confirmation's re-sweep found four more (the animation-accessor
 // animationevent/transitionevent pair, v152/deprecate-and-remove-xslt/xsltprocessor,
 // v150/speculative-load-measurement); (6) the second delta-confirmation's re-sweep found
-// one more (v147/autofill-event). A new page that gains a carried disagreement should be
+// one more (v147/autofill-event); (7) the r3m residuals bead (gendn-j3d) added the
+// web-printing HUB route — a second carriage site of the entry-point divergence, pinned
+// under the pair precedent (where a note is duplicated, both copies are regression
+// surfaces). A new page that gains a carried disagreement should be
 // ADDED here; that is a deliberate act, which is exactly what a curated table forces.
 //
 // MUTATION PROOFS (logs on the bead, not inline; cp-based backups per rule 107):
@@ -51,9 +54,12 @@
 //   M5 drop audiopreferred's side-A listing token                    -> FAIL on sideA (sweep entry).
 //   M6 empty a table entry's marker                                  -> FAIL on non-vacuity (guard).
 //   M7 drop a sweep-2 entry's side-B token (no-auto-rewind)          -> FAIL on sideB.
-//   M8 empty a DATED entry's dates array in the table (webcrypto)    -> FAIL on the dated-pages floor.
+//   M8 empty a DATED entry's dates array in the table (webcrypto)    -> FAIL on the dated-pages set match.
 //   M9 drop autofill-event's side-B token ("autofillValues")         -> FAIL on sideB (N1 entry).
-//   M10 empty xsltprocessor's dates array in the table               -> FAIL on the dated-pages floor.
+//   M10 empty xsltprocessor's dates array in the table               -> FAIL on the dated-pages set match.
+//   M11 M8d fabrication replayed (empty webcrypto's dates AND stuff  -> FAIL on the set match in BOTH
+//       css-border-shape's with a page-present token)                   directions (gendn-j3d item 1).
+//   M12 drop the hub route's side-B token (WindowOrWorkerGlobalScope)-> FAIL on sideB (gendn-j3d item 2).
 // Each restored to green. A check that cannot fail on a silently dropped side is a claim, not
 // a detector (rule 64: the signal must be shown to fire on the shape it was added for).
 //
@@ -222,6 +228,18 @@ const PAGES = [
     sideB: ["performance.getSpeculations()"],
     dates: [],
   },
+  {
+    // Added from the r3m residuals bead (gendn-j3d item 2): the HUB route carries the same
+    // divergence note in its member table as its pinned child (entry-point) — a second
+    // carriage site, so a second regression surface; if the hub's copy silently loses one
+    // side, nothing failed before this entry. Pinned under the pair precedent set by the
+    // animation-accessor subpages: where a note is duplicated, both copies are pinned.
+    page: "v147/web-printing-api/index.html",
+    marker: "is a Chromium implementation divergence",
+    sideA: ["normative Window entry point"],
+    sideB: ["WindowOrWorkerGlobalScope", "worker usability is unknown"],
+    dates: [],
+  },
 ];
 
 let failures = 0;
@@ -234,8 +252,8 @@ function assert(name, ok, detail = "") {
 // have a NON-EMPTY marker (html.includes("") is vacuously true), BOTH sides, and a dates
 // ARRAY (an absent one would throw an unnamed TypeError instead of failing a named check).
 assert(
-  "table is non-vacuous: at least fourteen carried-disagreement pages, each with a non-empty marker, BOTH sides pinned, and a dates array",
-  PAGES.length >= 14 &&
+  "table is non-vacuous: at least fifteen carried-disagreement pages, each with a non-empty marker, BOTH sides pinned, and a dates array",
+  PAGES.length >= 15 &&
     PAGES.every(
       (e) =>
         typeof e.marker === "string" && e.marker.length > 0 &&
@@ -244,14 +262,29 @@ assert(
   `${PAGES.length} entries`,
 );
 
-// Dated-pages floor (review finding F3): emptying a DATED entry's array in the table would
-// silently drop its dates assertion (the per-entry check is conditional on dates.length > 0).
-// Floor = the count measured at authoring (webcrypto, xslt, audiopreferred, no-auto-rewind,
-// autofill-event, xsltprocessor); raise it deliberately when a new dated page is pinned.
+// Dated-pages set, NAMED not counted (gendn-j3d item 1): the previous floor was a COUNT,
+// and a count is defeatable by deliberate fabrication — measured M8d: empty one dated
+// entry's dates AND stuff another entry's dates with a page-present token, the count holds
+// and the fixture exits 0 while a real dated page has been shed. Naming the pages makes
+// both halves of that fabrication fail: a named page whose dates are emptied breaks the
+// match, and a dated entry that is NOT named breaks it too. The set matches the table
+// EXACTLY in both directions; adding or removing a dated page is a deliberate two-site
+// edit (table + set), which is what a curated table should force.
+const DATED_PAGES = new Set([
+  "v151/algorithm-updates-in-webcrypto/index.html",
+  "v152/deprecate-and-remove-xslt/index.html",
+  "v152/audiopreferred-capture-in-getdisplaymedia-api/index.html",
+  "v151/no-auto-rewind-for-animationtrigger-play-methods/index.html",
+  "v147/autofill-event/index.html",
+  "v152/deprecate-and-remove-xslt/xsltprocessor/index.html",
+]);
+const datedInTable = new Set(PAGES.filter((e) => e.dates.length > 0).map((e) => e.page));
 assert(
-  "dated-pages floor: every page measured as carrying as-of dates still pins them",
-  PAGES.filter((e) => e.dates.length > 0).length >= 6,
-  `${PAGES.filter((e) => e.dates.length > 0).length} dated entries`,
+  "dated-pages set matches the table exactly in BOTH directions (a count is defeatable by fabrication; names are not)",
+  DATED_PAGES.size === datedInTable.size &&
+    [...DATED_PAGES].every((p) => datedInTable.has(p)) &&
+    [...datedInTable].every((p) => DATED_PAGES.has(p)),
+  `named ${DATED_PAGES.size}, table ${datedInTable.size}`,
 );
 
 for (const entry of PAGES) {
