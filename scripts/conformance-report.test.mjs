@@ -20,7 +20,15 @@
 // to leave those three cases as prose in a comment, which is exactly the 'described rather than
 // pinned' shape this repo keeps paying for.
 
-import { readResponsiveRows, responsiveReportLine, responsiveReportRows } from "./conformance.mjs";
+import {
+  mergeReportRows,
+  readReportRows,
+  readResponsiveRows,
+  responsiveReportLine,
+  responsiveReportRows,
+  runAllReportLine,
+  scopedResultsReport,
+} from "./conformance.mjs";
 
 let failures = 0;
 let passed = 0;
@@ -171,6 +179,128 @@ assert(
   shapes.length === 1 && shapes[0].id === "keep",
 );
 await Deno.remove(tmp, { recursive: true });
+
+// ---- gendn-502: THE SAME CLASS IN THE RUNNER'S OWN REPORT -------------------------------------
+// jvh fixed it for reports/conformance/responsive.json; the same runner's OTHER output had it too -
+// `deno task conformance --page <id>`, the documented evidence command, rewrote the tracked
+// results.json from 198 suites to 1 and the index rollup from 229 lines to 32. So the class is
+// closed once, in mergeReportRows, and both reports call it. These assertions pin the DECISION
+// (wholesale vs merge) for the second report and the two shapes the shared reader must accept.
+const suite = (id, pass) => ({ id, total: pass, pass, fail: 0, blocked: 0 });
+const existingSuites = [suite("a", 1), suite("b", 2), suite("c", 3)];
+const mergedSuites = mergeReportRows({
+  existing: existingSuites,
+  scanned: [suite("b", 9)],
+  scoped: true,
+});
+assert(
+  "502: a scoped run MERGES - the scanned suite replaces its own row IN PLACE, order intact",
+  JSON.stringify(mergedSuites.map((s) => s.id)) === JSON.stringify(["a", "b", "c"]) &&
+    mergedSuites[1].pass === 9 && mergedSuites[0].pass === 1 && mergedSuites[2].pass === 3,
+  JSON.stringify(mergedSuites.map((s) => `${s.id}:${s.pass}`)),
+);
+assert(
+  "502: a suite the report has never carried is APPENDED",
+  JSON.stringify(
+    mergeReportRows({ existing: existingSuites, scanned: [suite("z", 1)], scoped: true }).map((s) =>
+      s.id
+    ),
+  ) === JSON.stringify(["a", "b", "c", "z"]),
+);
+// THE INVERSE, pinned for the same reason jvh pinned it: a full run MUST regenerate wholesale, or a
+// suite whose page was removed from the catalogue could never leave the report.
+assert(
+  "502: a FULL run does NOT merge (catalogue removals must still be able to leave the report)",
+  JSON.stringify(
+    mergeReportRows({ existing: existingSuites, scanned: [suite("b", 9)], scoped: false }),
+  ) ===
+    JSON.stringify([suite("b", 9)]),
+);
+// The two reports have DIFFERENT SHAPES - the responsive one is an array of rows keyed `id`, the
+// run-all one is an object carrying `suites` - so the merge is keyed and the reader takes a key.
+assert(
+  "502: the shared merge is keyed, so an object-shaped report merges by its own key too",
+  JSON.stringify(
+    mergeReportRows({
+      existing: [{ page: "x" }, { page: "y" }],
+      scanned: [{ page: "y", v: 9 }],
+      scoped: true,
+      key: "page",
+    }),
+  ) === JSON.stringify([{ page: "x" }, { page: "y", v: 9 }]),
+);
+{
+  const tmp2 = await Deno.makeTempDir({ prefix: "gendn-502-" });
+  const objectReport = `${tmp2}/results.json`;
+  await Deno.writeTextFile(objectReport, JSON.stringify({ agg: {}, suites: existingSuites }));
+  const readBack = await readReportRows(objectReport, { what: "suites", key: "suites" });
+  assert(
+    "502: the shared reader reads an OBJECT report through its key",
+    JSON.stringify(readBack.map((s) => s.id)) === JSON.stringify(["a", "b", "c"]),
+  );
+  // THIS ONE IS THE BUG I SHIPPED AND CAUGHT BY RUNNING THE COMMAND: the reader accepted only
+  // top-level arrays, so on the real (object) report it returned [] while WARNING, the merge had
+  // nothing to merge into, and the scoped run still truncated 198 suites to 1. A missing key must
+  // warn rather than quietly produce an empty merge.
+  let shapeWarned = "";
+  const noKey = await readReportRows(objectReport, {
+    what: "suites",
+    warn: (m) => (shapeWarned = m),
+  });
+  assert(
+    "502: reading an OBJECT report without its key WARNS instead of silently merging nothing",
+    noKey.length === 0 && shapeWarned.includes("not an array of suites"),
+    shapeWarned,
+  );
+}
+// THE DECISION ITSELF, now that it is a pure seam: wholesale vs merge AND which aggregate the file
+// carries. Without this, the fixture would pass while the write site ignored the scope entirely -
+// which is exactly the wiring gap that made my first attempt look fixed at unit level and still
+// truncate the report end to end.
+const scopedReport = scopedResultsReport({
+  existing: existingSuites,
+  scanned: [suite("b", 9)],
+  scoped: true,
+});
+assert(
+  "502: the run-all report DECISION merges on a scoped run (198 suites cannot become 1)",
+  scopedReport.merged === true && scopedReport.suites.length === 3,
+  JSON.stringify(scopedReport.suites.map((s) => `${s.id}:${s.pass}`)),
+);
+assert(
+  "502: the report's aggregate covers the MERGED set, not just the scan",
+  scopedReport.agg.pass === 1 + 9 + 3 && scopedReport.agg.total === 1 + 9 + 3,
+  JSON.stringify(scopedReport.agg),
+);
+const fullReport = scopedResultsReport({
+  existing: existingSuites,
+  scanned: [suite("b", 9)],
+  scoped: false,
+});
+assert(
+  "502: the run-all report DECISION is wholesale on a full run, with the scan's own aggregate",
+  fullReport.suites.length === 1 && fullReport.agg.pass === 9,
+  JSON.stringify(fullReport.agg),
+);
+
+assert(
+  "502: the FULL run-all line is byte-identical to the pinned shape (the landing gate sends it)",
+  runAllReportLine({
+    scannedSuites: 5,
+    totalSuites: 5,
+    scoped: false,
+    agg: { pass: 1, fail: 0, blocked: 0, total: 1 },
+  }) === "run-all: 5 suites · assertions 1 pass / 0 fail / 0 blocked (of 1)",
+);
+assert(
+  "502: a scoped run's line names the merge AND the report's size, not the scan's",
+  runAllReportLine({ scannedSuites: 1, totalSuites: 198, scoped: true, agg: {} }).includes(
+    "merged into reports/conformance/results.json",
+  ) &&
+    runAllReportLine({ scannedSuites: 1, totalSuites: 198, scoped: true, agg: {} }).includes(
+      "report now 198 suites",
+    ),
+);
 
 console.log(`\nconformance-report fixture: all ${passed} assertions passed`);
 if (failures) {
