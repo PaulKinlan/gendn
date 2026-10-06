@@ -317,6 +317,9 @@ async function removeProfileDir(path, delays = [0, 150, 400, 900, 1900]) {
 // load (catches redirects), and evaluate() re-checks it before every evaluation (catches a page that
 // navigated itself away before the gate reads it). Still NOT seen: a page that leaves and returns
 // between two checks, and subframe / popup navigation.
+// The whitelist is HOSTNAME-ONLY: the port is not checked, so a redirect to another localhost port
+// passes. A failed LOCAL navigation (e.g. connection refused) lands on chrome-error:// and is
+// reported as off-origin; it fails closed, but the message names the wrong cause.
 export function isLocalNavigation(url) {
   if (url === "about:blank") return true;
   let u;
