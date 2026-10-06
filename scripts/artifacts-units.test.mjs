@@ -32,6 +32,7 @@ import {
   loadSupport,
   metadataFromHtml,
   normalizeAssertions,
+  pageMetadata,
   readJson,
   renderedMarkup,
   SHOWCASE_HOST,
@@ -364,6 +365,56 @@ assert(
   supportForRoute({ routes: { "/v9/x/": { desktop: "ok", mobile: "broken" } } }, "/v9/x/")
     .mobile === "broken",
 );
+
+// ---------- pageMetadata: the file-reading seam check-conformance depends on (gendn-vgs) ----
+// check-conformance.mjs:225/:271 gate per-page behaviour (built pages get extra assertions;
+// :271 builds the builtPages list) through pageMetadata — but the dd7 fixture only ever called
+// metadataFromHtml directly, so a wrapper that FABRICATED metadata and never read the file
+// still passed 54/54 (reviewer-proven). These assertions exercise the wrapper itself: real
+// file reading, the root parameter, delegation equality, and the missing-file contract.
+{
+  const vtmp = await Deno.makeTempDir({ prefix: "vgs-pagemeta-" });
+  try {
+    await Deno.mkdir(`${vtmp}/v900/seam`, { recursive: true });
+    const SEAM_HTML =
+      `<h1>Seam Page</h1><p>Record: <a href="https://chromestatus.com/feature/4242424242">cs</a></p>`;
+    await Deno.writeTextFile(`${vtmp}/v900/seam/index.html`, SEAM_HTML);
+    const viaWrapper = await pageMetadata("v900/seam/index.html", vtmp);
+    const viaDirect = metadataFromHtml("v900/seam/index.html", SEAM_HTML);
+    assert(
+      "pageMetadata reads the REAL file and delegates to metadataFromHtml (field-for-field equality)",
+      JSON.stringify(viaWrapper) === JSON.stringify(viaDirect),
+    );
+    assert(
+      "pageMetadata honors the root parameter and derives identity from the FILE'S content (a fabricating wrapper ignoring the html fails this)",
+      viaWrapper.identity === "4242424242" && viaWrapper.status === "built" &&
+        viaWrapper.h1 === "Seam Page",
+      String(viaWrapper.identity),
+    );
+    await Deno.mkdir(`${vtmp}/v900/seam2`, { recursive: true });
+    await Deno.writeTextFile(
+      `${vtmp}/v900/seam2/index.html`,
+      `<p class="eyebrow">Covered on MDN</p><h1>Stub Page</h1>`,
+    );
+    const viaStub = await pageMetadata("v900/seam2/index.html", vtmp);
+    assert(
+      "pageMetadata distinguishes files under the same root (stub file reads as stub, built as built)",
+      viaStub.status === "stub" && viaWrapper.status === "built",
+    );
+    let missingThrew = false;
+    try {
+      await pageMetadata("v900/absent/index.html", vtmp);
+    } catch (e) {
+      missingThrew = e instanceof Deno.errors.NotFound;
+    }
+    assert(
+      "pageMetadata: a missing page file THROWS NotFound (no silent null metadata)",
+      missingThrew,
+    );
+  } finally {
+    await Deno.remove(vtmp, { recursive: true }).catch(() => {});
+  }
+}
 
 // ---------- temp-catalogue boundaries ------------------------------------------------------
 const tmp = await Deno.makeTempDir({ prefix: "artifacts-units-" });
