@@ -153,6 +153,36 @@ case_run "A13 belt trips AFTER the dry run"               4 "$OLD_SHORT..$STUB_H
 )
 check "A14 belt dirty before start is a PRECONDITION" 6 "$(cat "$TMPROOT/a14.rc")" 1
 
+# --- A15/A16: malformed option handling (gendn-04g regression pins) ------------
+# A value-taking option supplied as the LAST argument used to make $2 unbound under set -u, so
+# the script died with a shell error instead of a usage message. Checked under BOTH shells
+# because the failure reproduced in both (dash: 'parameter not set'; bash: 'unbound variable').
+for shell in sh bash; do
+  for opt in --remote --out --probe-glob; do
+    ( cd "$TMPROOT" || exit 1
+      PATH="$STUBDIR:$PATH" STUB_HEAD="$STUB_HEAD_FULL" STUB_PUSH_LOG="$TMPROOT/a15.log" \
+        "$shell" "$SCRIPT" HEAD main "$opt" >"$TMPROOT/a15.out" 2>&1
+      echo $? >"$TMPROOT/a15.rc" )
+    rc=$(cat "$TMPROOT/a15.rc")
+    extra=1
+    grep -q "requires a value" "$TMPROOT/a15.out" || extra=0
+    grep -qE "unbound variable|parameter not set" "$TMPROOT/a15.out" && extra=0
+    grep -q "usage:" "$TMPROOT/a15.out" || extra=0
+    check "A15 $shell: last-arg '$opt' -> usage + exit 6 (no shell error)" 6 "$rc" "$extra"
+  done
+done
+for shell in sh bash; do
+  ( cd "$TMPROOT" || exit 1
+    PATH="$STUBDIR:$PATH" STUB_HEAD="$STUB_HEAD_FULL" STUB_PUSH_LOG="$TMPROOT/a16.log" \
+      "$shell" "$SCRIPT" HEAD main --bogus >"$TMPROOT/a16.out" 2>&1
+    echo $? >"$TMPROOT/a16.rc" )
+  rc=$(cat "$TMPROOT/a16.rc")
+  extra=1
+  grep -q "unknown option" "$TMPROOT/a16.out" || extra=0
+  grep -q "usage:" "$TMPROOT/a16.out" || extra=0
+  check "A16 $shell: unknown option -> usage + exit 6" 6 "$rc" "$extra"
+done
+
 # ---------------------------------------------------------------------------
 # PART B — real git against a LOCAL BARE REMOTE (no network)
 # ---------------------------------------------------------------------------
@@ -186,7 +216,7 @@ B_MAIN_BEFORE=$(git -C "$B/remote.git" rev-parse refs/heads/main)
   sh "$SCRIPT" fleet/x main --remote origin --out "$B/b1.row" >"$B/b1.out" 2>&1
   echo $? >"$B/b1.rc"
 )
-b1_row=$(grep -E '^[[:space:]]*[0-9a-f]+\.\.[0-9a-f]+' "$B/b1.row" 2>/dev/null | head -1)
+b1_row=$(grep -E '^[[:space:]]*[0-9a-f]+\.\.[0-9a-f]+' "$B/b1.row" 2>/dev/null | head -n 1)
 say "      B1 real row: $b1_row"
 A7=$(printf '%s' "$B_A" | cut -c1-7)
 B7=$(printf '%s' "$B_B" | cut -c1-7)
@@ -229,7 +259,7 @@ check "B3 REAL Everything-up-to-date NO-OP" 2 "$(cat "$B/b3.rc")" 1
   sh "$SCRIPT" fleet/x main --remote origin --out "$B/b4.row" >"$B/b4.out" 2>&1
   echo $? >"$B/b4.rc"
 )
-say "      B4 refusal line: $(cat "$B/b4.row" 2>/dev/null | head -1)"
+say "      B4 refusal line: $(cat "$B/b4.row" 2>/dev/null | head -n 1)"
 check "B4 REAL [rejected] refusal classified REFUSED" 3 "$(cat "$B/b4.rc")" 1
 check "B4 control: fleet/x was NOT pushed by a refusal" 0 \
   "$([ "$(git -C "$B/remote.git" rev-parse refs/heads/main)" = "$(cat "$B/C")" ] && echo 0 || echo 1)" 1
