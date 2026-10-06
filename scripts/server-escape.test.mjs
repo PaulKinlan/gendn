@@ -6,8 +6,21 @@
 const XSSI = ")]}'";
 const evil = `x"><script>alert(1)</script>`;
 
+let servedIndexHtml = "";
+let servedCss = "";
+
 const stubServer = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
   const url = new URL(req.url);
+  if (url.pathname === "/") {
+    return new Response(servedIndexHtml, {
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
+  }
+  if (url.pathname === "/public/styles.css") {
+    return new Response(servedCss, {
+      headers: { "content-type": "text/css; charset=utf-8" },
+    });
+  }
   const json = (body) => new Response(body, { headers: { "content-type": "application/json" } });
   if (url.pathname === "/features" && url.searchParams.get("milestone") === "150") {
     return json(`${XSSI}\n${
@@ -140,73 +153,120 @@ assert(
     !knownOutOfBounds.has(-1),
 );
 
-// CSS HOVER AFFORDANCE GUARD (gendn-f3t):
-// A non-interactive release card (rendered with aria-disabled="true" on its link) must not
-// display ANY hover affordance:
-//   1. The parent .release-card must not transform or raise box-shadow on hover.
-//   2. The child .release-card-link must not recolour to accent-blue on hover.
-//   3. Live cards (.release-card without disabled link) and .demo-card must retain hover behavior.
-//
-// FIDELITY / RUNTIME NOTE:
-// This fixture (scripts/server-escape.test.mjs) runs in headless Deno without a DOM or browser
-// layout engine (no document, no getComputedStyle; CDP/Chrome is reserved for landing-gate
-// browser fixtures like test-reference-contract to keep fast fixtures lightweight).
-// Therefore, a runtime computed-style hover test cannot run inside this file.
-// Rather than asserting on a loose substring (Rule 153), we parse the CSS rule tree of public/styles.css
-// to verify the structural contract of all hover rules touching release cards:
+// BROWSER COMPUTED-STYLE HOVER AFFORDANCE TEST (gendn-f3t Option A):
+// Drive headless Chrome over CDP to verify real visual/pointer affordances on the rendered
+// renderIndex(hostileChannels) output using the actual public/styles.css stylesheet:
+// 1. Live card (Chrome 154) lifts (transform: matrix(1, 0, 0, 1, -2, -2)), deepens shadow (6px), and recolours link (rgb(0, 34, 255)).
+// 2. Disabled card (Chrome 1" onmouseover="alert(1)) does NOT lift (transform: none), retains flat shadow (4px), and retains text color (rgb(0, 0, 0)).
+const { launch } = await import("./lib/cdp.mjs");
 const css = await Deno.readTextFile("public/styles.css");
-const strippedCss = css.replace(/\/\*[\s\S]*?\*\//g, "");
-const cssRuleRe = /([^{}]+)\{([^{}]+)\}/g;
-const cssRules = [];
-let match;
-while ((match = cssRuleRe.exec(strippedCss)) !== null) {
-  const selectors = match[1].split(",").map((s) => s.trim()).filter(Boolean);
-  const declarations = match[2].trim();
-  cssRules.push({ selectors, declarations });
-}
+servedCss = css;
+servedIndexHtml = indexHtml;
 
-// Check 1: No release-card selector may apply :hover without gating on aria-disabled="true".
-const releaseHoverSelectors = cssRules
-  .flatMap((r) => r.selectors)
-  .filter((s) => s.includes(".release-card") && s.includes(":hover"));
+const browser = await launch();
+const page = await browser.newPage({ width: 1280, height: 800 });
+await page.goto(`http://127.0.0.1:${stubServer.addr.port}/`);
+
+// Unhovered baseline (mouse at origin)
+await page.cmd("Input.dispatchMouseEvent", { type: "mouseMoved", x: 0, y: 0 });
+const baseline = await page.evaluate(`(() => {
+  const liveCard = document.querySelector(".release-card:has(a[href*='/v154/'])");
+  const liveLink = liveCard.querySelector(".release-card-link");
+  const disabledCard = document.querySelector(".release-card:has(a[aria-disabled='true'])");
+  const disabledLink = disabledCard.querySelector(".release-card-link");
+  return {
+    liveTransform: getComputedStyle(liveCard).transform,
+    liveShadow: getComputedStyle(liveCard).boxShadow,
+    liveColor: getComputedStyle(liveLink).color,
+    disabledTransform: getComputedStyle(disabledCard).transform,
+    disabledShadow: getComputedStyle(disabledCard).boxShadow,
+    disabledColor: getComputedStyle(disabledLink).color,
+  };
+})()`);
+
+assert("browser baseline: live card is unhovered", baseline.liveTransform === "none");
+assert("browser baseline: disabled card is unhovered", baseline.disabledTransform === "none");
+
+// Hover over live card
+const liveCoords = await page.evaluate(`(() => {
+  const liveCard = document.querySelector(".release-card:has(a[href*='/v154/'])");
+  liveCard.scrollIntoView({ block: "center" });
+  const r = liveCard.getBoundingClientRect();
+  return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+})()`);
+await page.cmd("Input.dispatchMouseEvent", {
+  type: "mouseMoved",
+  x: liveCoords.x,
+  y: liveCoords.y,
+});
+await new Promise((r) => setTimeout(r, 250));
+
+const liveHovered = await page.evaluate(`(() => {
+  const liveCard = document.querySelector(".release-card:has(a[href*='/v154/'])");
+  const liveLink = liveCard.querySelector(".release-card-link");
+  return {
+    cardTransform: getComputedStyle(liveCard).transform,
+    cardShadow: getComputedStyle(liveCard).boxShadow,
+    linkColor: getComputedStyle(liveLink).color,
+  };
+})()`);
 
 assert(
-  "public/styles.css: all release-card hover selectors gate on the absence of aria-disabled='true'",
-  releaseHoverSelectors.length > 0 &&
-    releaseHoverSelectors.every((s) => s.includes(":not(") && s.includes('aria-disabled="true"')),
+  "browser hover: live card lifts (-2px, -2px)",
+  liveHovered.cardTransform === "matrix(1, 0, 0, 1, -2, -2)",
 );
 assert(
-  "public/styles.css: no ungated .release-card:hover or .release-card-link:hover selector exists",
-  !releaseHoverSelectors.some((s) => /^(\.release-card|\.release-card-link):hover$/.test(s)),
+  "browser hover: live card raises box-shadow (6px)",
+  liveHovered.cardShadow === "rgb(0, 0, 0) 6px 6px 0px 0px",
+);
+assert(
+  "browser hover: live card link recolours to accent-blue",
+  liveHovered.linkColor === "rgb(0, 34, 255)",
 );
 
-// Check 2: Parent card hover rule applies transform/box-shadow to enabled release-card AND preserves demo-card hover.
-const cardLiftRule = cssRules.find(
-  (r) =>
-    r.declarations.includes("translate(-2px, -2px)") &&
-    r.selectors.some((s) => s.includes(".release-card")),
+// Reset pointer to origin
+await page.cmd("Input.dispatchMouseEvent", { type: "mouseMoved", x: 0, y: 0 });
+await new Promise((r) => setTimeout(r, 250));
+
+// Hover over disabled card
+const disabledCoords = await page.evaluate(`(() => {
+  const disabledCard = document.querySelector(".release-card:has(a[aria-disabled='true'])");
+  disabledCard.scrollIntoView({ block: "center" });
+  const r = disabledCard.getBoundingClientRect();
+  return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+})()`);
+await page.cmd("Input.dispatchMouseEvent", {
+  type: "mouseMoved",
+  x: disabledCoords.x,
+  y: disabledCoords.y,
+});
+await new Promise((r) => setTimeout(r, 250));
+
+const disabledHovered = await page.evaluate(`(() => {
+  const disabledCard = document.querySelector(".release-card:has(a[aria-disabled='true'])");
+  const disabledLink = disabledCard.querySelector(".release-card-link");
+  return {
+    cardTransform: getComputedStyle(disabledCard).transform,
+    cardShadow: getComputedStyle(disabledCard).boxShadow,
+    linkColor: getComputedStyle(disabledLink).color,
+  };
+})()`);
+
+assert(
+  "browser hover: disabled card does NOT lift (transform remains none)",
+  disabledHovered.cardTransform === "none",
 );
 assert(
-  "public/styles.css: card-lift hover rule exists and gates .release-card on :not(:has([aria-disabled='true']))",
-  cardLiftRule !== undefined &&
-    cardLiftRule.selectors.includes('.release-card:not(:has([aria-disabled="true"])):hover'),
+  "browser hover: disabled card does NOT raise box-shadow (remains 4px flat shadow)",
+  disabledHovered.cardShadow === "rgb(0, 0, 0) 4px 4px 0px 0px",
 );
 assert(
-  "public/styles.css: card-lift hover rule preserves .demo-card:hover affordance",
-  cardLiftRule !== undefined && cardLiftRule.selectors.includes(".demo-card:hover"),
+  "browser hover: disabled card link does NOT recolour (remains text-black)",
+  disabledHovered.linkColor === "rgb(0, 0, 0)",
 );
 
-// Check 3: Link recolour rule gates .release-card-link on :not([aria-disabled="true"]).
-const linkColorRule = cssRules.find(
-  (r) =>
-    r.declarations.includes("var(--accent-blue)") &&
-    r.selectors.some((s) => s.includes(".release-card-link")),
-);
-assert(
-  "public/styles.css: link recolour rule gates on .release-card-link:not([aria-disabled='true']):hover",
-  linkColorRule !== undefined &&
-    linkColorRule.selectors.includes('.release-card-link:not([aria-disabled="true"]):hover'),
-);
+await page.close();
+await browser.close();
 
 await stubServer.shutdown();
 
