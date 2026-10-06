@@ -54,6 +54,34 @@ export function extractBlocks(css, subsets = DEFAULT_SUBSETS) {
   return out;
 }
 
+/**
+ * The identity of ONE vendored rule, along the axes the sheet keys on:
+ * family + style + weight + subset. Two rules with the same identity are the same face; a response
+ * that lacks an identity the sheet already has would DELETE it.
+ *
+ * The four axes are derived from the rule body plus its subset comment. A FIFTH axis was
+ * considered and rejected: unicode-range is the property that distinguishes subsets in the first
+ * place (that is what the subset comment names), so keying on it as well would double-count the
+ * same distinction — and it would make a harmless upstream re-encoding of a range look like a
+ * removal.
+ */
+export function ruleIdentities(blocks) {
+  return blocks.map((b) => {
+    const family = /font-family:\s*'([^']+)'/.exec(b.text)?.[1] ?? "unknown";
+    const style = /font-style:\s*([a-z]+)/.exec(b.text)?.[1] ?? "normal";
+    const weight = /font-weight:\s*(\d+)/.exec(b.text)?.[1] ?? "400";
+    return `${family}|${style}|${weight}|${b.subset}`;
+  });
+}
+
+/** The identities currently present in the sheet's vendored block. */
+export function vendoredIdentities(sheet) {
+  const begin = sheet.indexOf(BEGIN);
+  const end = sheet.indexOf(END);
+  if (begin === -1 || end === -1) return [];
+  return ruleIdentities(extractBlocks(sheet.slice(begin, end)));
+}
+
 /** How many @font-face rules a body declares at all, regardless of subset. */
 export function countFontFaces(css) {
   return (css.match(/@font-face\s*\{/g) ?? []).length;
@@ -129,6 +157,20 @@ if (import.meta.main) {
   // keep) instead of reaching Google. It changes no production behaviour.
   const urlFlag = argv.indexOf("--css-url");
   const cssUrl = urlFlag === -1 ? CSS_URL : argv[urlFlag + 1];
+  // The override for a genuine upstream removal is deliberate and must be justified: a bare flag is
+  // easy to paste into a script and forget, so the reason is required and is echoed into the output.
+  const allowReduction = argv.includes("--allow-rule-removal");
+  const reasonFlag = argv.indexOf("--reason");
+  const reason = reasonFlag === -1 ? "" : (argv[reasonFlag + 1] ?? "");
+  if (allowReduction && reason.trim().length < 10) {
+    throw new Error(
+      '--allow-rule-removal requires --reason "<why>" (at least 10 characters), so an ' +
+        "intentional reduction is recorded rather than looking like an accident",
+    );
+  }
+  if (!allowReduction && reasonFlag !== -1) {
+    throw new Error("--reason is only meaningful with --allow-rule-removal");
+  }
 
   try {
     const css = await fetchCss(cssUrl);
@@ -160,8 +202,46 @@ if (import.meta.main) {
       );
     }
 
+    // A WRITE MUST NOT REDUCE THE VENDORED RULE SET (gendn-cp7). The zero-rule guard above covers
+    // total failure; a NON-EMPTY but INCOMPLETE 200 (one family, or a family missing a weight) still
+    // passes it and would overwrite the sheet with that smaller set — silently dropping every other
+    // face across all 302 consumers, after which --check against the same upstream reports "up to
+    // date" and the corruption is self-consistent. Identity keys make "reduced" precise, and
+    // ADDITIVE growth (every existing identity plus more) is still written, because otherwise
+    // upstream additions could never land.
+    const before = new Set(vendoredIdentities(sheet));
+    const after = new Set(ruleIdentities(blocks));
+    const removed = [...before].filter((identity) => !after.has(identity));
+    const added = [...after].filter((identity) => !before.has(identity));
+
+    if (removed.length > 0 && !allowReduction) {
+      throw new Error(
+        `the response would REMOVE ${removed.length} of the ${before.size} vendored rule(s) ` +
+          `(adding ${added.length}): ${removed.slice(0, 6).join(", ")}` +
+          `${removed.length > 6 ? `, +${removed.length - 6} more` : ""}. ` +
+          "Refusing to write, because a partial upstream response looks exactly like this and would " +
+          "silently drop faces site-wide. If the removal is genuine, say so deliberately with " +
+          '`--allow-rule-removal --reason "<why>"`.',
+      );
+    }
+    if (removed.length > 0) {
+      // LOUD, not silent: the override states exactly what it is dropping.
+      console.error(
+        `vendor-fonts: OVERRIDE — dropping ${removed.length} vendored rule(s) on request ` +
+          `(reason: ${reason}): ${removed.join(", ")}`,
+      );
+    }
+
     const updated = replaceBlock(sheet, block);
     const changed = updated !== sheet;
+    if (check && removed.length > 0) {
+      console.log(
+        `vendor-fonts: OUT OF DATE — the response would REMOVE ${removed.length} rule(s) ` +
+          `(${removed.slice(0, 4).join(", ")}${removed.length > 4 ? ", …" : ""}); writing needs ` +
+          "--allow-rule-removal with a reason",
+      );
+      Deno.exit(1);
+    }
     if (check) {
       console.log(
         changed

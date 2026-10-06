@@ -365,6 +365,7 @@ deno task check-conformance    # coverage + immutability + touched-page sufficie
 deno task check-verdict-emission <log> [--phase run-all|responsive|behavioural]  # LANDING GATE: assert the emitted verdict block of a REAL gate log (`--phase behavioural` is required for the kill probe, and requires the kill evidence below)
 sh scripts/kill-probe.sh <log> [--after <seconds>] -- <command>  # LANDING GATE (behavioural phase): run the kill probe itself; the wrapper appends the kill-evidence line the checker requires
 deno task test-verdict-emission # validate the CHECKER against synthetic logs — the landing gate is where it meets the runner's real output, so this alone cannot detect a runner that stopped printing `verdict:`
+deno task test-fixtures        # run EVERY `test-*` task deno.json declares (discovered by scripts/run-fixtures.mjs, browser-backed suites excluded with a reason). CI runs this, so a NEW fixture is enrolled automatically — before gendn-cp7 the fixture tasks were green when typed and invoked by NOTHING, which is one commit away from being deleted by accident.
 ```
 
 **FLOW CHANGE (gendn-3t2) — the behavioural phase now requires KILL EVIDENCE.** `check-verdict-emission
