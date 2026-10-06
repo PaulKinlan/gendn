@@ -221,9 +221,61 @@ function hasId(html, id) {
   return new RegExp(`\\bid=["']${escaped}["']`, "i").test(renderedMarkup(html));
 }
 
-function hasHref(html, url) {
-  const escaped = escapeRegExp(url).replace(/&/g, "(?:&|&amp;)");
-  return new RegExp(`<a\\b[^>]*\\shref=["']${escaped}["']`, "i").test(renderedMarkup(html));
+/**
+ * The CANONICAL form of a citation URL, used for BOTH sides of a citation comparison
+ * (gendn-t77: a contract citing the bare host `https://example.org` could never match a page whose
+ * link the browser resolves to `https://example.org/`, so the assertion silently asked for the wrong
+ * spelling and pages drifted to matching it).
+ *
+ * THE RULE, PER COMPONENT — exactly what `new URL(s).href` does, and nothing more:
+ *   scheme   : lower-cased, and http != https (a downgrade is a DIFFERENT citation; this repo
+ *              requires direct canonical sources);
+ *   host     : lower-cased; subdomains stay distinct (x.org != www.x.org);
+ *   port     : a DEFAULT port is dropped (https://x:443/ == https://x/); a non-default one is kept
+ *              and must match;
+ *   path     : EMPTY path becomes "/" (this is the gendn-t77 incident); dot-segments are resolved;
+ *              case and a trailing slash beyond that stay SIGNIFICANT;
+ *   query    : SIGNIFICANT and preserved (a query is not decoration);
+ *   fragment : SIGNIFICANT and preserved (a citation to #section is not the bare page — collapsing it
+ *              would let a citation to the WRONG SECTION look present, which weakens the very
+ *              property this gate protects);
+ *   anything else: preserved verbatim.
+ * A relative reference has no canonical absolute form, so it returns null and FAILS CLOSED: a
+ * relative href on the page cannot satisfy an absolute citation, and an unparseable citation cannot
+ * be satisfied by anything.
+ */
+export function canonicalCitationUrl(value) {
+  if (typeof value !== "string") return null;
+  const raw = value.trim();
+  if (raw === "") return null;
+  try {
+    return new URL(raw).href;
+  } catch {
+    return null;
+  }
+}
+
+const HREF_ATTR = /\shref\s*=\s*(?:"([^"]*)"|'([^']*)')/gi;
+
+/** Decode the entities that can legitimately appear inside an href attribute. */
+function decodeHrefEntities(value) {
+  return value
+    .replace(/&(?:amp|#38|#x26);/gi, "&")
+    .replace(/&(?:quot|#34|#x22);/gi, '"')
+    .replace(/&(?:apos|#39|#x27);/gi, "'")
+    .replace(/&(?:lt|#60|#x3c);/gi, "<")
+    .replace(/&(?:gt|#62|#x3e);/gi, ">");
+}
+
+/** Exported for the gendn-t77 fixture, which pins the incident at the GATE level, not just the rule. */
+export function hasHref(html, url) {
+  const wanted = canonicalCitationUrl(url);
+  if (wanted === null) return false; // fail closed (see the rule above)
+  for (const match of renderedMarkup(html).matchAll(HREF_ATTR)) {
+    const got = canonicalCitationUrl(decodeHrefEntities(match[1] ?? match[2] ?? ""));
+    if (got !== null && got === wanted) return true;
+  }
+  return false;
 }
 
 function fragmentAfterId(html, id) {
