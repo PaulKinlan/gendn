@@ -69,13 +69,17 @@ export async function readCapped(res: Response, maxBytes: number): Promise<strin
  */
 export async function fetchBounded(
   url: string,
-  { headers, timeoutMs = UPSTREAM_TIMEOUT_MS, maxBytes = UPSTREAM_MAX_BYTES }: {
+  { headers, timeoutMs = UPSTREAM_TIMEOUT_MS, maxBytes = UPSTREAM_MAX_BYTES, method }: {
     headers?: HeadersInit;
     timeoutMs?: number;
     maxBytes?: number;
+    // method is additive for gendn-5fk: lib/mdn.ts existence checks use HEAD, and that fetch must
+    // carry the same bound as every other outbound call rather than a second implementation.
+    // Omitted (undefined) means a normal GET, so existing callers are unchanged.
+    method?: string;
   } = {},
 ): Promise<{ res: Response; text: string }> {
-  const res = await fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs) });
+  const res = await fetch(url, { method, headers, signal: AbortSignal.timeout(timeoutMs) });
   const text = await readCapped(res, maxBytes);
   return { res, text };
 }
