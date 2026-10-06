@@ -310,6 +310,16 @@ async function removeProfileDir(path, delays = [0, 150, 400, 900, 1900]) {
 // loading="lazy" and below the fold, so a gate that never scrolls never loads them (if a gate starts
 // scrolling, or an iframe moves above the fold, lazy stops being a control); tests evaluate only
 // same-origin DOM.
+//
+// WHAT THIS CHECK CAN SEE (gendn-8ph): only the URL the gate asks for. It is blind to HTTP redirects
+// and to navigation the page performs itself (location changes, clicks, form posts, window.open).
+// Those are covered separately, and only partly: goto() re-checks the FINAL top-level URL after the
+// load (catches redirects), and evaluate() re-checks it before every evaluation (catches a page that
+// navigated itself away before the gate reads it). Still NOT seen: a page that leaves and returns
+// between two checks, and subframe / popup navigation.
+// The whitelist is HOSTNAME-ONLY: the port is not checked, so a redirect to another localhost port
+// passes. A failed LOCAL navigation (e.g. connection refused) lands on chrome-error:// and is
+// reported as off-origin; it fails closed, but the message names the wrong cause.
 export function isLocalNavigation(url) {
   if (url === "about:blank") return true;
   let u;
@@ -524,12 +534,12 @@ class Page {
     });
   }
   async goto(url, { timeout = 20000 } = {}) {
-    this.consoleErrors = [];
-    this.failedRequests = [];
-    this._reqUrls = new Map();
     if (!isLocalNavigation(url)) {
       throw new Error(`gate browser refused non-local navigation: ${url}`);
     }
+    this.consoleErrors = [];
+    this.failedRequests = [];
+    this._reqUrls = new Map();
     const loaded = new Promise((resolve) => this._loadWaiters.push(resolve));
     await this.sendSession("Page.navigate", { url });
     await Promise.race([
@@ -538,8 +548,21 @@ class Page {
     ]);
     // Give lazily-scheduled work a brief, fixed settle window (deterministic).
     await new Promise((r) => setTimeout(r, 400));
+    await this.assertLocalOrigin(`after goto ${url}`);
+  }
+  // Re-check the page's CURRENT top-level URL (catches redirects and in-page navigation).
+  async assertLocalOrigin(context = "") {
+    const res = await this.sendSession("Runtime.evaluate", {
+      expression: "location.href",
+      returnByValue: true,
+    });
+    const href = res.result?.value;
+    if (!isLocalNavigation(String(href))) {
+      throw new Error(`gate browser is off-origin (${context}): ${href}`);
+    }
   }
   async evaluate(expr) {
+    await this.assertLocalOrigin("before evaluate");
     const res = await this.sendSession("Runtime.evaluate", {
       expression:
         `(function(){ try { return (${expr}); } catch(e){ return "__THREW__:"+e.message; } })()`,

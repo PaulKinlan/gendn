@@ -84,6 +84,8 @@ assert(
 );
 assert("lookalike host refused", !isLocalNavigation("http://localhost.evil.example/"));
 assert("userinfo trick refused", !isLocalNavigation("http://localhost@evil.example/"));
+assert("IPv6 loopback allowed", isLocalNavigation("http://[::1]:3000/"));
+assert("IPv4-mapped IPv6 refused", !isLocalNavigation("http://[::ffff:8.8.8.8]/"));
 assert("file: refused", !isLocalNavigation("file:///etc/passwd"));
 assert("garbage refused", !isLocalNavigation("not a url"));
 
