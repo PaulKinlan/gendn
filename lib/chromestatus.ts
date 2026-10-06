@@ -222,21 +222,29 @@ export function slugify(s: string): string {
 // Runtime narrowing for untrusted upstream feature ids (gendn-b2s / finding TM-1,
 // THREAT_MODEL.md invariant #4): the compile-time `number` on FeatureSummary.id is a CLAIM
 // about JSON that arrives from chromestatus.com at runtime, and lifecycle artifacts carry the
-// identity as a STRING — the existing failure mode is exactly a value that looked numeric and
-// was not, so the guard checks the VALUE, not the type. Canonical digit strings only (no
-// leading zero, bounded length); anything else yields null and the render seam falls back to
-// plain text instead of a link — the renderCommitAnchor shape from lib/external-url.ts. Digits
-// need no escaping: the narrowed output is canonical by construction, which is stronger than
-// encoding an unvalidated value (encoding was never the missing check here — narrowness is).
+// identity as a STRING — the string path is a PRIMARY path, not an edge. The existing failure
+// mode is exactly a value that looked numeric and was not, so the guard checks the VALUE, not
+// the type.
+//
+// THE ENFORCED BOUNDS, stated exactly because a claim of narrowing that the code does not
+// enforce is worse than no claim (review finding 1, rule 67): both arrival types normalize to a
+// digit string and then face the SAME two checks — (a) canonical shape: no leading zero, at
+// most 19 characters (FEATURE_ID_RE, defence-in-depth); (b) safe-integer VALUE:
+// Number.isSafeInteger(Number(digits)), i.e. <= 2^53 - 1, which binds at 16 digits and is the
+// bound that actually rejects '9007199254740992' and 19-digit strings. An earlier version
+// applied (b) only on the number branch, so the same conceptual value passed or failed
+// depending on how it arrived — the asymmetry was the defect. Anything failing either check
+// yields null and the render seam falls back to plain text instead of a link — the
+// renderCommitAnchor shape from lib/external-url.ts. Digits need no escaping: the narrowed
+// output is canonical by construction, which is stronger than encoding an unvalidated value
+// (encoding was never the missing check here — narrowness is).
 const FEATURE_ID_RE = /^[1-9][0-9]{0,18}$/;
 
 export function chromeStatusUrl(id: unknown): string | null {
-  const digits = typeof id === "number"
-    ? (Number.isSafeInteger(id) && id > 0 ? String(id) : null)
-    : typeof id === "string"
-    ? id.trim()
-    : null;
-  return digits !== null && FEATURE_ID_RE.test(digits)
+  const digits = typeof id === "number" ? String(id) : typeof id === "string" ? id.trim() : null;
+  return digits !== null &&
+      FEATURE_ID_RE.test(digits) &&
+      Number.isSafeInteger(Number(digits))
     ? `https://chromestatus.com/feature/${digits}`
     : null;
 }
