@@ -511,6 +511,18 @@ dictionary D {
       ["enum KeyFormat { raw }", []],
       ["enum Color { Red }", []],
       ["enum Flag { A = 1, B = 2 }", []],
+      // gendn-m9h: a TRULY EMPTY body is not a WebIDL enum (the grammar requires >=1 enumerator); it
+      // is accepted only when the RAW body had content, which is how the comment-only real page above
+      // is distinguished from this. TypeScript/C# with a comment-only body is indistinguishable from
+      // the real page and stays named (the fixture directly above records that side of the trade).
+      ["enum Empty {}", []],
+      ["enum Empty { }", []],
+      ["enum WithComment { A /* note */ }", []],
+      // ORDER INDEPENDENCE (m9h review fix-forward): a comment-only declaration must survive an empty
+      // one with the SAME identifier, later or earlier in the block - the raw-body map records only
+      // non-empty bodies, so the empty one cannot clobber the comment.
+      ["enum E { /* c */ };\nenum E { }", ["E"]],
+      ["enum E { }\nenum E { /* c */ };", ["E"]],
     ]
   ) {
     const seen = declaredSurfaceMembers(typePage(declaration));
