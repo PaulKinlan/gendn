@@ -242,8 +242,11 @@ assert(
   }`,
 );
 assert(
-  "the deferral list did not widen (exact 5 entries, each naming its tracking bead)",
-  PENDING_HARDENING.length === 5 && PENDING_HARDENING.every((p) => p.bead === "gendn-sgc"),
+  // The count only ever SHRINKS: a page leaves the list in the same change that hardens it and gives
+  // it a contract (v152/sub-apps, gendn-sgc pilot). An entry appearing here without that work is a
+  // widening, which is what this exact-count check exists to catch.
+  "the deferral list did not widen (exact 4 entries, each naming its tracking bead)",
+  PENDING_HARDENING.length === 4 && PENDING_HARDENING.every((p) => p.bead === "gendn-sgc"),
   `${PENDING_HARDENING.length} entries`,
 );
 
