@@ -153,6 +153,35 @@ case_run "A13 belt trips AFTER the dry run"               4 "$OLD_SHORT..$STUB_H
 )
 check "A14 belt dirty before start is a PRECONDITION" 6 "$(cat "$TMPROOT/a14.rc")" 1
 
+# --- A15/A16: malformed option handling (gendn-04g regression pins) ------------
+# A value-taking option supplied as the LAST argument used to make $2 unbound under set -u, so
+# the script died with a shell error instead of a usage message. Checked under BOTH shells
+# because the failure reproduced in both (dash: 'parameter not set'; bash: 'unbound variable').
+for shell in sh bash; do
+  for opt in --remote --out --probe-glob; do
+    ( cd "$TMPROOT" || exit 1
+      PATH="$STUBDIR:$PATH" STUB_HEAD="$STUB_HEAD_FULL" STUB_PUSH_LOG="$TMPROOT/a15.log" \
+        "$shell" "$SCRIPT" HEAD main "$opt" >"$TMPROOT/a15.out" 2>&1
+      echo $? >"$TMPROOT/a15.rc" )
+    rc=$(cat "$TMPROOT/a15.rc")
+    extra=1
+    grep -q "requires a value" "$TMPROOT/a15.out" || extra=0
+    grep -qE "unbound variable|parameter not set" "$TMPROOT/a15.out" && extra=0
+    check "A15 $shell: last-arg '$opt' -> usage + exit 6 (no shell error)" 6 "$rc" "$extra"
+  done
+done
+for shell in sh bash; do
+  ( cd "$TMPROOT" || exit 1
+    PATH="$STUBDIR:$PATH" STUB_HEAD="$STUB_HEAD_FULL" STUB_PUSH_LOG="$TMPROOT/a16.log" \
+      "$shell" "$SCRIPT" HEAD main --bogus >"$TMPROOT/a16.out" 2>&1
+    echo $? >"$TMPROOT/a16.rc" )
+  rc=$(cat "$TMPROOT/a16.rc")
+  extra=1
+  grep -q "unknown option" "$TMPROOT/a16.out" || extra=0
+  grep -q "usage:" "$TMPROOT/a16.out" || extra=0
+  check "A16 $shell: unknown option -> usage + exit 6" 6 "$rc" "$extra"
+done
+
 # ---------------------------------------------------------------------------
 # PART B — real git against a LOCAL BARE REMOTE (no network)
 # ---------------------------------------------------------------------------

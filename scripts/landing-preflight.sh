@@ -75,15 +75,30 @@ PUSH=0
 PROBE_GLOB="refs/heads/landing-preflight-probe-*"
 MIN_TOKEN_LEN=7
 
+usage() {
+  echo "landing-preflight: usage: $0 <source-ref> [target-ref] [--remote <name>] [--push] [--out <file>] [--probe-glob <glob>]" >&2
+}
+
+# A value-taking option supplied as the LAST argument makes $2 unbound under set -u, which kills
+# the script with a shell error instead of a usage message — fail-closed but the wrong failure.
+# Bounds-check before consuming the value (gendn-04g).
+require_value() { # $1 = option name, $2 = remaining argument count
+  if [ "$2" -lt 2 ]; then
+    echo "landing-preflight: $1 requires a value" >&2
+    usage
+    exit 6
+  fi
+}
+
 SRC=""
 while [ $# -gt 0 ]; do
   case "$1" in
-    --remote) REMOTE=$2; shift 2 ;;
-    --out) OUT=$2; shift 2 ;;
-    --probe-glob) PROBE_GLOB=$2; shift 2 ;;
+    --remote) require_value --remote $#; REMOTE=$2; shift 2 ;;
+    --out) require_value --out $#; OUT=$2; shift 2 ;;
+    --probe-glob) require_value --probe-glob $#; PROBE_GLOB=$2; shift 2 ;;
     --push) PUSH=1; shift ;;
     -h|--help) sed -n '2,40p' "$0"; exit 0 ;;
-    -*) echo "landing-preflight: unknown option $1" >&2; exit 6 ;;
+    -*) echo "landing-preflight: unknown option $1" >&2; usage; exit 6 ;;
     *)
       if [ -z "$SRC" ]; then SRC=$1; else TARGET=$1; fi
       shift ;;
@@ -91,7 +106,7 @@ while [ $# -gt 0 ]; do
 done
 
 if [ -z "$SRC" ]; then
-  echo "landing-preflight: usage: $0 <source-ref> [target-ref] [--remote <name>] [--push] [--out <file>]" >&2
+  usage
   exit 6
 fi
 if [ -z "$OUT" ]; then
@@ -109,7 +124,6 @@ git rev-parse --verify --quiet "$SRC^{commit}" >/dev/null 2>&1 || {
 
 # --- non-mutation belt (before): no probe refs may exist already -----------------
 belt_check() {
-  # shellcheck disable=SC2086
   probes=$(git ls-remote "$REMOTE" "$PROBE_GLOB" 2>/dev/null)
   if [ -n "$probes" ]; then
     echo "landing-preflight: UNKNOWN: non-mutation belt tripped — probe refs exist on $REMOTE:" >&2
@@ -150,7 +164,7 @@ fi
 # branch cannot satisfy it, and a sha-only refusal line cannot either.
 row_count=$(grep -Ec '^[[:space:]]*[+!]?[[:space:]]*[0-9a-fA-F]+\.\.[0-9a-fA-F]+[[:space:]]' "$OUT" || true)
 if [ "$row_count" = "1" ]; then
-  row=$(grep -E '^[[:space:]]*[+!]?[[:space:]]*[0-9a-fA-F]+\.\.[0-9a-fA-F]+[[:space:]]' "$OUT" | head -1)
+  row=$(grep -E '^[[:space:]]*[+!]?[[:space:]]*[0-9a-fA-F]+\.\.[0-9a-fA-F]+[[:space:]]' "$OUT" | head -n 1)
   # the row must be about the ref we are pushing
   case "$row" in
     *"-> $TARGET"*) : ;;
