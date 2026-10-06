@@ -5,6 +5,10 @@
 //   - a SLOW-but-working response still passes inside the timeout (too short a timeout turns a
 //     slow upstream into an outage, which is worse than the exposure)
 //   - a HUNG connection fails fast and bounded (AbortSignal.timeout)
+//   - a MID-BODY hang (headers arrive, some body arrives, then silence) is bounded too — that is
+//     the phase a streaming cap exists to protect, and A TRUNCATED BODY IS NEVER RETURNED
+//   - a large partial body followed by silence trips the byte cap DURING the stall, i.e. before
+//     the timeout would
 //   - an OVERSIZED response is refused twice over: declared content-length, and streamed bytes
 //     that lie about / omit content-length
 //   - a non-ok status is returned to the caller (fetchBounded does not throw on status; the
@@ -43,6 +47,40 @@ const server = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
     return new Promise((resolve) => {
       setTimeout(() => resolve(new Response("slow but fine")), 400);
     });
+  }
+  if (path === "/midhang") {
+    // Headers arrive immediately, then a partial body, then silence: the mid-body phase.
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("PARTIAL-BODY"));
+        releaseHang = () => {
+          try {
+            controller.close();
+          } catch {
+            // already closed
+          }
+        };
+      },
+    });
+    return new Response(stream, { headers: { "content-type": "text/plain" } });
+  }
+  if (path === "/midhang-big") {
+    // 2 MiB immediately, then silence: the byte tally must fire during the stall, not at the
+    // timeout.
+    const big = new Uint8Array(2 * 1024 * 1024);
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(big);
+        releaseHang = () => {
+          try {
+            controller.close();
+          } catch {
+            // already closed
+          }
+        };
+      },
+    });
+    return new Response(stream, { headers: { "content-type": "application/octet-stream" } });
   }
   if (path === "/hang") {
     // Never respond on its own; the client must give up on its own bound. The resolver is kept
@@ -138,6 +176,32 @@ try {
     "oversized streamed response refused by the byte cap",
     !liar.ok && /exceeded the .*cap/.test(String(liar.err?.message)),
     `${liar.ms}ms; ${liar.err?.message}`,
+  );
+
+  // 5b. MID-BODY hang: headers + partial body + silence must be bounded, and no truncated body
+  // may escape as a successful return.
+  const midhang = await timed("midhang", () => fetchBounded(`${base}/midhang`, { timeoutMs: 300 }));
+  assert(
+    "mid-body hang is bounded by the same timeout (headers alone do not settle it)",
+    !midhang.ok && midhang.ms < 2000 && /timeout/i.test(String(midhang.err?.name)),
+    `rejected after ${midhang.ms}ms (bound 300ms); ${midhang.err?.name}: ${midhang.err?.message}`,
+  );
+  assert(
+    "mid-body hang never returns a TRUNCATED body",
+    !midhang.ok && midhang.value === undefined,
+    `value=${JSON.stringify(midhang.value)}`,
+  );
+
+  // 5c. a large partial body followed by silence trips the cap DURING the stall — proof the
+  // tally is incremental rather than a post-read length check.
+  const midbig = await timed(
+    "midhang-big",
+    () => fetchBounded(`${base}/midhang-big`, { timeoutMs: 5000, maxBytes: 1024 * 1024 }),
+  );
+  assert(
+    "large partial body then stall trips the byte cap before the timeout",
+    !midbig.ok && /exceeded the .*cap/.test(String(midbig.err?.message)) && midbig.ms < 1000,
+    `rejected after ${midbig.ms}ms (timeout was 5000ms); ${midbig.err?.message}`,
   );
 
   // 6. a non-ok status is RETURNED, not thrown — the caller shapes the response
