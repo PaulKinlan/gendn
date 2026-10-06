@@ -855,18 +855,46 @@ export function addSecurityHeaders(res: Response): Response {
 // there. Measured before the guard: /__definitely_missing__ with If-None-Match: * answered 304.
 const REVALIDATION_CACHE_CONTROL = "no-cache";
 
+// Mirrors the codings the runtime actually negotiates (measured: it answers gzip when offered gzip, br
+// when offered br, and leaves identity alone). Used only to decide whether a 304 owes a Vary.
+const ACCEPTS_COMPRESSION = /\b(?:gzip|br)\b/i;
+
 async function withRevalidation(req: Request, res: Response): Promise<Response> {
   if (res.body === null) return res; // 204/302: no representation to validate
-  if (!res.ok) return res; // 404/500: nothing to validate - see the note above
-  if (res.headers.has("etag")) return res; // the route already chose its own validator
+  // 200 ONLY. A 404/500 has no current representation to validate (see the note above), and a future 206
+  // would have only a PARTIAL one - an ETag hashed over part of a body conflicts with range requests,
+  // exactly as RFC 9110 8.8.3.3 warns. Reachable statuses here are 200/204/301/304/400/404/502, so this
+  // is equivalent to !res.ok today and closes that hole in advance.
+  if (res.status !== 200) return res;
+  // Only GET and HEAD revalidate. RFC 9110 13.1.2 defines this condition in terms of "the request method
+  // is GET or HEAD", and its 412 branch binds a server that EVALUATES the precondition for another
+  // method. This server performs no state-changing method and evaluates no precondition for one, so any
+  // other method gets the ordinary response - which is also what it got before this unit. Evaluating it
+  // there produced a 304 for POST/PUT, which this line removes.
+  if (req.method !== "GET" && req.method !== "HEAD") return res;
   const bytes = new Uint8Array(await res.arrayBuffer());
   const digest = new Uint8Array(await crypto.subtle.digest("SHA-1", bytes));
   const etag = `W/"${[...digest].map((b) => b.toString(16).padStart(2, "0")).join("")}"`;
+  // The validator always describes the bytes actually served (the bytes hashed just above), so a
+  // route-supplied ETag would be a validator for content this code did not measure. There is no such
+  // route today; if one is added, this deliberately overrides it rather than silently skipping
+  // revalidation (which would emit a validator without any way to use it).
   const headers = new Headers(res.headers);
   headers.set("etag", etag);
   headers.set("cache-control", REVALIDATION_CACHE_CONTROL);
   if (ifNoneMatchMatches(req.headers.get("if-none-match"), etag)) {
-    // A 304 carries no body, so it must not advertise the length one would have had.
+    // RFC 9110 15.4.5: a 304 MUST carry the Vary that a 200 to the SAME request would have carried. The
+    // runtime adds vary: Accept-Encoding only when it compresses, and it cannot add anything to a
+    // bodyless 304, so it is set here whenever this request is one the runtime would compress.
+    if (ACCEPTS_COMPRESSION.test(req.headers.get("accept-encoding") ?? "")) {
+      headers.set("vary", "accept-encoding");
+    }
+    // DEFENSIVE, AND MEASURED RATHER THAN ASSUMED (review P2-4). No route sets either header today. The
+    // runtime already strips content-length from a bodiless 304 - forcing a value on and probing the wire
+    // showed it never arrives - so that delete is belt-and-braces. The runtime does NOT strip
+    // content-encoding (the same probe showed a forced value DID reach the wire), so this is the one line
+    // that keeps a future route's coding header off a bodiless response. The fixture asserts the invariant;
+    // it is not a mutation-detector in this tree, and its comment says so.
     headers.delete("content-length");
     headers.delete("content-encoding");
     return new Response(null, { status: 304, headers });

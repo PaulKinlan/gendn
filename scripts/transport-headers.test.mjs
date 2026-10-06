@@ -78,11 +78,11 @@ function dechunk(body) {
 }
 
 // A raw HTTP/1.1 GET that returns the true wire bytes, a Map of response headers, and the status.
-async function rawGet(port, path, headers) {
+async function rawGet(port, path, headers, method = "GET") {
   const conn = await Deno.connect({ hostname: "127.0.0.1", port });
   try {
     const request = [
-      `GET ${path} HTTP/1.1`,
+      `${method} ${path} HTTP/1.1`,
       `Host: 127.0.0.1:${port}`,
       ...Object.entries(headers).map(([k, v]) => `${k}: ${v}`),
       "Connection: close",
@@ -275,9 +275,12 @@ try {
   );
 
   // 5. REVALIDATION: a repeat request must be answered 304 with no body, not a refetched document.
+  // IDENTITY is requested deliberately: it makes the "no content-length on a 304" assertion below a real
+  // detector, because the same request WITHOUT the 304 branch returns a full identity 200 that does carry
+  // content-length. (Review P2-4: with a compressed request that assertion could not fail.)
   const revalidated = await rawGet(port, leaf.route, {
     "if-none-match": etag ?? "",
-    "accept-encoding": "gzip",
+    "accept-encoding": "identity",
   });
   assert(
     "a matching if-none-match is answered 304 Not Modified",
@@ -290,8 +293,13 @@ try {
     `${revalidated.payload.length}B`,
   );
   assert(
-    "the 304 carries no content-length for a body it does not have",
-    revalidated.header("content-length") === null,
+    // NOT A MUTATION-DETECTOR IN THIS TREE, and that is deliberate rather than overlooked (review P2-4):
+    // the runtime strips content-length from a bodiless 304 itself, and no route sets content-encoding, so
+    // neither this assertion nor the deletes above can fail today. It pins the invariant for the case that
+    // would change it - see the comment on those deletes.
+    "the 304 advertises neither a length nor a coding for a body it does not have",
+    revalidated.header("content-length") === null &&
+      revalidated.header("content-encoding") === null,
   );
 
   // 6. DETECTOR: a non-matching validator must NOT be answered 304, or the fixture above is decoration.
@@ -346,6 +354,33 @@ try {
   assert(
     "a 404 carries no revalidation validator",
     plainMissing.header("etag") === null && plainMissing.header("cache-control") === null,
+  );
+
+  // 9. RFC 9110 15.4.5: a 304 MUST carry the Vary that a 200 to the SAME request would have carried. The
+  // runtime adds vary: Accept-Encoding only when it compresses, and cannot add anything to a bodyless
+  // 304, so the application has to. (Review P2-1: the 304 was dropping the Vary its own 200 sent.)
+  const compressed304 = await rawGet(port, leaf.route, {
+    "if-none-match": etag ?? "",
+    "accept-encoding": "gzip, br",
+  });
+  assert(
+    "a 304 for a compressible request is still 304",
+    compressed304.status === 304,
+    String(compressed304.status),
+  );
+  assert(
+    "that 304 carries vary: accept-encoding, as a 200 to the same request would",
+    (compressed304.header("vary") ?? "").toLowerCase().includes("accept-encoding"),
+    compressed304.header("vary") ?? "absent",
+  );
+
+  // 10. RFC 9110 13.1.2 defines this condition in terms of "the request method is GET or HEAD". The first
+  // form of this fix evaluated it for every method and answered 304 to POST/PUT. (Review P2-2.)
+  const posted = await rawGet(port, leaf.route, { "if-none-match": "*" }, "POST");
+  assert(
+    "If-None-Match on a non-GET/HEAD method is NOT answered 304",
+    posted.status !== 304,
+    String(posted.status),
   );
 } finally {
   try {
