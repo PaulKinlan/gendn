@@ -499,6 +499,80 @@ dictionary D {
     "the typedef could not be discharged via outOfScope + rationale, so the rule would block pages",
   );
 
+  // ---- gendn-3yh: three tightenings the kda review found in the same parser ---------------------
+  // ITEM 3a (ENUM MATCHER): the previous `/\benum\s+Name\s*\{/` accepted ANY enum in a block the
+  // keyword gate admitted, and `enum` alone satisfies IDL_BLOCK_GATE - so TypeScript and C# enums were
+  // reported as declared surface. A WebIDL enum body is a list of STRING LITERALS, or empty once
+  // strippedIdl removes a comment-only body (the real printer-state-reason page).
+  for (
+    const [declaration, expected] of [
+      ['enum WebPrinterState { "idle", "processing", "stopped" };', ["WebPrinterState"]],
+      ["enum WebPrinterStateReason { /* RFC 8011/CUPS values */ };", ["WebPrinterStateReason"]],
+      ["enum KeyFormat { raw }", []],
+      ["enum Color { Red }", []],
+      ["enum Flag { A = 1, B = 2 }", []],
+    ]
+  ) {
+    const seen = declaredSurfaceMembers(typePage(declaration));
+    assert(
+      JSON.stringify(seen) === JSON.stringify(expected),
+      `enum-matcher tightening: ${declaration} -> ${JSON.stringify(seen)} (want ${
+        JSON.stringify(expected)
+      })`,
+    );
+  }
+  // ITEM 3b (TYPEDEF MATCHER): the u9m matcher inherited the enum matcher's looseness - a free-text
+  // regex over the whole block matched PROSE that mentions a typedef, and an entity-escaped HTML
+  // comment (which survives tag-stripping because the tag is only decoded afterwards). Anchoring the
+  // read to a STATEMENT that starts with `typedef` rejects both; the real page still works.
+  for (
+    const [declaration, expected] of [
+      ['A "typedef Foo Bar;" appears in specs;', []],
+      ["&lt;!-- typedef Foo Bar; --&gt;", []],
+      [
+        "typedef (WebPrintingRange or unsigned long) WebPrintingMediaSizeDimension;",
+        ["WebPrintingMediaSizeDimension"],
+      ],
+    ]
+  ) {
+    const seen = declaredSurfaceMembers(typePage(declaration));
+    assert(
+      JSON.stringify(seen) === JSON.stringify(expected),
+      `typedef-matcher tightening: ${declaration} -> ${JSON.stringify(seen)} (want ${
+        JSON.stringify(expected)
+      })`,
+    );
+  }
+  // ITEM 2 (READABILITY != NAMING): a block that declares a bare enum AND contains a member-shaped
+  // statement the parser cannot read is STILL A HOLE. At gendn-kda the hole was silenced because
+  // memberNamesFromIdl() returned ["Foo"], which answered a question the readability check never
+  // asked. The enum must still be NAMED - the two questions are now answered separately.
+  const enumBesideHole = typePage('enum Foo { "a", "b" };\n  bar();');
+  assert(
+    unreadableSyntaxBlocks(enumBesideHole).length === 1,
+    `a bare enum must not silence an unreadable statement in the same block: ${
+      JSON.stringify(unreadableSyntaxBlocks(enumBesideHole))
+    }`,
+  );
+  assert(
+    JSON.stringify(declaredSurfaceMembers(enumBesideHole)) === JSON.stringify(["Foo"]),
+    `naming is unchanged by the readability split: ${
+      JSON.stringify(declaredSurfaceMembers(enumBesideHole))
+    }`,
+  );
+  // ITEM 1 (PER-<pre> SCOPING): the fallback is scoped per CODE BLOCK, and each block is judged
+  // independently, so a page that splits a bare type into its own block reports that type AND the
+  // other block's members. The test file previously had no two-<pre> fixture at all, so this decision
+  // was an accident of the implementation rather than a recorded one.
+  const twoBlockPage =
+    `<!doctype html><main><section><h2 id="syntax">Syntax</h2><pre><code>enum Foo { "a", "b" };</code></pre><pre><code>dictionary D { DOMString name; };</code></pre></section></main>`;
+  assert(
+    JSON.stringify(declaredSurfaceMembers(twoBlockPage)) === JSON.stringify(["Foo", "name"]),
+    `per-<pre> scoping must report the bare type from its own block AND the other block's member: ${
+      JSON.stringify(declaredSurfaceMembers(twoBlockPage))
+    }`,
+  );
+
   // The ratio a reviewer reads: 1 inventoried + 1 excluded of 2 declared must not look like a clean
   // 2/2, so the summary is part of the guard rather than left to counting entries by eye.
   assert(
