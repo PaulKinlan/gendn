@@ -4,9 +4,9 @@ _Scope: the `gendn` reference-documentation repository (PaulKinlan/gendn). This 
 canonical source for the invariant numbers that source comments cite (`THREAT_MODEL.md
 invariant #7` in `lib/mdn.ts` and `scripts/mdn-has.test.mjs`; `invariant #8` in
 `lib/external-url.ts` and `lib/html.ts`; `invariant #4` in `server.ts`, `lib/chromestatus.ts`,
-`lib/lifecycle.ts` and `scripts/chromestatus-units.test.mjs`, with `scripts/gen-conformance.mjs`
-citing #4 and #7 inside its checklist text — a snapshot at authoring time; the guard derives
-the live list from the source at run time and is the authority). A guard fixture
+`lib/lifecycle.ts` and `scripts/chromestatus-units.test.mjs` — a snapshot at authoring time;
+the guard derives the live list from the source at run time and is the authority). A guard
+fixture
 (`scripts/threat-model-citations.test.mjs`, task `test-threat-model-citations`) fails if a cited
 invariant number stops resolving in this document or if #7/#8 lose the phrases the citing
 comments depend on. The guard's scanned surface is `lib/**`, `scripts/**` (recursive) and
