@@ -388,8 +388,8 @@ assert(
 );
 
 // ---------- pageMetadata: the file-reading seam check-conformance depends on (gendn-vgs) ----
-// check-conformance.mjs:225/:271 gate per-page behaviour (built pages get extra assertions;
-// :271 builds the builtPages list) through pageMetadata — but the dd7 fixture only ever called
+// check-conformance.mjs:268/:331 gate per-page behaviour (built pages get extra assertions;
+// :331 builds the builtPages list) through pageMetadata — but the dd7 fixture only ever called
 // metadataFromHtml directly, so a wrapper that FABRICATED metadata and never read the file
 // still passed 54/54 (reviewer-proven). These assertions exercise the wrapper itself: real
 // file reading, the root parameter, delegation equality, and the missing-file contract.
@@ -438,27 +438,55 @@ assert(
 }
 
 // gendn-4l6 (accepted follow-up from the vgs review): the DEFAULT-root path — root="." is what
-// check-conformance.mjs:225/:271 actually pass — pinned explicitly. The fixture process runs
+// check-conformance.mjs:268/:331 actually pass — pinned explicitly. The fixture process runs
 // with cwd = repo root, so pageMetadata(page) with NO root argument must read the real
 // catalogue and agree field-by-field with metadataFromHtml on the same file. A broken default
 // already fails loudly at the repo gate; this pin makes the fixture itself a detector too.
 {
   const [firstPage] = await collectPublishedPages(".");
-  const direct = metadataFromHtml(
-    firstPage,
-    await Deno.readTextFile(`${REPO}/${firstPage}`),
-  );
   let defaultRootOk = false;
-  let detail = String(firstPage);
+  let detail = firstPage
+    ? "(no page)"
+    : "collectPublishedPages('.') found no pages — is cwd the repo root?";
   try {
-    const viaDefaultRoot = await pageMetadata(firstPage);
-    defaultRootOk = JSON.stringify(viaDefaultRoot) === JSON.stringify(direct);
+    if (firstPage) {
+      // The read is INSIDE the try so the !!firstPage guard is live: a foreign cwd makes this
+      // a clean failed assertion, not an uncaught read of '…/undefined' (review F4).
+      const direct = metadataFromHtml(
+        firstPage,
+        await Deno.readTextFile(`${REPO}/${firstPage}`),
+      );
+      const viaDefaultRoot = await pageMetadata(firstPage);
+      defaultRootOk = JSON.stringify(viaDefaultRoot) === JSON.stringify(direct);
+      if (!defaultRootOk) {
+        detail = `default-root=${JSON.stringify(viaDefaultRoot)} direct=${JSON.stringify(direct)}`;
+      }
+    }
   } catch (e) {
     detail = `threw: ${e}`;
   }
   assert(
     "pageMetadata DEFAULT root ('.'): reads the real catalogue from cwd and matches metadataFromHtml field-by-field (the check-conformance call path)",
     !!firstPage && defaultRootOk,
+    detail,
+  );
+}
+
+// Fix-forward (4l6 review F-fix-1): the DEFAULT root must THROW when the page is absent. The
+// existing missing-file pin uses an EXPLICIT temp root, so without this a silent fallback in
+// the default path (synthesize metadata instead of throwing) passed the whole suite green.
+{
+  let threwNotFound = false;
+  let detail = "(no throw)";
+  try {
+    await pageMetadata("v999/definitely-absent-page/index.html");
+  } catch (e) {
+    threwNotFound = e instanceof Deno.errors.NotFound;
+    detail = `threw: ${e}`;
+  }
+  assert(
+    "pageMetadata DEFAULT root: a missing page THROWS NotFound — a silent fallback to synthesized metadata fails this pin",
+    threwNotFound,
     detail,
   );
 }
