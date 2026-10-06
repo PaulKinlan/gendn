@@ -14,7 +14,7 @@
 // mode would sleep for the full bound (and the exit mode would leak a sleeper) in CI.
 //
 // BOUND (gendn-vxp): this is a TEST HARNESS, not something to run interactively. HANG mode
-// self-limits to PROBE_HANG_MS (default 120000 ms, ~24x the runner's 5s sweep budget) and then
+// self-limits to PROBE_HANG_MS (default 120000 ms, ~27x the tests' 4.5s fixture timeout; NOTE the runner's default fixture timeout is 300s, so a manual default-timeout run ends by natural exit and no sleeper is spawned without a pid file) and then
 // exits on its own. A sleeper is spawned ONLY when PROBE_CHILD_PID_FILE is set, so every sleeper
 // is attributable by a recorded pid; without it the probe refuses to spawn one and says so.
 // (EXIT mode's sleeper is the negative control and is reaped by the test's finally, by pid.)
