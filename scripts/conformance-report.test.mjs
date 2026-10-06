@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-read
+#!/usr/bin/env -S deno run --allow-read --allow-write
 // scripts/conformance-report.test.mjs — the tracked responsive report must not be TRUNCATED by a
 // scoped run (gendn-jvh).
 //
@@ -131,10 +131,16 @@ assert(
 // dangerous case, because a scoped merge would rewrite it to just the scanned pages - so it warns
 // while still degrading gracefully.
 const tmp = await Deno.makeTempDir({ prefix: "gendn-responsive-report-" });
-const missing = await readResponsiveRows(`${tmp}/absent.json`, { warn: () => {} });
+// The warn spy is CAPTURED, not a no-op: an assertion named "stays silent" that passes because it
+// never looked is the same mislabelling defect this branch exists to fix (gendn-jvh delta review).
+let missingWarned = "";
+const missing = await readResponsiveRows(`${tmp}/absent.json`, {
+  warn: (m) => (missingWarned = m),
+});
 assert(
   "a MISSING report reads as empty and stays silent (the first scoped run)",
-  missing.length === 0,
+  missing.length === 0 && missingWarned === "",
+  missingWarned ? `unexpected warning: ${missingWarned}` : "",
 );
 // Write the corrupt file FIRST: reading an absent path is the MISSING case above, which must stay
 // SILENT, so asserting the warning against a path that does not exist yet tests the wrong branch
