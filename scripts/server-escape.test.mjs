@@ -156,7 +156,7 @@ assert(
 // BROWSER COMPUTED-STYLE HOVER AFFORDANCE TEST (gendn-f3t Option A):
 // Drive headless Chrome over CDP to verify real visual/pointer affordances on the rendered
 // renderIndex(hostileChannels) output using the actual public/styles.css stylesheet:
-// 1. Live card (Chrome 154) lifts (transform: matrix(1, 0, 0, 1, -2, -2)), deepens shadow (6px), and recolours link (rgb(0, 34, 255)).
+// 1. Live card (Chrome 150 - derived from channels.beta.mstone, NOT from a v154/ directory) lifts (transform: matrix(1, 0, 0, 1, -2, -2)), deepens shadow (6px), and recolours link (rgb(0, 34, 255)).
 // 2. Disabled card (Chrome 1" onmouseover="alert(1)) does NOT lift (transform: none), retains flat shadow (4px), and retains text color (rgb(0, 0, 0)).
 const { launch } = await import("./lib/cdp.mjs");
 const css = await Deno.readTextFile("public/styles.css");
@@ -164,13 +164,15 @@ servedCss = css;
 servedIndexHtml = indexHtml;
 
 const browser = await launch();
-const page = await browser.newPage({ width: 1280, height: 800 });
-await page.goto(`http://127.0.0.1:${stubServer.addr.port}/`);
+let page;
+try {
+  page = await browser.newPage({ width: 1280, height: 800 });
+  await page.goto(`http://127.0.0.1:${stubServer.addr.port}/`);
 
-// Unhovered baseline (mouse at origin)
-await page.cmd("Input.dispatchMouseEvent", { type: "mouseMoved", x: 0, y: 0 });
-const baseline = await page.evaluate(`(() => {
-  const liveCard = document.querySelector(".release-card:has(a[href*='/v154/'])");
+  // Unhovered baseline (mouse at origin)
+  await page.cmd("Input.dispatchMouseEvent", { type: "mouseMoved", x: 0, y: 0 });
+  const baseline = await page.evaluate(`(() => {
+  const liveCard = document.querySelector(".release-card:has(a[href*='/v150/'])");
   const liveLink = liveCard.querySelector(".release-card-link");
   const disabledCard = document.querySelector(".release-card:has(a[aria-disabled='true'])");
   const disabledLink = disabledCard.querySelector(".release-card-link");
@@ -184,25 +186,25 @@ const baseline = await page.evaluate(`(() => {
   };
 })()`);
 
-assert("browser baseline: live card is unhovered", baseline.liveTransform === "none");
-assert("browser baseline: disabled card is unhovered", baseline.disabledTransform === "none");
+  assert("browser baseline: live card is unhovered", baseline.liveTransform === "none");
+  assert("browser baseline: disabled card is unhovered", baseline.disabledTransform === "none");
 
-// Hover over live card
-const liveCoords = await page.evaluate(`(() => {
-  const liveCard = document.querySelector(".release-card:has(a[href*='/v154/'])");
+  // Hover over live card
+  const liveCoords = await page.evaluate(`(() => {
+  const liveCard = document.querySelector(".release-card:has(a[href*='/v150/'])");
   liveCard.scrollIntoView({ block: "center" });
   const r = liveCard.getBoundingClientRect();
   return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
 })()`);
-await page.cmd("Input.dispatchMouseEvent", {
-  type: "mouseMoved",
-  x: liveCoords.x,
-  y: liveCoords.y,
-});
-await new Promise((r) => setTimeout(r, 250));
+  await page.cmd("Input.dispatchMouseEvent", {
+    type: "mouseMoved",
+    x: liveCoords.x,
+    y: liveCoords.y,
+  });
+  await new Promise((r) => setTimeout(r, 250));
 
-const liveHovered = await page.evaluate(`(() => {
-  const liveCard = document.querySelector(".release-card:has(a[href*='/v154/'])");
+  const liveHovered = await page.evaluate(`(() => {
+  const liveCard = document.querySelector(".release-card:has(a[href*='/v150/'])");
   const liveLink = liveCard.querySelector(".release-card-link");
   return {
     cardTransform: getComputedStyle(liveCard).transform,
@@ -211,38 +213,38 @@ const liveHovered = await page.evaluate(`(() => {
   };
 })()`);
 
-assert(
-  "browser hover: live card lifts (-2px, -2px)",
-  liveHovered.cardTransform === "matrix(1, 0, 0, 1, -2, -2)",
-);
-assert(
-  "browser hover: live card raises box-shadow (6px)",
-  liveHovered.cardShadow === "rgb(0, 0, 0) 6px 6px 0px 0px",
-);
-assert(
-  "browser hover: live card link recolours to accent-blue",
-  liveHovered.linkColor === "rgb(0, 34, 255)",
-);
+  assert(
+    "browser hover: live card lifts (-2px, -2px)",
+    liveHovered.cardTransform === "matrix(1, 0, 0, 1, -2, -2)",
+  );
+  assert(
+    "browser hover: live card raises box-shadow (6px)",
+    liveHovered.cardShadow === "rgb(0, 0, 0) 6px 6px 0px 0px",
+  );
+  assert(
+    "browser hover: live card link recolours to accent-blue",
+    liveHovered.linkColor === "rgb(0, 34, 255)",
+  );
 
-// Reset pointer to origin
-await page.cmd("Input.dispatchMouseEvent", { type: "mouseMoved", x: 0, y: 0 });
-await new Promise((r) => setTimeout(r, 250));
+  // Reset pointer to origin
+  await page.cmd("Input.dispatchMouseEvent", { type: "mouseMoved", x: 0, y: 0 });
+  await new Promise((r) => setTimeout(r, 250));
 
-// Hover over disabled card
-const disabledCoords = await page.evaluate(`(() => {
+  // Hover over disabled card
+  const disabledCoords = await page.evaluate(`(() => {
   const disabledCard = document.querySelector(".release-card:has(a[aria-disabled='true'])");
   disabledCard.scrollIntoView({ block: "center" });
   const r = disabledCard.getBoundingClientRect();
   return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
 })()`);
-await page.cmd("Input.dispatchMouseEvent", {
-  type: "mouseMoved",
-  x: disabledCoords.x,
-  y: disabledCoords.y,
-});
-await new Promise((r) => setTimeout(r, 250));
+  await page.cmd("Input.dispatchMouseEvent", {
+    type: "mouseMoved",
+    x: disabledCoords.x,
+    y: disabledCoords.y,
+  });
+  await new Promise((r) => setTimeout(r, 250));
 
-const disabledHovered = await page.evaluate(`(() => {
+  const disabledHovered = await page.evaluate(`(() => {
   const disabledCard = document.querySelector(".release-card:has(a[aria-disabled='true'])");
   const disabledLink = disabledCard.querySelector(".release-card-link");
   return {
@@ -252,23 +254,32 @@ const disabledHovered = await page.evaluate(`(() => {
   };
 })()`);
 
-assert(
-  "browser hover: disabled card does NOT lift (transform remains none)",
-  disabledHovered.cardTransform === "none",
-);
-assert(
-  "browser hover: disabled card does NOT raise box-shadow (remains 4px flat shadow)",
-  disabledHovered.cardShadow === "rgb(0, 0, 0) 4px 4px 0px 0px",
-);
-assert(
-  "browser hover: disabled card link does NOT recolour (remains text-black)",
-  disabledHovered.linkColor === "rgb(0, 0, 0)",
-);
-
-await page.close();
-await browser.close();
-
-await stubServer.shutdown();
+  assert(
+    "browser hover: disabled card does NOT lift (transform remains none)",
+    disabledHovered.cardTransform === "none",
+  );
+  assert(
+    "browser hover: disabled card does NOT raise box-shadow (remains 4px flat shadow)",
+    disabledHovered.cardShadow === "rgb(0, 0, 0) 4px 4px 0px 0px",
+  );
+  assert(
+    "browser hover: disabled card link does NOT recolour (remains text-black)",
+    disabledHovered.linkColor === "rgb(0, 0, 0)",
+  );
+} finally {
+  // ALWAYS release the browser, even when a CDP call THROWS rather than returning an error (e.g. the
+  // 30s CDP timeout in lib/cdp.mjs) - otherwise page.close()/browser.close() are skipped and Chrome
+  // plus its temp profile dir are orphaned. page is guarded because newPage() itself can throw.
+  if (page) {
+    try {
+      await page.close();
+    } catch {
+      // already gone
+    }
+  }
+  await browser.close();
+  await stubServer.shutdown();
+}
 
 if (failures) Deno.exit(1);
 console.log("server-escape fixture: all assertions passed");
