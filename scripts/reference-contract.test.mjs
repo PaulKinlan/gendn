@@ -1,9 +1,27 @@
+// THE CONTROL FOR THIS FILE IS THE RUNNER'S EXIT CODE, NOT A COUNT OF ITS PASS LINES (gendn-ijf).
+//
+// This is written here rather than in a bead because a rule survives only if it is in the artefact the
+// next worker reads. A count of `PASS` lines is a PLURALITY OF READINGS: a red suite that emits 33 PASS
+// lines satisfies `33 == $(... | grep -c ^PASS)`, and the count cannot distinguish that from a green run.
+// The exit code is the fact that differs when this file is broken, so:
+//     deno task test-reference-contract; echo "exit=$?"      <- the verdict is the exit code
+//     deno task test-reference-contract | grep -c ^PASS      <- context only, NEVER the control
+// `deno task` already propagates this file's exit status, so any caller that checks `$?` - a gate, a
+// fleet-check, a person at a prompt - is asserting it. There is deliberately NO in-file assertion of the
+// exit code: the exit code is produced BY these assertions, so asserting it here would be circular.
+//
+// A count that is genuinely part of this file's contract is different and is asserted where it belongs -
+// see the exact-length assertions below, and the surfaceNotePages pins, each of which names the value it
+// expects rather than printing a number for a reader to judge.
+//
 import { referenceRouteMigration } from "./check-routes.mjs";
 import { isMdnStubHtml } from "./lib/artifacts.mjs";
 import {
   declaredSurfaceMembers,
   declaredSurfaceSummary,
   resolveDocumentationHref,
+  skippedSurfaceDeclarations,
+  surfaceNotePages,
   unreadableSyntaxBlocks,
   validateContractOwnership,
   validateDeclaredSurface,
@@ -587,6 +605,155 @@ dictionary D {
       }`,
     );
   }
+
+    // gendn-ijf: AN ANONYMOUS SPECIAL OPERATION DECLARES NO NAME. `getter DOMString (unsigned long
+    // index);` used to be reported as a member named "DOMString" - the RETURN TYPE - and that is a
+    // FALSE POSITIVE in the declared-surface rule, which then demands the contract account for a
+    // member that does not exist. A gate that fails a CORRECT contract is worse than one that misses a
+    // defect (a false positive teaches lanes to stop reading the gate), so the shape is skipped and
+    // REPORTED through skippedSurfaceDeclarations(), which consumers warn about and never fail on.
+    // Measured with the real detector before the fix: members=["DOMString"] with unreadable=0 - a
+    // confident wrong answer rather than a loud hole, which is what made it dangerous.
+    {
+      const anonGetter = specialPage("  getter DOMString (unsigned long index);");
+      const namedGetter = specialPage("  getter DOMString item(unsigned long index);");
+      assert(
+        declaredSurfaceMembers(anonGetter).length === 0,
+        `an anonymous indexed getter must not report its return type as a member: ${
+          JSON.stringify(declaredSurfaceMembers(anonGetter))
+        }`,
+      );
+      assert(
+        skippedSurfaceDeclarations(anonGetter).length === 1 &&
+          /^getter DOMString \(unsigned long index\)$/.test(skippedSurfaceDeclarations(anonGetter)[0]),
+        `an anonymous indexed getter must be reported as a deliberate skip: ${
+          JSON.stringify(skippedSurfaceDeclarations(anonGetter))
+        }`,
+      );
+      assert(
+        unreadableSyntaxBlocks(anonGetter).length === 0,
+        `a deliberate skip is NOT a hole: reporting it as unreadable would fail a correct page: ${
+          JSON.stringify(unreadableSyntaxBlocks(anonGetter))
+        }`,
+      );
+      assert(
+        validateDeclaredSurface(surfaceContract([]), anonGetter).length === 0,
+        `THE POINT OF THE FIX: a correct contract on such a page must NOT be failed. Got: ${
+          JSON.stringify(validateDeclaredSurface(surfaceContract([]), anonGetter))
+        }`,
+      );
+      // THE NEGATIVE CONTROL, without which the fix could have been "stop reporting getters at all".
+      assert(
+        declaredSurfaceMembers(namedGetter).join(",") === "item",
+        `a NAMED indexed getter must still report its own name: ${
+          JSON.stringify(declaredSurfaceMembers(namedGetter))
+        }`,
+      );
+      assert(
+        skippedSurfaceDeclarations(namedGetter).length === 0,
+        `a NAMED indexed getter must not be swallowed by the skip: ${
+          JSON.stringify(skippedSurfaceDeclarations(namedGetter))
+        }`,
+      );
+      const anonSetter = specialPage("  setter undefined (unsigned long index, DOMString value);");
+      assert(
+        declaredSurfaceMembers(anonSetter).length === 0 &&
+          skippedSurfaceDeclarations(anonSetter).length === 1 &&
+          unreadableSyntaxBlocks(anonSetter).length === 0,
+        `an anonymous setter must be a warn-only skip, not an unreadable hole: ${
+          JSON.stringify([
+            declaredSurfaceMembers(anonSetter),
+            skippedSurfaceDeclarations(anonSetter),
+            unreadableSyntaxBlocks(anonSetter),
+          ])
+        }`,
+      );
+      // AND A REAL HOLE CANNOT HIDE BEHIND A SKIP.
+      const mixed = specialPage("  getter DOMString (unsigned long index);\n  parse();");
+      assert(
+        unreadableSyntaxBlocks(mixed).length === 1,
+        `a real unreadable block must still be reported when a skip sits beside it: ${
+          JSON.stringify(unreadableSyntaxBlocks(mixed))
+        }`,
+      );
+    }
+
+    // THE FOURTH MEASURED EDGE, PINNED AS DOCUMENTED BEHAVIOUR rather than left as prose: a non-IDL
+    // block that carries BOTH a keyword and a call-shaped token is admitted by the keyword gate and the
+    // member hint, yields no member, and is reported unreadable - a false positive on a block that is not
+    // IDL at all. Two controls pin the mechanism: BOTH conditions are required, so either alone must stay
+    // silent. NOTE THE HELPER: the shared specialPage() wraps its content in `interface Thing { ... }`,
+    // so the block gate fires for EVERY case and the controls could not be expressed with it. These pins
+    // therefore build a BARE syntax block, which is also the shape a real page has when a JSON example
+    // sits in its own <pre><code> beside the IDL - and that shape is exactly what the reconnaissance
+    // measured on the catalogue (201 pages scanned, 0 with any unreadable block).
+    const bareBlock = (inner) =>
+      `<!doctype html><main><section><h2 id="syntax">Syntax</h2><pre><code>${
+        inner.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      }</code></pre></section></main>`;
+    {
+      const jsonish = bareBlock('{"mixin":"f(x)"}');
+      assert(
+        unreadableSyntaxBlocks(jsonish).length === 1,
+        `a non-IDL block with a keyword AND a call-shaped token is documented as reported unreadable; got ${JSON.stringify(unreadableSyntaxBlocks(jsonish))}`,
+      );
+      const callShapeOnly = bareBlock('{"handle":"g(x)"}');
+      const keywordOnly = bareBlock('{"mixin":"abc"}');
+      assert(
+        unreadableSyntaxBlocks(callShapeOnly).length === 0 && unreadableSyntaxBlocks(keywordOnly).length === 0,
+        `the fourth edge requires BOTH conditions, so call-shape-only and keyword-only must stay silent; got ${JSON.stringify([unreadableSyntaxBlocks(callShapeOnly), unreadableSyntaxBlocks(keywordOnly)])}`,
+      );
+    }
+
+    // ONE PAGE, TWO NOTES, ONE CONTRACT - the count the gate PRINTS must count what it NAMES. The
+    // heading used to print surfaceNotes.length, which is a count of NOTES; a page emitting both a
+    // declared-surface line and a skipped-operations line was therefore reported as two contracts. The
+    // negative case below is the one that was wrong: two notes, one page.
+    {
+      const onePage = [
+        "  v150/some-page: declared 4 = inventory 4 + outOfScope 0",
+        "  v150/some-page: parser skipped 1 anonymous special operation(s) - nothing to account for: x",
+      ];
+      assert(
+        surfaceNotePages(onePage) === 1,
+        `two notes for ONE page must count as one contract; got ${surfaceNotePages(onePage)}`,
+      );
+      const twoPages = [...onePage, "  v151/other-page: declared 8 = inventory 8 + outOfScope 0"];
+      assert(surfaceNotePages(twoPages) === 2, `three notes across TWO pages must count 2; got ${surfaceNotePages(twoPages)}`);
+      assert(
+        surfaceNotePages([]) === 0 && surfaceNotePages(undefined) === 0,
+        "no notes must count 0, and a missing list must not throw",
+      );
+      assert(
+        surfaceNotePages([42, "no colon here"]) === 0,
+        "malformed notes must not be counted as pages rather than crashing the gate",
+      );
+    }
+
+    // A HOLE WITH NO HINT OF ITS OWN, beside a skip that HAS one - the P0 a reviewer found in the
+    // first version of the skip fix. `setter undefined (...)` carries a member hint of its own
+    // ("undefined ("); `Foo;` does not. Subtracting the skip BEFORE testing the hint deleted the only
+    // evidence the block declared anything, so the unreadable declaration went silently unreported.
+    // Measured shape: 0 members, 1 skip, and it MUST report 1 unreadable block.
+    {
+      const hintlessHole = specialPage("  setter undefined (unsigned long index, DOMString value);\n  Foo;");
+      assert(
+        unreadableSyntaxBlocks(hintlessHole).length === 1,
+        `a hole with no hint of its own must still be reported when a skipped statement supplies the
+         only hint: reporting it as readable is a FALSE NEGATIVE introduced by the skip exemption.
+         Got: ${JSON.stringify(unreadableSyntaxBlocks(hintlessHole))}`,
+      );
+      // and the exemption itself must still hold: a block that is ONLY a skip is not a hole.
+      const onlySkip = specialPage("  setter undefined (unsigned long index, DOMString value);");
+      assert(
+        unreadableSyntaxBlocks(onlySkip).length === 0 &&
+          skippedSurfaceDeclarations(onlySkip).length === 1,
+        `an all-skip block must stay exempt: ${JSON.stringify([
+          unreadableSyntaxBlocks(onlySkip),
+          skippedSurfaceDeclarations(onlySkip),
+        ])}`,
+      );
+    }
 
   console.log("PASS — reference-contract structural tests");
 } finally {
