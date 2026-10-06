@@ -28,9 +28,12 @@ reader does not re-believe them:
 4. The draft's finding TM-1 (and this document's first draft, copying it) named THREE unescaped
    id-to-href sinks; audit of the third found `lib/lifecycle.ts` ESCAPES its identity
    interpolation (`esc(s.identity)`, a full escaper) — so it is not an unescaped sink and was
-   removed from that list, reclassified below as escaped-but-un-narrowed. A reader who saw the
-   earlier three-sink claim (the station output, the gendn-b2s bead) needs to know it was
-   corrected here, not silently edited.
+   removed from that list. At the audit it was reclassified escaped-but-un-narrowed; SINCE the
+   b2s fix landed it is NARROWED by `chromeStatusUrl()` (§4.1) — a classification went stale
+   through a COMBINATION of branches, the shape behind rule 123's stronger case: a rebase can
+   invalidate a FACT, not only a gate verdict. A reader who saw the earlier three-sink claim
+   (the station output, the gendn-b2s bead) needs to know it was corrected here, not silently
+   edited — and that its correction has itself been updated against the merged tree.
 
 ## 1. System Overview & Architecture
 
@@ -140,9 +143,12 @@ Audits **must not** flag the following as vulnerabilities:
    the same shape to milestone values (`gendn-sxn`, landed). The seam-behaviour fixtures drive
    hostile ids through every rendered seam and assert on the output HTML
    (`scripts/chromestatus-units.test.mjs`). A third href site — `lib/lifecycle.ts`
-   `renderConformanceIndex` — ESCAPED the identity (`esc()`) but had not NARROWED it: an
-   encoding-only site cannot emit a hostile attribute, but it can emit a well-formed link to a
-   malformed identity (identity-validity, not injection); the same landed work narrows it too.
+   `renderConformanceIndex` — was ESCAPED (`esc(s.identity)`) but un-narrowed AT THE TIME OF
+   THE FINDING: an encoding-only site cannot emit a hostile attribute, but it can emit a
+   well-formed link to a malformed identity (identity-validity, not injection). Since the same
+   b2s work landed, that site is NARROWED: `chromeStatusUrl(s.identity)` from
+   `lib/chromestatus.ts`, the same runtime bound and the same plain-text fallback for a
+   non-canonical identity. The current tree carries no un-narrowed sink of this class.
 2. **`api.github.com` commit JSON → "last updated" line.** `html_url` is the historic
    scheme-injection sink (fixed by `lib/external-url.ts`); `sha`/`date` are escaped.
 3. **Repo-authored page HTML served same-origin.** A `<script>` or injected attribute in a
