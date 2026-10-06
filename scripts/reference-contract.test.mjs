@@ -4,6 +4,7 @@ import {
   declaredSurfaceMembers,
   declaredSurfaceSummary,
   resolveDocumentationHref,
+  unreadableSyntaxBlocks,
   validateContractOwnership,
   validateDeclaredSurface,
   validateReferenceContract,
@@ -432,6 +433,101 @@ dictionary D {
     ),
     "alias to a route absent from the current contract was accepted",
   );
+
+  // Silently skipping a shape the detector does not recognise reports an EMPTY surface, and an empty
+  // surface passes the collapsed-contract check for the wrong reason (gendn-zuz). Both directions:
+  // a block whose surface IS there must become visible, and a block the detector truly cannot read
+  // must FAIL LOUDLY rather than pass as empty.
+  {
+    const page = (pre) =>
+      `<html><body><main><h2 id="syntax">Syntax</h2>${pre}</main></body></html>`;
+    // (1) An operations-only namespace WAS invisible (the gate did not include `namespace`) even
+    // though the parser reads it perfectly. It must now be visible, not alarmed.
+    const namespaceBlock = page("<pre><code>namespace CSS { undefined parse(); };</code></pre>");
+    assert(
+      declaredSurfaceMembers(namespaceBlock).join(",") === "parse",
+      `an operations-only namespace must be VISIBLE, not silently skipped: ${
+        JSON.stringify(declaredSurfaceMembers(namespaceBlock))
+      }`,
+    );
+    assert(
+      unreadableSyntaxBlocks(namespaceBlock).length === 0,
+      "a namespace the parser CAN read must not be reported as unreadable",
+    );
+    // (2) A declaration the parser models as nothing is a hole in the check: say so, loudly.
+    const constructorBlock = page(
+      "<pre><code>interface Foo { constructor(DOMString name); };</code></pre>",
+    );
+    assert(
+      unreadableSyntaxBlocks(constructorBlock).length === 1,
+      `an IDL block the detector cannot read must be reported, not skipped: ${
+        JSON.stringify(unreadableSyntaxBlocks(constructorBlock))
+      }`,
+    );
+    assert(
+      validateDeclaredSurface({ id: "v999/unreadable", inventory: [] }, constructorBlock)
+        .some((e) => e.includes("looks like WebIDL") && e.includes("constructor")),
+      `an unreadable syntax block must FAIL validation and name the block: ${
+        JSON.stringify(
+          validateDeclaredSurface({ id: "v999/unreadable", inventory: [] }, constructorBlock),
+        )
+      }`,
+    );
+    // (3) The false-alarm guards, each one a REAL page in this repo:
+    // v151/speculation-rules-form-submission-field's syntax is JSON, not IDL.
+    const jsonBlock = page(
+      '<pre><code>{"form_submission": {"attribute": true, "values": ["a"]}}</code></pre>',
+    );
+    assert(
+      unreadableSyntaxBlocks(jsonBlock).length === 0,
+      `a JSON syntax block must stay silent (no false alarm): ${
+        JSON.stringify(unreadableSyntaxBlocks(jsonBlock))
+      }`,
+    );
+    assert(
+      validateDeclaredSurface({ id: "v999/json", inventory: [] }, jsonBlock).length === 0,
+      "a JSON syntax block must not fail validation",
+    );
+    // v147/document-policy-in-dedicated-workers quotes ABNF from the Document Policy spec.
+    const abnfBlock = page(
+      "<pre><code># ABNF, quoted verbatim\nDocument-Policy = sf-dictionary\nboolean-feature=?0\nenum-feature=state</code></pre>",
+    );
+    assert(
+      unreadableSyntaxBlocks(abnfBlock).length === 0,
+      `a quoted ABNF grammar must not be mistaken for IDL: ${
+        JSON.stringify(unreadableSyntaxBlocks(abnfBlock))
+      }`,
+    );
+    // v147/lazy-loading-for-video-and-audio-elements shows a JS call in its syntax region.
+    const jsBlock = page(
+      '<pre><code>const video = document.querySelector("video");\nvideo.loading = "lazy";</code></pre>',
+    );
+    assert(
+      unreadableSyntaxBlocks(jsBlock).length === 0,
+      `a JS code sample must not be mistaken for an unreadable IDL declaration: ${
+        JSON.stringify(unreadableSyntaxBlocks(jsBlock))
+      }`,
+    );
+    // A CSS @namespace is not WebIDL.
+    const cssBlock = page("<pre><code>@namespace url(http://www.w3.org/1999/xhtml);</code></pre>");
+    assert(
+      unreadableSyntaxBlocks(cssBlock).length === 0,
+      `a CSS @namespace block must not be mistaken for IDL: ${
+        JSON.stringify(unreadableSyntaxBlocks(cssBlock))
+      }`,
+    );
+    // ...and an ordinary IDL block that parses is never reported as unreadable.
+    const goodBlock = page(
+      "<pre><code>interface Foo { readonly attribute DOMString bar; undefined baz(); };</code></pre>",
+    );
+    assert(
+      unreadableSyntaxBlocks(goodBlock).length === 0 &&
+        declaredSurfaceMembers(goodBlock).join(",") === "bar,baz",
+      `a readable IDL block must not be reported as unreadable: ${
+        JSON.stringify([unreadableSyntaxBlocks(goodBlock), declaredSurfaceMembers(goodBlock)])
+      }`,
+    );
+  }
 
   console.log("PASS — reference-contract structural tests");
 } finally {
