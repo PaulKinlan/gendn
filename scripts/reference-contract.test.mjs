@@ -107,6 +107,39 @@ try {
     inventory: inventory.map((n) => ({ id: n.toLowerCase(), name: n, sourceRefs: ["spec"] })),
     ...(outOfScope ? { outOfScope } : {}),
   });
+
+  // REGRESSIONS from the gendn-4kq review:
+  //  P1 - methods with a custom return type, `void`, or a nested generic were INVISIBLE, so a
+  //       contract could omit the page's primary method and still report zero unaccounted.
+  //  P2 - `typedef X Y;` reported Y as a member, and a method's default-valued trailing parameter
+  //       (`optional unsigned long? length = null`) leaked in as a member.
+  const methodPage =
+    `<!doctype html><main><section><h2 id="syntax">Syntax</h2><pre><code>[Exposed=Window]
+typedef USVString ManifestId;
+interface Thing {
+  readonly attribute boolean alpha;
+  SpeculationData getSpeculations();
+  void doIt();
+  Promise&lt;record&lt;USVString, SubAppsListResult&gt;&gt; list();
+  Promise&lt;void&gt; supports(Identifier algorithm, optional unsigned long? length = null);
+};</code></pre></section></main>`;
+  assert(
+    JSON.stringify(declaredSurfaceMembers(methodPage)) ===
+      JSON.stringify(["alpha", "doIt", "getSpeculations", "list", "supports"]),
+    `method/typedef/parameter parsing: ${JSON.stringify(declaredSurfaceMembers(methodPage))}`,
+  );
+  assert(
+    validateDeclaredSurface(surfaceContract(["alpha"]), methodPage)
+      .some((e) => e.includes('declared surface member "getSpeculations"')),
+    "a contract that omitted the page's primary METHOD was not flagged",
+  );
+  assert(
+    validateDeclaredSurface(
+      surfaceContract(["alpha", "getSpeculations", "doIt", "list", "supports"]),
+      methodPage,
+    ).length === 0,
+    "an inventory accounting for every declared member and method was rejected",
+  );
   assert(
     validateDeclaredSurface(surfaceContract(["alpha", "beta"]), idlPage).length === 0,
     "an inventory that accounts for every declared member was rejected",
@@ -145,12 +178,21 @@ try {
   );
   // LIMIT, asserted so it cannot silently regress into a false sense of coverage: a page with no
   // IDL in its syntax block declares no surface, so nothing is compared.
+  const noIdlPage =
+    '<!doctype html><main><section><h2 id="syntax">Syntax</h2><pre><code>{"prerender":[{"form_submission":true}]}</code></pre></section></main>';
+  assert(
+    validateDeclaredSurface(surfaceContract(["alpha"]), noIdlPage).length === 0,
+    "a page with no declared IDL surface produced a phantom coverage failure",
+  );
   assert(
     validateDeclaredSurface(
-      surfaceContract(["alpha"]),
-      '<!doctype html><main><section><h2 id="syntax">Syntax</h2><pre><code>await thing.doWork("x");</code></pre></section></main>',
-    ).length === 0,
-    "a page with no declared IDL surface produced a phantom coverage failure",
+      {
+        ...surfaceContract(["alpha"]),
+        outOfScope: [{ name: "alpha", rationale: "too short" }],
+      },
+      noIdlPage,
+    ).some((e) => e.includes("outOfScope alpha needs a rationale")),
+    "outOfScope was not validated on a page that declares no IDL",
   );
   // The ratio a reviewer reads: 1 inventoried + 1 excluded of 2 declared must not look like a clean
   // 2/2, so the summary is part of the guard rather than left to counting entries by eye.

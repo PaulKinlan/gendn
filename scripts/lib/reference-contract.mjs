@@ -204,6 +204,10 @@ export async function validateReferenceContract(contract, root = ".") {
 // contract is authored at the moment a page is touched, so the touched set is where it bites.
 // Cleanup of those 7 (adding honest outOfScope entries) is tracked separately as gendn-1j4.
 //
+// PRECONDITION: the page's syntax section must carry an id (the parser looks for id="syntax"), which
+// the contract's own selectors already require - a syntax block without an id cannot be mapped, and
+// this rule then no-ops on that page rather than guessing from heading text.
+//
 // IT CANNOT PROVE THE INVENTORY IS COMPLETE, and it has a known blind spot: a page that declares NO
 // IDL in its syntax block yields no members to compare against, so a collapsed contract on such a
 // page passes. The collapsed v151/speculation-rules-form-submission-field contract is exactly that
@@ -227,13 +231,22 @@ export function declaredSurfaceMembers(html) {
     // Strip WebIDL extended attributes ([Exposed=Window], [RuntimeEnabled=X], ...) so they are
     // never mistaken for members.
     const bare = idl.replace(/\[[^\]]*\]/g, " ");
+    // METHODS and ATTRIBUTES: a name immediately before "(" on a declaration, whatever its return
+    // type. Return-type-agnostic on purpose (gendn-4kq review P1): whitelisting types missed
+    // `SpeculationData getSpeculations();`, `void doIt();` and `Promise<record<K,V>> list();`.
+    // Requiring whitespace before the name keeps JS such as `await thing.doWork(` out, and only the
+    // FIRST match in each `;`-terminated statement is taken so parameter lists cannot leak names.
+    for (const statement of bare.split(";")) {
+      const m = statement.match(/[\w>\]?]\s+([A-Za-z_$][\w$]*)\s*\(/);
+      if (m) names.add(m[1]);
+    }
+    // DICTIONARY/INTERFACE MEMBERS: `Type name;` / `Type name = default;`. The default group must
+    // not cross a paren (gendn-4kq review P2): `optional unsigned long? length = null);` is a
+    // PARAMETER of a method, not a member, and `[^;]+` used to swallow the ")".
     for (
       const m of bare.matchAll(
-        /(?:attribute\s+[\w<>?\[\], ]+?\s+|Promise<[^>]+>\s+|\bundefined\s+|\bboolean\s+|\bDOMString\s+|\bunsigned long\s+|\bdouble\s+)(\w+)\s*(?:\(|;)/g,
+        /^\s*(?!typedef\b|callback\b|namespace\b|implements\b|includes\b)(?:required\s+)?[\w<>?\[\], ]+\s+(\w+)\s*(?:=\s*[^;()]+)?;/gm,
       )
-    ) names.add(m[1]);
-    for (
-      const m of bare.matchAll(/^\s*(?:required\s+)?[\w<>?\[\], ]+\s+(\w+)\s*(?:=\s*[^;]+)?;/gm)
     ) {
       names.add(m[1]);
     }
@@ -253,6 +266,11 @@ export function declaredSurfaceMembers(html) {
     "setter",
     "deleter",
     "constructor",
+    "typedef",
+    "callback",
+    "namespace",
+    "implements",
+    "includes",
   ]);
   return [...names].filter((n) => !KEYWORDS.has(n.toLowerCase())).sort();
 }
@@ -265,7 +283,6 @@ export function validateDeclaredSurface(contract, html) {
   const errors = [];
   const id = contract?.id ?? "(unknown)";
   const members = declaredSurfaceMembers(html);
-  if (members.length === 0) return errors;
   const covered = new Set();
   for (const item of contract?.inventory ?? []) {
     for (const token of nameTokens(item?.name)) covered.add(token);
@@ -293,6 +310,7 @@ export function validateDeclaredSurface(contract, html) {
       );
     }
   }
+  if (members.length === 0) return errors;
   for (const member of members) {
     if (covered.has(member.toLowerCase())) continue;
     if (excluded.has(member.toLowerCase())) continue;
