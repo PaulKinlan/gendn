@@ -15,6 +15,9 @@
 // from "slow" without guessing.
 
 export const GIT_TIMEOUT_MS = 60_000;
+// `timeoutMs` below is a TEST-ONLY override (the mutation proofs shorten it). Production calls must
+// not pass it: the whole point of this module is that every gate shares ONE bound, so widening or
+// disabling it per call site would recreate the drift the module exists to prevent.
 
 // Git global options that keep a read-only call out of the auto-maintenance path.
 const GIT_SAFE_ARGS = ["-c", "gc.auto=0", "--no-optional-locks"];
