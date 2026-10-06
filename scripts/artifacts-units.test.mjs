@@ -496,6 +496,43 @@ assert(
   );
 }
 
+// Fix-forward (c), coord's ruling on the 4l6 pre-analysis (substance of gendn-6q3): the default
+// root must resolve against CWD, not against a BAKED ABSOLUTE PATH. This fixture normally runs
+// with cwd = repo root, where "." and a hardcoded repo path are indistinguishable — a baked-path
+// mutation survived 67/67. So: chdir to a temp root holding a DIFFERENT single-page catalogue and
+// prove the default-root call reads THAT catalogue. Deno.chdir needs no extra permission under
+// this task's --allow-read --allow-write (probed), so this stays one bounded assertion — no
+// subprocess harness, no deno.json change. cwd is restored in finally before anything else runs.
+// MEASURED BOUNDARY (6q3 review, glm-5.3): this compares CONTENT at the resolved path, so a
+// byte-identical probe page sitting at a baked absolute path would pass — the assertion detects
+// DIVERGENCE from the expected catalogue, not the resolution LOCATION itself.
+{
+  const ctmp = await Deno.makeTempDir({ prefix: "artifacts-units-cwd-" });
+  const savedCwd = Deno.cwd();
+  let cwdRootOk = false;
+  let detail = "(no result)";
+  try {
+    await Deno.mkdir(`${ctmp}/v901/only-page`, { recursive: true });
+    const probeHtml = "<h1>Cwd Root Probe</h1>";
+    await Deno.writeTextFile(`${ctmp}/v901/only-page/index.html`, probeHtml);
+    Deno.chdir(ctmp);
+    const viaDefault = await pageMetadata("v901/only-page/index.html");
+    const expected = metadataFromHtml("v901/only-page/index.html", probeHtml);
+    cwdRootOk = JSON.stringify(viaDefault) === JSON.stringify(expected);
+    detail = cwdRootOk ? "resolved against the temp cwd" : `default=${JSON.stringify(viaDefault)}`;
+  } catch (e) {
+    detail = `threw: ${e}`;
+  } finally {
+    Deno.chdir(savedCwd);
+    await Deno.remove(ctmp, { recursive: true }).catch(() => {});
+  }
+  assert(
+    "pageMetadata DEFAULT root resolves against CWD, not a baked absolute path (from a foreign temp catalogue root, the default call reads THAT catalogue)",
+    cwdRootOk,
+    detail,
+  );
+}
+
 // ---------- temp-catalogue boundaries ------------------------------------------------------
 const tmp = await Deno.makeTempDir({ prefix: "artifacts-units-" });
 try {
