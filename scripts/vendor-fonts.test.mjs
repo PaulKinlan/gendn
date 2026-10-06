@@ -66,6 +66,38 @@ const OTHER_SUBSETS_ONLY = `/* cyrillic */
 }
 `;
 
+// The reviewer's EXACT stub: a 200 whose only rules are one family's kept subsets. It satisfies the
+// zero-rule guard and used to overwrite the sheet, dropping every other family.
+const REVIEWER_STUB = `/* latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/inter/v1/a.woff2) format('woff2');
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/inter/v1/b.woff2) format('woff2');
+}
+`;
+
+/** The sheet's vendored rules without the generated header comment: an ADDITIVE upstream shape. */
+function withoutMarkerComment(sheet) {
+  return sheet
+    .split("\n")
+    .filter((line) =>
+      !/^\/\* (---|Source:|Regenerate:|Subsets kept:|them would|cyrillic|Vendored|Blank line)/.test(
+        line,
+      )
+    )
+    .join("\n");
+}
+
 const upstream = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
   const path = new URL(req.url).pathname;
   if (path === "/empty") return new Response("", { status: 200 });
@@ -77,6 +109,30 @@ const upstream = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
   }
   if (path === "/other-subsets") return new Response(OTHER_SUBSETS_ONLY, { status: 200 });
   if (path === "/real") return new Response(REAL_SHAPE, { status: 200 });
+  if (path === "/reviewer-stub") return new Response(REVIEWER_STUB, { status: 200 });
+  // The same reduction in its smallest form: drop ONE weight of an existing family.
+  if (path === "/missing-weight") {
+    // Drop exactly ONE rule — Lora 500 / latin — tolerating the generated block's indentation.
+    const withoutLora500 = REAL_SHEET_TEXT.replace(
+      /\/\* latin \*\/\s*@font-face \{\s*font-family: 'Lora';\s*font-style: normal;\s*font-weight: 500;[\s\S]*?\n\s*\}\n/,
+      "",
+    );
+    return new Response(withoutLora500, { status: 200 });
+  }
+  // ADDITIVE: every existing identity plus face count from the sheet itself, touched up so the
+  // response is a superset (one extra weight), which must be WRITTEN.
+  if (path === "/additive") {
+    const extra = `/* latin */
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/lora/v1/extra-900.woff2) format('woff2');
+}
+`;
+    return new Response(withoutMarkerComment(REAL_SHEET_TEXT) + extra, { status: 200 });
+  }
   return new Response("nope", { status: 404 });
 });
 const base = `http://127.0.0.1:${upstream.addr.port}`;
@@ -191,6 +247,119 @@ try {
     "honest path: --check reports up to date afterwards",
     recheck.code === 0 && /up to date/.test(recheck.out),
     `exit=${recheck.code} ${recheck.out.trim()}`,
+  );
+
+  // --- gendn-cp7: a NON-EMPTY but INCOMPLETE response must not reduce the vendored set ---------
+  // (1) the reviewer's exact stub: two rules for one family the sheet does not even use.
+  const reduced = await run(["--css-url", `${base}/reviewer-stub`], REAL_SHEET_TEXT);
+  assert(
+    "cp7 (1) reviewer's stub (one family, two rules) REFUSES, non-zero",
+    reduced.code !== 0,
+    `exit=${reduced.code}`,
+  );
+  assert(
+    "cp7 (1) ...and the refusal says it would REMOVE rules",
+    /would REMOVE/.test(reduced.err),
+    reduced.err.trim().slice(0, 140),
+  );
+  assert("cp7 (1) ...and public/styles.css is BYTE-UNCHANGED", reduced.unchanged);
+
+  // (2) the smallest form of the same defect: one WEIGHT of an existing family missing.
+  const missingWeight = await run(["--css-url", `${base}/missing-weight`], REAL_SHEET_TEXT);
+  assert(
+    "cp7 (2) an upstream missing ONE WEIGHT of an existing family REFUSES",
+    missingWeight.code !== 0 && /would REMOVE/.test(missingWeight.err) && missingWeight.unchanged,
+    `exit=${missingWeight.code}`,
+  );
+  assert(
+    "cp7 (2) ...and the refusal names the missing identity",
+    /Lora\|normal\|500\|latin/.test(missingWeight.err),
+    missingWeight.err.trim().slice(0, 200),
+  );
+
+  // (3) ADDITIVE growth must still be written, or upstream additions could never land.
+  const beforeRules = (REAL_SHEET_TEXT.match(/@font-face \{/g) ?? []).length;
+  const additive = await run(["--css-url", `${base}/additive`], REAL_SHEET_TEXT);
+  const additiveSheet = await Deno.readTextFile(`${tmp}/public/styles.css`);
+  const afterRules = (additiveSheet.match(/@font-face \{/g) ?? []).length;
+  assert(
+    "cp7 (3) an ADDITIVE response (every existing identity plus one) IS written",
+    additive.code === 0 && afterRules === beforeRules + 1,
+    `exit=${additive.code}, ${beforeRules} -> ${afterRules} rule(s)`,
+  );
+  assert(
+    "cp7 (3) ...and the added face is the new weight",
+    /font-weight: 900/.test(additiveSheet) && /font-family: 'Lora'/.test(additiveSheet),
+  );
+
+  // (4) the deliberate override: possible, and LOUD about what it drops.
+  const overridden = await run(
+    [
+      "--css-url",
+      `${base}/reviewer-stub`,
+      "--allow-rule-removal",
+      "--reason",
+      "upstream retired the family",
+    ],
+    REAL_SHEET_TEXT,
+  );
+  const overriddenSheet = await Deno.readTextFile(`${tmp}/public/styles.css`);
+  assert(
+    "cp7 (4) the override writes the reduction",
+    overridden.code === 0 && (overriddenSheet.match(/@font-face \{/g) ?? []).length === 2,
+    `exit=${overridden.code}`,
+  );
+  assert(
+    "cp7 (4) ...and it is LOUD: the output lists what it dropped, with the reason",
+    /OVERRIDE/.test(overridden.err) && /upstream retired the family/.test(overridden.err) &&
+      /Lora\|normal\|400\|latin/.test(overridden.err),
+    overridden.err.trim().slice(0, 160),
+  );
+
+  // (5) the override cannot be used bare: the reason is required.
+  const bareOverride = await run(
+    ["--css-url", `${base}/reviewer-stub`, "--allow-rule-removal"],
+    REAL_SHEET_TEXT,
+  );
+  assert(
+    "cp7 (5) --allow-rule-removal without --reason is REFUSED",
+    bareOverride.code !== 0 && /requires --reason/.test(bareOverride.err) && bareOverride.unchanged,
+    `exit=${bareOverride.code}`,
+  );
+
+  // (6) --check must not bless a reduction either.
+  const checkReduction = await run(
+    ["--check", "--css-url", `${base}/reviewer-stub`],
+    REAL_SHEET_TEXT,
+  );
+  // The reduction guard fires before the check-mode comparison (it is the same refusal, just
+  // earlier), so the message can be on either stream — what matters is that the check never blesses
+  // a reduction as current.
+  assert(
+    "cp7 (6) --check against a reducing upstream is non-zero and says it would REMOVE",
+    checkReduction.code !== 0 && !/up to date/.test(checkReduction.out + checkReduction.err) &&
+      /would REMOVE/.test(checkReduction.out + checkReduction.err) && checkReduction.unchanged,
+    `exit=${checkReduction.code} ${
+      (checkReduction.err || checkReduction.out).trim().slice(0, 160)
+    }`,
+  );
+  // And with the override supplied, check mode still reports OUT OF DATE rather than current.
+  const checkReductionOverridden = await run(
+    [
+      "--check",
+      "--css-url",
+      `${base}/reviewer-stub`,
+      "--allow-rule-removal",
+      "--reason",
+      "upstream retired the family",
+    ],
+    REAL_SHEET_TEXT,
+  );
+  assert(
+    "cp7 (6b) --check with the override reports the reduction as OUT OF DATE, never current",
+    checkReductionOverridden.code !== 0 && /OUT OF DATE/.test(checkReductionOverridden.out) &&
+      /would REMOVE/.test(checkReductionOverridden.out) && checkReductionOverridden.unchanged,
+    `exit=${checkReductionOverridden.code} ${checkReductionOverridden.out.trim().slice(0, 140)}`,
   );
 
   // 6. the repo's real sheet must still be considered current by the real endpoint
