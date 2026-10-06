@@ -215,10 +215,16 @@ export async function validateReferenceContract(contract, root = ".") {
 //   * an ANONYMOUS special operation with a non-keyword return type reports the TYPE as a member
 //     (`getter DOMString (index)` -> "DOMString"). It over-reports, so it fails safe; every getter on
 //     the current pages is named.
-//   * a <pre> block that declares members but contains none of the words interface/dictionary/enum/
-//     attribute is skipped, so an operations-only `namespace` would hide its members. It is not
-//     reached today (no page declares a namespace in IDL), and it fails unsafe - the inverse of the
-//     no-IDL limit below, and the reason the rule is necessary rather than sufficient.
+//   * THE TRIGGER IS A HEURISTIC, and its negative direction is a DECISION rather than an oversight.
+//     A block whose members are declared without any declaration-shaped token (no interface/
+//     dictionary/enum/namespace/callback/typedef/mixin/partial, no line-leading attribute) is read as
+//     NOT-IDL, so a surface spelled in a shape we do not recognise there is invisible - the same
+//     failure an operations-only `namespace` had before gendn-zuz broadened the gate and added the
+//     loud failure below. Broadening further was rejected deliberately: failing on anything would
+//     flag every JSON/JS/CSS/ABNF block that shares a syntax section (all four shapes occur on current
+//     pages), and a check that cries wolf stops being read. So this rule is NECESSARY, not sufficient
+//     - prose correctness and the real spec surface remain independent-review obligations, and a
+//     member that cannot be honestly justified as context is a finding, not an entry.
 //
 // IT CANNOT PROVE THE INVENTORY IS COMPLETE, and it has a known blind spot: a page that declares NO
 // IDL in its syntax block yields no members to compare against, so a collapsed contract on such a
