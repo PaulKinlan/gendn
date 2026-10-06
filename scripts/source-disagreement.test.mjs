@@ -282,6 +282,16 @@ const PAGES = [
     sideB: ["5197681148428288", "is_released false", "accurate_as_of"],
     dates: ["fetched 2026-10-06"],
   },
+  {
+    // gendn-xpz wave-2a: the page documented migration_target/migration_source while the merged WICG PR #136
+    // defines migrate_to/migrate_from. Verified by the implementer against the PR's own diff (the page's names
+    // appear zero times there) and disclosed in-unit per coord's 22:30Z ruling.
+    page: "v147/pwa-origin-migration/index.html",
+    marker: "Specification divergence, both sides reported rather than resolved",
+    sideA: ["migration_target", "migration_source"],
+    sideB: ["migrate_to", "migrate_from", "web-app-origin-association", "allow_migration"],
+    dates: ["fetched 2026-10-06"],
+  },
 ];
 
 let failures = 0;
@@ -329,6 +339,7 @@ const DATED_PAGES = new Set([
   "v151/no-auto-rewind-for-animationtrigger-play-methods/index.html",
   "v147/autofill-event/index.html",
   "v152/deprecate-and-remove-xslt/xsltprocessor/index.html",
+  "v147/pwa-origin-migration/index.html",
   "v147/local-network-access-restrictions-for-websockets/index.html",
   "v147/clip-text-overflow-on-user-interaction/index.html",
   "v147/local-network-access-restrictions/index.html",
