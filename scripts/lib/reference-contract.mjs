@@ -511,16 +511,33 @@ function memberNamesFromIdl(idl) {
   // is a RECORDED decision, pinned by a two-<pre> fixture, not an accident - see the kda comment
   // above for why the fallback is scoped at all rather than always on.
   if (names.size === 0) {
-    // TIGHTENED (gendn-3yh item 3): a WebIDL enum body is a list of STRING LITERALS, so a body with
-    // no string literal and nothing but whitespace removed is not a WebIDL enum - it is TypeScript
-    // `enum Foo { A, B }` or C# `enum Foo { A }`, which the previous `/\benum\s+Name\s*\{/` matcher
-    // accepted in ANY block the keyword gate admitted, because `enum` alone satisfies IDL_BLOCK_GATE.
-    // An EMPTY body is kept: a real page documents an enum whose values exist only as a comment
-    // (v147/web-printing-api/types/printer-state-reason) and strippedIdl has already removed it.
-    // Measured: differs on 0 of the real enum pages and rejects both synthetic non-WebIDL shapes.
+    // TIGHTENED (gendn-3yh item 3, completed by gendn-m9h): a WebIDL enum body is a list of STRING
+    // LITERALS, so a body with no string literal and nothing but whitespace removed is not a WebIDL
+    // enum - it is TypeScript `enum Foo { A, B }` or C# `enum Foo { A }`, which the previous
+    // `/\benum\s+Name\s*\{/` matcher accepted in ANY block the keyword gate admitted, because
+    // `enum` alone satisfies IDL_BLOCK_GATE.
+    // AN EMPTY-STRIPPED BODY IS ACCEPTED ONLY IF THE RAW BODY HAD CONTENT (gendn-m9h), because two
+    // different things strip to an empty body: a real page whose enum values exist only as a comment
+    // (v147/web-printing-api/types/printer-state-reason, `enum WebPrinterStateReason { /* RFC 8011/CUPS
+    // values */ };`) and a TRULY EMPTY body. The raw body separates them, and WebIDL requires at least
+    // one enumerator, so a truly empty body is not a WebIDL enum - accepting it would be the same
+    // non-WebIDL false positive item 3 exists to remove. The raw body is read from the UNSTRIPPED
+    // block, keyed by identifier, because strippedIdl has already removed the comment by this point.
+    const rawEnumBodies = new Map();
+    // ONLY NON-EMPTY RAW BODIES ARE RECORDED (gendn-m9h review fix-forward): the map exists to answer
+    // "did this identifier's raw body have content?", so an empty one must not clobber a comment-only
+    // entry for the same identifier later in the block. Unreachable on today's catalogue (WebIDL
+    // forbids redeclaration and no block repeats an enum identifier), but the order-dependence was
+    // real: `enum E { /* c */ }; enum E { }` lost the comment and dropped E.
+    for (const match of idl.matchAll(/\benum\s+([A-Za-z_$][\w$]*)\s*\{([^}]*)\}/g)) {
+      if (match[2].trim() !== "") rawEnumBodies.set(match[1], match[2]);
+    }
     for (const match of strippedIdl(idl).matchAll(/\benum\s+([A-Za-z_$][\w$]*)\s*\{([^}]*)\}/g)) {
       const body = match[2];
-      if (body.includes('"') || body.trim() === "") names.add(match[1]);
+      if (body.includes('"')) names.add(match[1]);
+      else if (body.trim() === "" && (rawEnumBodies.get(match[1]) ?? "").trim() !== "") {
+        names.add(match[1]);
+      }
     }
     // BARE TYPEDEF DECLARATIONS (gendn-u9m): `typedef (WebPrintingRange or unsigned long)
     // WebPrintingMediaSizeDimension;` names a TYPE, and a typedef carries NO BRACE, so unlike the
