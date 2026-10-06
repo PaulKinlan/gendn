@@ -323,12 +323,23 @@ function renderRollup(runAll) {
 
 // A scoped run merges into whatever the report already holds; a missing or unparseable report is
 // treated as empty rather than aborting the scan (the scan's own results are still written).
-async function readResponsiveRows(path) {
+export async function readResponsiveRows(path, { warn = console.error } = {}) {
   try {
     const parsed = JSON.parse(await Deno.readTextFile(path));
-    if (!Array.isArray(parsed)) return [];
+    if (!Array.isArray(parsed)) {
+      warn(`! ${path} is not an array of rows - treating it as empty`);
+      return [];
+    }
     return parsed.filter((row) => row && typeof row === "object" && typeof row.id === "string");
-  } catch {
+  } catch (err) {
+    if (err instanceof Deno.errors.NotFound) return []; // first scoped run: nothing to merge into
+    // A CORRUPT report is the dangerous case, not the missing one: the merge would silently rewrite
+    // it to just the pages this run scanned, so say so rather than degrade it quietly (gendn-jvh
+    // review P2). The tolerant behaviour stays - the scan's own results are still worth writing.
+    warn(
+      `! ${path} is unreadable (${err.message}) - treating it as empty; a scoped run will write ` +
+        `only the pages it scanned`,
+    );
     return [];
   }
 }

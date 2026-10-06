@@ -454,6 +454,31 @@ assert(
   "a completed single-suite log classifies as the run-all phase",
   classifyPhase(LOGS.singleSuite).name === "run-all",
 );
+// gendn-jvh: the responsive phase now has TWO completion summary shapes - a full run's
+// "responsive-check: <n> pages scanned …" and a scoped run's "<n> page(s) scanned (merged into …)",
+// because a scoped run must not report the REPORT's row count as pages scanned. Both are the
+// responsive phase COMPLETING, so a pattern that recognises only one misclassifies the other and
+// refuses it for missing kill evidence. Pinning both is not ceremony: the first attempt at this
+// change matched the scoped shape and SILENTLY STOPPED MATCHING THE FULL ONE (a `page\(s\)?`
+// alternation does not cover "pages"), and no assertion in this file covered either shape.
+assert(
+  "responsive phase: a FULL run's summary classifies as responsive (the shape the landing gate sends)",
+  classifyPhase("responsive-check: 201 pages scanned → reports/conformance/responsive.json")
+    .name ===
+    "responsive",
+);
+assert(
+  "responsive phase: a SCOPED (merged) summary classifies as responsive too",
+  classifyPhase(
+    "responsive-check: 1 page(s) scanned (merged into reports/conformance/responsive.json; report now 198 rows)",
+  ).name === "responsive",
+);
+assert(
+  "responsive phase: a scoped summary with a PLURAL count still classifies (the alternation must cover both)",
+  classifyPhase(
+    "responsive-check: 3 pages scanned (merged into reports/conformance/responsive.json; report now 198 rows)",
+  ).name === "responsive",
+);
 assert(
   "[BLOCKER] an unsummarised log with no probe banner classifies as unknown, never as behavioural",
   classifyPhase("make: *** [build] Error 1").name === "unknown" &&
