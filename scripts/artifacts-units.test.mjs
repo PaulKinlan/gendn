@@ -194,6 +194,27 @@ assert(
   metadataFromHtml("v900/thing/index.html", hiddenRemovalComment + "<h2>Removal plan</h2>")
     .isRemoval === true,
 );
+// n2k RESIDUE, pinned as CURRENT BEHAVIOUR per coord's evasion-surface acceptance: the
+// stripping is markup-level, so an <h2> hidden only by an external stylesheet CLASS still
+// counts — no markup-level derivation can read stylesheets. This assertion documents the
+// residue; if a future stylesheet-aware derivation lands, THIS assertion is the one that
+// must be deliberately flipped (and the limitation text in artifacts.mjs removed with it).
+assert(
+  "n2k residue: a CLASS-hidden removal h2 (external stylesheet only) STILL flips isRemoval — stated limitation of markup-level stripping, not an oversight",
+  metadataFromHtml(
+    "v900/thing/index.html",
+    '<h1>Thing</h1><h2 class="hidden-by-css">Removal plan</h2>',
+  )
+    .isRemoval === true,
+);
+assert(
+  "n2k residue boundary: an INLINE display:none removal h2 IS stripped (attribute-level hiding is covered)",
+  metadataFromHtml(
+    "v900/thing/index.html",
+    '<h1>Thing</h1><h2 style="display:none">Removal plan</h2>',
+  )
+    .isRemoval === false,
+);
 
 // demo fallback: no own-prefix link -> the FIRST showcase link wins; own prefix found later overrides
 const fallback = metadataFromHtml(

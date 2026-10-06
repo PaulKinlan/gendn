@@ -93,6 +93,13 @@ export function metadataFromHtml(pagePath, html) {
   // current verdict; it is made on robustness grounds and is PINNED by
   // scripts/artifacts-units.test.mjs — switching the scan back to raw html FAILS that suite.
   // The slug-prefix test stays path-derived (the path is not markup).
+  //
+  // KNOWN LIMITATION (stated per coord's evasion-surface acceptance): the stripping is
+  // MARKUP-level. Text a reader cannot see via comments, <script>/<style>/template bodies,
+  // <details closed>, [hidden], aria-hidden or INLINE display/visibility/content-visibility
+  // can no longer flip this field — but an <h2> hidden only by an external stylesheet CLASS
+  // still counts, because no markup-level derivation can read stylesheets. That residue is
+  // pinned as current behaviour by the fixture ("n2k residue" assertion), not silently left.
   const visibleMarkup = renderedMarkup(html);
   const isRemoval = /^(deprecate|remove|disable)/.test(slug) ||
     /\bremov(e|ed|al)\b|\bdeprecat/i.test(
