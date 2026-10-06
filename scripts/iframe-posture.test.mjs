@@ -241,13 +241,27 @@ assert(
     "none"
   }`,
 );
+// The deferral list is asserted by EXACT SET, not by count (gendn-sgc pilot, coord's swap point): a
+// count check plus "names a real scanned page" plus "names a bead" is satisfied by SWAPPING one
+// deferred page for any other real page, so a widening could hide behind a swap. Naming the ids is
+// the same claim the comment always meant. This list only ever SHRINKS: a page leaves it in the same
+// change that hardens it and gives it a contract (v152/sub-apps was the first).
+const DEFERRED_PAGES = [
+  "v150/speculative-load-measurement/index.html",
+  "v150/webrtc-diagnostic-logging-api/index.html",
+  "v151/algorithm-updates-in-webcrypto/index.html",
+  "v151/speculation-rules-form-submission-field/index.html",
+];
 assert(
-  // The count only ever SHRINKS: a page leaves the list in the same change that hardens it and gives
-  // it a contract (v152/sub-apps, gendn-sgc pilot). An entry appearing here without that work is a
-  // widening, which is what this exact-count check exists to catch.
-  "the deferral list did not widen (exact 4 entries, each naming its tracking bead)",
-  PENDING_HARDENING.length === 4 && PENDING_HARDENING.every((p) => p.bead === "gendn-sgc"),
-  `${PENDING_HARDENING.length} entries`,
+  "the deferral list is EXACTLY the deferred pages (a swap cannot hide a widening)",
+  JSON.stringify(PENDING_HARDENING.map((p) => p.file).sort()) ===
+    JSON.stringify([...DEFERRED_PAGES].sort()),
+  `got: ${PENDING_HARDENING.map((p) => p.file).join(", ")}`,
+);
+assert(
+  "every deferral names its tracking bead",
+  PENDING_HARDENING.every((p) => p.bead === "gendn-sgc"),
+  PENDING_HARDENING.map((p) => `${p.file}->${p.bead}`).join(", "),
 );
 
 // --- canary: the rules MUST flag the pre-fix shape (the guard can fail) ---------------
