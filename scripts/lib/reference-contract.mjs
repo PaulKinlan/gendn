@@ -211,6 +211,15 @@ export async function validateReferenceContract(contract, root = ".") {
 // contains h3 member subheadings. A page with neither an id nor a "Syntax" heading yields no
 // members and is not checked.
 //
+// TWO KNOWN PARSER LIMITS (gendn-4kq review 4, both latent - no current page hits either):
+//   * an ANONYMOUS special operation with a non-keyword return type reports the TYPE as a member
+//     (`getter DOMString (index)` -> "DOMString"). It over-reports, so it fails safe; every getter on
+//     the current pages is named.
+//   * a <pre> block that declares members but contains none of the words interface/dictionary/enum/
+//     attribute is skipped, so an operations-only `namespace` would hide its members. It is not
+//     reached today (no page declares a namespace in IDL), and it fails unsafe - the inverse of the
+//     no-IDL limit below, and the reason the rule is necessary rather than sufficient.
+//
 // IT CANNOT PROVE THE INVENTORY IS COMPLETE, and it has a known blind spot: a page that declares NO
 // IDL in its syntax block yields no members to compare against, so a collapsed contract on such a
 // page passes. The collapsed v151/speculation-rules-form-submission-field contract is exactly that
