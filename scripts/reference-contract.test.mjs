@@ -324,6 +324,79 @@ dictionary D {
     "the construct could not be discharged via outOfScope + rationale, so the rule would block pages",
   );
 
+  // ---- BARE WebIDL ENUMS were invisible (gendn-kda) ------------------------------------------
+  // Measured before the fix: `enum WebPrinterState { "idle", "processing", "stopped" };` passes
+  // IDL_BLOCK_GATE (`enum` is in the gate) but memberNamesFromIdl returns NOTHING - the values are
+  // string literals with no identifier, and the `enum Name {` header is stripped by idlStatements.
+  // A contract could therefore be silently smaller than the page's declared surface, and no
+  // unreadable report fires (the values carry no member hint). Reported as the TYPE's own
+  // identifier, once, and NOT expanded into its values: the page documents the enum type (its h1 IS
+  // the identifier), the contract inventories it by that identifier, and the values are described
+  // collectively - the cheapest form that is SATISFIABLE, mirroring the parameterless specials.
+  const enumPage = (declaration) =>
+    `<!doctype html><main><section><h2 id="syntax">Syntax</h2><pre><code>${declaration}</code></pre></section></main>`;
+  for (
+    const [identifier, declaration] of [
+      ["WebPrinterState", 'enum WebPrinterState { "idle", "processing", "stopped" };'],
+      ["WebPrinterStateReason", "enum WebPrinterStateReason { /* RFC 8011/CUPS values */ };"],
+      [
+        "WebPrintingResolutionUnits",
+        'enum WebPrintingResolutionUnits { "dots-per-inch", "dots-per-centimeter" };',
+      ],
+    ]
+  ) {
+    const seen = declaredSurfaceMembers(enumPage(declaration));
+    assert(
+      JSON.stringify(seen) === JSON.stringify([identifier]),
+      `a bare ${identifier} enum was not reported as ${JSON.stringify([identifier])} (got ${
+        JSON.stringify(seen)
+      })`,
+    );
+  }
+  // An extended attribute before the enum must not hide the identifier.
+  assert(
+    JSON.stringify(declaredSurfaceMembers(enumPage('[Exposed=Window] enum Foo { "a", "b" };'))) ===
+      JSON.stringify(["Foo"]),
+    "an extended attribute before a bare enum hid the identifier",
+  );
+  // NO REGRESSION (the scoping that keeps existing contracts green): a MIXED block that already
+  // reports a dictionary member must NOT also report its enum identifier - widening the fallback
+  // would add uncovered identifiers to contracts that are already correct.
+  const mixedEnumPage =
+    '<!doctype html><main><section><h2 id="syntax">Syntax</h2><pre><code>enum KeyFormat { "raw" };\ndictionary EncapsulatedKey { CryptoKey sharedKey; };</code></pre></section></main>';
+  assert(
+    JSON.stringify(declaredSurfaceMembers(mixedEnumPage)) === JSON.stringify(["sharedKey"]),
+    `a mixed enum+dictionary block reported the enum identifier instead of only its member: ${
+      JSON.stringify(declaredSurfaceMembers(mixedEnumPage))
+    }`,
+  );
+  // SATISFIABILITY: a contract must acknowledge the enum type, and can discharge it by inventorying
+  // the identifier (the pages inventory it by that name) or by outOfScope with a rationale.
+  const printerStatePage = enumPage('enum WebPrinterState { "idle", "processing", "stopped" };');
+  assert(
+    validateDeclaredSurface(surfaceContract(["alpha"]), printerStatePage).some((e) =>
+      e.includes('declared surface member "WebPrinterState"')
+    ),
+    "a bare-enum page passed with a contract that never acknowledges the enum type",
+  );
+  assert(
+    validateDeclaredSurface(surfaceContract(["WebPrinterState"]), printerStatePage).length === 0,
+    "a contract inventorying the enum type by its identifier was rejected",
+  );
+  assert(
+    validateDeclaredSurface(
+      {
+        ...surfaceContract(["alpha"]),
+        outOfScope: [{
+          name: "WebPrinterState",
+          rationale: "The enum values are specified by WebIDL, not documented as prose here.",
+        }],
+      },
+      printerStatePage,
+    ).length === 0,
+    "the enum type could not be discharged via outOfScope + rationale, so the rule would block pages",
+  );
+
   // The ratio a reviewer reads: 1 inventoried + 1 excluded of 2 declared must not look like a clean
   // 2/2, so the summary is part of the guard rather than left to counting entries by eye.
   assert(
