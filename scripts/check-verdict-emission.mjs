@@ -111,7 +111,11 @@ const PHASES = {
     command: "deno task conformance [--page <id>]",
   },
   responsive: {
-    summary: /^responsive-check: \d+ pages scanned\b/m,
+    // The scoped form (gendn-jvh) reads `responsive-check: <n> page(s) scanned (merged into …)`
+    // because a scoped run must not describe the REPORT's row count as pages scanned; both shapes
+    // are the responsive phase completing, so recognising only the full one would misclassify a
+    // scoped log and refuse it for missing kill evidence.
+    summary: /^responsive-check: \d+ page\(?s\)? scanned\b/m,
     shape: "responsive-check: <n> pages scanned",
     command: "deno task responsive",
   },
