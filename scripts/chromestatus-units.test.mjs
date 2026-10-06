@@ -105,7 +105,7 @@ const base = `http://127.0.0.1:${server.addr.port}`;
 
 // The seam must be set BEFORE the module is imported (BASE is captured at import time).
 Deno.env.set("CHROMESTATUS_BASE", base);
-const { getChannels, getFeature, getMilestoneFeatures, slugify } = await import(
+const { chromeStatusUrl, getChannels, getFeature, getMilestoneFeatures, slugify } = await import(
   "../lib/chromestatus.ts"
 );
 
@@ -445,6 +445,78 @@ print(json.dumps([m.slugify(n) for n in json.loads(sys.argv[1])]))`,
     broken.join(" | ") || "4/4 boundary codepoints diverge as measured (both polarities)",
   );
 }
+
+// ---------------------------------------------------------------------------
+// gendn-b2s (finding TM-1): chromeStatusUrl is the runtime narrow for untrusted upstream feature
+// ids, and the three render seams must consume it. DETECTOR 1 kills a helper that trusts its
+// compile-time `number` claim (a value that looked numeric and was not is the existing failure
+// mode). DETECTOR 2 kills a re-introduced RAW interpolation site anywhere in the render seams —
+// the bug shape this bead exists for ("was the fix complete?").
+// ---------------------------------------------------------------------------
+assert(
+  "b2s narrow: a canonical upstream id number builds the exact canonical URL",
+  chromeStatusUrl(5198951632470016) === "https://chromestatus.com/feature/5198951632470016",
+  `got ${chromeStatusUrl(5198951632470016)}`,
+);
+assert(
+  "b2s narrow: a digits-only STRING id is accepted (lifecycle artifacts carry identity as a string)",
+  chromeStatusUrl("123") === "https://chromestatus.com/feature/123" &&
+    chromeStatusUrl("  123  ") === "https://chromestatus.com/feature/123",
+);
+for (
+  const [label, bad] of [
+    ["a float", 12.5],
+    ["zero", 0],
+    ["a negative", -1],
+    ["an unsafe integer (2^53)", 2 ** 53],
+    ["a leading-zero string", "0123"],
+    ["digits+letters", "12a"],
+    ["the attribute-breaker '1\" onmouseover=\"alert(1)'", '1" onmouseover="alert(1)'],
+    ["a javascript: URL as the id", "javascript:alert(1)"],
+    ["an empty string", ""],
+    ["a whitespace string", "   "],
+    ["a 20-digit string (length bound)", "1" + "0".repeat(19)],
+    ["null", null],
+    ["undefined", undefined],
+    ["an object", {}],
+    ["an array", [1]],
+  ]
+) {
+  assert(
+    `b2s narrow: ${label} yields null (no link), not a URL`,
+    chromeStatusUrl(bad) === null,
+    `got ${chromeStatusUrl(bad)}`,
+  );
+}
+assert(
+  "b2s narrow: the 19-digit bound is inclusive at 19 and exclusive at 20",
+  chromeStatusUrl("1" + "0".repeat(18)) ===
+    `https://chromestatus.com/feature/${"1" + "0".repeat(18)}`,
+);
+
+// DETECTOR 2 — the sweep (rule 82 made executable): no render seam may interpolate the feature
+// URL raw. gen-conformance.mjs is deliberately NOT scanned: it is repo-authoring tooling whose
+// meta.identity flows into conformance suites (validated + hash-pinned), not into served markup.
+const rawSite = /chromestatus\.com\/feature\/\$\{/g;
+const seamFiles = ["server.ts", "lib/lifecycle.ts"];
+for (const rel of seamFiles) {
+  const src = await Deno.readTextFile(`${REPO}/${rel}`);
+  const raws = src.match(rawSite) ?? [];
+  assert(
+    `b2s sweep: ${rel} has ZERO raw chromestatus.com/feature/\${ interpolations (the narrowed helper is the only builder)`,
+    raws.length === 0,
+    raws.length ? `${raws.length} raw site(s) re-introduced` : "clean",
+  );
+  assert(
+    `b2s sweep: ${rel} consumes chromeStatusUrl (the narrow is WIRED, not merely absent)`,
+    src.includes("chromeStatusUrl("),
+  );
+}
+const csSrc = await Deno.readTextFile(`${REPO}/lib/chromestatus.ts`);
+assert(
+  "b2s sweep: lib/chromestatus.ts carries exactly ONE feature-URL interpolation — inside the narrowed helper itself",
+  (csSrc.match(rawSite) ?? []).length === 1 && csSrc.includes("FEATURE_ID_RE.test(digits)"),
+);
 
 if (failures > 0) {
   console.error(`chromestatus-units.test.mjs: ${failures} assertion(s) failed`);

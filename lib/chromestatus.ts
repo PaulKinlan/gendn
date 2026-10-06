@@ -219,6 +219,24 @@ export function slugify(s: string): string {
     .slice(0, 80);
 }
 
-export function chromeStatusUrl(id: number): string {
-  return `https://chromestatus.com/feature/${id}`;
+// Runtime narrowing for untrusted upstream feature ids (gendn-b2s / finding TM-1,
+// THREAT_MODEL.md invariant #4): the compile-time `number` on FeatureSummary.id is a CLAIM
+// about JSON that arrives from chromestatus.com at runtime, and lifecycle artifacts carry the
+// identity as a STRING — the existing failure mode is exactly a value that looked numeric and
+// was not, so the guard checks the VALUE, not the type. Canonical digit strings only (no
+// leading zero, bounded length); anything else yields null and the render seam falls back to
+// plain text instead of a link — the renderCommitAnchor shape from lib/external-url.ts. Digits
+// need no escaping: the narrowed output is canonical by construction, which is stronger than
+// encoding an unvalidated value (encoding was never the missing check here — narrowness is).
+const FEATURE_ID_RE = /^[1-9][0-9]{0,18}$/;
+
+export function chromeStatusUrl(id: unknown): string | null {
+  const digits = typeof id === "number"
+    ? (Number.isSafeInteger(id) && id > 0 ? String(id) : null)
+    : typeof id === "string"
+    ? id.trim()
+    : null;
+  return digits !== null && FEATURE_ID_RE.test(digits)
+    ? `https://chromestatus.com/feature/${digits}`
+    : null;
 }
