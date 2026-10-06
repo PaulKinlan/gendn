@@ -47,6 +47,10 @@ const j = (o) => JSON.stringify(o, null, 1);
 
 const EVIL = `<script>alert(1)</script>`;
 const EVIL_ATTR = `"><script>alert(9)</script>`;
+// gendn-imh: a status that a PREFIX-style whitelist would wave through. The value never reaches
+// markup (only the whitelisted state does), so the only way to tell an exact whitelist from a
+// startsWith one is which STATE the row gets - hence the count-based canaries below.
+const PREFIX_VERDICT = `pass${EVIL_ATTR}`;
 
 await Deno.mkdir(`${tmp}/v900/evil`, { recursive: true });
 await Deno.writeTextFile(
@@ -84,6 +88,8 @@ await Deno.writeTextFile(
         deviceClass: "both",
       },
       { id: "a-unknown", category: "c", describe: "d", kind: "k", deviceClass: "both" },
+      { id: "a-prefix", category: "c", describe: "d", kind: "k", deviceClass: "both" },
+      { id: "a-skipped", category: "c", describe: "d", kind: "k", deviceClass: "both" },
     ],
   }),
 );
@@ -149,6 +155,8 @@ await Deno.writeTextFile(
           { id: "a-inject", status: EVIL_ATTR },
           { id: "a-blocked", status: "blocked", reason: `manual evidence pending ${EVIL}` },
           { id: "a-unknown", status: "weird-unknown-status" },
+          { id: "a-prefix", status: PREFIX_VERDICT },
+          { id: "a-skipped", status: "skipped" },
         ],
       },
       {
@@ -264,6 +272,24 @@ assert(
 assert(
   "an UNKNOWN verdict status renders as n/a — never borrowing pass/fail/blocked styling",
   R.suiteEvil.includes(`v-n/a">n/a`) && !R.suiteEvil.includes("weird-unknown-status"),
+);
+// gendn-imh: the whitelist must be EXACT, not prefix-style. A startsWith-shaped whitelist keeps all
+// three real verdicts working (so every assertion above still passes) and additionally waves through
+// `pass"><script>…`, restoring the attribute-injection hole the lny fix closed - with the suite green.
+// The row's STATE is the only thing that differs, so these two canaries count states rather than
+// looking for the payload text (which never reaches markup either way).
+const passRows = (R.suiteEvil.match(/class="v v-pass">pass</g) ?? []).length;
+const naRows = (R.suiteEvil.match(/class="v v-n\/a">n\/a</g) ?? []).length;
+assert(
+  "the verdict whitelist is EXACT: a status with a valid PREFIX and a hostile suffix must NOT be styled as its prefix (exactly one pass-styled row, from the genuine pass)",
+  passRows === 1,
+  `${passRows} pass-styled row(s) in the hostile suite`,
+);
+assert(
+  "an unknown-but-BENIGN status (skipped) renders the fallback itself: exactly four n/a rows (hostile, weird, prefix-hostile, skipped) and no unrecognised status text echoed",
+  naRows === 4 && !R.suiteEvil.includes(">skipped<") &&
+    !R.suiteEvil.includes("weird-unknown-status"),
+  `${naRows} n/a row(s)`,
 );
 assert("pass renders as pass", R.suiteOk.includes(`v-pass">pass`));
 assert(
