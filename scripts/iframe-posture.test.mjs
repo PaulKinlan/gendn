@@ -26,11 +26,13 @@
 //      referrerpolicy and, if unsandboxed, must be listed in FIRST_PARTY_UNSANDBOXED with a
 //      reason — deliberate, never default.
 //   4. PENDING_HARDENING (scripts/lib/iframe-posture.mjs) is an exact-file, reasoned, self-
-//      expiring deferral list: 5 built pages with no reference-contract.json cannot be touched
-//      without tripping check-conformance's touched-page ratchet (coord ruling 2026-10-06,
-//      option c: split and file). gendn-sgc hardens them and deletes the list; if a listed page
-//      gains a contract before that, this fixture FAILS so the exemption cannot outlive its
-//      reason. A new unsandboxed third-party iframe on ANY other page still fails.
+//      expiring deferral list: originally 5 built pages with no reference-contract.json could not
+//      be touched without tripping check-conformance's touched-page ratchet (coord ruling 2026-10-06,
+//      option c: split and file). All 5 pages (v152/sub-apps, v151/speculation-rules-form-submission-field,
+//      v150/speculative-load-measurement, v150/webrtc-diagnostic-logging-api, and
+//      v151/algorithm-updates-in-webcrypto) have now gained contracts, hardened their iframes, and
+//      delisted; the list is currently empty. A new unsandboxed third-party iframe on ANY page
+//      still fails.
 //
 // DETECTOR PROOF: the canary section runs the SAME rule function against synthesized tags —
 // including the exact pre-fix shape (third-party iframe, no sandbox, no referrerpolicy), a
@@ -47,11 +49,10 @@
 //   - Attribute parsing is regex-grade: it reads sandbox/referrerpolicy/src tokens from the tag
 //     text. Exotic encodings (entity-escaped attribute values, tags split by template logic) could
 //     evade or confuse it — another reason the canaries pin the rule function, not the prose.
-//   - FOUR PAGES ARE DELIBERATELY NOT HARDENED YET (PENDING_HARDENING in
-//     scripts/lib/iframe-posture.mjs, tracking bead gendn-sgc); v152/sub-apps left the list in the
-//     same change that postured it (gendn-sgc pilot). This fixture's greenness means "every iframe
-//     is either deliberately postured or an exact-match reasoned deferral" — it does NOT mean "all
-//     36 embed pages are hardened". 32 are; 4 are not, and the list says why.
+//   - PENDING_HARDENING in scripts/lib/iframe-posture.mjs is currently empty: all 5 originally
+//     deferred pages have now been postured with contracts (gendn-sgc / gendn-cwd). All 36
+//     showcase embed pages carry deliberate postures. The deferral mechanism remains in place
+//     for future deferrals if needed.
 //
 // Run: deno task test-iframe-posture
 
@@ -284,10 +285,9 @@ assert(
 // Proven by mutation, not assumed: dropping an id from DEFERRED_PAGES fails; and with DEFERRED_PAGES
 // edited to match a swap onto an already-postured page, the posture-axis assertion is what fails.
 // The list only ever SHRINKS: a page leaves it in the same change that postures it and gives it a
-// contract (v152/sub-apps was the first, v151/speculation-rules-form-submission-field the second).
-const DEFERRED_PAGES = [
-  "v151/algorithm-updates-in-webcrypto/index.html",
-];
+// contract. All 5 originally deferred pages have now gained contracts and hardened their embeds;
+// the list is currently empty.
+const DEFERRED_PAGES = [];
 assert(
   "the deferral list is EXACTLY the deferred pages (a swap cannot hide a widening)",
   JSON.stringify(PENDING_HARDENING.map((p) => p.file).sort()) ===
