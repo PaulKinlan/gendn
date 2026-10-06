@@ -17,16 +17,11 @@ export const SANCTIONED_REFERRERPOLICY = "strict-origin-when-cross-origin";
 // EXIT CONDITION (temporary by construction): gendn-sgc authors the implementation-sufficient
 // contracts from source, applies the posture to those pages, and REMOVES each entry in the same
 // change that hardens it. LANDED SO FAR: v152/sub-apps (the pilot),
-// v151/speculation-rules-form-submission-field and v150/speculative-load-measurement. The guard fixture additionally SELF-EXPIRES each entry: if a listed page gains a
+// v151/speculation-rules-form-submission-field, v150/speculative-load-measurement and
+// v150/webrtc-diagnostic-logging-api. The guard fixture additionally SELF-EXPIRES each entry: if a listed page gains a
 // reference-contract.json before it is hardened and delisted, the fixture FAILS — the exemption
 // cannot outlive its reason.
 export const PENDING_HARDENING = [
-  {
-    file: "v150/webrtc-diagnostic-logging-api/index.html",
-    why:
-      "built page with no reference-contract.json yet; touching it trips the conformance ratchet",
-    bead: "gendn-sgc",
-  },
   {
     file: "v151/algorithm-updates-in-webcrypto/index.html",
     why:
