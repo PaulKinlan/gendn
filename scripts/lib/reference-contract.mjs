@@ -27,9 +27,11 @@ export const REQUIRED_DIMENSIONS = [
 // file to null rather than throwing. INPUT order is preserved in both the success and the failure path:
 //
 // ERROR SEMANTICS: the serial loop reported the FIRST failing ownerId in input order. Promise.all would
-// instead report whichever rejection settled first, which is timing-dependent, so allSettled is used and
-// the first rejection IN INPUT ORDER is rethrown. (allSettled also subscribes to every read, so a second
-// rejection cannot surface as an unhandled rejection.)
+// instead report whichever rejection settled first, which is timing-dependent (review measured THREE
+// different outcomes in twelve runs of a two-failure fixture) - a flaky gate message. allSettled is used
+// and the first rejection IN INPUT ORDER is rethrown, which reproduces the serial behaviour exactly.
+// Unhandled-rejection safety is NOT the reason for allSettled - Promise.all subscribes to every element
+// too, so neither form can leak an unhandled rejection.
 export async function collectReferenceContracts(root = ".", pageIds = []) {
   const settled = await Promise.allSettled(
     pageIds.map(async (ownerId) => {
@@ -803,9 +805,11 @@ function validateSourceRefs(refs, sourceById, errors, tag) {
 // inside their hottest loops - hasId() once per (documentation item x coverage dimension), hasHref()
 // once per (coverage dimension x cited sourceRef) - and every call re-applies artifacts.mjs's chained
 // regex passes over the WHOLE document until they converge. Measured on the real corpus: 2529 hasId
-// calls across 281 documentation items. Keying the cache on the html string renders each distinct
-// document once per validation run; a run touches at most the published page set, so the cache stays
-// bounded (the validators are one-shot processes, so no eviction is needed).
+// calls across 281 documentation items. The cache is keyed on every distinct string passed to
+// renderedMarkup - which includes the FRAGMENTS stripMarkup() receives, NOT only whole documents (review
+// measured 1174 entries after validating all 48 contracts, 1336 via the census path, against only 201
+// published pageIds) - so the retained set is larger than the page count, and a future long-lived
+// importer would need eviction. The validators are one-shot CLI processes, so none is needed today.
 const renderedMarkupCache = new Map();
 
 function cachedRenderedMarkup(html) {
