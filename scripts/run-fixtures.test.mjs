@@ -14,11 +14,23 @@
 // Run: deno task test-run-fixtures
 
 import {
+  aggregateExitCode,
+  appendSweepToken,
+  depthRefusal,
   environHasToken,
+  fixtureEnvironment,
+  incomingDepth,
   isAggregateTaskCommand,
+  MAX_NESTING_DEPTH,
+  nextDepth,
   recursionRefusal,
   RUN_MARKER,
+  scanForToken,
+  SWEEP_BUDGET_MS,
+  SWEEP_MAX_PIDS,
   SWEEP_TOKEN,
+  sweepReport,
+  sweepTargets,
 } from "./run-fixtures.mjs";
 
 const REPO = new URL("..", import.meta.url).pathname;
@@ -104,8 +116,7 @@ async function scratchTree({ stripMarkerGuard }) {
     JSON.stringify(
       {
         tasks: {
-          "test-everything":
-            "deno run --allow-read --allow-write --allow-run --allow-env scripts/run-fixtures.mjs",
+          "test-everything": "deno run --allow-all scripts/run-fixtures.mjs",
           "test-noop": "deno run scripts/noop.mjs",
         },
       },
@@ -131,11 +142,11 @@ function runIn(dir, args) {
 
 const discoveryBanners = (text) => (text.match(/discovered \d+ test-\* task\(s\)/g) ?? []).length;
 
-function runRunner(args, env = {}) {
+function runRunner(args, env = {}, flags = RUNNER_FLAGS) {
   return new Deno.Command(Deno.execPath(), {
     args: [
       "run",
-      ...RUNNER_FLAGS,
+      ...flags,
       `${REPO}scripts/run-fixtures.mjs`,
       ...args,
     ],
@@ -302,6 +313,88 @@ try {
     );
   }
 
+  // ---- gendn-r3b: depth, not command SPELLING, bounds accidental recursion ---------------------
+  // The deepest real chain is aggregate (0) -> test-run-fixtures (1) -> narrowed runner's fixture
+  // (2); max 3 leaves one wrapper layer. The proof is finite arithmetic, NEVER running recursion.
+  {
+    const table = [
+      [{}, 0],
+      [{ [RUN_MARKER]: "12345" }, 1], // legacy 0bm marker
+      [{ [RUN_MARKER]: "12345:2" }, 2],
+      [{ [RUN_MARKER]: "not-a-marker" }, 0],
+    ];
+    for (const [env, expected] of table) {
+      assert(
+        `r3b depth: ${JSON.stringify(env)} parses as ${expected}`,
+        incomingDepth(env) === expected && nextDepth(env) === expected + 1,
+      );
+    }
+    for (let depth = 0; depth <= 5; depth++) {
+      const env = depth ? { [RUN_MARKER]: `12345:${depth}` } : {};
+      const refusal = recursionRefusal(env, { discovery: false });
+      assert(
+        `r3b decision: narrowed run at incoming depth ${depth} ${
+          depth < MAX_NESTING_DEPTH ? "runs" : "REFUSES"
+        }`,
+        depth < MAX_NESTING_DEPTH
+          ? refusal === null && depthRefusal(env) === null
+          : typeof refusal === "string" && refusal.includes(`depth ${depth}`) &&
+            refusal.includes("maximum of 3") && refusal.includes("--tasks"),
+      );
+    }
+    const candidates = Array.from({ length: SWEEP_MAX_PIDS + 1 }, (_, i) => i + 1);
+    const targets = sweepTargets(candidates);
+    assert(
+      "ebf cap: exactly 64 of 65 candidate PIDs can be signalled; 65th remains for survivor report",
+      SWEEP_MAX_PIDS === 64 && SWEEP_BUDGET_MS === 5000 && targets.length === 64 &&
+        targets.at(-1) === 64 && !targets.includes(65),
+    );
+    const nested = fixtureEnvironment(
+      { [RUN_MARKER]: "12345:1", [SWEEP_TOKEN]: "ancestor-token" },
+      67890,
+      "fixture-depth-probe",
+      1,
+    );
+    assert(
+      "r3b/ebf: ONE spawn-env block increments depth AND extends ancestor token",
+      nested.childEnv[RUN_MARKER] === "12345:2" &&
+        nested.childEnv[SWEEP_TOKEN] === "ancestor-token,67890-fixture-depth-probe-1" &&
+        nested.token === "67890-fixture-depth-probe-1",
+    );
+    assert(
+      "r3b: a comma in a task name cannot split a generated token",
+      fixtureEnvironment({}, 67890, "name,other", 2).token === "67890-name%2Cother-2",
+    );
+  }
+
+  // Two single-fixture invocations, not recursion: the legitimate narrowed path at depth 1 runs;
+  // incoming depth 3 refuses BEFORE spawning anything, with a reason naming the depth.
+  {
+    const allowed = await runRunner(["--tasks", "fixture-depth-probe"], {
+      [RUN_MARKER]: "12345:1",
+      [SWEEP_TOKEN]: "ancestor-token",
+    });
+    const allowedOut = new TextDecoder().decode(allowed.stdout);
+    assert(
+      "r3b end-to-end: depth 1 narrowed run reaches a fixture at depth 2, preserving ancestor token",
+      allowed.code === 0 && /PASS fixture-depth-probe/.test(allowedOut) &&
+        /marker=12345:2 tokens=ancestor-token,\d+-fixture-depth-probe-1/.test(allowedOut),
+      allowedOut.trim().split("\n").slice(-2).join(" | ").slice(0, 200),
+    );
+    const refused = await runRunner(["--tasks", "fixture-depth-probe"], {
+      [RUN_MARKER]: "12345:3",
+    });
+    const refusedText = new TextDecoder().decode(refused.stdout) +
+      new TextDecoder().decode(refused.stderr);
+    assert(
+      "r3b end-to-end: incoming depth 3 REFUSES without spawning a fixture",
+      refused.code !== 0 &&
+        /fixture recursion depth 3 reached the maximum of 3/.test(refusedText) &&
+        !/PASS fixture-depth-probe/.test(refusedText),
+      refusedText.trim().split("\n")[0]?.slice(0, 200) ?? "",
+    );
+  }
+
   // ---- gendn-ebf: a timed-out fixture's DETACHED descendants are swept by TOKEN, not by name ----
 
   // Pure discrimination first, so the sweep's identity check is assertable without spawning anything.
@@ -317,6 +410,77 @@ try {
     assert(
       "ebf: ...and does not match when the variable is absent",
       !environHasToken("A=1\0B=2", "t1"),
+    );
+  }
+
+  // A chain retains ancestor identity while requiring COMPLETE token matches, not substrings.
+  {
+    assert(
+      "ebf: nested runner APPENDS rather than replacing the ancestor's token",
+      appendSweepToken("outer", "inner") === "outer,inner" &&
+        environHasToken(`${SWEEP_TOKEN}=outer,inner\0`, "outer") &&
+        environHasToken(`${SWEEP_TOKEN}=outer,inner\0`, "inner"),
+    );
+    assert(
+      "ebf: a sibling token/prefix cannot be swept through the chain",
+      !environHasToken(`${SWEEP_TOKEN}=outer,inner10\0`, "inner") &&
+        !environHasToken(`OTHER_${SWEEP_TOKEN}=outer,inner\0`, "outer"),
+    );
+  }
+
+  // A deterministic deadline crossing with TWO fake /proc pids. The first pid is observed; the
+  // second is never read. The actual scanner MUST say TRUNCATED (survivor count UNKNOWN), not 0.
+  {
+    async function* fakeEntries() {
+      yield { name: "900001" };
+      yield { name: "900002" };
+    }
+    let ticks = 0;
+    const scan = await scanForToken("needle", 5, {
+      entries: fakeEntries(),
+      readEnviron: async () => new TextEncoder().encode(`${SWEEP_TOKEN}=needle\0`),
+      now: () => (++ticks <= 2 ? 0 : 10),
+    });
+    assert(
+      "ebf detector: deadline after one of TWO pids is explicitly TRUNCATED",
+      scan.truncated && scan.scanned === 1 && scan.found.length === 1 &&
+        scan.found[0] === 900001,
+      JSON.stringify(scan),
+    );
+    const truncated = sweepReport("probe", {
+      identified: scan.found.length,
+      killed: 1,
+      survivors: [],
+      capped: false,
+      unreadable: 0,
+      truncated: scan.truncated,
+      scanned: scan.scanned,
+      elapsedMs: 5000,
+    });
+    assert(
+      "ebf: TRUNCATED prints survivor count UNKNOWN and fails even if fixture exit is zero",
+      truncated.kind === "TRUNCATED" &&
+        /scan TRUNCATED after 1 pid check\(s\)/.test(truncated.line) &&
+        /survivor count UNKNOWN/.test(truncated.line) &&
+        !/0 attributable survivor/.test(truncated.line) &&
+        aggregateExitCode([{ code: 0 }], [], ["probe"]) === 1,
+      truncated.line,
+    );
+    const leak = sweepReport("probe", {
+      identified: 1,
+      killed: 0,
+      survivors: [900001],
+      capped: false,
+      unreadable: 0,
+      truncated: false,
+      scanned: 2,
+      elapsedMs: 10,
+    });
+    assert(
+      "ebf: known LEAK reports recorded pid and fails even if fixture exit is zero",
+      leak.kind === "LEAK" && leak.line.includes("900001") &&
+        aggregateExitCode([{ code: 0 }], ["probe"], []) === 1,
+      leak.line,
     );
   }
 
@@ -349,13 +513,13 @@ try {
         `${elapsedA}ms for a ${detachBound}ms bound`,
       );
       assert(
-        "ebf: the sweep IDENTIFIED the detached descendant outside the process group (by token)",
-        /timeout sweep — 1 descendant\(s\) outside the process group/.test(bothA),
+        "ebf: the sweep IDENTIFIED the detached descendant by its token",
+        /timeout sweep — 1 token-attributed process\(es\)/.test(bothA),
         bothA.split("\n").find((l) => l.includes("timeout sweep"))?.trim() ?? "no sweep line",
       );
       assert(
-        "ebf: ...and it was killed with no survivor reported",
-        /1 killed/.test(bothA) && /0 still alive/.test(bothA),
+        "ebf: ...and it was signalled with no attributable survivor reported",
+        /1 signalled/.test(bothA) && /0 attributable survivor\(s\)/.test(bothA),
         "",
       );
       assert(
@@ -412,6 +576,89 @@ try {
       if (Number.isInteger(childPid3) && childPid3 > 0 && alive(childPid3)) {
         try {
           Deno.kill(childPid3, "SIGKILL");
+        } catch {
+          // already gone
+        }
+      }
+      await Deno.remove(dir, { recursive: true }).catch(() => {});
+    }
+  }
+
+  // CASE C (nested detector): the outer timeout must reclaim a GRANDCHILD launched by a narrowed
+  // inner runner. Without the token chain, the inner runner overwrites outer attribution and this
+  // recorded setsid sleeper SURVIVES. One inner invocation, one fixture, one sleeper — no recursion.
+  {
+    const dir = await Deno.makeTempDir({ prefix: "run-fixtures-nested-" });
+    const own = `${dir}/inner.pid`;
+    const detached = `${dir}/child.pid`;
+    const bound = 4500;
+    try {
+      const startedNested = Date.now();
+      const r = await runRunner(["--tasks", "fixture-nested-timeout-probe"], {
+        GENDN_FIXTURE_TIMEOUT_MS: String(bound),
+        PROBE_PID_FILE: own,
+        PROBE_CHILD_PID_FILE: detached,
+      });
+      const duration = Date.now() - startedNested;
+      const stdout = new TextDecoder().decode(r.stdout);
+      const output = stdout + new TextDecoder().decode(r.stderr);
+      const childPid = Number((await Deno.readTextFile(detached).catch(() => "")).trim());
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      assert(
+        "ebf/r3b nested: outer runner reports TIMEOUT and exits non-zero promptly",
+        r.code !== 0 && /TIMEOUT fixture-nested-timeout-probe/.test(stdout) &&
+          duration < bound + 15_000,
+        `exit=${r.code} duration=${duration}ms`,
+      );
+      assert(
+        "ebf/r3b nested: outer token sweep observes and signals descendants, no UNKNOWN or LEAK",
+        /timeout sweep — [1-9]\d* token-attributed process\(es\), [1-9]\d* signalled, 0 attributable survivor\(s\)/
+          .test(output) && !/scan TRUNCATED|^LEAK /m.test(output),
+        output.split("\n").find((line) => line.includes("timeout sweep"))?.slice(0, 200) ?? "",
+      );
+      assert(
+        "ebf/r3b nested: detached grandchild's RECORDED pid is dead after OUTER sweep",
+        Number.isInteger(childPid) && childPid > 0 && !alive(childPid),
+        `pid=${childPid} alive=${Number.isInteger(childPid) && childPid > 0 && alive(childPid)}`,
+      );
+    } finally {
+      for (const file of [own, detached]) {
+        const pid = Number((await Deno.readTextFile(file).catch(() => "")).trim());
+        if (Number.isInteger(pid) && pid > 0 && alive(pid)) {
+          try {
+            Deno.kill(pid, "SIGKILL");
+          } catch {
+            // already gone
+          }
+        }
+      }
+      await Deno.remove(dir, { recursive: true }).catch(() => {});
+    }
+  }
+
+  // CASE D: the sweep genuinely cannot read /proc under weaker Deno permissions. The runner must
+  // still exit non-zero and say SWEEP FAILED / survivor count UNKNOWN, not misreport a clean zero.
+  {
+    const dir = await Deno.makeTempDir({ prefix: "run-fixtures-denied-" });
+    const probeFile = `${dir}/probe.pid`;
+    try {
+      const r = await runRunner(
+        ["--tasks", PROBE],
+        { GENDN_FIXTURE_TIMEOUT_MS: "1500", PROBE_PID_FILE: probeFile },
+        ["--allow-read", "--allow-write", "--allow-run", "--allow-env"],
+      );
+      const out = new TextDecoder().decode(r.stdout) + new TextDecoder().decode(r.stderr);
+      assert(
+        "ebf: permission-denied /proc scan reports SWEEP FAILED and UNKNOWN, exits non-zero",
+        r.code !== 0 && /TIMEOUT/.test(out) && /timeout sweep FAILED/.test(out) &&
+          /survivor count UNKNOWN/.test(out) && /SWEEP FAILED: fixture-timeout-probe/.test(out),
+        out.split("\n").find((line) => line.includes("sweep FAILED"))?.slice(0, 200) ?? "",
+      );
+    } finally {
+      const pid = Number((await Deno.readTextFile(probeFile).catch(() => "")).trim());
+      if (Number.isInteger(pid) && pid > 0 && alive(pid)) {
+        try {
+          Deno.kill(pid, "SIGKILL");
         } catch {
           // already gone
         }

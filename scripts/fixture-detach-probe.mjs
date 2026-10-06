@@ -13,11 +13,12 @@
 // It is deliberately NOT a `test-*` task: discovery would enrol it into the aggregate, where the hang
 // mode would sleep for the full bound (and the exit mode would leak a sleeper) in CI.
 //
-// WORST-CASE PROCESS COUNT — bounded, not a fork bomb: the runner + the `deno task` shell + this
-// script + ONE detached `sleep` (plus, transiently, the `setsid` parent that execs into it) = at most
-// 5 processes per invocation, and the test kills the detached sleeper by its recorded pid in a
-// `finally`. This bead exists because the previous proof in this area ran an UNBOUNDED recursion and
-// the VM reaper had to kill it at 1292 processes / 6 GB, so the probe is intentionally finite.
+// WORST-CASE PROCESS COUNT — bounded, not a fork bomb: this invocation starts exactly ONE setsid
+// child, which forks exactly ONE sleeper, then no other processes. Counting the runner, task shells,
+// this script, and the transient setsid launcher gives at most 10 command-launched processes under
+// the current task chain (plus the test harness parent), not an unbounded recursion. The test kills
+// the detached sleeper by its recorded pid in a `finally`. The earlier unbounded proof in this area
+// reached 1292 processes / 6 GB before the VM reaper killed it; this probe is intentionally finite.
 
 const ownPidFile = Deno.env.get("PROBE_PID_FILE");
 const childPidFile = Deno.env.get("PROBE_CHILD_PID_FILE");
