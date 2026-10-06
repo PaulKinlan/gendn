@@ -1,5 +1,5 @@
 // gendn-7xq: route-derived values are escaped at interpolation; malformed request URLs are handled.
-import { crossReferenceTag, handleRequest, referenceTag } from "../server.ts";
+import { crossReferenceTag, handleRequest, referenceTag, renderIndex } from "../server.ts";
 
 let failures = 0;
 function assert(name, ok) {
@@ -27,5 +27,22 @@ assert(
 );
 const bad = await handleRequest({ url: "not a url" });
 assert("malformed request URL returns handled 400", bad.status === 400);
+
+// gendn-sxn: milestone values from channels are narrowed; hostile milestone values fall back to '#' without attribute breakout
+const hostileChannels = {
+  dev: { mstone: '1" onmouseover="alert(1)', version: 151, branch_point: "", stable_date: "" },
+  beta: { mstone: 150, version: 150, branch_point: "", stable_date: "" },
+  stable: { mstone: 149, version: 149, branch_point: "", stable_date: "" },
+};
+const indexHtml = await renderIndex(hostileChannels);
+assert(
+  "renderIndex: hostile milestone does NOT inject onmouseover attribute into href",
+  !indexHtml.includes('href="/v1" onmouseover') && indexHtml.includes('href="#"'),
+);
+assert(
+  "renderIndex: hostile milestone label is escaped, no unescaped quote breakout",
+  indexHtml.includes("&quot; onmouseover=&quot;alert(1)"),
+);
+
 if (failures) Deno.exit(1);
 console.log("server-escape fixture: all assertions passed");

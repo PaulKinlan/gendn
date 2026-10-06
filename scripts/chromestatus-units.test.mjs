@@ -105,7 +105,14 @@ const base = `http://127.0.0.1:${server.addr.port}`;
 
 // The seam must be set BEFORE the module is imported (BASE is captured at import time).
 Deno.env.set("CHROMESTATUS_BASE", base);
-const { chromeStatusUrl, getChannels, getFeature, getMilestoneFeatures, slugify } = await import(
+const {
+  chromeStatusUrl,
+  getChannels,
+  getFeature,
+  getMilestoneFeatures,
+  milestonePathSegment,
+  slugify,
+} = await import(
   "../lib/chromestatus.ts"
 );
 
@@ -566,6 +573,166 @@ assert(
   "b2s sweep: the one construction site is the narrowed builder itself — it carries BOTH bounds (canonical shape AND safe-integer value, symmetric across arrival types)",
   countIn(csSrc) === 1 &&
     csSrc.includes("FEATURE_ID_RE.test(digits)") &&
+    csSrc.includes("Number.isSafeInteger(Number(digits))"),
+);
+
+// ---------------------------------------------------------------------------
+// gendn-sxn (THREAT_MODEL.md invariant #4): milestonePathSegment is the runtime narrow for
+// untrusted upstream milestone values (r.mstone). Milestone values arrive from upstream
+// channels.json or chromestatus API JSON typed as `number` at compile time, but can arrive as
+// untrusted strings, floats, negatives, or attribute-breaking payloads at runtime.
+// DETECTOR 1 asserts the boundary (1..9999, positive integer digits, symmetric across arrival types),
+// rejects hostile/non-milestone inputs, and names the observable difference when broken (rule 143).
+// DETECTOR 2 (site-keyed sweep) walks server.ts and all of lib/ for milestone interpolations
+// into href/attribute sinks, asserting the expected count (zero raw interpolations outside the helper)
+// and naming any offending site with line numbers on failure.
+// ---------------------------------------------------------------------------
+
+// Canonical valid inputs
+assert(
+  "sxn narrow: a canonical milestone number returns the canonical digit string",
+  milestonePathSegment(150) === "150",
+  `got ${milestonePathSegment(150)}`,
+);
+assert(
+  "sxn narrow: a canonical milestone string returns the canonical digit string",
+  milestonePathSegment("150") === "150" && milestonePathSegment("  150  ") === "150",
+  `got ${milestonePathSegment("150")}`,
+);
+
+// Exact boundary values
+assert(
+  "sxn narrow: exact lower boundary 1 is accepted (number and string)",
+  milestonePathSegment(1) === "1" && milestonePathSegment("1") === "1",
+  `got num=${milestonePathSegment(1)} str=${milestonePathSegment("1")}`,
+);
+assert(
+  "sxn narrow: exact upper boundary 9999 is accepted (number and string)",
+  milestonePathSegment(9999) === "9999" && milestonePathSegment("9999") === "9999",
+  `got num=${milestonePathSegment(9999)} str=${milestonePathSegment("9999")}`,
+);
+
+// Observable differences when broken (rule 143)
+assert(
+  "sxn narrow (rule 143): boundary violation 10000 rejects — observable is null instead of '10000' (kills an unbounded digit matcher)",
+  milestonePathSegment(10000) === null && milestonePathSegment("10000") === null,
+  `got num=${milestonePathSegment(10000)} str=${milestonePathSegment("10000")}`,
+);
+assert(
+  "sxn narrow (rule 143): boundary violation 0 rejects — observable is null instead of '0' (kills a matcher allowing 0)",
+  milestonePathSegment(0) === null && milestonePathSegment("0") === null,
+  `got num=${milestonePathSegment(0)} str=${milestonePathSegment("0")}`,
+);
+assert(
+  "sxn narrow (rule 143): hostile attribute breaker rejects — observable is null instead of injectable string (kills raw interpolation)",
+  milestonePathSegment('1" onmouseover="alert(1)') === null,
+  `got ${milestonePathSegment('1" onmouseover="alert(1)')}`,
+);
+
+// Hostile and non-milestone inputs
+for (
+  const [label, bad] of [
+    ["a float", 150.5],
+    ["a float string", "150.5"],
+    ["zero", 0],
+    ["zero string", "0"],
+    ["a negative number", -1],
+    ["a negative string", "-1"],
+    ["an unsafe integer (2^53)", 2 ** 53],
+    ["a leading-zero string", "0150"],
+    ["a leading-zero single digit", "01"],
+    ["digits+letters", "150a"],
+    ["prefixed milestone", "v150"],
+    ["the attribute-breaker '1\" onmouseover=\"alert(1)'", '1" onmouseover="alert(1)'],
+    ["a javascript: URL", "javascript:alert(1)"],
+    ["a script tag", "<script>alert(1)</script>"],
+    ["path traversal", "../150"],
+    ["an empty string", ""],
+    ["a whitespace string", "   "],
+    ["NaN", NaN],
+    ["Infinity", Infinity],
+    ["-Infinity", -Infinity],
+    ["null", null],
+    ["undefined", undefined],
+    ["an object", {}],
+    ["an array", [150]],
+    ["a boolean true", true],
+    ["a boolean false", false],
+  ]
+) {
+  assert(
+    `sxn narrow: ${label} yields null (invalid milestone)`,
+    milestonePathSegment(bad) === null,
+    `got ${milestonePathSegment(bad)}`,
+  );
+}
+
+// Symmetry across arrival types
+const sxnMismatches = [
+  1,
+  150,
+  9999,
+  10000,
+  0,
+  -1,
+  150.5,
+  2 ** 53,
+].filter((n) => milestonePathSegment(n) !== milestonePathSegment(String(n)));
+assert(
+  "sxn narrow: number and string arrivals of the same value get the SAME verdict (symmetry across boundary values)",
+  sxnMismatches.length === 0,
+  sxnMismatches.length ? `asymmetric on: ${sxnMismatches.join(", ")}` : "8/8 symmetric",
+);
+
+// DETECTOR 2 — sxn sweep (site-keyed): walk server.ts and lib/ for raw milestone interpolations
+// into href or attribute sinks. No render seam may interpolate r.mstone or unvalidated milestone
+// values raw into href/attribute sinks.
+const offendingSinks = [];
+const rawInterpolations = [];
+for (const rel of scanAll) {
+  const src = await Deno.readTextFile(`${REPO}/${rel}`);
+  const lines = src.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lineNum = i + 1;
+    // Check for raw milestone interpolations or concatenations into href/attribute sinks
+    const isHrefOrAttr = /(?:href|data-mstone)\s*=/i.test(line);
+    const hasRawMstone = /\$\{r\.mstone\}|\+\s*r\.mstone|r\.mstone\s*\+/.test(line);
+    const hasRawReleasePath = /href\s*=\s*["'][^"']*\/v\$\{\s*r\.mstone/i.test(line);
+    const hasRawMstoneAttr = /data-mstone\s*=\s*["'][^"']*\$\{\s*r\.mstone/i.test(line);
+    const hasRawPathConcat = /\/v['"]\s*\+\s*r\.mstone/i.test(line);
+    const hasRawTemplate = /\/v\$\{\s*r\.mstone/i.test(line);
+    if (
+      (isHrefOrAttr && hasRawMstone) || hasRawReleasePath || hasRawMstoneAttr || hasRawPathConcat ||
+      hasRawTemplate
+    ) {
+      offendingSinks.push(`${rel}:${lineNum}: ${line.trim()}`);
+    }
+    if (/\$\{r\.mstone\}/.test(line)) {
+      rawInterpolations.push(`${rel}:${lineNum}: ${line.trim()}`);
+    }
+  }
+}
+assert(
+  "sxn sweep (site-keyed): walk server.ts and lib/ for raw milestone interpolations into href/attribute sinks — expected count is ZERO",
+  offendingSinks.length === 0,
+  offendingSinks.length
+    ? `offending site(s): ${offendingSinks.join("; ")}`
+    : `0 raw milestone interpolations into href/attribute sinks across ${scanAll.length} files`,
+);
+assert(
+  "sxn sweep: ZERO raw ${r.mstone} interpolations remain across server.ts and lib/ — every sink is narrowed",
+  rawInterpolations.length === 0,
+  rawInterpolations.length ? `raw interpolation site(s): ${rawInterpolations.join("; ")}` : "clean",
+);
+const serverSrc = await Deno.readTextFile(`${REPO}/server.ts`);
+assert(
+  "sxn sweep: server.ts consumes milestonePathSegment (the narrow is WIRED, not merely absent)",
+  serverSrc.includes("milestonePathSegment("),
+);
+assert(
+  "sxn sweep: lib/chromestatus.ts carries milestonePathSegment with MILESTONE_RE canonical shape and safe-integer value checks",
+  csSrc.includes("MILESTONE_RE.test(digits)") &&
     csSrc.includes("Number.isSafeInteger(Number(digits))"),
 );
 
