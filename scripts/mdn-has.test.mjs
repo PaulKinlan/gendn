@@ -13,8 +13,10 @@
 //   4. a genuine 404 returns false and is cached (a real negative answer stays definitive);
 //   5. a 5xx is NOT cached (a server error is not a statement about the page);
 //   6. no bare fetch() survives in lib/mdn.ts (source-level check for acceptance item 3);
-//   7. (gendn-5ua) mdnApiUrl/mdnCssUrl produce EXACT documented URLs — these builders form the
-//      reference links on every page; a drifted base path or locale segment must fail here.
+//   7. (gendn-5ua) mdnApiUrl/mdnCssUrl produce EXACT documented URLs; a drifted base path or locale
+//      segment must fail here. (These builders are currently UNCALLED — the pages' reference links
+//      are hardcoded hrefs, and the routine prompt writes its MDN URLs by hand. See the gendn-76k
+//      note beside the pins for why that matters.)
 //
 // Run: deno task test-mdn-has   (or: deno run --allow-read scripts/mdn-has.test.mjs)
 
