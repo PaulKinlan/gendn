@@ -691,6 +691,11 @@ Deno.serve({ port: PORT }, async (req) => {
         headers: { "content-type": "text/html; charset=utf-8" },
       });
     } catch (err) {
+      // Deliberate, and do not "fix" this to 500 (gendn-lde): a LOCAL server-side render error
+      // keeps the same 502 that serverError returns everywhere else. 500 is more idiomatic for
+      // a local SSR failure, but 502 is the established behaviour of this route on main and any
+      // health check keyed on it must not flip as a side effect of an error-handling hygiene
+      // change. Changing this status is a health-check surface decision, not a cleanup.
       return serverError(req, "render conformance index", err);
     }
   }
