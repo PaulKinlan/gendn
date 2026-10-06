@@ -721,6 +721,12 @@ dictionary D {
       const twoPages = [...onePage, "  v151/other-page: declared 8 = inventory 8 + outOfScope 0"];
       assert(surfaceNotePages(twoPages) === 2, `three notes across TWO pages must count 2; got ${surfaceNotePages(twoPages)}`);
       assert(
+        // NOT a discriminating pin for the note-count defect, and deliberately kept: with the
+        // defective `(notes ?? []).length` this also returns 0, so it cannot catch that mutant. What it
+        // DOES catch is an implementation that reaches for .length without the `?? []` guard, which
+        // throws on undefined rather than returning 0 - i.e. this is a CRASH GUARD, not a discrimination.
+        // The discriminating pins are the ones where notes and pages differ: two notes for ONE page
+        // (below) and a malformed list, each measured against the mutant rather than asserted to work.
         surfaceNotePages([]) === 0 && surfaceNotePages(undefined) === 0,
         "no notes must count 0, and a missing list must not throw",
       );
