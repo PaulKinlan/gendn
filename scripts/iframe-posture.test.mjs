@@ -284,12 +284,11 @@ assert(
 // Proven by mutation, not assumed: dropping an id from DEFERRED_PAGES fails; and with DEFERRED_PAGES
 // edited to match a swap onto an already-postured page, the posture-axis assertion is what fails.
 // The list only ever SHRINKS: a page leaves it in the same change that postures it and gives it a
-// contract (v152/sub-apps was the first).
+// contract (v152/sub-apps was the first, v151/speculation-rules-form-submission-field the second).
 const DEFERRED_PAGES = [
   "v150/speculative-load-measurement/index.html",
   "v150/webrtc-diagnostic-logging-api/index.html",
   "v151/algorithm-updates-in-webcrypto/index.html",
-  "v151/speculation-rules-form-submission-field/index.html",
 ];
 assert(
   "the deferral list is EXACTLY the deferred pages (a swap cannot hide a widening)",

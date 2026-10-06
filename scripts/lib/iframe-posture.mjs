@@ -14,9 +14,10 @@ export const SANCTIONED_REFERRERPOLICY = "strict-origin-when-cross-origin";
 // EXACT file match only — never a wildcard, never a pattern, and a NEW unsandboxed third-party
 // iframe anywhere else still fails the guard.
 //
-// EXIT CONDITION (temporary by construction): gendn-sgc authors the 5 implementation-sufficient
-// contracts from source, applies the posture to these 5 pages, and REMOVES this list in the same
-// change. The guard fixture additionally SELF-EXPIRES each entry: if a listed page gains a
+// EXIT CONDITION (temporary by construction): gendn-sgc authors the implementation-sufficient
+// contracts from source, applies the posture to those pages, and REMOVES each entry in the same
+// change that hardens it. LANDED SO FAR: v152/sub-apps (the pilot) and
+// v151/speculation-rules-form-submission-field. The guard fixture additionally SELF-EXPIRES each entry: if a listed page gains a
 // reference-contract.json before it is hardened and delisted, the fixture FAILS — the exemption
 // cannot outlive its reason.
 export const PENDING_HARDENING = [
@@ -34,12 +35,6 @@ export const PENDING_HARDENING = [
   },
   {
     file: "v151/algorithm-updates-in-webcrypto/index.html",
-    why:
-      "built page with no reference-contract.json yet; touching it trips the conformance ratchet",
-    bead: "gendn-sgc",
-  },
-  {
-    file: "v151/speculation-rules-form-submission-field/index.html",
     why:
       "built page with no reference-contract.json yet; touching it trips the conformance ratchet",
     bead: "gendn-sgc",
