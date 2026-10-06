@@ -258,10 +258,12 @@ export async function renderIndex(channels: Channels): Promise<string> {
     }
     // Narrowed at runtime, not escaped (gendn-sxn / THREAT_MODEL.md invariant #4).
     const mstone = milestonePathSegment(r.mstone);
-    const releaseHref = mstone ? `/v${mstone}/` : "#";
+    const releaseAttrs = mstone
+      ? `href="/v${milestonePathSegment(r.mstone)}/"`
+      : 'aria-disabled="true"';
     const releaseLabel = mstone ? `Chrome ${mstone}` : `Chrome ${escapeHTML(String(r.mstone))}`;
     return `<li class="release-card">
-      <a class="release-card-link" href="${releaseHref}">
+      <a class="release-card-link" ${releaseAttrs}>
         <span class="release-card-row">
           <span class="release-label">${releaseLabel}</span>
           <span class="release-status">${escapeHTML(r.status)}</span>
@@ -483,7 +485,7 @@ async function renderReleasePage(release: string, milestone: number): Promise<st
 
 // ----- /features (flat, filterable catalogue) -----
 
-async function renderFeaturesCatalogue(channels: Channels): Promise<string> {
+export async function renderFeaturesCatalogue(channels: Channels): Promise<string> {
   const known = [...await knownReleaseMilestones(channels)].sort((a, b) => b - a);
 
   // PARALLEL, ORDER-PRESERVING (gendn-4ti): milestones are fetched concurrently and the
@@ -558,15 +560,17 @@ async function renderFeaturesCatalogue(channels: Channels): Promise<string> {
     const cat = categoryTag(r.category);
     // Narrowed at runtime, not escaped (gendn-sxn / THREAT_MODEL.md invariant #4).
     const mstone = milestonePathSegment(r.mstone);
-    const docHref = mstone ? `/v${mstone}/${escapeHTML(slug)}/` : "#";
+    const docAttrs = mstone
+      ? `href="/v${milestonePathSegment(r.mstone)}/${escapeHTML(slug)}/"`
+      : 'aria-disabled="true"';
     const docCell = r.hasDoc
-      ? `<a class="tag tag-live" href="${docHref}">reference &rarr;</a>`
+      ? `<a class="tag tag-live" ${docAttrs}>reference &rarr;</a>`
       : `<span class="tag tag-pending">pending</span>`;
     const searchMstone = mstone ?? "";
     const search = `${r.name} ${r.summary} ${cat} v${searchMstone}`.toLowerCase();
     // Narrowed at runtime, not escaped (gendn-b2s) — see renderReleasePage.
     const csHref = chromeStatusUrl(r.id);
-    const mstoneAttr = mstone ? ` data-mstone="${mstone}"` : "";
+    const mstoneAttr = mstone ? ` data-mstone="${milestonePathSegment(r.mstone)}"` : "";
     const statusText = mstone
       ? `v${mstone}`
       : (r.mstone !== undefined && r.mstone !== null
