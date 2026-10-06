@@ -415,7 +415,13 @@ function idlStatements(idl) {
   return out;
 }
 
-function memberNamesFromIdl(idl) {
+// Names read from the block's `;`-separated STATEMENTS alone - no bare-type fallback. Extracted from
+// memberNamesFromIdl (gendn-3yh item 2) so READABILITY and NAMING stay separate questions: the
+// readability check must not treat a bare enum/typedef as evidence the block is readable, or naming a
+// type would SILENCE a genuine unreadable declaration in the same block. Measured before the split:
+// `enum Foo { "a", "b" }; bar();` reported NO hole, because the enum fallback made
+// memberNamesFromIdl() non-empty and that call site asked it whether the block was readable.
+function statementMemberNames(idl) {
   const names = new Set();
   // Strip WebIDL comments FIRST: `// partial interface Performance (core/timing/performance.idl)`
   // sits on the same `;`-statement as the method below it, and the "(" in that comment otherwise
@@ -479,6 +485,11 @@ function memberNamesFromIdl(idl) {
     );
     if (member) names.add(member[1]);
   }
+  return names;
+}
+
+function memberNamesFromIdl(idl) {
+  const names = statementMemberNames(idl);
   // BARE ENUM DECLARATIONS (gendn-kda): `enum WebPrinterState { "idle", "processing" };` names a
   // TYPE whose identifier is the only name the declaration carries - its values are string literals
   // with no identifier of their own. idlStatements strips the `enum Name {` header, so the
@@ -495,9 +506,21 @@ function memberNamesFromIdl(idl) {
   // home for outOfScope-with-rationale when they are not written as prose - the cheapest form that
   // is SATISFIABLE, mirroring the parameterless specials. The identifier is not a WebIDL keyword, so
   // unlike SURFACE_CONSTRUCTS it needs no keyword-filter exception (the gendn-5t3 divergence).
+  // SCOPING IS PER-<pre> BLOCK (gendn-3yh item 1): each block is judged independently, so a page that
+  // splits a bare type into its own code block reports that type AND the other block's members. That
+  // is a RECORDED decision, pinned by a two-<pre> fixture, not an accident - see the kda comment
+  // above for why the fallback is scoped at all rather than always on.
   if (names.size === 0) {
-    for (const match of strippedIdl(idl).matchAll(/\benum\s+([A-Za-z_$][\w$]*)\s*\{/g)) {
-      names.add(match[1]);
+    // TIGHTENED (gendn-3yh item 3): a WebIDL enum body is a list of STRING LITERALS, so a body with
+    // no string literal and nothing but whitespace removed is not a WebIDL enum - it is TypeScript
+    // `enum Foo { A, B }` or C# `enum Foo { A }`, which the previous `/\benum\s+Name\s*\{/` matcher
+    // accepted in ANY block the keyword gate admitted, because `enum` alone satisfies IDL_BLOCK_GATE.
+    // An EMPTY body is kept: a real page documents an enum whose values exist only as a comment
+    // (v147/web-printing-api/types/printer-state-reason) and strippedIdl has already removed it.
+    // Measured: differs on 0 of the real enum pages and rejects both synthetic non-WebIDL shapes.
+    for (const match of strippedIdl(idl).matchAll(/\benum\s+([A-Za-z_$][\w$]*)\s*\{([^}]*)\}/g)) {
+      const body = match[2];
+      if (body.includes('"') || body.trim() === "") names.add(match[1]);
     }
     // BARE TYPEDEF DECLARATIONS (gendn-u9m): `typedef (WebPrintingRange or unsigned long)
     // WebPrintingMediaSizeDimension;` names a TYPE, and a typedef carries NO BRACE, so unlike the
@@ -524,8 +547,15 @@ function memberNamesFromIdl(idl) {
     // `typedef Type Identifier;` guarantees; `[^;]*?` cannot cross a statement boundary, so a block
     // containing several typedefs yields each one. Reported once, and not expanded into the referent
     // type - for the same reason the enum is not expanded into its values.
-    for (const match of strippedIdl(idl).matchAll(/\btypedef\b[^;]*?([A-Za-z_$][\w$]*)\s*;/g)) {
-      names.add(match[1]);
+    // TIGHTENED (gendn-3yh item 3, the looseness the u9m matcher inherited from the enum one): the
+    // identifier is read from a STATEMENT that STARTS with `typedef`, not from a free-text regex over
+    // the whole block. The loose `\btypedef\b[^;]*?(Name)\s*;` also matched PROSE that merely
+    // mentions a typedef (`A "typedef Foo Bar;" appears in specs;`) and an entity-escaped HTML
+    // comment (`&lt;!-- typedef Foo Bar; --&gt;`, which survives tag-stripping because the tag is
+    // only decoded afterwards). Neither statement begins with `typedef`, so neither is read here.
+    for (const statement of idlStatements(idl)) {
+      const alias = statement.match(/^typedef\b[\s\S]*?([A-Za-z_$][\w$]*)$/);
+      if (alias) names.add(alias[1]);
     }
   }
   return names;
@@ -596,7 +626,10 @@ export function unreadableSyntaxBlocks(html) {
     const remaining = statements.filter((st) => !ANONYMOUS_SPECIAL_OPERATION.test(st));
     if (remaining.length === 0) continue;
     if (!hasHint) continue;
-    if (memberNamesFromIdl(idl).size > 0) continue;
+    // READABILITY FROM STATEMENTS ONLY (gendn-3yh item 2): using memberNamesFromIdl() here asked a
+    // bare-type fallback whether the block was READABLE, so naming a bare enum/typedef could silence
+    // a genuine hole beside it. statementMemberNames() answers only the question this check means.
+    if (statementMemberNames(idl).size > 0) continue;
     out.push(idl.replace(/\s+/g, " ").trim().slice(0, 120));
   }
   return out;
