@@ -24,17 +24,28 @@ export const REQUIRED_DIMENSIONS = [
 // (validate-artifacts.mjs, check-conformance.mjs) pass the FULL published page-id set, so the serial
 // form paid one round-trip per page - mostly a stat/ENOENT for a page with no contract (measured: 153
 // of 201 pageIds) - for no reason: the reads are independent and readJson already resolves an absent
-// file to null rather than throwing. Promise.all preserves INPUT order, and filtering the nulls after
-// it keeps exactly the records (and order) the loop returned.
+// file to null rather than throwing. INPUT order is preserved in both the success and the failure path:
+//
+// ERROR SEMANTICS: the serial loop reported the FIRST failing ownerId in input order. Promise.all would
+// instead report whichever rejection settled first, which is timing-dependent, so allSettled is used and
+// the first rejection IN INPUT ORDER is rethrown. (allSettled also subscribes to every read, so a second
+// rejection cannot surface as an unhandled rejection.)
 export async function collectReferenceContracts(root = ".", pageIds = []) {
-  const records = await Promise.all(
+  const settled = await Promise.allSettled(
     pageIds.map(async (ownerId) => {
       const path = `${root}/${ownerId}/${REFERENCE_CONTRACT}`;
       const contract = await readJson(path);
       return contract ? { ownerId, path, contract } : null;
     }),
   );
-  return records.filter((record) => record !== null);
+  for (const result of settled) {
+    if (result.status === "rejected") throw result.reason;
+  }
+  const records = [];
+  for (const result of settled) {
+    if (result.status === "fulfilled" && result.value !== null) records.push(result.value);
+  }
+  return records;
 }
 
 export function validateContractOwnership(record) {
