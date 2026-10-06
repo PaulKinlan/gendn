@@ -32,9 +32,15 @@ function assert(name, ok, detail = "") {
 
 const BIG = 12 * 1024 * 1024;
 
-// The /hang handler parks a request forever on purpose; keep its resolver so the test can
-// release it before shutdown (Deno's server.shutdown() waits for in-flight requests).
-let releaseHang = null;
+// Each stalling endpoint parks a request on purpose; keep EVERY cleanup so the test can release
+// them all before shutdown (Deno's server.shutdown() waits for in-flight requests). This is an
+// ARRAY, not a single slot: a scalar would be overwritten by each endpoint and only the last
+// teardown would run, which is a latent hung suite — Deno happens to survive today only because
+// the client abort severs the connection.
+const hangCleanups = [];
+function onRelease(fn) {
+  hangCleanups.push(fn);
+}
 
 const server = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
   const path = new URL(req.url).pathname;
@@ -53,13 +59,13 @@ const server = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
     const stream = new ReadableStream({
       start(controller) {
         controller.enqueue(new TextEncoder().encode("PARTIAL-BODY"));
-        releaseHang = () => {
+        onRelease(() => {
           try {
             controller.close();
           } catch {
             // already closed
           }
-        };
+        });
       },
     });
     return new Response(stream, { headers: { "content-type": "text/plain" } });
@@ -71,13 +77,13 @@ const server = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
     const stream = new ReadableStream({
       start(controller) {
         controller.enqueue(big);
-        releaseHang = () => {
+        onRelease(() => {
           try {
             controller.close();
           } catch {
             // already closed
           }
-        };
+        });
       },
     });
     return new Response(stream, { headers: { "content-type": "application/octet-stream" } });
@@ -86,7 +92,7 @@ const server = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
     // Never respond on its own; the client must give up on its own bound. The resolver is kept
     // so shutdown() can complete.
     return new Promise((resolve) => {
-      releaseHang = () => resolve(new Response("released"));
+      onRelease(() => resolve(new Response("released")));
     });
   }
   if (path === "/big") {
@@ -204,6 +210,14 @@ try {
     `rejected after ${midbig.ms}ms (timeout was 5000ms); ${midbig.err?.message}`,
   );
 
+  // 5d. The cleanup registry itself: all three stalling endpoints must have registered their own
+  // teardown. A scalar slot would leave this at 1, which is the latent hung-suite hazard.
+  assert(
+    "each stalling endpoint registered its own cleanup (no overwritten slot)",
+    hangCleanups.length === 3,
+    `registered ${hangCleanups.length} of 3`,
+  );
+
   // 6. a non-ok status is RETURNED, not thrown — the caller shapes the response
   const nf = await timed("404", () => fetchBounded(`${base}/missing`, { timeoutMs: 5000 }));
   assert(
@@ -216,8 +230,15 @@ try {
   const direct = await timed("readCapped", () => readCapped(new Response("abc"), 1024));
   assert("readCapped returns the body under the cap", direct.ok && direct.value === "abc");
 } finally {
+  // Drain every cleanup, each wrapped so one failure cannot skip the rest.
+  for (const cleanup of hangCleanups) {
+    try {
+      cleanup();
+    } catch {
+      // ignore
+    }
+  }
   try {
-    releaseHang?.();
     await server.shutdown();
   } catch {
     // ignore
