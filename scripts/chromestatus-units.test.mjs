@@ -425,6 +425,9 @@ print(json.dumps([m.slugify(n) for n in json.loads(sys.argv[1])]))`,
   }
   if (!pyTw) {
     // Generated from .claude/fix-slugs.py slugify on 2026-10-06 (python3 absent at run time).
+    // The live path requires python3 on PATH; this fallback is a FROZEN SNAPSHOT, so a run
+    // without the interpreter proves less than it looks like it proves — it can miss
+    // python-only drift in .claude/fix-slugs.py made after the snapshot date.
     pyTw = ["bc", "bc", "bc", "b-c"];
   }
   const broken = TRIPWIRE.map((t, i) => {
