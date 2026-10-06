@@ -365,7 +365,7 @@ print(json.dumps([m.slugify(n) for n in json.loads(sys.argv[1])]))`,
     mismatches.join(" | ") || `${PARITY_INPUTS.length - 1} input(s) identical`,
   );
   assert(
-    "the ONE known divergence (combining marks outside U+0300-U+036F) is pinned as-is on both sides",
+    "ONE REPRESENTATIVE divergence of the measured three-category class is pinned as-is on both sides (the class includes in-block U+034F with opposite polarity — see MEASURED BOUNDARY)",
     divergenceOk,
     `ts=${JSON.stringify(TS_RESULTS[DIVERGENCE_INDEX])} py=${
       JSON.stringify(pyResults[DIVERGENCE_INDEX])
