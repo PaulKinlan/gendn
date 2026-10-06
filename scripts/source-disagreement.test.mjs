@@ -21,16 +21,25 @@
 //   dates   — the note's date tokens where the note carries dates (a disagreement without its
 //             as-of dates is unauditable: the reader cannot tell which source is stale).
 //
-// The table was scoped by MEASUREMENT, not from the filing's count: the filing named three
-// pages; a grep of main's content tree for explicit disagreement language found FOUR carried
-// notes (the fourth, capability-elements, states its disagreement as explicitly as the others),
-// so all four are pinned. A new page that gains a carried disagreement should be ADDED here;
-// that is a deliberate act, which is exactly what this fixture forces.
+// The table's provenance is cumulative and its BOUNDARY is stated plainly (rule 67 — a
+// coverage claim wider than the code removes a check): the filing named three pages; a
+// vocabulary grep of main's content tree ("disagree" and kin) found the fourth
+// (capability-elements); the cross-family review sweep found TWO MORE that no vocabulary
+// grep surfaces — v152/deprecate-and-remove-xslt ("One source discrepancy is recorded
+// honestly") and v152/audiopreferred-capture-in-getdisplaymedia-api (listing status vs
+// trunk status). So SIX pages are pinned. The boundary: a disagreement carried WITHOUT
+// explicit disagreement vocabulary is invisible to sweeps — this TABLE is the coverage, it
+// is not complete by construction, and widening it is a deliberate act. A new page that
+// gains a carried disagreement should be ADDED here; a side silently dropped from a pinned
+// page fails, which is the failure mode the check exists for.
 //
 // MUTATION PROOFS (logs on the bead, not inline; cp-based backups per rule 107):
 //   M1 delete the carried disagreement sentence (webcrypto marker)  -> FAIL on the marker.
 //   M2 drop a date token ("updated 2026-09-11" -> "updated")         -> FAIL on the dates.
 //   M3 drop one side's attribution (webrtc trunk token renamed)      -> FAIL on sideB.
+//   M4 reword the xslt discrepancy sentence's marker phrase          -> FAIL on the marker (P1 entry).
+//   M5 drop audiopreferred's side-A listing token                    -> FAIL on sideA (sweep entry).
+//   M6 empty a table entry's marker                                  -> FAIL on non-vacuity (guard).
 // Each restored to green. A check that cannot fail on a silently dropped side is a claim, not
 // a detector (rule 64: the signal must be shown to fire on the shape it was added for).
 //
@@ -51,7 +60,9 @@ const PAGES = [
     // estimate (accurate as of 2026-08-24) versus the trunk runtime feature reading stable on
     // desktop. The note distinguishes the two runtime features and their differing statuses.
     page: "v150/webrtc-diagnostic-logging-api/index.html",
-    marker: "Implementation/debug note",
+    // Re-anchored per review (P3): the marker must sit inside the sentence carrying the
+    // divergence, not on the note's LABEL, which would survive a rewrite dropping the prose.
+    marker: "the surface on this page is enabled by the runtime feature",
     sideA: ["chromestatus API", "2026-08-24", "Proposed"],
     sideB: ["runtime_enabled_features.json5", "stable on desktop"],
     dates: [],
@@ -77,6 +88,27 @@ const PAGES = [
     sideB: ["shipping IDL"],
     dates: [],
   },
+  {
+    // Found by the cross-family review sweep (P1): the page itself records the discrepancy —
+    // the removal guide says pre-stable disabling began in M145 Canary while the ChromeStatus
+    // experiment plan says M148 (Mar 10, 2026 Canary). Both sides carried, both attributed.
+    page: "v152/deprecate-and-remove-xslt/index.html",
+    marker: "One source discrepancy is recorded honestly",
+    sideA: ["removal guide", "M145"],
+    sideB: ["ChromeStatus", "M148"],
+    dates: ["Mar 10, 2026"],
+  },
+  {
+    // Found by the same sweep: the milestone listing files the feature id under "In developer
+    // trial (Behind a flag)" while the Blink runtime feature reads stable at trunk — the same
+    // status-disagreement shape as the v150 entry, carried with attribution and a verification
+    // date (2026-07-28). Added rather than excluded: it meets the family's definition.
+    page: "v152/audiopreferred-capture-in-getdisplaymedia-api/index.html",
+    marker: "a duplicate-row quirk on the record",
+    sideA: ["In developer trial (Behind a flag)"],
+    sideB: ["GetDisplayMediaAudioSelection", "at trunk"],
+    dates: ["2026-07-28"],
+  },
 ];
 
 let failures = 0;
@@ -85,11 +117,17 @@ function assert(name, ok, detail = "") {
   if (!ok) failures++;
 }
 
-// Non-vacuity: the table must carry at least the pages the campaign measured, and every entry
-// must have BOTH sides — an entry with one side would silently downgrade the check's meaning.
+// Non-vacuity: the table must carry at least the pages measured so far, and every entry must
+// have a NON-EMPTY marker (html.includes("") is vacuously true), BOTH sides, and a dates
+// ARRAY (an absent one would throw an unnamed TypeError instead of failing a named check).
 assert(
-  "table is non-vacuous: at least four carried-disagreement pages, each with BOTH sides pinned",
-  PAGES.length >= 4 && PAGES.every((e) => e.sideA.length > 0 && e.sideB.length > 0),
+  "table is non-vacuous: at least six carried-disagreement pages, each with a non-empty marker, BOTH sides pinned, and a dates array",
+  PAGES.length >= 6 &&
+    PAGES.every(
+      (e) =>
+        typeof e.marker === "string" && e.marker.length > 0 &&
+        e.sideA.length > 0 && e.sideB.length > 0 && Array.isArray(e.dates),
+    ),
   `${PAGES.length} entries`,
 );
 
@@ -105,7 +143,7 @@ for (const entry of PAGES) {
   assert(
     `${short}: the sentence carrying the disagreement is still present (marker text, not line number)`,
     html.includes(entry.marker),
-    `missing marker: ${JSON.stringify(entry.marker)}`,
+    html.includes(entry.marker) ? "" : `missing marker: ${JSON.stringify(entry.marker)}`,
   );
   const missA = entry.sideA.filter((t) => !html.includes(t));
   assert(
