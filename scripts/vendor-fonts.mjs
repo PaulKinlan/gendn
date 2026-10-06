@@ -28,6 +28,14 @@
 // The block is delimited by the BEGIN/END markers below; this script only ever rewrites inside
 // them, so hand-written CSS around it is never touched.
 
+// Bounded upstream fetch (gendn-n3e): this script's css2 fetch carries the SAME discipline as
+// every other outbound fetch in the repo — the canonical fetchBounded primitive from
+// lib/chromestatus.ts (AbortSignal.timeout + a streaming byte cap), instead of a bare fetch().
+// A hung upstream, a mid-body stall or an oversized response THROWS out of fetchBounded, which
+// the main catch below turns into a loud REFUSING exit(1) with the sheet untouched — a timeout
+// can never install a partial or truncated font sheet.
+import { fetchBounded, UPSTREAM_TIMEOUT_MS } from "../lib/chromestatus.ts";
+
 const CSS_URL =
   "https://fonts.googleapis.com/css2?family=Joan&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap";
 const SHEET = new URL("../public/styles.css", import.meta.url).pathname;
@@ -132,10 +140,19 @@ export function renderBlock(blocks) {
   return lines.join("\n");
 }
 
-async function fetchCss(url = CSS_URL) {
-  const res = await fetch(url, { headers: { "user-agent": UA } });
+// SIZE bound: the full css2 response is ~29 KB before subsetting; 1 MiB is >30x headroom and a
+// hard ceiling on what one response can make this script allocate (readCapped refuses early on a
+// lying or missing content-length, mid-stream).
+const CSS_MAX_BYTES = 1024 * 1024;
+
+async function fetchCss(url = CSS_URL, timeoutMs = UPSTREAM_TIMEOUT_MS) {
+  const { res, text } = await fetchBounded(url, {
+    headers: { "user-agent": UA },
+    timeoutMs,
+    maxBytes: CSS_MAX_BYTES,
+  });
   if (!res.ok) throw new Error(`css2 fetch failed: ${res.status}`);
-  return await res.text();
+  return text;
 }
 
 function replaceBlock(sheet, block) {
@@ -172,8 +189,25 @@ if (import.meta.main) {
     throw new Error("--reason is only meaningful with --allow-rule-removal");
   }
 
+  // --timeout-ms is a TEST SEAM for the bounded-fetch fixture (gendn-n3e), and it can only ever
+  // TIGHTEN the bound: a seam that could disable or loosen the property under test is how
+  // "bounded" becomes optional. Valid range is [1, UPSTREAM_TIMEOUT_MS]; the default (no flag)
+  // is the repo-wide UPSTREAM_TIMEOUT_MS itself.
+  const timeoutFlag = argv.indexOf("--timeout-ms");
+  let timeoutMs = UPSTREAM_TIMEOUT_MS;
+  if (timeoutFlag !== -1) {
+    const raw = Number(argv[timeoutFlag + 1]);
+    if (!Number.isInteger(raw) || raw < 1 || raw > UPSTREAM_TIMEOUT_MS) {
+      throw new Error(
+        `--timeout-ms must be an integer in [1, ${UPSTREAM_TIMEOUT_MS}] — the seam may tighten ` +
+          "the bound for testing but can never disable or loosen it",
+      );
+    }
+    timeoutMs = raw;
+  }
+
   try {
-    const css = await fetchCss(cssUrl);
+    const css = await fetchCss(cssUrl, timeoutMs);
     const blocks = extractBlocks(css);
 
     // FAIL CLOSED ON AN EMPTY EXTRACTION (gendn-dmz), before anything is rendered, compared or
