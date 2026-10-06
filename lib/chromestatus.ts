@@ -257,7 +257,7 @@ export function chromeStatusUrl(id: unknown): string | null {
 // (1 to 4 digits, no leading zero). Both number and string arrivals normalize to a trimmed digit
 // string and face the same check: /^[1-9][0-9]{0,3}$/ and Number.isSafeInteger(Number(digits)).
 // Values outside 1..9999, floats, negatives, zero, leading zeros, and non-numeric inputs yield null.
-// Callers fall back safely (plain text or "#") so broken or injectable attributes/hrefs are never emitted.
+// Callers fall back safely (plain text or aria-disabled) so broken or injectable attributes/hrefs are never emitted.
 const MILESTONE_RE = /^[1-9][0-9]{0,3}$/;
 
 export function milestonePathSegment(m: unknown): string | null {

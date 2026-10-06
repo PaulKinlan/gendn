@@ -783,6 +783,20 @@ assert(
 // DETECTOR 2 — sxn sweep (site-keyed): walk server.ts and lib/ for raw milestone interpolations
 // into href or attribute sinks. No render seam may interpolate r.mstone or unvalidated milestone
 // values raw into href/attribute sinks.
+//
+// WHAT THE SWEEP COVERS:
+//   - Sinks with canonical milestone URL prefix /v: /v${...}, href="/v...", "/v/" + ...
+//   - Attribute sinks with milestone name: data-mstone="${...}"
+//   - Any href or data-mstone line carrying an unvalidated interpolation containing 'mstone'
+//   In all these sinks, the expression must call the validating helper milestonePathSegment(...).
+//
+// DOCUMENTED BLIND SPOT (MEASURED LIMITATION):
+//   The sweep operates line-by-line via regular expressions, not multi-line AST taint tracking.
+//   A refactor that BOTH renames the token to an arbitrary non-mstone identifier AND drops the
+//   canonical /v prefix in the template (e.g. `const ms = r.mstone; ... href="/${ms}/"`) evades
+//   the sweep (exit 0). Closing this without AST dataflow analysis would produce false positives
+//   on arbitrary path interpolations (e.g. `/${slug}/`), so the sweep binds to the canonical
+//   /v path segment and mstone naming conventions.
 const offendingSinks = [];
 const rawInterpolations = [];
 for (const rel of scanAll) {
@@ -791,13 +805,23 @@ for (const rel of scanAll) {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const lineNum = i + 1;
-    // Check for raw milestone interpolations or concatenations into href/attribute sinks
+    // Check for raw milestone interpolations or concatenations into href/attribute sinks.
+    // Sinks must call the validating helper (milestonePathSegment) rather than relying on a
+    // specific variable name (e.g. r.mstone) which destructuring or renaming would evade.
     const isHrefOrAttr = /(?:href|data-mstone)\s*=/i.test(line);
-    const hasRawMstone = /\$\{r\.mstone\}|\+\s*r\.mstone|r\.mstone\s*\+/.test(line);
-    const hasRawReleasePath = /href\s*=\s*["'][^"']*\/v\$\{\s*r\.mstone/i.test(line);
-    const hasRawMstoneAttr = /data-mstone\s*=\s*["'][^"']*\$\{\s*r\.mstone/i.test(line);
-    const hasRawPathConcat = /\/v['"]\s*\+\s*r\.mstone/i.test(line);
-    const hasRawTemplate = /\/v\$\{\s*r\.mstone/i.test(line);
+    const hasRawMstone =
+      /\$\{\s*(?!milestonePathSegment\b)[^}]*mstone[^}]*\}|\+\s*[^;,\n]*mstone|mstone\s*\+/i
+        .test(line);
+    const hasRawReleasePath = /href\s*=\s*["'][^"']*\/v\$\{\s*(?!milestonePathSegment\b)/i.test(
+      line,
+    );
+    const hasRawMstoneAttr = /data-mstone\s*=\s*["'][^"']*\$\{\s*(?!milestonePathSegment\b)/i.test(
+      line,
+    );
+    const hasRawPathConcat =
+      /\/v\/?['"]\s*\+\s*(?!milestonePathSegment\b)|[a-zA-Z0-9_.]+\s*\+\s*['"]\/?v\/?['"]/i
+        .test(line);
+    const hasRawTemplate = /\/v\$\{\s*(?!milestonePathSegment\b)/i.test(line);
     if (
       (isHrefOrAttr && hasRawMstone) || hasRawReleasePath || hasRawMstoneAttr || hasRawPathConcat ||
       hasRawTemplate

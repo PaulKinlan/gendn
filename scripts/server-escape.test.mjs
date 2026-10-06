@@ -1,12 +1,47 @@
 // gendn-7xq: route-derived values are escaped at interpolation; malformed request URLs are handled.
-import { crossReferenceTag, handleRequest, referenceTag, renderIndex } from "../server.ts";
+
+// Local stub of the chromestatus API (gendn-x53) so renderFeaturesCatalogue can fetch real rows
+// under --allow-net=127.0.0.1,localhost without depending on live external network.
+// Must be set BEFORE importing server.ts (BASE is captured at import time in lib/chromestatus.ts).
+const XSSI = ")]}'";
+const evil = `x"><script>alert(1)</script>`;
+
+const stubServer = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
+  const url = new URL(req.url);
+  const json = (body) => new Response(body, { headers: { "content-type": "application/json" } });
+  if (url.pathname === "/features" && url.searchParams.get("milestone") === "150") {
+    return json(`${XSSI}\n${
+      JSON.stringify({
+        features_by_type: {
+          "Enabled by default": [
+            {
+              id: 101,
+              name: "AccentColor and AccentColorText system colors",
+              summary: evil,
+            },
+          ],
+        },
+      })
+    }`);
+  }
+  return json(`${XSSI}\n${JSON.stringify({ features_by_type: {} })}`);
+});
+
+Deno.env.set("CHROMESTATUS_BASE", `http://127.0.0.1:${stubServer.addr.port}`);
+
+const {
+  crossReferenceTag,
+  handleRequest,
+  referenceTag,
+  renderFeaturesCatalogue,
+  renderIndex,
+} = await import("../server.ts");
 
 let failures = 0;
 function assert(name, ok) {
   console.log(`${ok ? "PASS" : "FAIL"}: ${name}`);
   if (!ok) failures++;
 }
-const evil = `x"><script>alert(1)</script>`;
 for (
   const [name, html] of [
     ["referenceTag release", referenceTag(evil, "ok")],
@@ -28,7 +63,7 @@ assert(
 const bad = await handleRequest({ url: "not a url" });
 assert("malformed request URL returns handled 400", bad.status === 400);
 
-// gendn-sxn: milestone values from channels are narrowed; hostile milestone values fall back to '#' without attribute breakout
+// gendn-sxn / gendn-x53: milestone values from channels are narrowed; hostile milestone values fall back to aria-disabled without attribute breakout
 const hostileChannels = {
   dev: { mstone: '1" onmouseover="alert(1)', version: 151, branch_point: "", stable_date: "" },
   beta: { mstone: 150, version: 150, branch_point: "", stable_date: "" },
@@ -37,12 +72,41 @@ const hostileChannels = {
 const indexHtml = await renderIndex(hostileChannels);
 assert(
   "renderIndex: hostile milestone does NOT inject onmouseover attribute into href",
-  !indexHtml.includes('href="/v1" onmouseover') && indexHtml.includes('href="#"'),
+  !indexHtml.includes('href="/v1" onmouseover'),
+);
+assert(
+  "renderIndex: invalid milestone link drops href and marks aria-disabled, no clickable '#' fallback",
+  !indexHtml.includes('href="#"') &&
+    indexHtml.includes('<a class="release-card-link" aria-disabled="true">'),
 );
 assert(
   "renderIndex: hostile milestone label is escaped, no unescaped quote breakout",
   indexHtml.includes("&quot; onmouseover=&quot;alert(1)"),
 );
+
+const catalogueHtml = await renderFeaturesCatalogue(hostileChannels);
+assert(
+  "renderFeaturesCatalogue: renders real rows from local chromestatus stub (not empty)",
+  catalogueHtml.includes('data-mstone="150"') &&
+    catalogueHtml.includes("/v150/accentcolor-and-accentcolortext-system-colors/"),
+);
+assert(
+  "renderFeaturesCatalogue: hostile channel milestone does NOT inject onmouseover attribute into href or option",
+  !catalogueHtml.includes("onmouseover") &&
+    catalogueHtml.includes('<option value="150">v150</option>'),
+);
+assert(
+  "renderFeaturesCatalogue: hostile feature summary does NOT inject raw script or quote breakout into row attributes",
+  !catalogueHtml.includes("<script>alert(1)</script>") &&
+    !catalogueHtml.includes('x">') &&
+    catalogueHtml.includes("&lt;script&gt;alert(1)&lt;/script&gt;"),
+);
+assert(
+  "renderFeaturesCatalogue: invalid milestone drops href and does not emit clickable '#' fallback",
+  !catalogueHtml.includes('href="#"'),
+);
+
+await stubServer.shutdown();
 
 if (failures) Deno.exit(1);
 console.log("server-escape fixture: all assertions passed");
