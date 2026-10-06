@@ -1,5 +1,7 @@
 // lifecycle.ts — server-side rendering for gendn's critique + conformance lifecycle browsing.
 //
+import { chromeStatusUrl } from "./chromestatus.ts";
+//
 // Additive, read-only views over the colocated artifacts (v<N>/<slug>/conformance.json and
 // _questions.json) plus the run-all rollup the runner writes to reports/conformance/. No article
 // content is changed; these are new routes only.
@@ -119,13 +121,19 @@ const FOOT = `<footer class="byline">gendn conformance lifecycle</footer></main>
 export async function renderConformanceIndex(): Promise<string> {
   const suites = await collectSuiteFiles();
   const built = suites.filter((s) => s.status === "built").length;
-  const rows = suites.map((s) =>
-    `<tr><td><a href="${esc(s.route)}conformance">${esc(s.id)}</a></td><td>${
+  const rows = suites.map((s) => {
+    // Narrowed at runtime, not escaped (gendn-b2s): the identity arrives as a STRING from the
+    // colocated artifacts; a non-canonical value renders plain text instead of a link.
+    // THREAT_MODEL.md invariant #4.
+    const csHref = chromeStatusUrl(s.identity);
+    return `<tr><td><a href="${esc(s.route)}conformance">${esc(s.id)}</a></td><td>${
       esc(s.status)
-    }</td><td>${s.assertions.length}</td><td><a href="https://chromestatus.com/feature/${
-      esc(s.identity)
-    }" target="_blank" rel="noopener">#${esc(s.identity)}</a></td></tr>`
-  ).join("");
+    }</td><td>${s.assertions.length}</td><td>${
+      csHref
+        ? `<a href="${csHref}" target="_blank" rel="noopener">#${esc(s.identity)}</a>`
+        : `#${esc(s.identity)}`
+    }</td></tr>`;
+  }).join("");
   return HEAD("conformance — gendn") +
     `<p class="crumbs"><a href="/">&larr; home</a> &middot; <a href="/conformance/run-all">run-all rollup</a></p>
     <header class="lede-block"><p class="eyebrow">conformance</p><h1>conformance suites</h1>

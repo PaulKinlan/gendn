@@ -7,6 +7,7 @@
 
 import {
   Channels,
+  chromeStatusUrl,
   fetchBounded,
   getChannels,
   getMilestoneFeatures,
@@ -413,6 +414,9 @@ async function renderReleasePage(release: string, milestone: number): Promise<st
       const slug = slugify(f.name);
       const hasDoc = await featureHasDoc(release, slug);
       const summary = (f.summary ?? "").slice(0, 220);
+      // Narrowed at runtime, not escaped (gendn-b2s): a non-canonical id renders the name as
+      // plain text instead of a link — THREAT_MODEL.md invariant #4, renderCommitAnchor shape.
+      const csHref = chromeStatusUrl(f.id);
       let docTag: string;
       if (hasDoc) {
         docTag = referenceTag(release, slug);
@@ -423,9 +427,11 @@ async function renderReleasePage(release: string, milestone: number): Promise<st
           : `<span class="tag tag-pending">doc pending</span>`;
       }
       return `<li class="demo-card">
-        <h3><a href="https://chromestatus.com/feature/${f.id}" target="_blank" rel="noopener">${
-        escapeHTML(f.name)
-      }</a></h3>
+        ${
+        csHref
+          ? `<h3><a href="${csHref}" target="_blank" rel="noopener">${escapeHTML(f.name)}</a></h3>`
+          : `<h3>${escapeHTML(f.name)}</h3>`
+      }
         <p>${escapeHTML(summary)}${summary.length === 220 ? "..." : ""}</p>
         <div class="demo-tags">
           <span class="tag">${escapeHTML(categoryTag(group.category))}</span>
@@ -549,12 +555,16 @@ async function renderFeaturesCatalogue(channels: Channels): Promise<string> {
       ? `<a class="tag tag-live" href="/v${r.mstone}/${escapeHTML(slug)}/">reference &rarr;</a>`
       : `<span class="tag tag-pending">pending</span>`;
     const search = `${r.name} ${r.summary} ${cat} v${r.mstone}`.toLowerCase();
+    // Narrowed at runtime, not escaped (gendn-b2s) — see renderReleasePage.
+    const csHref = chromeStatusUrl(r.id);
     return `<tr data-search="${escapeHTML(search)}" data-mstone="${r.mstone}" data-status="${
       escapeHTML(cat)
     }" data-doc="${r.hasDoc}">
-      <td><a href="https://chromestatus.com/feature/${r.id}" target="_blank" rel="noopener">${
-      escapeHTML(r.name)
-    }</a></td>
+      <td>${
+      csHref
+        ? `<a href="${csHref}" target="_blank" rel="noopener">${escapeHTML(r.name)}</a>`
+        : escapeHTML(r.name)
+    }</td>
       <td><span class="release-status">v${r.mstone}</span></td>
       <td><span class="tag">${escapeHTML(cat)}</span></td>
       <td>${docCell}</td>

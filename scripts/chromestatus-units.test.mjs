@@ -105,7 +105,7 @@ const base = `http://127.0.0.1:${server.addr.port}`;
 
 // The seam must be set BEFORE the module is imported (BASE is captured at import time).
 Deno.env.set("CHROMESTATUS_BASE", base);
-const { getChannels, getFeature, getMilestoneFeatures, slugify } = await import(
+const { chromeStatusUrl, getChannels, getFeature, getMilestoneFeatures, slugify } = await import(
   "../lib/chromestatus.ts"
 );
 
@@ -448,6 +448,126 @@ print(json.dumps([m.slugify(n) for n in json.loads(sys.argv[1])]))`,
     broken.join(" | ") || "4/4 boundary codepoints diverge as measured (both polarities)",
   );
 }
+
+// ---------------------------------------------------------------------------
+// gendn-b2s (finding TM-1): chromeStatusUrl is the runtime narrow for untrusted upstream feature
+// ids, and the three render seams must consume it. DETECTOR 1 kills a helper that trusts its
+// compile-time `number` claim (a value that looked numeric and was not is the existing failure
+// mode). DETECTOR 2 kills a re-introduced RAW interpolation site anywhere in the render seams —
+// the bug shape this bead exists for ("was the fix complete?").
+// ---------------------------------------------------------------------------
+assert(
+  "b2s narrow: a canonical upstream id number builds the exact canonical URL",
+  chromeStatusUrl(5198951632470016) === "https://chromestatus.com/feature/5198951632470016",
+  `got ${chromeStatusUrl(5198951632470016)}`,
+);
+assert(
+  "b2s narrow: a digits-only STRING id is accepted (lifecycle artifacts carry identity as a string)",
+  chromeStatusUrl("123") === "https://chromestatus.com/feature/123" &&
+    chromeStatusUrl("  123  ") === "https://chromestatus.com/feature/123",
+);
+for (
+  const [label, bad] of [
+    ["a float", 12.5],
+    ["zero", 0],
+    ["a negative", -1],
+    ["an unsafe integer (2^53)", 2 ** 53],
+    ["a leading-zero string", "0123"],
+    ["digits+letters", "12a"],
+    ["the attribute-breaker '1\" onmouseover=\"alert(1)'", '1" onmouseover="alert(1)'],
+    ["a javascript: URL as the id", "javascript:alert(1)"],
+    ["an empty string", ""],
+    ["a whitespace string", "   "],
+    ["a 20-digit string (shape bound)", "1" + "0".repeat(19)],
+    [
+      "the STRING twin of the rejected number 2^53 (review finding 1's own input)",
+      "9007199254740992",
+    ],
+    ["'9007199254740993' — a string whose Number twin rounds to 2^53", "9007199254740993"],
+    ["a 19-digit string (shape-legal, above the safe-integer bound)", "1000000000000000000"],
+    ["null", null],
+    ["undefined", undefined],
+    ["an object", {}],
+    ["an array", [1]],
+  ]
+) {
+  assert(
+    `b2s narrow: ${label} yields null (no link), not a URL`,
+    chromeStatusUrl(bad) === null,
+    `got ${chromeStatusUrl(bad)}`,
+  );
+}
+assert(
+  "b2s narrow: the SAFE-INTEGER bound is the one that binds — MAX_SAFE_INTEGER (16 digits) passes as a string, one past it does not, and the 19-char shape bound is defence-in-depth only",
+  chromeStatusUrl("9007199254740991") === "https://chromestatus.com/feature/9007199254740991" &&
+    chromeStatusUrl("9007199254740992") === null &&
+    chromeStatusUrl("1000000000000000000") === null,
+);
+// The invariant the asymmetry violated: the same conceptual value must be treated IDENTICALLY
+// however it arrives — lifecycle artifacts carry the identity as a string, upstream JSON as a
+// number, and a narrow that depends on the arrival type is not an invariant (review finding 1).
+const symmetryMismatches = [
+  1,
+  12345,
+  5198951632470016,
+  9007199254740991,
+  9007199254740992,
+  2 ** 53,
+  0,
+  -1,
+  12.5,
+].filter((n) => chromeStatusUrl(n) !== chromeStatusUrl(String(n)));
+assert(
+  "b2s narrow: number and string arrivals of the same value get the SAME verdict (symmetry across the boundary values)",
+  symmetryMismatches.length === 0,
+  symmetryMismatches.length ? `asymmetric on: ${symmetryMismatches.join(", ")}` : "9/9 symmetric",
+);
+
+// DETECTOR 2 — the sweep, keyed on the SITE signature rather than one syntactic shape (review
+// finding 2): a per-FILE check for `feature/${` passes a file that concatenates
+// "https://chromestatus.com/feature/" + id right next to a helper call, because the concat does
+// not match the template shape. The URL PREFIX is the invariant signature of a construction
+// site, whatever the syntax, so the sweep asserts: the prefix appears EXACTLY ONCE across
+// server.ts and lib/ — inside the narrowed builder in lib/chromestatus.ts — and every seam
+// consumes chromeStatusUrl. gen-conformance.mjs is deliberately NOT scanned: it is repo-authoring
+// tooling whose meta.identity flows into conformance suites (validated + hash-pinned), not into
+// served markup.
+const PREFIX = "chromestatus.com/feature/";
+const scanLib = [];
+for await (const entry of Deno.readDir(`${REPO}/lib`)) {
+  if (entry.isFile && entry.name.endsWith(".ts")) scanLib.push(`lib/${entry.name}`);
+}
+const scanAll = ["server.ts", ...scanLib.sort()];
+const countIn = (src) => src.split(PREFIX).length - 1;
+let total = 0;
+const outsideBuilder = [];
+for (const rel of scanAll) {
+  const src = await Deno.readTextFile(`${REPO}/${rel}`);
+  const n = countIn(src);
+  total += n;
+  if (n > 0 && rel !== "lib/chromestatus.ts") outsideBuilder.push(`${rel} (${n})`);
+}
+assert(
+  "b2s sweep (site-keyed): the URL prefix appears EXACTLY ONCE across server.ts + lib/ — inside the narrowed builder — in ANY construction syntax (template, concat, or otherwise)",
+  total === 1 && outsideBuilder.length === 0,
+  outsideBuilder.length
+    ? `raw construction site(s) outside the builder: ${outsideBuilder.join(", ")}`
+    : `prefix count ${total}`,
+);
+for (const rel of ["server.ts", "lib/lifecycle.ts"]) {
+  const src = await Deno.readTextFile(`${REPO}/${rel}`);
+  assert(
+    `b2s sweep: ${rel} consumes chromeStatusUrl (the narrow is WIRED, not merely absent)`,
+    src.includes("chromeStatusUrl("),
+  );
+}
+const csSrc = await Deno.readTextFile(`${REPO}/lib/chromestatus.ts`);
+assert(
+  "b2s sweep: the one construction site is the narrowed builder itself — it carries BOTH bounds (canonical shape AND safe-integer value, symmetric across arrival types)",
+  countIn(csSrc) === 1 &&
+    csSrc.includes("FEATURE_ID_RE.test(digits)") &&
+    csSrc.includes("Number.isSafeInteger(Number(digits))"),
+);
 
 if (failures > 0) {
   console.error(`chromestatus-units.test.mjs: ${failures} assertion(s) failed`);
