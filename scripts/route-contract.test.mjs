@@ -84,8 +84,14 @@ function entry(id, overrides = {}) {
     ...overrides,
   };
 }
-async function evaluate(baseline, current, migrations = [], pageExists = async () => true) {
-  return await evaluateRouteContract({ baseline, current, migrations, pageExists });
+async function evaluate(
+  baseline,
+  current,
+  migrations = [],
+  pageExists = async () => true,
+  opts = {},
+) {
+  return await evaluateRouteContract({ baseline, current, migrations, pageExists, ...opts });
 }
 function mentions(result, text) {
   return result.failures.some((failure) => failure.includes(text));
@@ -246,6 +252,45 @@ try {
     "a MULTI-LINE git failure reports the 'error:'/'fatal:' cause, not the last usage line",
     /exit code 129/.test(msg) && /error: unknown option/.test(msg),
     msg,
+  );
+}
+
+// gendn-cct: the removal messages must NAME the baseline and its commit, because a branch cut
+// before a page changed on main reads that page as "removed or renamed" while the merge is clean -
+// three lanes went hunting for a rename they never made. `drift === false` additionally means HEAD
+// does not contain the baseline commit, which is the property that makes the reading suspect, so
+// that case must carry the cure (rebase) rather than leave the reader to infer it.
+{
+  const labelled = await evaluate([withReference], [base], [], async () => true, {
+    baselineLabel: "origin/main @ 3f6696d",
+    drift: true,
+  });
+  const removal = labelled.failures.find((f) => f.includes("removed or renamed"));
+  assert(
+    "a removal failure names the compared baseline",
+    /\[vs baseline origin\/main @ 3f6696d\]/.test(removal ?? ""),
+  );
+  assert(
+    "a non-drift run does NOT claim base drift (the note must not cry wolf)",
+    !/BASE DRIFT|base drift/.test(removal ?? ""),
+  );
+
+  const drifted = await evaluate([withReference], [base], [], async () => true, {
+    baselineLabel: "origin/main @ 3f6696d",
+    drift: false,
+  });
+  const dRemoval = drifted.failures.find((f) => f.includes("removed or renamed"));
+  assert(
+    "a drift run says the removal may exist ONLY on the baseline, and names the cure",
+    /does not contain this baseline commit/.test(dRemoval ?? "") &&
+      /git rebase origin\/main/.test(dRemoval ?? ""),
+  );
+
+  const unlabelled = await evaluate([withReference], [base]);
+  const uRemoval = unlabelled.failures.find((f) => f.includes("removed or renamed"));
+  assert(
+    "without a label the message is unchanged (git-free callers keep the old text)",
+    !/vs baseline/.test(uRemoval ?? "") && /removed or renamed/.test(uRemoval ?? ""),
   );
 }
 
