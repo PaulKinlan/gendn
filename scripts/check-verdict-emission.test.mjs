@@ -97,11 +97,25 @@ const LOGS = {
     RESPONSIVE_SUMMARY,
     RESPONSIVE_GREEN,
   ].join("\n"),
-  // The landing gate's kill probe as it really looked: the harness banner, then SIGKILL.
-  killProbe:
+  // The landing gate's kill probe as it really looked: the harness banner, then SIGKILL. Since
+  // gendn-3t2 the probe runs through scripts/kill-probe.sh, which appends the kill-evidence line
+  // the checker now requires — so a REAL probe log carries it.
+  killProbe: [
     "Task conformance deno run --allow-read scripts/conformance.mjs '--page' 'v149/webmcp'",
+    "kill-probe: signal=KILL exit=137",
+  ].join("\n"),
   // The same log byte-for-byte, colour escapes included (that is what /tmp/merger-l5b-kill.log is).
-  killProbeRealBytes: `${HARNESS_BANNER} '--page' 'v149/webmcp'`,
+  killProbeRealBytes: `${HARNESS_BANNER} '--page' 'v149/webmcp'\nkill-probe: signal=KILL exit=137`,
+  // The wrapper ran, but the probe FINISHED inside its kill window: there is no killed run to
+  // verify, so this must be refused even though the evidence line is present.
+  probeCompleted: `${HARNESS_BANNER} '--page' 'v149/webmcp'\nkill-probe: signal=none exit=0`,
+  // A crashed/truncated run-all log mis-declared as the probe: it carries the SAME banner as a
+  // probe (which is why a banner alone was never proof) but no kill evidence.
+  crashedRunAllDeclaredProbe: [
+    "===== GATE conformance (start 13:14:12) =====",
+    HARNESS_BANNER,
+    ...Array.from({ length: 48 }, (_, i) => SUITE_LINE(`v14${i % 10}/page-${i}`, 19, 19, 0, 5)),
+  ].join("\n"),
   // [BLOCKER] A run-all that CRASHED or was TRUNCATED before its terminal verdict block: the
   // harness banner and fifty lines of suite output, then nothing — no summary, no verdict. The
   // first version of this check derived this as the behavioural phase, expected 0, found 0, and
@@ -148,6 +162,41 @@ r = await checkLog(LOGS.killProbe, ["--phase", "behavioural"]);
 assert(
   "the plain-text kill probe passes with --phase behavioural and names its evidence",
   r.code === 0 && r.out.includes("Task conformance"),
+);
+
+// [BLOCKER] THE DISCRIMINATING CASE (gendn-3t2): a truncated/crashed run-all log declared as the
+// probe used to PASS with "owes 0", because the declaration was the only evidence. It carries the
+// harness banner and suite output but no kill evidence, and it must now FAIL however it is declared.
+r = await checkLog(LOGS.crashedRunAllDeclaredProbe, ["--phase", "behavioural"]);
+assert(
+  "[BLOCKER] a truncated run-all log mis-declared --phase behavioural FAILS (no kill evidence)",
+  r.code === 1 && !r.out.includes("PASS") && r.err.includes("requires KILL EVIDENCE"),
+);
+assert(
+  "[BLOCKER] ...and the refusal names the producer that writes the evidence",
+  r.err.includes("scripts/kill-probe.sh"),
+);
+// The same log declared as run-all fails for the aj6 reason, so the new guard does not mask it.
+r = await checkLog(LOGS.crashedRunAllDeclaredProbe, ["--phase", "run-all"]);
+assert(
+  "[BLOCKER] the same truncated log declared --phase run-all still fails on the missing summary",
+  r.code === 1 && r.err.includes("was never verified"),
+);
+// A probe that COMPLETED inside its kill window is a run, not a kill: evidence present, still
+// refused, and the message distinguishes it from a missing-evidence refusal.
+r = await checkLog(LOGS.probeCompleted, ["--phase", "behavioural"]);
+assert(
+  "[BLOCKER] a probe that completed inside its kill window (signal=none) is REFUSED",
+  r.code === 1 && r.err.includes("signal=none") && r.err.includes("COMPLETED"),
+);
+// The producer's own evidence line must be what the checker reads, not a lookalike elsewhere.
+r = await checkLog(
+  `${LOGS.killProbe}\nnote: the wrapper said kill-probe: signal=TERM exit=143 somewhere in prose`,
+  ["--phase", "behavioural"],
+);
+assert(
+  "the evidence is read from its own anchored line (prose mentioning it is not evidence)",
+  r.code === 0 && r.out.includes("signal=KILL exit=137"),
 );
 r = await checkLog(LOGS.runAllNotGreen, ["--phase", "run-all"]);
 assert("--phase run-all cross-checks the run-all log", r.code === 0);
@@ -340,6 +389,12 @@ assert(
   /check-verdict-emission <log>[^\n]*LANDING GATE/.test(claude) &&
     /test-verdict-emission[^\n]*CHECKER/.test(claude) &&
     /--phase behavioural[^\n]*kill probe|kill probe[^\n]*--phase behavioural/.test(claude),
+);
+assert(
+  "CLAUDE.md documents the probe PRODUCER and the evidence the behavioural phase now requires",
+  /scripts\/kill-probe\.sh/.test(claude) &&
+    /kill-probe: signal=<NAME> exit=<code>/.test(claude) &&
+    /FLOW CHANGE \(gendn-3t2\)/.test(claude),
 );
 
 await Deno.remove(root, { recursive: true });
