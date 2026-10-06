@@ -33,6 +33,7 @@ import { validateReferenceContractsInBrowser } from "./lib/reference-browser.mjs
 import { gitRefExists, runGit } from "./lib/bounded-git.mjs";
 import {
   collectReferenceContracts,
+  declaredSurfaceMembers,
   declaredSurfaceSummary,
   validateContractOwnership,
   validateDeclaredSurface,
@@ -326,11 +327,29 @@ async function main() {
     return contract?.id === id && contract.completeness === "partial" &&
       referenceErrorsById.get(id)?.length === 0;
   }).length;
+  // The legacy-unassessed remainder folds two populations the reference-contract schema treats
+  // differently: pages whose #syntax block declares a WebIDL surface the schema could assess, and
+  // pages with no IDL at all (CSS / HTML feature pages) that the schema cannot assess in its
+  // present form. The split below runs over that same remainder — built, neither sufficient nor
+  // partial — using declaredSurfaceMembers(html), the instrument the touched-page campaign uses,
+  // so "no IDL surface" is not read as "nothing to do".
+  let noIdlSurface = 0;
+  for (const id of builtPages) {
+    const contract = referenceById.get(id)?.contract;
+    const isSufficient = contract?.id === id &&
+      contract.completeness === "implementation-sufficient" &&
+      referenceErrorsById.get(id)?.length === 0;
+    const isPartial = contract?.id === id && contract.completeness === "partial" &&
+      referenceErrorsById.get(id)?.length === 0;
+    if (isSufficient || isPartial) continue;
+    const html = await Deno.readTextFile(`./${id}/index.html`).catch(() => null);
+    if (html && declaredSurfaceMembers(html).length === 0) noIdlSurface++;
+  }
   console.log(`  critiques          : ${critiquePages.length}/${pageIds.size} published pages`);
   console.log(
     `  implementation refs: ${sufficientRefs} sufficient / ${partialRefs} partial / ${
       builtPages.length - sufficientRefs - partialRefs
-    } legacy-unassessed (of ${builtPages.length} built)`,
+    } legacy-unassessed (of ${builtPages.length} built; ${noIdlSurface} have no IDL surface and are outside the reference-contract schema)`,
   );
   console.log(`  desktop matrix ok  : ${okCls("desktop")}/${pageIds.size}`);
   console.log(`  mobile matrix ok   : ${okCls("mobile")}/${pageIds.size}`);

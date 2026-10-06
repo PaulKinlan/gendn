@@ -30,6 +30,7 @@ import {
 } from "./lib/artifacts.mjs";
 import {
   collectReferenceContracts,
+  declaredSurfaceMembers,
   validateContractOwnership,
   validateReferenceContract,
 } from "./lib/reference-contract.mjs";
@@ -145,13 +146,23 @@ async function main() {
     }
   }
 
+  // Same split as check-conformance.mjs's census: the legacy-unassessed remainder is built pages
+  // that are neither sufficient nor partial, split by whether the page's #syntax block declares a
+  // WebIDL surface the reference-contract schema could assess or no IDL at all. The two gates must
+  // print this parenthetical byte-identically for the same tree.
+  let noIdlSurface = 0;
+  for (const id of builtIds) {
+    if (sufficientOwners.has(id) || partialOwners.has(id)) continue;
+    const html = await Deno.readTextFile(`./${id}/index.html`).catch(() => null);
+    if (html && declaredSurfaceMembers(html).length === 0) noIdlSurface++;
+  }
   console.log("validate-artifacts");
   console.log(`  conformance suites : ${suiteCount} validated`);
   console.log(`  critiques          : ${critiqueCount} validated`);
   console.log(
     `  implementation refs: ${sufficientOwners.size} sufficient / ${partialOwners.size} partial / ${
       builtIds.length - sufficientOwners.size - partialOwners.size
-    } legacy-unassessed (of ${builtIds.length} built)`,
+    } legacy-unassessed (of ${builtIds.length} built; ${noIdlSurface} have no IDL surface and are outside the reference-contract schema)`,
   );
   console.log(`  goals.json         : ${goals ? "present" : "absent"}`);
   console.log(`  responsive-support : ${support ? "present" : "absent"}`);
