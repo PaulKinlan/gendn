@@ -225,6 +225,12 @@ const sha = async (path) => {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 };
 
+// The repo sheet must be byte-identical after the WHOLE fixture run. The hash is captured HERE,
+// before any test executes, so the comparison can actually fail (gendn-60l): the previous assertion
+// read both sides after the run, which is tautological - a guard that cannot fail still reads as
+// coverage on a coverage report.
+const REAL_SHEET_SHA_BEFORE = await sha(REAL_SHEET);
+
 // Freshness of the lib copy is asserted here (sha is defined just above this helper block).
 assert(
   "tmp layout: lib/chromestatus.ts copied BYTE-IDENTICAL (no stale copy under test)",
@@ -755,9 +761,10 @@ try {
       `exit=${rc.code} ${rcout.trim()}`,
     );
   }
-  const realAfter = await sha(REAL_SHEET);
-  const realBefore = await sha(REAL_SHEET); // --check never writes; asserted below by re-run
-  assert("--check did not modify the repo sheet", realAfter === realBefore);
+  assert(
+    "the fixture did not modify the repo sheet (public/styles.css)",
+    (await sha(REAL_SHEET)) === REAL_SHEET_SHA_BEFORE,
+  );
 } finally {
   // Drain every stalling endpoint's teardown, each wrapped so one failure cannot skip the rest.
   for (const cleanup of hangCleanups) {
