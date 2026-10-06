@@ -38,7 +38,7 @@
   </div>
 
   <section>
-    <h2>at a glance</h2>
+    <h2 id="at-a-glance">at a glance</h2>
     <table class="doc-table">
       <tr><th>Shipping target</th><td>Chrome 147 (origin trial; exact GA milestone TBD)</td></tr>
       <tr><th>Status</th><td>Origin trial / Proposed</td></tr>
@@ -49,31 +49,41 @@
       <tr><th>Samples</th><td><a href="https://webmachinelearning.github.io/webnn-samples" target="_blank" rel="noopener">webnn-samples</a> &nbsp;·&nbsp; <a href="https://microsoft.github.io/webnn-developer-preview" target="_blank" rel="noopener">Microsoft developer preview</a></td></tr>
       <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5176273954144256" target="_blank" rel="noopener">5176273954144256 — WebNN</a></td></tr>
     </table>
-  </section>
+      <p>Snapshot divergence, both sides reported rather than resolved (fetched 2026-10-06): this page describes an earlier
+      snapshot of the specification it cites, and the current draft has moved on. The page spells its operator runs
+      <code>matMul</code>, which appears <em>zero</em> times in the fetched draft (its IDL spells it <code>matmul</code>,
+      192 occurrences); the page&rsquo;s descriptor examples use <code>dimensions</code> where the draft uses
+      <code>shape</code>; and the page names 13 operators plus &ldquo;~70 more&rdquo; where the draft defines 91. The
+      page&rsquo;s <code>compute()</code> call is likewise the historical name &mdash; the draft&rsquo;s IDL defines
+      <code>dispatch</code> (50 occurrences) and mentions <code>compute(</code> only twice. On status, ChromeStatus
+      feature <code>5176273954144256</code> reads &ldquo;Proposed&rdquo; with maturity &ldquo;Specification currently under
+      development in a Working Group&rdquo;, so neither this page&rsquo;s Candidate Recommendation label nor its Chrome 147
+      origin-trial framing is carried by the record.</p>
+</section>
 
   <section>
-    <h2>why it exists</h2>
+    <h2 id="why-it-exists">why it exists</h2>
     <p>Neural network inference on the web has historically meant one of two things: a heavyweight WASM runtime that can't touch the GPU, or WebGL/WebGPU compute shaders that require hand-rolling matrix math and shader strings. Neither path can reach a device's Neural Processing Unit. WebNN is a hardware-agnostic graph API — the browser maps it onto Windows DirectML, macOS ML Compute, Android NNAPI, or whatever native stack is present. The Chromium implementation is a three-way collaboration between Google, Intel, and Microsoft; Edge ships WebNN at the same time as Chrome from the same code.</p>
     <span class="citation">Source: chromestatus motivation and the WebNN explainer §1 ("Background").</span>
   </section>
 
   <section>
-    <h2>shape of the API</h2>
+    <h2 id="shape-of-the-api">shape of the API</h2>
     <p>Four core interfaces; the workflow is always: create a context → build a graph → compile → compute.</p>
 
-    <h3>navigator.ml → ML</h3>
+    <h3 id="navigator-ml">navigator.ml → ML</h3>
     <table class="doc-table">
       <tr><th><code>navigator.ml.createContext(options?)</code></th><td>Returns <code>Promise&lt;MLContext&gt;</code>. Options can specify a device preference (<code>"cpu"</code>, <code>"gpu"</code>, <code>"npu"</code>) and a power preference (<code>"high-performance"</code>, <code>"low-power"</code>, <code>"default"</code>).</td></tr>
     </table>
 
-    <h3>MLContext</h3>
+    <h3 id="mlcontext">MLContext</h3>
     <table class="doc-table">
       <tr><th><code>compute(graph, inputs, outputs)</code></th><td>Runs a compiled <code>MLGraph</code>. <code>inputs</code> and <code>outputs</code> are plain objects keyed by operand name; values are <code>ArrayBufferView</code>. Returns <code>Promise&lt;MLComputeResult&gt;</code>.</td></tr>
       <tr><th><code>createTensor(descriptor, writable?, readable?)</code></th><td>Allocates a device-side <code>MLTensor</code> for zero-copy buffer sharing between the graph and WebGPU (if available).</td></tr>
       <tr><th><code>dispatch(graph, inputs, outputs)</code></th><td>Fire-and-forget version of compute for <code>MLTensor</code>-backed buffers; does not transfer data back to JS until <code>readTensor()</code> is called.</td></tr>
     </table>
 
-    <h3>MLGraphBuilder</h3>
+    <h3 id="mlgraphbuilder">MLGraphBuilder</h3>
     <table class="doc-table">
       <tr><th><code>new MLGraphBuilder(context)</code></th><td>Constructor. Binds the builder to a context.</td></tr>
       <tr><th><code>input(name, descriptor)</code></th><td>Declares an input operand. Descriptor: <code>{ dataType, dimensions }</code>.</td></tr>
@@ -82,7 +92,7 @@
       <tr><th><code>build(outputs)</code></th><td>Compiles the graph. <code>outputs</code> is an object mapping output names to <code>MLOperand</code>. Returns <code>Promise&lt;MLGraph&gt;</code>.</td></tr>
     </table>
 
-    <h3>MLGraph</h3>
+    <h3 id="mlgraph">MLGraph</h3>
     <table class="doc-table">
       <tr><td>Opaque compiled representation. Pass to <code>context.compute()</code> or <code>context.dispatch()</code>. Immutable after construction.</td><td></td></tr>
     </table>
@@ -90,7 +100,7 @@
   </section>
 
   <section>
-    <h2>example: add two matrices</h2>
+    <h2 id="example-add-two-matrices">example: add two matrices</h2>
 <pre><code>const context = await navigator.ml.createContext({ deviceType: 'gpu' });
 const builder = new MLGraphBuilder(context);
 
@@ -113,7 +123,7 @@ await context.compute(graph, inputs, outputs);
   </section>
 
   <section>
-    <h2>example: softmax classifier (weights as constants)</h2>
+    <h2 id="example-softmax-classifier">example: softmax classifier (weights as constants)</h2>
 <pre><code>const context = await navigator.ml.createContext();
 const builder = new MLGraphBuilder(context);
 
@@ -145,7 +155,7 @@ async function predict(featureVector) {
   </section>
 
   <section>
-    <h2>browser support</h2>
+    <h2 id="browser-support">browser support</h2>
     <table class="doc-table">
       <tr><th>Chrome</th><td>Origin trial in 147 (Google + Intel + Microsoft collaboration)</td></tr>
       <tr><th>Edge</th><td>Launches alongside Chrome (same Chromium code)</td></tr>

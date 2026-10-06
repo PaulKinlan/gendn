@@ -322,6 +322,38 @@ const PAGES = [
     sideB: ["5159559872249856", "remaining gated by Document Policy", "js-profiling-mode"],
     dates: ["fetched 2026-10-06"],
   },
+  {
+    // gendn-xpz wave-2b: verified by the implementer by re-fetching, disclosed in-unit per coord's 22:30Z ruling.
+    page: "v147/webxr-plane-detection/index.html",
+    marker: "Shipped-versus-origin-trial divergence, both sides reported rather than resolved",
+    sideA: ["v147 \u00b7 web api \u00b7 shipped"],
+    sideB: ["5732397976911872", "Origin trial", "Android milestone of 77"],
+    dates: ["fetched 2026-10-06"],
+  },
+  {
+    // gendn-xpz wave-2b: verified by the implementer by re-fetching, disclosed in-unit per coord's 22:30Z ruling.
+    page: "v147/webnn/index.html",
+    marker: "Snapshot divergence, both sides reported rather than resolved",
+    sideA: ["matMul"],
+    sideB: ["matmul", "dispatch"],
+    dates: ["fetched 2026-10-06"],
+  },
+  {
+    // gendn-xpz wave-2b: verified by the implementer by re-fetching, disclosed in-unit per coord's 22:30Z ruling.
+    page: "v147/web-neural-network-api-webnn/index.html",
+    marker: "Standards-status divergence, both sides reported rather than resolved",
+    sideA: ["W3C Candidate Recommendation"],
+    sideB: ["Candidate Recommendation Draft"],
+    dates: ["fetched 2026-10-06"],
+  },
+  {
+    // gendn-xpz wave-2b: verified by the implementer by re-fetching, disclosed in-unit per coord's 22:30Z ruling.
+    page: "v147/pseudo-target-on-events/index.html",
+    marker: "Status and specification divergence, both sides reported rather than resolved",
+    sideA: ["Enabled by default"],
+    sideB: ["5179328935624704", "is_released false", "UI Events"],
+    dates: ["fetched 2026-10-06"],
+  },
 ];
 
 let failures = 0;
@@ -369,6 +401,10 @@ const DATED_PAGES = new Set([
   "v151/no-auto-rewind-for-animationtrigger-play-methods/index.html",
   "v147/autofill-event/index.html",
   "v152/deprecate-and-remove-xslt/xsltprocessor/index.html",
+  "v147/webxr-plane-detection/index.html",
+  "v147/webnn/index.html",
+  "v147/web-neural-network-api-webnn/index.html",
+  "v147/pseudo-target-on-events/index.html",
   "v147/js-profiling-in-dedicated-workers/index.html",
   "v147/remove-inline-xslt-for-production-of-svg/index.html",
   "v147/gamepad-event-driven-input-api/index.html",
