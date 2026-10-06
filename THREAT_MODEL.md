@@ -3,7 +3,10 @@
 _Scope: the `gendn` reference-documentation repository (PaulKinlan/gendn). This file is the
 canonical source for the invariant numbers that source comments cite (`THREAT_MODEL.md
 invariant #7` in `lib/mdn.ts` and `scripts/mdn-has.test.mjs`; `invariant #8` in
-`lib/external-url.ts` and `lib/html.ts`). A guard fixture
+`lib/external-url.ts` and `lib/html.ts`; `invariant #4` in `server.ts`, `lib/chromestatus.ts`,
+`lib/lifecycle.ts` and `scripts/chromestatus-units.test.mjs` — a snapshot at authoring time;
+the guard derives the live list from the source at run time and is the authority). A guard
+fixture
 (`scripts/threat-model-citations.test.mjs`, task `test-threat-model-citations`) fails if a cited
 invariant number stops resolving in this document or if #7/#8 lose the phrases the citing
 comments depend on. The guard's scanned surface is `lib/**`, `scripts/**` (recursive) and
@@ -193,8 +196,9 @@ Audits **must not** flag the following as vulnerabilities:
 ## 6. Security Invariants for Auditors
 
 Each invariant carries its enforcement anchor (file + symbol, not line numbers — lines rot).
-#7 and #8 are the numbers source comments already cite; #1–#6 renumber the CLAUDE.md critical
-invariants; #9–#13 were observed in code and are numbered here for the first time. Phrase note,
+#4, #7 and #8 are the numbers source comments cite (#7 and #8 at original authoring; the #4
+citers landed afterwards with the b2s/sxn runtime-narrowing work); #1–#6 renumber the CLAUDE.md
+critical invariants; #9–#13 were observed in code and are numbered here for the first time. Phrase note,
 deliberately HERE rather than inside entry #7: the pair lib/mdn.ts defers to is “timeout and
 byte bound”; scripts/mdn-has.test.mjs cites the same invariant in its own words (“no timeout
 and no size bound”). A quoted copy of the phrase inside the entry would let the guard’s
