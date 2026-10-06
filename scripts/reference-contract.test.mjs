@@ -662,23 +662,29 @@ dictionary D {
     }
 
     // THE FOURTH MEASURED EDGE, PINNED AS DOCUMENTED BEHAVIOUR rather than left as prose: a non-IDL
-    // block that carries BOTH a keyword and a call-shaped token is admitted by the keyword gate and
-    // the member hint, yields no member, and is reported unreadable - a false positive on a block that
-    // is not IDL at all. It is recorded, not fixed (narrowing the hint further would weaken the check
-    // that catches genuinely unreadable IDL), so the pins below state the CURRENT behaviour and stop a
-    // later "fix" from changing it silently. Two controls pin the mechanism: BOTH conditions are
-    // required, so either one alone must stay silent.
+    // block that carries BOTH a keyword and a call-shaped token is admitted by the keyword gate and the
+    // member hint, yields no member, and is reported unreadable - a false positive on a block that is not
+    // IDL at all. Two controls pin the mechanism: BOTH conditions are required, so either alone must stay
+    // silent. NOTE THE HELPER: the shared specialPage() wraps its content in `interface Thing { ... }`,
+    // so the block gate fires for EVERY case and the controls could not be expressed with it. These pins
+    // therefore build a BARE syntax block, which is also the shape a real page has when a JSON example
+    // sits in its own <pre><code> beside the IDL - and that shape is exactly what the reconnaissance
+    // measured on the catalogue (201 pages scanned, 0 with any unreadable block).
+    const bareBlock = (inner) =>
+      `<!doctype html><main><section><h2 id="syntax">Syntax</h2><pre><code>${
+        inner.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      }</code></pre></section></main>`;
     {
-      const jsonish = specialPage('  {"mixin":"f(x)"}');
+      const jsonish = bareBlock('{"mixin":"f(x)"}');
       assert(
         unreadableSyntaxBlocks(jsonish).length === 1,
         `a non-IDL block with a keyword AND a call-shaped token is documented as reported unreadable; got ${JSON.stringify(unreadableSyntaxBlocks(jsonish))}`,
       );
-      const callShapeOnly = specialPage('  {"handle":"g(x)"}');
-      const keywordOnly = specialPage('  {"mixin":"abc"}');
+      const callShapeOnly = bareBlock('{"handle":"g(x)"}');
+      const keywordOnly = bareBlock('{"mixin":"abc"}');
       assert(
         unreadableSyntaxBlocks(callShapeOnly).length === 0 && unreadableSyntaxBlocks(keywordOnly).length === 0,
-        `the fourth edge requires BOTH conditions: call-shape-only and keyword-only must stay silent; got ${JSON.stringify([unreadableSyntaxBlocks(callShapeOnly), unreadableSyntaxBlocks(keywordOnly)])}`,
+        `the fourth edge requires BOTH conditions, so call-shape-only and keyword-only must stay silent; got ${JSON.stringify([unreadableSyntaxBlocks(callShapeOnly), unreadableSyntaxBlocks(keywordOnly)])}`,
       );
     }
 
