@@ -643,6 +643,18 @@ try {
     await walk(`${REPO}lib`, "lib");
     targets.push("server.ts");
 
+    // The sweep's DECISION lives in one place, so a canary cannot pass on a private copy of the
+    // rules (gendn-jm7). A canary that re-derives its expectation from a copy of the pattern it
+    // polices can only fail when the two copies drift apart by hand: mutate the PRODUCTION rule and
+    // it happily passes, reporting coverage while really detecting copy/paste errors. Both the sweep
+    // and the canaries below call this.
+    const sweepFinding = (rel, callText) => {
+      if (rel === DEFINITION_SITE) return false; // fetchBounded itself bounds this call
+      if (/AbortSignal\.timeout/.test(callText)) return false; // bounded at the call site
+      if (/fetch\(\s*[`"'][^`"']*(127\.0\.0\.1|localhost)/.test(callText)) return false; // loopback literal
+      if (ALLOWLIST.some((a) => a.file === rel && callText.includes(a.needle))) return false;
+      return true;
+    };
     const violations = [];
     let scanned = 0;
     let fetchSites = 0;
@@ -659,10 +671,7 @@ try {
         fetchSites++;
         const callText = text.slice(m.index, m.index + 300);
         const line = text.slice(0, m.index).split("\n").length;
-        if (rel === DEFINITION_SITE) continue; // fetchBounded itself bounds this call
-        if (/AbortSignal\.timeout/.test(callText)) continue; // bounded at the call site
-        if (/fetch\(\s*[`"'][^`"']*(127\.0\.0\.1|localhost)/.test(callText)) continue; // loopback literal
-        if (ALLOWLIST.some((a) => a.file === rel && callText.includes(a.needle))) continue;
+        if (!sweepFinding(rel, callText)) continue;
         violations.push(`${rel}:${line}`);
       }
     }
@@ -673,21 +682,38 @@ try {
         ? `UNBOUNDED bare fetch at: ${violations.join(", ")}`
         : `${fetchSites} fetch site(s) across ${scanned} file(s), all accounted for`,
     );
-    // The sweep must be able to FAIL: a detector that cannot fire is decoration. It scans a
-    // deliberately unbounded snippet through the exact same rules and requires a violation.
+    // The sweep must be able to FAIL: a detector that cannot fire is decoration. Every canary below
+    // runs through sweepFinding - the SAME decision the sweep uses - so mutating the production rule
+    // breaks these, which is the whole point (gendn-jm7).
     const canary = "const res = await fetch(url, { headers: { 'user-agent': UA } });";
-    const canaryBounded = /AbortSignal\.timeout/.test(canary) ||
-      /fetch\(\s*[`"'][^`"']*(127\.0\.0\.1|localhost)/.test(canary);
     assert(
       "n3e static sweep: the rules DO flag the pre-fix vendor-fonts fetch shape (the sweep can fail)",
-      !canaryBounded,
+      sweepFinding("scripts/vendor-fonts.mjs", canary),
     );
-    // And the allowlist is not a blanket: it must not match an outbound URL in the same files.
+    assert(
+      "n3e static sweep: a call carrying AbortSignal.timeout IS excused",
+      !sweepFinding(
+        "scripts/vendor-fonts.mjs",
+        "await fetch(url, { signal: AbortSignal.timeout(4000) });",
+      ),
+    );
+    assert(
+      "n3e static sweep: a loopback literal IS excused",
+      !sweepFinding("scripts/vendor-fonts.mjs", "await fetch(`http://127.0.0.1:8000/x`);"),
+    );
+    assert(
+      "n3e static sweep: the fetchBounded definition site IS excused",
+      !sweepFinding(DEFINITION_SITE, "const res = await fetch(url);"),
+    );
+    assert(
+      "n3e static sweep: an allowlist entry IS honoured for its exact needle",
+      !sweepFinding(ALLOWLIST[0].file, `x ${ALLOWLIST[0].needle} y`),
+    );
+    // ...and the allowlist is not a blanket: an outbound URL is still a finding.
     const outbound = "await fetch(`https://fonts.googleapis.com/css2`);";
     assert(
       "n3e static sweep: an outbound fetch with no timeout is NOT excused by the loopback rule",
-      !/AbortSignal\.timeout/.test(outbound) &&
-        !/fetch\(\s*[`"'][^`"']*(127\.0\.0\.1|localhost)/.test(outbound),
+      sweepFinding("scripts/vendor-fonts.mjs", outbound),
     );
   }
 
