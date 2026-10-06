@@ -40,20 +40,60 @@ import {
 
 const MIGRATIONS = "migrations.json";
 
+// GIT CANNOT BE ALLOWED TO HANG THIS GATE (gendn-1tu). Two ways a git call here never returns:
+//   (a) OBJECT-STORE CONTENTION - this repo's object store is shared with the other lanes and the
+//       merger, so a `git show`/`git diff` waits on a lock held by a landing that is mid-write;
+//   (b) THE SUBTLE ONE - `cmd.output()` waits for PIPE EOF. A git call that triggers automatic
+//       maintenance/auto-gc forks a BACKGROUND process which INHERITS stdout, so EOF never arrives,
+//       the promise never settles, no timers remain, and Deno exits with exactly "Top-level await
+//       promise never resolved" - ZERO output, which reads as environmental and tempts a re-run.
+// `-c gc.auto=0 --no-optional-locks` removes the auto-gc path; the timer bounds everything else. A
+// timeout is ALWAYS a loud, named failure - never a silent hang: a lane must be able to tell "stuck"
+// from "slow" without guessing.
+const GIT_TIMEOUT_MS = 60_000;
+const GIT_SAFE_ARGS = ["-c", "gc.auto=0", "--no-optional-locks"];
+
+async function runGit(args, { stdout = "null" } = {}) {
+  const child = new Deno.Command("git", { args, stdout, stderr: "null" }).spawn();
+  const output = child.output();
+  let timer;
+  const timedOut = await Promise.race([
+    output.then(() => false, () => false),
+    new Promise((resolve) => {
+      timer = setTimeout(() => resolve(true), GIT_TIMEOUT_MS);
+    }),
+  ]);
+  clearTimeout(timer);
+  if (timedOut) {
+    try {
+      child.kill("SIGKILL");
+    } catch {
+      // already gone
+    }
+    // Deliberately NOT awaiting `output`: if a forked child holds the pipe open it never settles,
+    // and waiting would reintroduce exactly the hang this bound exists to prevent.
+    throw new Error(
+      `git ${
+        args.join(" ")
+      } did not complete within ${GIT_TIMEOUT_MS}ms - refusing to hang the gate ` +
+        `(object-store contention, or a forked git maintenance process holding stdout open)`,
+    );
+  }
+  const result = await output;
+  return {
+    code: result.code,
+    stdout: stdout === "piped" ? new TextDecoder().decode(result.stdout) : "",
+  };
+}
+
 async function git(args) {
-  const cmd = new Deno.Command("git", { args, stdout: "piped", stderr: "null" });
-  const { code, stdout } = await cmd.output();
+  const { code, stdout } = await runGit([...GIT_SAFE_ARGS, ...args], { stdout: "piped" });
   if (code !== 0) return null;
-  return new TextDecoder().decode(stdout);
+  return stdout;
 }
 
 async function gitRefExists(ref) {
-  const cmd = new Deno.Command("git", {
-    args: ["rev-parse", "--verify", "--quiet", ref],
-    stdout: "null",
-    stderr: "null",
-  });
-  return (await cmd.output()).code === 0;
+  return (await runGit([...GIT_SAFE_ARGS, "rev-parse", "--verify", "--quiet", ref])).code === 0;
 }
 
 async function loadMigrations() {
@@ -336,4 +376,16 @@ async function main() {
   console.log("\nPASS — full conformance coverage, no weakened assertions.");
 }
 
-if (import.meta.main) await main();
+if (import.meta.main) {
+  // A hang anywhere in the gate now surfaces as this line rather than as a silent zero-output death.
+  try {
+    await main();
+  } catch (err) {
+    console.error(
+      `\nFAIL — the conformance gate could not complete: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+    Deno.exit(1);
+  }
+}

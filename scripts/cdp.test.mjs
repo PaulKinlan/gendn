@@ -3,7 +3,13 @@
 // anomaly warning, its per-line dedupe, parse fidelity vs the merged dfc4c2c behaviour, and
 // TMPDIR root resolution (incl. the empty-string → /tmp-like-unset case). No Chrome. Runs as
 // `deno task test-cdp` and chained first in `deno task test-reference-contract`.
-import { classifyOrigin, isLocalNavigation, parseProcessListForDir, tmpRoot } from "./lib/cdp.mjs";
+import {
+  classifyOrigin,
+  Conn,
+  isLocalNavigation,
+  parseProcessListForDir,
+  tmpRoot,
+} from "./lib/cdp.mjs";
 
 const DIR = "/tmp/gendn-cdp-424242-fixture";
 let failures = 0;
@@ -130,6 +136,50 @@ assert("garbage refused", !isLocalNavigation("not a url"));
     external > 0 && bad.length === 0,
   );
   if (bad.length) console.error(bad.join("\n"));
+}
+
+// A DEAD TARGET MUST NOT HANG THE GATE (gendn-1tu). Conn.send parked its {resolve,reject} in the
+// pending map and never deleted or bounded it, so a wedged Chrome target hung the caller forever -
+// at the top of a gate that is "Top-level await promise never resolved" with zero output. This uses
+// a stub socket, so it needs no Chrome.
+{
+  const stub = new Conn({ send() {}, onmessage: null });
+  const started = performance.now();
+  let rejected = "";
+  try {
+    await stub.send("Runtime.evaluate", {}, undefined, 25);
+  } catch (err) {
+    rejected = err.message;
+  }
+  assert(
+    "a CDP call that never gets a reply REJECTS instead of hanging",
+    rejected.includes("did not reply within 25ms") && rejected.includes("Runtime.evaluate"),
+    rejected || "(resolved - the bound did not fire)",
+  );
+  assert(
+    "the timed-out call is removed from the pending map",
+    stub.pending.size === 0,
+    `pending=${stub.pending.size}`,
+  );
+  assert(
+    "the bound is applied, not bypassed",
+    performance.now() - started >= 20,
+    `${Math.round(performance.now() - started)}ms`,
+  );
+  // ...and the happy path still resolves, with the timer cleared (no spurious late rejection).
+  const socket = {
+    sent: null,
+    send(payload) {
+      this.sent = JSON.parse(payload);
+    },
+    onmessage: null,
+  };
+  const stub2 = new Conn(socket);
+  const call = stub2.send("Runtime.evaluate", {}, undefined, 5000);
+  socket.onmessage({ data: JSON.stringify({ id: socket.sent.id, result: { value: 7 } }) });
+  const resolved = await call;
+  assert("a replied CDP call still resolves", resolved.value === 7, JSON.stringify(resolved));
+  assert("a replied call leaves nothing pending", stub2.pending.size === 0);
 }
 
 if (failures > 0) {
