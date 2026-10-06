@@ -245,8 +245,20 @@ async function main() {
           // syntax IDL, or list it in outOfScope with a rationale - so a collapsed inventory is an
           // explicit, reviewable statement instead of an invisible one. Deliberately NOT applied to
           // untouched contracts, so this does not go red for pre-existing state.
+          // ONE READ, ABOVE THE COMPLETENESS BRANCH (gendn-ijf). The declared-surface check needs the
+          // page's HTML and so does the parser-skip report, but they answer DIFFERENT questions: the
+          // surface check asks whether the CONTRACT accounts for the page, the skip report says what the
+          // PARSER could read. A touched page whose contract is not yet implementation-sufficient can
+          // still be parsed, so the read belongs here and the skip report stays outside the branch.
+          // BEFORE THIS, the skip call sat outside a block that declared `pageHtml` INSIDE it, so every
+          // touched built page with a sufficient contract threw `ReferenceError: pageHtml is not
+          // defined` and the gate exited 1 - and it was invisible on every tree where no page is
+          // touched, which is exactly the case the touched-page ratchet exists for. It survived
+          // fleet-check, an 18/18 fixture suite and a three-way mutation matrix because those mutate the
+          // DETECTOR and this is the CALLER: the library and its call sites fail independently, and
+          // `check-conformance` is not part of `fleet-check` (rule 121).
+          const pageHtml = await Deno.readTextFile(`./${id}/index.html`).catch(() => null);
           if (contract.completeness === "implementation-sufficient") {
-            const pageHtml = await Deno.readTextFile(`./${id}/index.html`).catch(() => null);
             if (pageHtml) {
               structuralErrors.push(...validateDeclaredSurface(contract, pageHtml));
               const surface = declaredSurfaceSummary(contract, pageHtml);
@@ -261,11 +273,17 @@ async function main() {
           // declares no name, so the parser cannot turn it into a member - a limit of the CHECK, not a
           // defect in the page. Printed so the limit stays visible, and deliberately kept out of
           // `failures`, because a gate that fails correct contracts teaches lanes to stop reading it (rule 87).
-          const skipped = skippedSurfaceDeclarations(pageHtml);
-          if (skipped.length > 0) {
-            surfaceNotes.push(
-              `  ${id}: parser skipped ${skipped.length} anonymous special operation(s) - nothing to account for: ${skipped.join(" | ")}`,
-            );
+          // THE LIMIT OF THIS CHANNEL, stated rather than implied: it runs for TOUCHED pages and prints
+          // near the end of a run, so an omitted anonymous accessor on an untouched page is NOT
+          // independently assessed by this gate - it is visible only when someone touches the page and
+          // the note appears. A warning channel is not an assessment.
+          if (pageHtml) {
+            const skipped = skippedSurfaceDeclarations(pageHtml);
+            if (skipped.length > 0) {
+              surfaceNotes.push(
+                `  ${id}: parser skipped ${skipped.length} anonymous special operation(s) - nothing to account for: ${skipped.join(" | ")}`,
+              );
+            }
           }
           for (const error of structuralErrors) {
             failures.push(`touched built reference ${id}: ${error}`);

@@ -661,6 +661,27 @@ dictionary D {
       );
     }
 
+    // THE FOURTH MEASURED EDGE, PINNED AS DOCUMENTED BEHAVIOUR rather than left as prose: a non-IDL
+    // block that carries BOTH a keyword and a call-shaped token is admitted by the keyword gate and
+    // the member hint, yields no member, and is reported unreadable - a false positive on a block that
+    // is not IDL at all. It is recorded, not fixed (narrowing the hint further would weaken the check
+    // that catches genuinely unreadable IDL), so the pins below state the CURRENT behaviour and stop a
+    // later "fix" from changing it silently. Two controls pin the mechanism: BOTH conditions are
+    // required, so either one alone must stay silent.
+    {
+      const jsonish = specialPage('  {"mixin":"f(x)"}');
+      assert(
+        unreadableSyntaxBlocks(jsonish).length === 1,
+        `a non-IDL block with a keyword AND a call-shaped token is documented as reported unreadable; got ${JSON.stringify(unreadableSyntaxBlocks(jsonish))}`,
+      );
+      const callShapeOnly = specialPage('  {"handle":"g(x)"}');
+      const keywordOnly = specialPage('  {"mixin":"abc"}');
+      assert(
+        unreadableSyntaxBlocks(callShapeOnly).length === 0 && unreadableSyntaxBlocks(keywordOnly).length === 0,
+        `the fourth edge requires BOTH conditions: call-shape-only and keyword-only must stay silent; got ${JSON.stringify([unreadableSyntaxBlocks(callShapeOnly), unreadableSyntaxBlocks(keywordOnly)])}`,
+      );
+    }
+
     // A HOLE WITH NO HINT OF ITS OWN, beside a skip that HAS one - the P0 a reviewer found in the
     // first version of the skip fix. `setter undefined (...)` carries a member hint of its own
     // ("undefined ("); `Foo;` does not. Subtracting the skip BEFORE testing the hint deleted the only

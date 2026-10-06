@@ -211,7 +211,7 @@ export async function validateReferenceContract(contract, root = ".") {
 // contains h3 member subheadings. A page with neither an id nor a "Syntax" heading yields no
 // members and is not checked.
 //
-// THREE MEASURED PARSER LIMITS (gendn-ijf, measured with the REAL detector across all 201 pages
+// FOUR MEASURED PARSER LIMITS (gendn-ijf, measured with the REAL detector across all 201 pages
 // rather than by grep, because the reachability claim and the behaviour claim are different facts):
 //   * AN ANONYMOUS SPECIAL OPERATION REPORTS ITS RETURN TYPE AS A MEMBER
 //     (`getter DOMString (unsigned long index);` -> ["DOMString"], while the named control
@@ -237,10 +237,24 @@ export async function validateReferenceContract(contract, root = ".") {
 //     across the catalogue: ZERO pages contain `"mixin"` or `'mixin'` inside a quoted string. Five
 //     pages contain the token at all, and every one of them uses it as a DECLARATION HEADER
 //     (`interface mixin Body {`), which the declaration-header strip handles by design. So the
-//     hazard is theoretical (a regex-grade gate would be opened by a quoted word) and the cost on
-//     this catalogue is nothing, while the JSON near-miss stays silent (members=[], unreadable=0) as
-//     intended for a non-IDL block. Recording it as a LIMIT would have been the worse error: a
-//     header that documents a limit which is not the limit is worse than no header.
+//     QUOTED-WORD hazard is therefore theoretical and UNMEASURED IN THIS FORM, and the cost on this
+//     catalogue is nothing; the JSON near-miss stays silent (members=[], unreadable=0), which is the
+//     intended behaviour for a non-IDL block. Recording it as a LIMIT would have been the worse error:
+//     a header that documents a limit which is not the limit is worse than no header. WHAT THIS NOTE
+//     DOES NOT CLAIM, and a reviewer was right to ask: that a quoted token with a CALL-SHAPED value is
+//     silent. That is the fourth limit, below, and it is NOT silent.
+//   * A NON-IDL BLOCK CARRYING A KEYWORD AND A CALL-SHAPED TOKEN IS REPORTED UNREADABLE (an edge a
+//     reviewer found by reasoning, then measured here). `{"mixin":"f(x)"}` satisfies the keyword gate
+//     AND the call-shape member hint, yields no member, and is therefore reported by
+//     unreadableSyntaxBlocks() - a false positive in direction, on a block that is not IDL at all. The
+//     mechanism is pinned by two controls rather than asserted: `{"handle":"g(x)"}` (call shape, no
+//     keyword) and `{"mixin":"abc"}` (keyword, no call shape) both stay SILENT, so BOTH conditions are
+//     required. Reachability: 0 of 201 pages - measured by driving unreadableSyntaxBlocks() over every
+//     page's syntax blocks and counting those whose reported block contains the token; 201 pages
+//     scanned, 0 with ANY unreadable block at all. This is a limit of a regex-grade gate rather than a
+//     defect introduced by the skip change, and it is RECORDED rather than fixed: narrowing the hint
+//     further would weaken the check that catches genuinely unreadable IDL, and the direction here is
+//     loud (it reports) rather than silent.
 //   * THE TRIGGER IS A HEURISTIC, and its negative direction is a DECISION rather than an oversight.
 //     A block whose members are declared without any declaration-shaped token (no interface/
 //     dictionary/enum/namespace/callback/typedef/mixin/partial, no line-leading attribute) is read as
