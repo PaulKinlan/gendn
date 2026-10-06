@@ -11,6 +11,7 @@ import {
   fetchBounded,
   getChannels,
   getMilestoneFeatures,
+  milestonePathSegment,
   slugify,
 } from "./lib/chromestatus.ts";
 import { renderCommitAnchor } from "./lib/external-url.ts";
@@ -210,7 +211,7 @@ async function readReleaseAsset(release: string, sub: string): Promise<Response 
 
 // ----- Index page -----
 
-async function renderIndex(channels: Channels): Promise<string> {
+export async function renderIndex(channels: Channels): Promise<string> {
   const commit = await getLatestCommit();
   const prevStable = channels.stable.mstone - 1;
   const releases: { mstone: number; status: string; date: string }[] = [
@@ -255,10 +256,14 @@ async function renderIndex(channels: Channels): Promise<string> {
     } else {
       note = "Most users are here";
     }
+    // Narrowed at runtime, not escaped (gendn-sxn / THREAT_MODEL.md invariant #4).
+    const mstone = milestonePathSegment(r.mstone);
+    const releaseHref = mstone ? `/v${mstone}/` : "#";
+    const releaseLabel = mstone ? `Chrome ${mstone}` : `Chrome ${escapeHTML(String(r.mstone))}`;
     return `<li class="release-card">
-      <a class="release-card-link" href="/v${r.mstone}/">
+      <a class="release-card-link" href="${releaseHref}">
         <span class="release-card-row">
-          <span class="release-label">Chrome ${r.mstone}</span>
+          <span class="release-label">${releaseLabel}</span>
           <span class="release-status">${escapeHTML(r.status)}</span>
         </span>
         <span class="release-note">${escapeHTML(note)}</span>
@@ -551,13 +556,23 @@ async function renderFeaturesCatalogue(channels: Channels): Promise<string> {
   const tableRows = rows.map((r) => {
     const slug = slugify(r.name);
     const cat = categoryTag(r.category);
+    // Narrowed at runtime, not escaped (gendn-sxn / THREAT_MODEL.md invariant #4).
+    const mstone = milestonePathSegment(r.mstone);
+    const docHref = mstone ? `/v${mstone}/${escapeHTML(slug)}/` : "#";
     const docCell = r.hasDoc
-      ? `<a class="tag tag-live" href="/v${r.mstone}/${escapeHTML(slug)}/">reference &rarr;</a>`
+      ? `<a class="tag tag-live" href="${docHref}">reference &rarr;</a>`
       : `<span class="tag tag-pending">pending</span>`;
-    const search = `${r.name} ${r.summary} ${cat} v${r.mstone}`.toLowerCase();
+    const searchMstone = mstone ?? "";
+    const search = `${r.name} ${r.summary} ${cat} v${searchMstone}`.toLowerCase();
     // Narrowed at runtime, not escaped (gendn-b2s) — see renderReleasePage.
     const csHref = chromeStatusUrl(r.id);
-    return `<tr data-search="${escapeHTML(search)}" data-mstone="${r.mstone}" data-status="${
+    const mstoneAttr = mstone ? ` data-mstone="${mstone}"` : "";
+    const statusText = mstone
+      ? `v${mstone}`
+      : (r.mstone !== undefined && r.mstone !== null
+        ? `v${escapeHTML(String(r.mstone))}`
+        : "unknown");
+    return `<tr data-search="${escapeHTML(search)}"${mstoneAttr} data-status="${
       escapeHTML(cat)
     }" data-doc="${r.hasDoc}">
       <td>${
@@ -565,13 +580,18 @@ async function renderFeaturesCatalogue(channels: Channels): Promise<string> {
         ? `<a href="${csHref}" target="_blank" rel="noopener">${escapeHTML(r.name)}</a>`
         : escapeHTML(r.name)
     }</td>
-      <td><span class="release-status">v${r.mstone}</span></td>
+      <td><span class="release-status">${statusText}</span></td>
       <td><span class="tag">${escapeHTML(cat)}</span></td>
       <td>${docCell}</td>
     </tr>`;
   }).join("");
 
-  const mstoneOptions = known.map((m) => `<option value="${m}">v${m}</option>`).join("");
+  const mstoneOptions = known
+    .map((m) => {
+      const seg = milestonePathSegment(m);
+      return seg ? `<option value="${seg}">v${seg}</option>` : "";
+    })
+    .join("");
 
   return `<!doctype html>
 <html lang="en">
@@ -718,16 +738,23 @@ async function renderFeaturesCatalogue(channels: Channels): Promise<string> {
 }
 
 async function knownReleaseMilestones(channels: Channels): Promise<Set<number>> {
-  const set = new Set<number>([
-    channels.stable.mstone - 1,
-    channels.stable.mstone,
-    channels.beta.mstone,
-    channels.dev.mstone,
-  ]);
+  const set = new Set<number>();
+  for (
+    const raw of [
+      channels.stable.mstone - 1,
+      channels.stable.mstone,
+      channels.beta.mstone,
+      channels.dev.mstone,
+    ]
+  ) {
+    const seg = milestonePathSegment(raw);
+    if (seg !== null) set.add(Number(seg));
+  }
   try {
     for await (const entry of Deno.readDir(".")) {
       if (entry.isDirectory && /^v\d+$/.test(entry.name)) {
-        set.add(Number(entry.name.slice(1)));
+        const seg = milestonePathSegment(entry.name.slice(1));
+        if (seg !== null) set.add(Number(seg));
       }
     }
   } catch {

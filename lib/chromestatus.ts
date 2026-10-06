@@ -248,3 +248,27 @@ export function chromeStatusUrl(id: unknown): string | null {
     ? `https://chromestatus.com/feature/${digits}`
     : null;
 }
+
+// Runtime narrowing for untrusted Chrome milestone values (gendn-sxn / THREAT_MODEL.md invariant #4).
+// Milestone values arrive from upstream channels.json or chromestatus API JSON typed as `number`
+// at compile time, but can arrive as untrusted runtime values or strings.
+//
+// THE ENFORCED BOUND: A valid Chrome milestone is a canonical positive integer from 1 to 9999
+// (1 to 4 digits, no leading zero). Both number and string arrivals normalize to a trimmed digit
+// string and face the same check: /^[1-9][0-9]{0,3}$/ and Number.isSafeInteger(Number(digits)).
+// Values outside 1..9999, floats, negatives, zero, leading zeros, and non-numeric inputs yield null.
+// Callers fall back safely (plain text or "#") so broken or injectable attributes/hrefs are never emitted.
+const MILESTONE_RE = /^[1-9][0-9]{0,3}$/;
+
+export function milestonePathSegment(m: unknown): string | null {
+  const digits = typeof m === "number"
+    ? (Number.isFinite(m) ? String(m) : null)
+    : typeof m === "string"
+    ? m.trim()
+    : null;
+  return digits !== null &&
+      MILESTONE_RE.test(digits) &&
+      Number.isSafeInteger(Number(digits))
+    ? digits
+    : null;
+}
