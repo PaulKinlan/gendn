@@ -266,82 +266,141 @@ const WEBIDL_KEYWORDS = new Set([
   "or",
 ]);
 
-export function declaredSurfaceMembers(html) {
-  const markup = renderedMarkup(html);
-  // Locate the syntax section: by id when the page gives one, otherwise by the heading TEXT. The
-  // text fallback exists because several pages ship `<h2>Syntax</h2>` with no id - without it the
-  // rule would be silently dead on exactly those pages (gendn-4kq review P1b).
+// A block that LOOKS like WebIDL but yields no members is the silent-skip shape (gendn-zuz): the
+// extractor's gate ignores a block it does not recognise, the page reports an EMPTY surface, and an
+// empty surface passes the collapsed-contract check for the wrong reason. Silently skipping a shape
+// is the same failure mode as a green that only ran because the check did not run, so it must be
+// loud. The hint below is deliberately DECLARATION-SHAPED rather than a bare keyword list: a JSON
+// syntax block that happens to contain the key "attribute" (v151/speculation-rules-form-submission-
+// field) is not IDL and must stay silent, while `namespace X {` and a line-leading `attribute` are.
+// `(?<!@)` keeps a CSS `@namespace` block from being mistaken for IDL.
+// What makes a block IDL FOR EXTRACTION: a declaration keyword, or a bare `attribute`. The `(?<!@)`
+// guard keeps a CSS `@namespace` at-rule from being read as WebIDL. `namespace` and friends are in
+// this list because leaving them out is what made an operations-only namespace invisible - the block
+// WAS parseable, the gate hid it (gendn-zuz).
+const IDL_BLOCK_GATE =
+  /(?<!@)\b(?:interface|dictionary|enum|attribute|namespace|callback|typedef|mixin|partial)\b/;
+
+// What makes a block look like it DECLARES members: a call shape, or a line-leading attribute. Used
+// only to decide whether an unreadable block is a hole in the check rather than a legitimately empty
+// declaration: `interface Foo { };` declares nothing and must stay silent, while a block with
+// `parse();` in it that yields no member means the detector could not read a surface that is there.
+const IDL_MEMBER_HINT =
+  /\w\s*\(|^[ \t]*(?:readonly[ \t]+|static[ \t]+|const[ \t]+)?attribute[ \t]+/m;
+
+// The syntax section: by id when the page gives one, otherwise by the heading TEXT. The text
+// fallback exists because several pages ship `<h2>Syntax</h2>` with no id - without it the rule
+// would be silently dead on exactly those pages (gendn-4kq review P1b). The region stops at the next
+// h2, since the syntax block legitimately contains h3 member subheadings.
+function syntaxRegionOf(markup) {
   const heading = [...markup.matchAll(/<h([1-6])\b([^>]*)>([\s\S]*?)<\/h\1\s*>/gi)].find((h) =>
     /\bid=["']syntax["']/i.test(h[2]) ||
     h[3].replace(/<[^>]+>/g, "").trim().toLowerCase() === "syntax"
   );
-  if (!heading) return [];
-  // Stop at the next h2: the syntax block legitimately contains h3 member subheadings.
+  if (!heading) return null;
   let region = markup.slice(heading.index + heading[0].length);
   const nextH2 = region.search(/<h2\b/i);
   if (nextH2 >= 0) region = region.slice(0, nextH2);
-  const names = new Set();
+  return region;
+}
+
+function preBlocksIn(region) {
+  const blocks = [];
   for (const pre of region.matchAll(/<pre\b[^>]*>([\s\S]*?)<\/pre\s*>/gi)) {
     const idl = pre[1]
       .replace(/<[^>]+>/g, "")
       .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
       .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
-    if (!/\b(?:interface|dictionary|enum|attribute)\b/.test(idl)) continue;
-    // Strip WebIDL comments FIRST: `// partial interface Performance (core/timing/performance.idl)`
-    // sits on the same `;`-statement as the method below it, and the "(" in that comment otherwise
-    // wins the match and hides the real method (gendn-4kq review P1a). The `[^:]` guard keeps the
-    // `//` in an https:// URL from truncating a line. Then strip extended attributes ([Exposed=...])
-    // so they are never mistaken for members.
-    const bare = idl
-      .replace(/(^|[^:])\/\/[^\n]*/g, "$1 ")
-      .replace(/\/\*[\s\S]*?\*\//g, " ")
-      // Extended attributes are stripped ONLY at the start of a line, where WebIDL puts them. A
-      // blind /\[[^\]]*\]/g would also eat a default value such as `= []`, silently dropping the
-      // member (gendn-4kq review 3, P1).
-      .replace(/^[ \t]*\[[^\]]*\][ \t]*/gm, " ");
-    // Parse per `;`-statement, stripping the enclosing declaration header (everything up to the
-    // last "{") so members declared on the same line as the brace are still seen.
-    for (const raw of bare.split(";")) {
-      // Strip a LEADING declaration header only, and non-greedily: a greedy `[\s\S]*\{` matches the
-      // `{` of a default value such as `= {}` and swallows the whole declaration, dropping the
-      // method (gendn-4kq review 3, P1).
-      const statement = raw
-        .replace(
-          /^[\s\S]*?\b(?:partial\s+)?(?:interface|dictionary|enum|mixin|namespace|callback\s+interface)\b[^{]*\{/,
-          " ",
-        )
-        .replace(/^\}+/, "")
-        .trim();
-      if (!statement) continue;
-      // `typedef X Y;` / `callback` / `namespace` declare a NAME, not a member; and in
-      // `A implements B;` / `A includes B;` the B is a mixin name.
-      if (/^(?:typedef|callback|namespace)\b/.test(statement)) continue;
-      if (/^(?:[\w$]+\s+)?(?:implements|includes)\s+[\w$]+$/.test(statement)) continue;
-      // METHODS and ATTRIBUTES: the name before "(", whatever the return type. Return-type-agnostic
-      // on purpose: whitelisting types missed `SpeculationData getSpeculations();`, `void doIt();`
-      // and `Promise<record<K,V>> list();`. Only the FIRST match is taken so parameter lists cannot
-      // leak names.
-      const method = statement.match(/[\w>\]?)]\s+([A-Za-z_$][\w$]*)\s*\(/);
-      if (method && !WEBIDL_KEYWORDS.has(method[1].toLowerCase())) {
-        names.add(method[1]);
-        continue;
-      }
-      // DICTIONARY/INTERFACE MEMBERS: `Type name` / `Type name = default`, including a leading
-      // parenthesised union type such as `(boolean or MediaTrackConstraints) video = true`. The
-      // default group must not cross a paren: `optional unsigned long? length = null` is a
-      // PARAMETER of a method, not a member.
-      // DICTIONARY/INTERFACE MEMBERS: `Type name` / `Type name = default`. The type is a sequence
-      // of space-separated tokens, each either a plain token or a parenthesised union such as
-      // `(Foo or Bar)` - so a union typed member declared after keywords (`readonly attribute
-      // (Foo or Bar) baz;`) is seen. The default group must not cross a paren: a method's
-      // `optional unsigned long? length = null` is a PARAMETER, not a member.
-      const member = statement.match(
-        /^(?:(?:\([^)]*\)|[\w<>?\[\],]+)\s+)+?(\w+)\s*(?:=\s*[^;()]+)?$/,
-      );
-      if (member) names.add(member[1]);
+    blocks.push(idl);
+  }
+  return blocks;
+}
+
+function memberNamesFromIdl(idl) {
+  const names = new Set();
+  // Strip WebIDL comments FIRST: `// partial interface Performance (core/timing/performance.idl)`
+  // sits on the same `;`-statement as the method below it, and the "(" in that comment otherwise
+  // wins the match and hides the real method (gendn-4kq review P1a). The `[^:]` guard keeps the
+  // `//` in an https:// URL from truncating a line. Then strip extended attributes ([Exposed=...])
+  // so they are never mistaken for members.
+  const bare = idl
+    .replace(/(^|[^:])\/\/[^\n]*/g, "$1 ")
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    // Extended attributes are stripped ONLY at the start of a line, where WebIDL puts them. A
+    // blind /\[[^\]]*\]/g would also eat a default value such as `= []`, silently dropping the
+    // member (gendn-4kq review 3, P1).
+    .replace(/^[ \t]*\[[^\]]*\][ \t]*/gm, " ");
+  // Parse per `;`-statement, stripping the enclosing declaration header (everything up to the
+  // last "{") so members declared on the same line as the brace are still seen.
+  for (const raw of bare.split(";")) {
+    // Strip a LEADING declaration header only, and non-greedily: a greedy `[\s\S]*\{` matches the
+    // `{` of a default value such as `= {}` and swallows the whole declaration, dropping the
+    // method (gendn-4kq review 3, P1).
+    const statement = raw
+      .replace(
+        /^[\s\S]*?\b(?:partial\s+)?(?:interface|dictionary|enum|mixin|namespace|callback\s+interface)\b[^{]*\{/,
+        " ",
+      )
+      .replace(/^\}+/, "")
+      .trim();
+    if (!statement) continue;
+    // `typedef X Y;` / `callback` / `namespace` declare a NAME, not a member; and in
+    // `A implements B;` / `A includes B;` the B is a mixin name.
+    if (/^(?:typedef|callback|namespace)\b/.test(statement)) continue;
+    if (/^(?:[\w$]+\s+)?(?:implements|includes)\s+[\w$]+$/.test(statement)) continue;
+    // METHODS and ATTRIBUTES: the name before "(", whatever the return type. Return-type-agnostic
+    // on purpose: whitelisting types missed `SpeculationData getSpeculations();`, `void doIt();`
+    // and `Promise<record<K,V>> list();`. Only the FIRST match is taken so parameter lists cannot
+    // leak names.
+    const method = statement.match(/[\w>\]?)]\s+([A-Za-z_$][\w$]*)\s*\(/);
+    if (method && !WEBIDL_KEYWORDS.has(method[1].toLowerCase())) {
+      names.add(method[1]);
+      continue;
     }
+    // DICTIONARY/INTERFACE MEMBERS: `Type name` / `Type name = default`. The type is a sequence
+    // of space-separated tokens, each either a plain token or a parenthesised union such as
+    // `(Foo or Bar)` - so a union typed member declared after keywords (`readonly attribute
+    // (Foo or Bar) baz;`) is seen. The default group must not cross a paren: a method's
+    // `optional unsigned long? length = null` is a PARAMETER, not a member.
+    const member = statement.match(
+      /^(?:(?:\([^)]*\)|[\w<>?\[\],]+)\s+)+?(\w+)\s*(?:=\s*[^;()]+)?$/,
+    );
+    if (member) names.add(member[1]);
+  }
+  return names;
+}
+
+export function declaredSurfaceMembers(html) {
+  const region = syntaxRegionOf(renderedMarkup(html));
+  if (!region) return [];
+  const names = new Set();
+  for (const idl of preBlocksIn(region)) {
+    if (!IDL_BLOCK_GATE.test(idl)) continue;
+    for (const name of memberNamesFromIdl(idl)) names.add(name);
   }
   return [...names].filter((n) => !WEBIDL_KEYWORDS.has(n.toLowerCase())).sort();
+}
+
+// Blocks that LOOK like IDL yet yield no member: the detector cannot read this page's surface, so
+// say so instead of reporting an empty surface as a pass. Returns a short excerpt for the message.
+// Blocks the detector CANNOT READ: IDL-shaped, declaring something member-shaped, yet yielding no
+// member. Skipping those silently would report an EMPTY surface, and an empty surface passes the
+// collapsed-contract check for the wrong reason - so they are reported instead. The brace
+// requirement keeps JS/HTML scaffolding out: a code sample that merely CALLS something
+// (`document.querySelector("video")`) is not a declaration, and WebIDL members always live inside a
+// `{ }` body. Returns a short excerpt for the message.
+export function unreadableSyntaxBlocks(html) {
+  const region = syntaxRegionOf(renderedMarkup(html));
+  if (!region) return [];
+  const out = [];
+  for (const idl of preBlocksIn(region)) {
+    if (!IDL_BLOCK_GATE.test(idl)) continue;
+    if (!idl.includes("{")) continue;
+    if (!IDL_MEMBER_HINT.test(idl)) continue;
+    if (memberNamesFromIdl(idl).size > 0) continue;
+    out.push(idl.replace(/\s+/g, " ").trim().slice(0, 120));
+  }
+  return out;
 }
 
 function nameTokens(value) {
@@ -351,6 +410,14 @@ function nameTokens(value) {
 export function validateDeclaredSurface(contract, html) {
   const errors = [];
   const id = contract?.id ?? "(unknown)";
+  // LOUD, not silent: an IDL-looking block the detector cannot read is a hole in the check itself.
+  for (const excerpt of unreadableSyntaxBlocks(html)) {
+    errors.push(
+      `${id}: the syntax block looks like WebIDL but NO member could be extracted from it - the ` +
+        `detector cannot verify this page's surface, so an empty surface must not be read as a pass. ` +
+        `Block starts: ${excerpt}`,
+    );
+  }
   const members = declaredSurfaceMembers(html);
   const covered = new Set();
   for (const item of contract?.inventory ?? []) {
