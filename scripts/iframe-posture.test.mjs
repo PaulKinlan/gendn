@@ -241,11 +241,16 @@ assert(
     "none"
   }`,
 );
-// The deferral list is asserted by EXACT SET, not by count (gendn-sgc pilot, coord's swap point): a
-// count check plus "names a real scanned page" plus "names a bead" is satisfied by SWAPPING one
-// deferred page for any other real page, so a widening could hide behind a swap. Naming the ids is
-// the same claim the comment always meant. This list only ever SHRINKS: a page leaves it in the same
-// change that hardens it and gives it a contract (v152/sub-apps was the first).
+// The deferral list is asserted by EXACT SET, not by count (gendn-sgc pilot, coord's swap point).
+// WHAT THIS ADDS, PRECISELY: the count + "names a real scanned page" + "names a bead" checks did not
+// STATE the set - it was only implied, so a reader could believe a swap widened the list unnoticed.
+// On this tree it could not, and that was CHECKED by mutation rather than assumed: swapping an
+// exemption onto another page leaves the swapped-AWAY page failing the violations assertion above
+// ("missing referrerpolicy; third-party iframe without sandbox"), and the swap target is not in the
+// scanned-violations set, so pendingSeen rejects it. So this closes an AMBIGUITY, not a live gap: it
+// puts the claim next to the ids it names, and it fails if an id is dropped or replaced (proven).
+// The list only ever SHRINKS: a page leaves it in the same change that hardens it and gives it a
+// contract (v152/sub-apps was the first).
 const DEFERRED_PAGES = [
   "v150/speculative-load-measurement/index.html",
   "v150/webrtc-diagnostic-logging-api/index.html",
