@@ -140,12 +140,72 @@ assert(
     !knownOutOfBounds.has(-1),
 );
 
-// public/styles.css (gendn-f3t): .release-card-link:hover does not apply hover affordance to aria-disabled cards
+// CSS HOVER AFFORDANCE GUARD (gendn-f3t):
+// A non-interactive release card (rendered with aria-disabled="true" on its link) must not
+// display ANY hover affordance:
+//   1. The parent .release-card must not transform or raise box-shadow on hover.
+//   2. The child .release-card-link must not recolour to accent-blue on hover.
+//   3. Live cards (.release-card without disabled link) and .demo-card must retain hover behavior.
+//
+// FIDELITY / RUNTIME NOTE:
+// This fixture (scripts/server-escape.test.mjs) runs in headless Deno without a DOM or browser
+// layout engine (no document, no getComputedStyle; CDP/Chrome is reserved for landing-gate
+// browser fixtures like test-reference-contract to keep fast fixtures lightweight).
+// Therefore, a runtime computed-style hover test cannot run inside this file.
+// Rather than asserting on a loose substring (Rule 153), we parse the CSS rule tree of public/styles.css
+// to verify the structural contract of all hover rules touching release cards:
 const css = await Deno.readTextFile("public/styles.css");
+const strippedCss = css.replace(/\/\*[\s\S]*?\*\//g, "");
+const cssRuleRe = /([^{}]+)\{([^{}]+)\}/g;
+const cssRules = [];
+let match;
+while ((match = cssRuleRe.exec(strippedCss)) !== null) {
+  const selectors = match[1].split(",").map((s) => s.trim()).filter(Boolean);
+  const declarations = match[2].trim();
+  cssRules.push({ selectors, declarations });
+}
+
+// Check 1: No release-card selector may apply :hover without gating on aria-disabled="true".
+const releaseHoverSelectors = cssRules
+  .flatMap((r) => r.selectors)
+  .filter((s) => s.includes(".release-card") && s.includes(":hover"));
+
 assert(
-  "public/styles.css: .release-card-link:hover does not apply to aria-disabled cards",
-  !css.includes(".release-card-link:hover") &&
-    css.includes('.release-card-link:not([aria-disabled="true"]):hover'),
+  "public/styles.css: all release-card hover selectors gate on the absence of aria-disabled='true'",
+  releaseHoverSelectors.length > 0 &&
+    releaseHoverSelectors.every((s) => s.includes(":not(") && s.includes('aria-disabled="true"')),
+);
+assert(
+  "public/styles.css: no ungated .release-card:hover or .release-card-link:hover selector exists",
+  !releaseHoverSelectors.some((s) => /^(\.release-card|\.release-card-link):hover$/.test(s)),
+);
+
+// Check 2: Parent card hover rule applies transform/box-shadow to enabled release-card AND preserves demo-card hover.
+const cardLiftRule = cssRules.find(
+  (r) =>
+    r.declarations.includes("translate(-2px, -2px)") &&
+    r.selectors.some((s) => s.includes(".release-card")),
+);
+assert(
+  "public/styles.css: card-lift hover rule exists and gates .release-card on :not(:has([aria-disabled='true']))",
+  cardLiftRule !== undefined &&
+    cardLiftRule.selectors.includes('.release-card:not(:has([aria-disabled="true"])):hover'),
+);
+assert(
+  "public/styles.css: card-lift hover rule preserves .demo-card:hover affordance",
+  cardLiftRule !== undefined && cardLiftRule.selectors.includes(".demo-card:hover"),
+);
+
+// Check 3: Link recolour rule gates .release-card-link on :not([aria-disabled="true"]).
+const linkColorRule = cssRules.find(
+  (r) =>
+    r.declarations.includes("var(--accent-blue)") &&
+    r.selectors.some((s) => s.includes(".release-card-link")),
+);
+assert(
+  "public/styles.css: link recolour rule gates on .release-card-link:not([aria-disabled='true']):hover",
+  linkColorRule !== undefined &&
+    linkColorRule.selectors.includes('.release-card-link:not([aria-disabled="true"]):hover'),
 );
 
 await stubServer.shutdown();
