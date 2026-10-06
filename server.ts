@@ -322,9 +322,36 @@ async function featureHasDoc(release: string, slug: string): Promise<boolean> {
 // built under an earlier release is the canonical reference — the listing must link it rather
 // than flag a false "doc pending". Built lazily once per process from each page's identity link.
 let identityIndexPromise: Promise<Map<string, string>> | null = null;
-// Bounds the concurrent index.html reads below; the pages are independent files, so this is
-// only a cap on in-flight I/O, never a change to which page wins a duplicate identity.
-const IDENTITY_READ_CONCURRENCY = 32;
+// Bounds concurrent independent I/O. Used by the identity-index reads below AND by the /features
+// catalogue's per-feature doc checks, so there is one in-flight cap in the file rather than two
+// numbers that can drift. 32 mirrors the cap this file already used for the index reads; the work
+// items are independent files/metadata, so this is only a ceiling on in-flight I/O and never a
+// change to which item wins anything.
+const IO_CONCURRENCY = 32;
+
+// Run `fn` over `items` with at most `limit` in flight, returning results in INPUT ORDER so a
+// caller can rely on positional correspondence (that is what keeps duplicate-identity resolution
+// first-wins in getIdentityIndex below). Rejections propagate: callers that want per-item
+// tolerance catch inside `fn`.
+async function mapPool<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, async () => {
+      for (;;) {
+        const i = next++;
+        if (i >= items.length) break;
+        out[i] = await fn(items[i], i);
+      }
+    }),
+  );
+  return out;
+}
+
 function getIdentityIndex(): Promise<Map<string, string>> {
   if (!identityIndexPromise) {
     identityIndexPromise = (async () => {
@@ -337,23 +364,14 @@ function getIdentityIndex(): Promise<Map<string, string>> {
           routes.push(`/${dir.name}/${sub.name}/`);
         }
       }
-      // Read the pages concurrently, writing each result back at its route's index: the
-      // collation below then runs in directory order, so `!map.has(id)` still resolves
-      // duplicates first-wins exactly as the sequential loop did, independent of read order.
-      const htmls: (string | null)[] = new Array(routes.length).fill(null);
-      let next = 0;
-      await Promise.all(
-        Array.from(
-          { length: Math.min(IDENTITY_READ_CONCURRENCY, routes.length) },
-          async () => {
-            for (;;) {
-              const i = next++;
-              if (i >= routes.length) break;
-              // A missing index.html means a child-route container, not a page.
-              htmls[i] = await Deno.readTextFile(`.${routes[i]}index.html`).catch(() => null);
-            }
-          },
-        ),
+      // Read the pages concurrently (bounded), then collate in directory order: `!map.has(id)`
+      // still resolves duplicates first-wins exactly as the sequential loop did, independent of
+      // read order, because mapPool returns results in input order.
+      // A missing index.html means a child-route container, not a page.
+      const htmls = await mapPool(
+        routes,
+        IO_CONCURRENCY,
+        (route) => Deno.readTextFile(`.${route}index.html`).catch(() => null),
       );
       htmls.forEach((html, i) => {
         const m = html?.match(/chromestatus\.com\/feature\/(\d+)/);
@@ -445,6 +463,20 @@ async function renderReleasePage(release: string, milestone: number): Promise<st
 async function renderFeaturesCatalogue(channels: Channels): Promise<string> {
   const known = [...await knownReleaseMilestones(channels)].sort((a, b) => b - a);
 
+  // PARALLEL, ORDER-PRESERVING (gendn-4ti): milestones are fetched concurrently and the
+  // per-feature doc checks run through a bounded pool. The previous shape awaited every milestone
+  // in turn and then every Deno.stat one after another, so the response was the SUM of the
+  // milestone fetches followed by hundreds of serial stat() syscalls before the first HTML byte.
+  // renderReleasePage next door already parallelised the identical work, so the serial loop was
+  // an asymmetry rather than a deliberate bound.
+  //
+  // Order is preserved by construction: Promise.all keeps `known`'s (descending) milestone order,
+  // the flatten below appends in that same order, mapPool returns results in input order, and the
+  // filter keeps it — so the rows array is byte-for-byte the same list it was before.
+  //
+  // Error semantics are unchanged: the try/catch is INSIDE the per-milestone mapper, so a
+  // milestone whose fetch fails yields [] and is skipped (an all-or-nothing Promise.all here would
+  // turn one upstream failure into a blank page, which would be a regression).
   type Row = {
     mstone: number;
     id: number;
@@ -454,31 +486,49 @@ async function renderFeaturesCatalogue(channels: Channels): Promise<string> {
     hasDoc: boolean;
   };
 
-  const rows: Row[] = [];
-  for (const m of known) {
-    try {
-      const feats = await getMilestoneFeatures(m);
-      for (const g of feats.groups) {
-        for (const f of g.features) {
-          const slug = slugify(f.name);
-          const hasDoc = await featureHasDoc(`v${m}`, slug);
-          // The catalogue is the index of what's actually been written.
-          // Pending APIs still show up on the per-release pages.
-          if (!hasDoc) continue;
-          rows.push({
-            mstone: m,
-            id: f.id,
-            name: f.name,
-            summary: f.summary ?? "",
-            category: g.category,
-            hasDoc,
-          });
-        }
+  const perMilestone = await Promise.all(
+    known.map(async (m) => {
+      try {
+        return { m, feats: await getMilestoneFeatures(m) };
+      } catch {
+        // skip milestones we can't fetch
+        return { m, feats: null };
       }
-    } catch {
-      // skip milestones we can't fetch
+    }),
+  );
+
+  // Flatten in milestone order, then run ONE global pool over every doc check. A pool per
+  // milestone would multiply: ~10 concurrent milestones x 32 = up to ~320 stats in flight, which
+  // the first version of this fix actually produced (measured max in-flight 67 cold / 270 warm
+  // against an intended ceiling of 32). One pool over the whole flat list keeps the bound global
+  // while still preserving row order, because mapPool returns results in input order.
+  type MilestoneFeatures = Awaited<ReturnType<typeof getMilestoneFeatures>>;
+  type Group = MilestoneFeatures["groups"][number];
+  type Feature = Group["features"][number];
+  const items: { m: number; g: Group; f: Feature }[] = [];
+  for (const { m, feats } of perMilestone) {
+    if (!feats) continue;
+    for (const g of feats.groups) {
+      for (const f of g.features) items.push({ m, g, f });
     }
   }
+
+  const checked = await mapPool(items, IO_CONCURRENCY, async ({ m, g, f }) => {
+    const slug = slugify(f.name);
+    const hasDoc = await featureHasDoc(`v${m}`, slug);
+    // The catalogue is the index of what's actually been written.
+    // Pending APIs still show up on the per-release pages.
+    if (!hasDoc) return null;
+    return {
+      mstone: m,
+      id: f.id,
+      name: f.name,
+      summary: f.summary ?? "",
+      category: g.category,
+      hasDoc,
+    } as Row;
+  });
+  const rows: Row[] = checked.filter((r): r is Row => r !== null);
 
   const tableRows = rows.map((r) => {
     const slug = slugify(r.name);
