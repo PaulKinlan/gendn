@@ -157,6 +157,13 @@ assert(
 // assertions pin that ACTUAL contract (per the bead: do not invent semantics). A plausible
 // wrong base path (Web/Api, /docs/Web/API/, a different locale) fails the exact-equality pins;
 // mutation evidence is recorded on the bead.
+//
+// CONSEQUENCE, stated so a reader does not mistake this for an endorsement (gendn-76k): these pins
+// record the CURRENT behaviour of CURRENTLY-UNUSED builders - nothing outside this fixture calls
+// them, and the routine prompt builds its MDN URLs by hand in prose. So the raw-interpolation pin is
+// a TRIPWIRE placed where the hazard would enter, not a claim that raw interpolation is correct. If
+// a caller appears, escaping must be added BEFORE it is used, and that is a deliberate change which
+// updates this pin rather than merely failing it.
 const API_BASE = "https://developer.mozilla.org/en-US/docs/Web/API/";
 const CSS_BASE = "https://developer.mozilla.org/en-US/docs/Web/CSS/";
 assert(

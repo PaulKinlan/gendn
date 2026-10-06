@@ -62,6 +62,17 @@ export async function mdnHas(
   return false;
 }
 
+// NO CALLERS TODAY (gendn-76k; verified repo-wide - the only references are these two definitions
+// and scripts/mdn-has.test.mjs). .claude/routine-prompt.md builds the same URLs BY HAND inside its
+// curl commands, because a prose prompt cannot import a TypeScript builder, so the shape currently
+// exists in two places and only this one is pinned.
+//
+// BOTH PARAMETERS LAND IN THE URL UNENCODED: `?`, `#`, `..`, `//`, `%`, `&` and newlines pass
+// straight through. Nothing reachable does that today, so this is a hazard rather than a live bug -
+// but ANY new caller must escape page-derived text (a slug, a version, anything read from content)
+// before calling. Adding escaping is a deliberate change: it must UPDATE the exact-output pins in
+// scripts/mdn-has.test.mjs, because those pins are a TRIPWIRE recording current behaviour, not an
+// endorsement of raw interpolation.
 export function mdnApiUrl(interfaceName: string): string {
   return `https://developer.mozilla.org/en-US/docs/Web/API/${interfaceName}`;
 }
