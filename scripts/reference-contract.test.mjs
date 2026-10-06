@@ -133,6 +133,34 @@ interface Thing {
       .some((e) => e.includes('declared surface member "getSpeculations"')),
     "a contract that omitted the page's primary METHOD was not flagged",
   );
+  // P1a regression: a WebIDL comment carrying parens sits on the SAME `;`-statement as the method
+  // below it on the real page, and used to win the match and hide the method.
+  const commentIdl =
+    `<!doctype html><main><section><h2 id="syntax">Syntax</h2><pre><code>// partial interface Performance (core/timing/performance.idl)
+[Exposed=Window, RuntimeEnabled=SpeculationMeasurement]
+SpeculationData getSpeculations();</code></pre></section></main>`;
+  assert(
+    JSON.stringify(declaredSurfaceMembers(commentIdl)) === JSON.stringify(["getSpeculations"]),
+    `comment-before-method parsing: ${JSON.stringify(declaredSurfaceMembers(commentIdl))}`,
+  );
+  // P2 regression: `A includes B;` names a mixin, not a member; a union-typed member must be seen;
+  // members sharing a line with the opening brace must be seen.
+  const shapesIdl =
+    `<!doctype html><main><section><h2 id="syntax">Syntax</h2><pre><code>interface A { readonly attribute boolean alpha; };
+HTMLCameraElement includes HTMLMediaCaptureElementBase;
+dictionary D { (boolean or MediaTrackConstraints) video = true; };</code></pre></section></main>`;
+  assert(
+    JSON.stringify(declaredSurfaceMembers(shapesIdl)) === JSON.stringify(["alpha", "video"]),
+    `includes/union/brace-shared parsing: ${JSON.stringify(declaredSurfaceMembers(shapesIdl))}`,
+  );
+  // The syntax section is found by heading TEXT too, because several pages ship `<h2>Syntax</h2>`
+  // with no id - the rule must not be silently dead there.
+  const noIdPage =
+    `<!doctype html><main><h2>Syntax</h2><pre><code>dictionary D { DOMString name; };</code></pre><h2>Examples</h2></main>`;
+  assert(
+    JSON.stringify(declaredSurfaceMembers(noIdPage)) === JSON.stringify(["name"]),
+    `heading-text fallback parsing: ${JSON.stringify(declaredSurfaceMembers(noIdPage))}`,
+  );
   assert(
     validateDeclaredSurface(
       surfaceContract(["alpha", "getSpeculations", "doIt", "list", "supports"]),

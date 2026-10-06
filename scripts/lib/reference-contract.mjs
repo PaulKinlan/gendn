@@ -204,9 +204,11 @@ export async function validateReferenceContract(contract, root = ".") {
 // contract is authored at the moment a page is touched, so the touched set is where it bites.
 // Cleanup of those 7 (adding honest outOfScope entries) is tracked separately as gendn-1j4.
 //
-// PRECONDITION: the page's syntax section must carry an id (the parser looks for id="syntax"), which
-// the contract's own selectors already require - a syntax block without an id cannot be mapped, and
-// this rule then no-ops on that page rather than guessing from heading text.
+// HOW THE SYNTAX SECTION IS FOUND: by id="syntax" when the page has one, otherwise by the heading
+// TEXT (`<h2>Syntax</h2>`), because several pages ship the heading without an id and the rule must
+// not be silently dead there. The region stops at the next h2, since the syntax block legitimately
+// contains h3 member subheadings. A page with neither an id nor a "Syntax" heading yields no
+// members and is not checked.
 //
 // IT CANNOT PROVE THE INVENTORY IS COMPLETE, and it has a known blind spot: a page that declares NO
 // IDL in its syntax block yields no members to compare against, so a collapsed contract on such a
@@ -216,39 +218,60 @@ export async function validateReferenceContract(contract, root = ".") {
 // correctness and the real spec surface remain independent-review obligations, as the header says.
 export function declaredSurfaceMembers(html) {
   const markup = renderedMarkup(html);
-  const start = markup.search(/\bid=["']syntax["']/i);
-  if (start < 0) return [];
-  const rest = markup.slice(start);
-  const nextHeading = rest.slice(10).search(/<h2\b/i);
-  const fragment = nextHeading < 0 ? rest : rest.slice(0, nextHeading + 10);
+  // Locate the syntax section: by id when the page gives one, otherwise by the heading TEXT. The
+  // text fallback exists because several pages ship `<h2>Syntax</h2>` with no id - without it the
+  // rule would be silently dead on exactly those pages (gendn-4kq review P1b).
+  const heading = [...markup.matchAll(/<h([1-6])\b([^>]*)>([\s\S]*?)<\/h\1\s*>/gi)].find((h) =>
+    /\bid=["']syntax["']/i.test(h[2]) ||
+    h[3].replace(/<[^>]+>/g, "").trim().toLowerCase() === "syntax"
+  );
+  if (!heading) return [];
+  // Stop at the next h2: the syntax block legitimately contains h3 member subheadings.
+  let region = markup.slice(heading.index + heading[0].length);
+  const nextH2 = region.search(/<h2\b/i);
+  if (nextH2 >= 0) region = region.slice(0, nextH2);
   const names = new Set();
-  for (const pre of fragment.matchAll(/<pre\b[^>]*>([\s\S]*?)<\/pre\s*>/gi)) {
+  for (const pre of region.matchAll(/<pre\b[^>]*>([\s\S]*?)<\/pre\s*>/gi)) {
     const idl = pre[1]
       .replace(/<[^>]+>/g, "")
       .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
       .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
     if (!/\b(?:interface|dictionary|enum|attribute)\b/.test(idl)) continue;
-    // Strip WebIDL extended attributes ([Exposed=Window], [RuntimeEnabled=X], ...) so they are
-    // never mistaken for members.
-    const bare = idl.replace(/\[[^\]]*\]/g, " ");
-    // METHODS and ATTRIBUTES: a name immediately before "(" on a declaration, whatever its return
-    // type. Return-type-agnostic on purpose (gendn-4kq review P1): whitelisting types missed
-    // `SpeculationData getSpeculations();`, `void doIt();` and `Promise<record<K,V>> list();`.
-    // Requiring whitespace before the name keeps JS such as `await thing.doWork(` out, and only the
-    // FIRST match in each `;`-terminated statement is taken so parameter lists cannot leak names.
-    for (const statement of bare.split(";")) {
-      const m = statement.match(/[\w>\]?]\s+([A-Za-z_$][\w$]*)\s*\(/);
-      if (m) names.add(m[1]);
-    }
-    // DICTIONARY/INTERFACE MEMBERS: `Type name;` / `Type name = default;`. The default group must
-    // not cross a paren (gendn-4kq review P2): `optional unsigned long? length = null);` is a
-    // PARAMETER of a method, not a member, and `[^;]+` used to swallow the ")".
-    for (
-      const m of bare.matchAll(
-        /^\s*(?!typedef\b|callback\b|namespace\b|implements\b|includes\b)(?:required\s+)?[\w<>?\[\], ]+\s+(\w+)\s*(?:=\s*[^;()]+)?;/gm,
-      )
-    ) {
-      names.add(m[1]);
+    // Strip WebIDL comments FIRST: `// partial interface Performance (core/timing/performance.idl)`
+    // sits on the same `;`-statement as the method below it, and the "(" in that comment otherwise
+    // wins the match and hides the real method (gendn-4kq review P1a). The `[^:]` guard keeps the
+    // `//` in an https:// URL from truncating a line. Then strip extended attributes ([Exposed=...])
+    // so they are never mistaken for members.
+    const bare = idl
+      .replace(/(^|[^:])\/\/[^\n]*/g, "$1 ")
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/\[[^\]]*\]/g, " ");
+    // Parse per `;`-statement, stripping the enclosing declaration header (everything up to the
+    // last "{") so members declared on the same line as the brace are still seen.
+    for (const raw of bare.split(";")) {
+      const statement = raw.replace(/[\s\S]*\{/, " ").replace(/^\}+/, "").trim();
+      if (!statement) continue;
+      // `typedef X Y;` / `callback` / `namespace` declare a NAME, not a member; and in
+      // `A implements B;` / `A includes B;` the B is a mixin name.
+      if (/^(?:typedef|callback|namespace)\b/.test(statement)) continue;
+      if (/^(?:[\w$]+\s+)?(?:implements|includes)\s+[\w$]+$/.test(statement)) continue;
+      // METHODS and ATTRIBUTES: the name before "(", whatever the return type. Return-type-agnostic
+      // on purpose: whitelisting types missed `SpeculationData getSpeculations();`, `void doIt();`
+      // and `Promise<record<K,V>> list();`. Only the FIRST match is taken so parameter lists cannot
+      // leak names.
+      const method = statement.match(/[\w>\]?)]\s+([A-Za-z_$][\w$]*)\s*\(/);
+      if (method) {
+        names.add(method[1]);
+        continue;
+      }
+      // DICTIONARY/INTERFACE MEMBERS: `Type name` / `Type name = default`, including a leading
+      // parenthesised union type such as `(boolean or MediaTrackConstraints) video = true`. The
+      // default group must not cross a paren: `optional unsigned long? length = null` is a
+      // PARAMETER of a method, not a member.
+      const member = statement.match(
+        /^(?:\([^)]*\)|[\w<>?\[\], ]+)\s+(\w+)\s*(?:=\s*[^;()]+)?$/,
+      );
+      if (member) names.add(member[1]);
     }
   }
   const KEYWORDS = new Set([
