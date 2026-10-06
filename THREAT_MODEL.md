@@ -132,12 +132,17 @@ Audits **must not** flag the following as vulnerabilities:
 ## 4. Untrusted Attack Surfaces
 
 1. **chromestatus.com JSON → SSR.** `name`, `summary`, `category`, `id` and channel/date fields
-   are rendered. Most are escaped; `id` in TWO href sinks in `server.ts` is not (finding TM-1 =
-   bead `gendn-b2s`, fix in flight: `renderReleasePage`, `renderFeaturesCatalogue`). A third
-   href site — `lib/lifecycle.ts` `renderConformanceIndex` — ESCAPES the identity (`esc()`) but
-   did not NARROW it: an encoding-only site cannot emit a hostile attribute, but it can emit a
-   well-formed link to a malformed identity (identity-validity, not injection — the same b2s
-   work narrows it).
+   are rendered. Most are escaped; `id` WAS interpolated raw into two href sinks in `server.ts`
+   (`renderReleasePage`, `renderFeaturesCatalogue`) — finding TM-1, bead `gendn-b2s`, FIXED AND
+   LANDED: `lib/chromestatus.ts` `chromeStatusUrl()` narrows the id at runtime to a canonical
+   safe-integer digit string (both arrival types face the same two bounds), and a non-canonical
+   id renders the feature name as plain text instead of a link. `milestonePathSegment()` applies
+   the same shape to milestone values (`gendn-sxn`, landed). The seam-behaviour fixtures drive
+   hostile ids through every rendered seam and assert on the output HTML
+   (`scripts/chromestatus-units.test.mjs`). A third href site — `lib/lifecycle.ts`
+   `renderConformanceIndex` — ESCAPED the identity (`esc()`) but had not NARROWED it: an
+   encoding-only site cannot emit a hostile attribute, but it can emit a well-formed link to a
+   malformed identity (identity-validity, not injection); the same landed work narrows it too.
 2. **`api.github.com` commit JSON → "last updated" line.** `html_url` is the historic
    scheme-injection sink (fixed by `lib/external-url.ts`); `sha`/`date` are escaped.
 3. **Repo-authored page HTML served same-origin.** A `<script>` or injected attribute in a
@@ -204,8 +209,8 @@ firing when this note lived inside #7), so the entry must carry the phrase exact
    `.claude/fix-slugs.py` + its conservation fixture (`scripts/fix-slugs.test.mjs`)._
 4. **Attribute escaping.** `escapeHTML` escapes `& < > " '`, and every dynamic value in an
    attribute or element context must pass through it (or an equivalent). Never rely on a value
-   being "numeric". _Anchors: `lib/html.ts` `escapeHTML`; history `cf02076`; open violation
-   TM-1 (`gendn-b2s`)._
+   being "numeric". _Anchors: `lib/html.ts` `escapeHTML`; history `cf02076`; violation TM-1
+   (`gendn-b2s`) FIXED AND LANDED — runtime narrow per the §4.1 disposition, not escaping._
 5. **CSS/WCAG.** Pages use the design-token CSS variables with WCAG AA contrast; inspect without
    weakening. _Anchor: CLAUDE.md §5 "CSS variables, never raw hex, WCAG AA"._
 6. **MDN matching.** If MDN coverage is ambiguous, generate a page rather than mis-redirect.
