@@ -22,7 +22,9 @@
 //
 // PARITY: slugify is compared against .claude/fix-slugs.py's slugify (the script that renames
 // published folders to canonical routes) — live via python3 when available, else against the
-// embedded table generated from it on 2026-10-06. ONE KNOWN DIVERGENCE is pinned deliberately:
+// embedded table generated from it on 2026-10-06. ONE REPRESENTATIVE DIVERGENCE is pinned here;
+// the divergence CLASS was measured to be broader (three categories, including one with the
+// OPPOSITE polarity) — see the MEASURED BOUNDARY comment at the pin for the full rule:
 // combining marks with a non-zero class OUTSIDE U+0300-U+036F (e.g. U+20D0) are dropped by the
 // python (category/class-based) but become a dash in the TS regex range. Changing either side
 // would rename published routes, so the divergence is recorded, tested as-is, and reported on the
@@ -310,21 +312,41 @@ print(json.dumps([m.slugify(n) for n in json.loads(sys.argv[1])]))`,
       // drops them by combining class. Both outputs are asserted AS-IS — "fixing" either side
       // renames published routes, which the bead forbids. Reported on gendn-14o instead.
       //
-      // MEASURED BOUNDARY (gendn-puw, 2026-10-06 — full input table, sweep data and
-      // reproduction on that bead):
-      // RULE: the implementations diverge EXACTLY when a combining mark with non-zero class
-      //   OUTSIDE U+0300-U+036F sits BETWEEN two [a-z0-9] characters (after lowercase+NFD):
-      //   python drops it (joining the neighbours), TS dashes it. Leading/trailing marks or
-      //   marks adjacent to a non-alnum AGREE. Sweep of all 922 combining codepoints x 3
-      //   positions: 811 medial-only divergences, 0 leading/trailing, 0 inside the block.
-      // ROUTE CONSEQUENCE today: NONE — 0 divergences over all 201 published slugs. The class
-      //   only bites if a future chromestatus listing name carries an out-of-block mark
-      //   between alnums: fix-slugs (python) and TS consumers would then derive different
-      //   slugs AT CREATION — a loud gate mismatch, not a silent rename of anything published.
-      // ACCIDENTAL AGREEMENTS: edge-mark agreement rides on TS's edge dash-strip, and the
-      //   strip-then-truncate ORDER matches only because both sides independently chose it
-      //   (each now fixture-pinned). The divergence set grows with python's Unicode DB while
-      //   the TS regex range is frozen — new marks silently widen the class.
+      // MEASURED BOUNDARY (gendn-puw, corrected in review round two, 2026-10-06 — the first
+      // version claimed EXACTLY and U+034F falsified it; re-swept and re-verified on both
+      // sides. Full input table and reproduction on the bead; this comment is the durable
+      // referent.)
+      // MECHANISM: TS strips a CODEPOINT RANGE (U+0300-U+036F, any combining class) after
+      //   NFD; python strips by COMBINING CLASS (non-zero, any codepoint) after NFD. The
+      //   divergence set is the SYMMETRIC DIFFERENCE of the two removal sets, surfacing only
+      //   when such a character sits BETWEEN two [a-z0-9] characters (position rule: at
+      //   string edges or adjacent to a non-alnum the outputs converge, because TS's
+      //   dash-run collapse + edge-strip absorbs what python simply deletes).
+      // RULE — divergence occurs exactly for characters whose NFD expansion contains a
+      //   character in exactly ONE of the two removal sets:
+      //   (a) 811 non-zero-class combining marks OUTSIDE U+0300-U+036F (e.g. U+20D0,
+      //       U+0483): python drops (joins the neighbours), TS dashes — py "bc" vs ts "b-c".
+      //   (b) 3 class-0 codepoints whose NFD yields only out-of-block non-zero-class marks —
+      //       U+0F73, U+0F75, U+0F81 (Tibetan vowel signs): same polarity as (a). Class-0
+      //       decomposables leaving an out-of-block class-0 residue (U+0F76, U+0F78) AGREE
+      //       (residue dashes on both sides); the ~700 precomposed Latin/Greek/Cyrillic
+      //       letters decompose into in-block marks both sides strip: AGREE.
+      //   (c) 1 class-0 codepoint INSIDE U+0300-U+036F — U+034F COMBINING GRAPHEME JOINER:
+      //       TS's range strips it (joins), python's class filter keeps it (dashes) —
+      //       OPPOSITE polarity: py "b-c" vs ts "bc".
+      //   Measured totals: 815 medial divergences (811 + 3 + 1) over the swept sets — all
+      //   922 non-zero-class codepoints, the whole U+0300-U+036F block, and every class-0
+      //   codepoint that NFD-decomposes into marks; ZERO leading/trailing divergences.
+      // ROUTE CONSEQUENCE today: NONE — 0 divergences over all 201 published slugs. The
+      //   class only bites at creation of a future listing name carrying such a character
+      //   between alnums: fix-slugs (python) and TS consumers would derive different slugs —
+      //   a loud gate mismatch, not a silent rename of anything published.
+      // ACCIDENTAL AGREEMENTS + GROWTH ASYMMETRY: edge-mark agreement rides on TS's edge
+      //   dash-strip; the strip-then-truncate ORDER matches only because both sides
+      //   independently chose it (each now fixture-pinned); python's class-based set tracks
+      //   its Unicode DB while the TS range is frozen, so category (a) widens silently with
+      //   each Unicode version — and NOTHING currently detects that widening (this pin holds
+      //   one codepoint and the parity table is fixed-input).
       divergenceOk = TS_RESULTS[i] === "b-c" && pyResults[i] === "bc";
       continue;
     }
