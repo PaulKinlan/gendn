@@ -586,7 +586,7 @@ function memberNamesFromIdl(idl) {
 }
 
 export function declaredSurfaceMembers(html) {
-  const region = syntaxRegionOf(renderedMarkup(html));
+  const region = syntaxRegionOf(cachedRenderedMarkup(html));
   if (!region) return [];
   const names = new Set();
   for (const idl of preBlocksIn(region)) {
@@ -614,7 +614,7 @@ export function declaredSurfaceMembers(html) {
 // and never fail - the project's ruling is that a false positive in a gate is worse than a false
 // negative, because a gate that fails correct contracts teaches lanes to stop reading it.
 export function skippedSurfaceDeclarations(html) {
-  const region = syntaxRegionOf(renderedMarkup(html));
+  const region = syntaxRegionOf(cachedRenderedMarkup(html));
   if (!region) return [];
   const out = [];
   for (const idl of preBlocksIn(region)) {
@@ -629,7 +629,7 @@ export function skippedSurfaceDeclarations(html) {
 }
 
 export function unreadableSyntaxBlocks(html) {
-  const region = syntaxRegionOf(renderedMarkup(html));
+  const region = syntaxRegionOf(cachedRenderedMarkup(html));
   if (!region) return [];
   const out = [];
   for (const idl of preBlocksIn(region)) {
@@ -788,9 +788,37 @@ function validateSourceRefs(refs, sourceById, errors, tag) {
   }
 }
 
+// MEMOISED (gendn-b6f): renderedMarkup() is a PURE function of its input, but the validators call it
+// inside their hottest loops - hasId() once per (documentation item x coverage dimension), hasHref()
+// once per (coverage dimension x cited sourceRef) - and every call re-applies artifacts.mjs's chained
+// regex passes over the WHOLE document until they converge. Measured on the real corpus: 2529 hasId
+// calls across 281 documentation items. Keying the cache on the html string renders each distinct
+// document once per validation run; a run touches at most the published page set, so the cache stays
+// bounded (the validators are one-shot processes, so no eviction is needed).
+const renderedMarkupCache = new Map();
+
+function cachedRenderedMarkup(html) {
+  const cached = renderedMarkupCache.get(html);
+  if (cached !== undefined) return cached;
+  const rendered = renderedMarkup(html);
+  renderedMarkupCache.set(html, rendered);
+  return rendered;
+}
+
+// The matcher is a pure function of the id and a non-global RegExp (so .test() is stateless), which
+// makes caching it safe as well.
+const idMatcherCache = new Map();
+
+function idMatcher(id) {
+  const cached = idMatcherCache.get(id);
+  if (cached !== undefined) return cached;
+  const matcher = new RegExp(`\\bid=["']${escapeRegExp(id)}["']`, "i");
+  idMatcherCache.set(id, matcher);
+  return matcher;
+}
+
 function hasId(html, id) {
-  const escaped = escapeRegExp(id);
-  return new RegExp(`\\bid=["']${escaped}["']`, "i").test(renderedMarkup(html));
+  return idMatcher(id).test(cachedRenderedMarkup(html));
 }
 
 /**
@@ -843,7 +871,7 @@ function decodeHrefEntities(value) {
 export function hasHref(html, url) {
   const wanted = canonicalCitationUrl(url);
   if (wanted === null) return false; // fail closed (see the rule above)
-  for (const match of renderedMarkup(html).matchAll(HREF_ATTR)) {
+  for (const match of cachedRenderedMarkup(html).matchAll(HREF_ATTR)) {
     const got = canonicalCitationUrl(decodeHrefEntities(match[1] ?? match[2] ?? ""));
     if (got !== null && got === wanted) return true;
   }
@@ -851,7 +879,7 @@ export function hasHref(html, url) {
 }
 
 function fragmentAfterId(html, id) {
-  html = renderedMarkup(html);
+  html = cachedRenderedMarkup(html);
   const escaped = escapeRegExp(id);
   const match = new RegExp(`\\bid=["']${escaped}["']`, "i").exec(html);
   if (!match) return "";
@@ -861,7 +889,7 @@ function fragmentAfterId(html, id) {
 }
 
 function stripMarkup(value) {
-  return renderedMarkup(value)
+  return cachedRenderedMarkup(value)
     .replace(/<script\b[\s\S]*?<\/script>/gi, " ")
     .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
     .replace(/<[^>]+>/g, " ")
