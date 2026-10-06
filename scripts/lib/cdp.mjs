@@ -317,9 +317,21 @@ async function removeProfileDir(path, delays = [0, 150, 400, 900, 1900]) {
 // load (catches redirects), and evaluate() re-checks it before every evaluation (catches a page that
 // navigated itself away before the gate reads it). Still NOT seen: a page that leaves and returns
 // between two checks, and subframe / popup navigation.
-// The whitelist is HOSTNAME-ONLY: the port is not checked, so a redirect to another localhost port
-// passes. A failed LOCAL navigation (e.g. connection refused) lands on chrome-error:// and is
-// reported as off-origin; it fails closed, but the message names the wrong cause.
+// PORT DECISION (gendn-mem): the whitelist is HOSTNAME-ONLY on purpose. Every gate takes its port
+// from the OS, so a port-aware check would need the assigned port plumbed into every caller, and
+// it would guard nothing the hostname does not: all localhost ports are inside the same machine's
+// trust boundary, and what is being guarded is leaving the machine. A page can therefore redirect
+// to another localhost port and pass; to satisfy the check an off-machine service would need a
+// hostname of localhost / 127.0.0.1 / [::1], which means it is not off-machine.
+// CHROME-ERROR (gendn-mem): a failed navigation (connection refused, DNS failure) leaves the page
+// on chrome-error://. That is a navigation FAILURE, not an origin violation, so classifyOrigin()
+// names it separately and assertLocalOrigin() throws a distinct "navigation failed" error rather
+// than letting a caller read the error page as content.
+export function classifyOrigin(href) {
+  const h = String(href);
+  if (h.startsWith("chrome-error:")) return "navigation-failed";
+  return isLocalNavigation(h) ? "local" : "off-origin";
+}
 export function isLocalNavigation(url) {
   if (url === "about:blank") return true;
   let u;
@@ -557,7 +569,11 @@ class Page {
       returnByValue: true,
     });
     const href = res.result?.value;
-    if (!isLocalNavigation(String(href))) {
+    const kind = classifyOrigin(href);
+    if (kind === "navigation-failed") {
+      throw new Error(`gate browser navigation failed (${context}): ${href}`);
+    }
+    if (kind !== "local") {
       throw new Error(`gate browser is off-origin (${context}): ${href}`);
     }
   }
