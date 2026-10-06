@@ -388,8 +388,11 @@ assert(
 );
 
 // ---------- pageMetadata: the file-reading seam check-conformance depends on (gendn-vgs) ----
-// check-conformance.mjs:268/:331 gate per-page behaviour (built pages get extra assertions;
-// :331 builds the builtPages list) through pageMetadata — but the dd7 fixture only ever called
+// check-conformance.mjs's TWO default-root pageMetadata(page) call sites (the per-suite
+// conformance loop and the builtPages collector; grep 'pageMetadata(' — line numbers drift,
+// 8q2 refactored the file mid-review) gate per-page behaviour (built pages get extra
+// assertions; the collector builds the builtPages list) through pageMetadata — but the dd7
+// fixture only ever called
 // metadataFromHtml directly, so a wrapper that FABRICATED metadata and never read the file
 // still passed 54/54 (reviewer-proven). These assertions exercise the wrapper itself: real
 // file reading, the root parameter, delegation equality, and the missing-file contract.
@@ -438,7 +441,9 @@ assert(
 }
 
 // gendn-4l6 (accepted follow-up from the vgs review): the DEFAULT-root path — root="." is what
-// check-conformance.mjs:268/:331 actually pass — pinned explicitly. The fixture process runs
+// check-conformance.mjs's two default-root pageMetadata call sites actually pass — pinned
+// explicitly (symbol anchor, not line numbers: main is a moving target — 8q2 shifted them
+// :225/:271 -> :268/:331 -> :225/:288 while this comment was in review). The fixture process runs
 // with cwd = repo root, so pageMetadata(page) with NO root argument must read the real
 // catalogue and agree field-by-field with metadataFromHtml on the same file. A broken default
 // already fails loudly at the repo gate; this pin makes the fixture itself a detector too.
@@ -446,7 +451,7 @@ assert(
   const [firstPage] = await collectPublishedPages(".");
   let defaultRootOk = false;
   let detail = firstPage
-    ? "(no page)"
+    ? String(firstPage)
     : "collectPublishedPages('.') found no pages — is cwd the repo root?";
   try {
     if (firstPage) {
