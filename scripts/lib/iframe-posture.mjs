@@ -14,7 +14,7 @@ export const SANCTIONED_REFERRERPOLICY = "strict-origin-when-cross-origin";
 // EXACT file match only — never a wildcard, never a pattern, and a NEW unsandboxed third-party
 // iframe anywhere else still fails the guard.
 //
-// EXIT CONDITION (temporary by construction): gendn-8pp authors the 5 implementation-sufficient
+// EXIT CONDITION (temporary by construction): gendn-sgc authors the 5 implementation-sufficient
 // contracts from source, applies the posture to these 5 pages, and REMOVES this list in the same
 // change. The guard fixture additionally SELF-EXPIRES each entry: if a listed page gains a
 // reference-contract.json before it is hardened and delisted, the fixture FAILS — the exemption
@@ -24,30 +24,30 @@ export const PENDING_HARDENING = [
     file: "v150/speculative-load-measurement/index.html",
     why:
       "built page with no reference-contract.json yet; touching it trips the conformance ratchet",
-    bead: "gendn-8pp",
+    bead: "gendn-sgc",
   },
   {
     file: "v150/webrtc-diagnostic-logging-api/index.html",
     why:
       "built page with no reference-contract.json yet; touching it trips the conformance ratchet",
-    bead: "gendn-8pp",
+    bead: "gendn-sgc",
   },
   {
     file: "v151/algorithm-updates-in-webcrypto/index.html",
     why:
       "built page with no reference-contract.json yet; touching it trips the conformance ratchet",
-    bead: "gendn-8pp",
+    bead: "gendn-sgc",
   },
   {
     file: "v151/speculation-rules-form-submission-field/index.html",
     why:
       "built page with no reference-contract.json yet; touching it trips the conformance ratchet",
-    bead: "gendn-8pp",
+    bead: "gendn-sgc",
   },
   {
     file: "v152/sub-apps/index.html",
     why:
       "built page with no reference-contract.json yet; touching it trips the conformance ratchet",
-    bead: "gendn-8pp",
+    bead: "gendn-sgc",
   },
 ];

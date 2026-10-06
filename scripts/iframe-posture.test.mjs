@@ -28,7 +28,7 @@
 //   4. PENDING_HARDENING (scripts/lib/iframe-posture.mjs) is an exact-file, reasoned, self-
 //      expiring deferral list: 5 built pages with no reference-contract.json cannot be touched
 //      without tripping check-conformance's touched-page ratchet (coord ruling 2026-10-06,
-//      option c: split and file). gendn-8pp hardens them and deletes the list; if a listed page
+//      option c: split and file). gendn-sgc hardens them and deletes the list; if a listed page
 //      gains a contract before that, this fixture FAILS so the exemption cannot outlive its
 //      reason. A new unsandboxed third-party iframe on ANY other page still fails.
 //
@@ -48,7 +48,7 @@
 //     text. Exotic encodings (entity-escaped attribute values, tags split by template logic) could
 //     evade or confuse it — another reason the canaries pin the rule function, not the prose.
 //   - FIVE PAGES ARE DELIBERATELY NOT HARDENED YET (PENDING_HARDENING in
-//     scripts/lib/iframe-posture.mjs, tracking bead gendn-8pp). This fixture's greenness means
+//     scripts/lib/iframe-posture.mjs, tracking bead gendn-sgc). This fixture's greenness means
 //     "every iframe is either deliberately postured or an exact-match reasoned deferral" — it
 //     does NOT mean "all 36 embed pages are hardened". 31 are; 5 are not, and the list says why.
 //
@@ -200,7 +200,7 @@ for (const rel of pages) {
     if (pending) {
       // Exact-file reasoned deferral (rule 4) — and SELF-EXPIRING: the moment the page gains a
       // reference-contract.json, the ratchet no longer blocks hardening, so the deferral is over
-      // and this fixture fails until the page is postured and the entry removed (gendn-8pp).
+      // and this fixture fails until the page is postured and the entry removed (gendn-sgc).
       pendingSeen.add(rel);
       let contractExists = false;
       try {
@@ -211,7 +211,7 @@ for (const rel of pages) {
       }
       if (contractExists) {
         violations.push(
-          `${rel}: STALE deferral — reference-contract.json now exists, so harden the iframe and remove the PENDING_HARDENING entry (gendn-8pp)`,
+          `${rel}: STALE deferral — reference-contract.json now exists, so harden the iframe and remove the PENDING_HARDENING entry (gendn-sgc)`,
         );
       }
       continue;
@@ -243,7 +243,7 @@ assert(
 );
 assert(
   "the deferral list did not widen (exact 5 entries, each naming its tracking bead)",
-  PENDING_HARDENING.length === 5 && PENDING_HARDENING.every((p) => p.bead === "gendn-8pp"),
+  PENDING_HARDENING.length === 5 && PENDING_HARDENING.every((p) => p.bead === "gendn-sgc"),
   `${PENDING_HARDENING.length} entries`,
 );
 
