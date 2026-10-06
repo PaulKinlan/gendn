@@ -109,6 +109,28 @@ const LOGS = {
   // The wrapper ran, but the probe FINISHED inside its kill window: there is no killed run to
   // verify, so this must be refused even though the evidence line is present.
   probeCompleted: `${HARNESS_BANNER} '--page' 'v149/webmcp'\nkill-probe: signal=none exit=0`,
+  // A GENUINE probe whose output ended MID-LINE (which is what a SIGKILL produces): the producer
+  // must have inserted the separator, so the marker is its own line and the log must PASS.
+  probeNoTrailingNewline:
+    `${HARNESS_BANNER}\nv149/webmcp  tested 19/24  pass 19  fail 0  blocked 5\nkill-probe: signal=KILL exit=137`,
+  // The evidence is present but NOT last: a marker left mid-log while the probe kept producing
+  // output proves the "kill" happened while work was still going on. Found by the gendn-3t2 review
+  // (an /m anchor accepted this).
+  probeMarkerMidLog:
+    `${HARNESS_BANNER}\nkill-probe: signal=KILL exit=137\nv149/webmcp  tested 19/24  pass 19  fail 0  blocked 5`,
+  // A trailing non-blank line after the marker is the same defect in its smallest form.
+  probeMarkerThenText:
+    `${HARNESS_BANNER}\nkill-probe: signal=KILL exit=137\nsome other output after the marker`,
+  // Trailing BLANK lines are tolerated: the producer prepends its separator unconditionally and a
+  // final newline always leaves one.
+  probeMarkerThenBlankLines: `${HARNESS_BANNER}\nkill-probe: signal=KILL exit=137\n\n\n`,
+  // Corrupted or hand-written evidence: names outside the producer's map, and exit statuses that
+  // disagree with the signal (a shell reports 128 + signum).
+  forgedEvidence: {
+    unknownSignal: `${HARNESS_BANNER}\nkill-probe: signal=BANANA exit=137`,
+    killWithZeroExit: `${HARNESS_BANNER}\nkill-probe: signal=KILL exit=0`,
+    termWithKillExit: `${HARNESS_BANNER}\nkill-probe: signal=TERM exit=137`,
+  },
   // A crashed/truncated run-all log mis-declared as the probe: it carries the SAME banner as a
   // probe (which is why a banner alone was never proof) but no kill evidence.
   crashedRunAllDeclaredProbe: [
@@ -189,14 +211,84 @@ assert(
   "[BLOCKER] a probe that completed inside its kill window (signal=none) is REFUSED",
   r.code === 1 && r.err.includes("signal=none") && r.err.includes("COMPLETED"),
 );
+// The dangerous direction: a GENUINE probe log whose command output ended without a newline (what
+// a SIGKILL mid-line leaves) must PASS, or the gate would refuse real landings.
+r = await checkLog(LOGS.probeNoTrailingNewline, ["--phase", "behavioural"]);
+assert(
+  "[BLOCKER] a probe log whose output ended MID-LINE still passes (marker on its own line)",
+  r.code === 0 && r.out.includes("signal=KILL exit=137"),
+  `exit=${r.code} ${r.err.trim().slice(0, 120)}`,
+);
+r = await checkLog(LOGS.probeMarkerMidLog, ["--phase", "behavioural"]);
+assert(
+  "[BLOCKER] a marker placed MID-LOG (output continues after it) FAILS",
+  r.code === 1 && r.err.includes("must be the LAST thing the log says"),
+  `exit=${r.code} ${r.err.trim().split("\n").pop()?.slice(0, 110)}`,
+);
+r = await checkLog(LOGS.probeMarkerThenText, ["--phase", "behavioural"]);
+assert(
+  "[BLOCKER] a single trailing line of output after the marker FAILS",
+  r.code === 1 && r.err.includes("1 non-blank line(s) of output follow"),
+  `exit=${r.code}`,
+);
+r = await checkLog(LOGS.probeMarkerThenBlankLines, ["--phase", "behavioural"]);
+assert(
+  "trailing BLANK lines after the marker are tolerated (the separator leaves one)",
+  r.code === 0 && r.out.includes("signal=KILL exit=137"),
+  `exit=${r.code} ${r.err.trim().slice(0, 110)}`,
+);
+for (const [name, log] of Object.entries(LOGS.forgedEvidence)) {
+  const forged = await checkLog(log, ["--phase", "behavioural"]);
+  assert(
+    `[BLOCKER] forged/inconsistent evidence is refused: ${name}`,
+    forged.code === 1 && !forged.out.includes("PASS"),
+    `exit=${forged.code} ${forged.err.trim().split("\n").pop()?.slice(0, 110)}`,
+  );
+}
+// The PRODUCER itself: run it around a command whose output has no trailing newline and check the
+// written log. This is the only place the wrapper's separator is exercised end to end.
+{
+  const tmpLog = `${root}/probe-no-trailing-newline.log`;
+  const probe = new Deno.Command("sh", {
+    args: [
+      new URL("./kill-probe.sh", import.meta.url).pathname,
+      tmpLog,
+      "--after",
+      "2",
+      "--",
+      "sh",
+      "-c",
+      'printf "Task conformance deno run --allow-read scripts/conformance.mjs\\nv149/webmcp  tested 19/24"; sleep 30',
+    ],
+    stdout: "piped",
+    stderr: "piped",
+  });
+  const probeRun = await probe.output();
+  const written = await Deno.readTextFile(tmpLog).catch(() => "");
+  assert(
+    "[BLOCKER] the PRODUCER puts the marker on its own line when the probe output ends mid-line",
+    probeRun.code === 0 &&
+      written.trimEnd().split("\n").filter((l) => l.trim() !== "").pop() ===
+        "kill-probe: signal=KILL exit=137",
+    `producer exit=${probeRun.code}, last line=${JSON.stringify(written.trim().split("\n").pop())}`,
+  );
+  const checked = await checkPath(tmpLog, ["--phase", "behavioural"]);
+  assert(
+    "[BLOCKER] ...and the checker accepts the log the producer wrote",
+    checked.code === 0,
+    `exit=${checked.code} ${checked.err.trim().slice(0, 120)}`,
+  );
+}
+
 // The producer's own evidence line must be what the checker reads, not a lookalike elsewhere.
 r = await checkLog(
-  `${LOGS.killProbe}\nnote: the wrapper said kill-probe: signal=TERM exit=143 somewhere in prose`,
+  `${HARNESS_BANNER}\nnote: a previous run said kill-probe: signal=TERM exit=143 in its output\nkill-probe: signal=KILL exit=137`,
   ["--phase", "behavioural"],
 );
 assert(
-  "the evidence is read from its own anchored line (prose mentioning it is not evidence)",
-  r.code === 0 && r.out.includes("signal=KILL exit=137"),
+  "the LAST non-empty line is the evidence (a prose mention earlier in the log is not)",
+  r.code === 0 && r.out.includes("signal=KILL exit=137") && !r.out.includes("TERM"),
+  `exit=${r.code} ${r.out.split("\n").filter((l) => l.includes("kill-ev")).join("").trim()}`,
 );
 r = await checkLog(LOGS.runAllNotGreen, ["--phase", "run-all"]);
 assert("--phase run-all cross-checks the run-all log", r.code === 0);

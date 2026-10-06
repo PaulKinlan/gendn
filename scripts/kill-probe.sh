@@ -99,6 +99,14 @@ status=$?
 kill "$killer" 2>/dev/null || true
 wait "$killer" 2>/dev/null || true
 
+# The evidence line must START on its own line. A SIGKILL mid-line leaves output with NO trailing
+# newline — the very case this wrapper exists to certify — and appending onto it would glue the
+# marker into the command's last line, so check-verdict-emission would not find it and a GENUINE
+# probe would be refused. Prepending the separator UNCONDITIONALLY is the simplest shape: when the
+# output already ended in a newline this adds one blank line, which the checker tolerates
+# (gendn-3t2 bounce).
+printf '\n' >>"$LOG"
+
 if [ "$status" -gt 128 ]; then
   number=$((status - 128))
   name=$(signal_name "$number")
