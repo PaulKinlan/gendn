@@ -106,7 +106,7 @@ assert(
 );
 const mixedEyebrow = metadataFromHtml(
   "v902/mixed/index.html",
-  `<html><body><p class="eyebrow">v902 · web api · experimental</p>
+  `<html><body><p class="eyebrow">v902 · shipped · web api · experimental</p>
    <h1>Thing</h1><table><tr><th>Status</th><td>Origin trial / Enabled by default</td></tr></table>
    <a href="https://chromestatus.com/feature/2">x</a></body></html>`,
 );

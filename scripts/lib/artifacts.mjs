@@ -86,7 +86,9 @@ export function metadataFromHtml(pagePath, html) {
   // must not mark a shipped page experimental. An eyebrow that itself carries an
   // experimental word (origin trial / developer trial / experimental) wins over the
   // shipped word, so mixed pages stay experimental.
-  const eyebrow = html.match(/class="eyebrow">([^<]*)</)?.[1] ?? "";
+  const eyebrow = renderedMarkup(html).match(
+    /<p\b[^>]*class=["'][^"']*\beyebrow\b[^"']*["'][^>]*>([\s\S]*?)<\/p>/i,
+  )?.[1]?.replace(/<[^>]+>/g, " ") ?? "";
   const shippedClaim = /\b(?:shipped|enabled by default)\b/i.test(eyebrow) &&
     !EXPERIMENTAL_RE.test(eyebrow);
   const experimental = status === "built" && EXPERIMENTAL_RE.test(html) && !shippedClaim;
