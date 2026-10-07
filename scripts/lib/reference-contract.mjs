@@ -188,8 +188,18 @@ export async function validateReferenceContract(contract, root = ".") {
           errors.push(`${id}: ${doc.inventoryId}.${dimension} is missing`);
         }
       }
+      // gendn-20m: syntax may also be not-applicable (with the sourced rationale + rendered
+      // fragment the not-applicable branch above already enforces). Some changes ship no
+      // declaration grammar at all - removal-only pages, TLS/runtime-mechanism changes,
+      // internal rewrites ("API change: None") - and forcing those to claim `documented`
+      // made the contract assert a syntax the page does not have. Examples and
+      // compatibility remain strictly documented: every impl-sufficient page must still
+      // show a worked example and a support posture regardless of grammar.
       for (const mandatory of ["syntax", "examples", "compatibility"]) {
-        if (doc.dimensions?.[mandatory]?.status !== "documented") {
+        const status = doc.dimensions?.[mandatory]?.status;
+        const ok = status === "documented" ||
+          (mandatory === "syntax" && status === "not-applicable");
+        if (!ok) {
           errors.push(
             `${id}: ${doc.inventoryId}.${mandatory} must be documented for an implementation-sufficient claim`,
           );

@@ -730,6 +730,45 @@ dictionary D {
     "implementation-sufficient contract accepted examples as not applicable",
   );
 
+  // ---- gendn-20m: syntax may be not-applicable on an implementation-sufficient claim ----
+  // A change that ships no declaration grammar (removal-only, runtime mechanism, "API
+  // change: None") must be expressible honestly; examples/compatibility stay strict
+  // (the noExample case above). The not-applicable branch independently enforces the
+  // sourced rationale + rendered-fragment rigor, so the trio rule only accepts it for
+  // syntax.
+  const noGrammar = structuredClone(contract);
+  noGrammar.documentation[0].dimensions.syntax = {
+    status: "not-applicable",
+    selector: "#syntax",
+    rationale:
+      "This change adds no declaration grammar: nothing new is declared or constructed, so there is no syntax surface to document (the fragment explains what changed instead).",
+    sourceRefs: ["spec"],
+  };
+  const noGrammarErrors = await validateReferenceContract(noGrammar, root);
+  assert(
+    !noGrammarErrors.some((error) => error.includes("syntax must be documented")),
+    "gendn-20m: implementation-sufficient contract rejected an honest not-applicable syntax",
+  );
+  const lazySyntax = structuredClone(noGrammar);
+  delete lazySyntax.documentation[0].dimensions.syntax.rationale;
+  const lazyErrors = await validateReferenceContract(lazySyntax, root);
+  assert(
+    lazyErrors.some((error) => error.includes("not-applicable requires a sourced rationale")),
+    "gendn-20m: not-applicable syntax escaped the sourced-rationale requirement",
+  );
+  const lazyCompat = structuredClone(contract);
+  lazyCompat.documentation[0].dimensions.compatibility = {
+    status: "not-applicable",
+    selector: "#compatibility",
+    rationale: "The author chose not to provide a support posture for this feature page.",
+    sourceRefs: ["spec"],
+  };
+  const lazyCompatErrors = await validateReferenceContract(lazyCompat, root);
+  assert(
+    lazyCompatErrors.some((error) => error.includes("compatibility must be documented")),
+    "gendn-20m: the not-applicable allowance leaked from syntax into compatibility",
+  );
+
   const omitted = structuredClone(contract);
   omitted.documentation = [];
   const omittedErrors = await validateReferenceContract(omitted, root);
