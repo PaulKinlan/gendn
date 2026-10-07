@@ -465,8 +465,8 @@ export function scopedResultsReport({ existing = [], scanned = [], scoped = fals
   return { suites, agg, merged: scoped };
 }
 
-// Match the responsive selector against the same published-root catalogue used by the runner.
-// A child path or typo must not masquerade as a successful zero-page browser check.
+// Both runner modes select from the same published-root catalogue. A child path or typo must not
+// masquerade as a successful zero-page browser check or a zero-suite conformance verdict.
 function editDistance(left, right) {
   let previous = Array.from({ length: right.length + 1 }, (_, i) => i);
   for (let i = 1; i <= left.length; i++) {
@@ -483,7 +483,7 @@ function editDistance(left, right) {
   return previous[right.length];
 }
 
-export function selectResponsivePages(
+export function selectPublishedRootPages(
   pages,
   { hasSelector = false, selector, limit = Infinity } = {},
 ) {
@@ -538,19 +538,17 @@ async function main() {
 
   // Resolve the selector before any report writes, server spawn, or Chrome launch.
   const pages = await collectPublishedPages(".");
-  const selection = responsive
-    ? selectResponsivePages(pages, { hasSelector: pageIdx >= 0, selector: only, limit })
-    : {
-      pages: pages.filter((p) => !only || p.replace(/\/index\.html$/, "") === only),
-      error: null,
-    };
+  const selection = selectPublishedRootPages(pages, {
+    hasSelector: pageIdx >= 0,
+    selector: only,
+    limit,
+  });
   if (selection.error) {
     console.error(`ERROR: ${selection.error}`);
     Deno.exitCode = 2;
     return;
   }
-  let considered = selection.pages;
-  if (!responsive && Number.isFinite(limit)) considered = considered.slice(0, limit);
+  const considered = selection.pages;
 
   await Deno.mkdir(OUT_DIR, { recursive: true });
   const server = await startServer();

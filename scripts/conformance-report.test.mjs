@@ -29,8 +29,9 @@ import {
   responsiveReportRows,
   runAllReportLine,
   scopedResultsReport,
-  selectResponsivePages,
+  selectPublishedRootPages,
 } from "./conformance.mjs";
+import { collectPublishedPages } from "./lib/artifacts.mjs";
 
 let failures = 0;
 let passed = 0;
@@ -46,15 +47,16 @@ function assert(name, ok, detail = "") {
 
 const row = (id, desktop = "ok", mobile = "ok") => ({ id, route: `/${id}/`, desktop, mobile });
 
-// ---------- responsive --page must select real published roots, never pass vacuously ----------
-// This is the exact decision used before the browser launches. CI has no Chrome, so only rejected
-// CLI selectors are subprocess-tested; the valid selector is pinned at the pure selection seam.
+// ---------- both --page modes select real published roots, never pass vacuously ---------------
+// This is the shared decision used before browser launch. CI has no Chrome, so both rejected CLI
+// modes are subprocess-tested; a valid selector is pinned at the pure seam and run in a focused
+// browser check outside this fixture.
 const published = [
   "v152/unframed-display-mode-for-isolated-web-apps/index.html",
   "v152/window-shape-api/index.html",
   "v152/window-drag/index.html",
 ];
-const validSelector = selectResponsivePages(published, {
+const validSelector = selectPublishedRootPages(published, {
   hasSelector: true,
   selector: "v152/window-shape-api",
 });
@@ -63,14 +65,18 @@ assert(
   validSelector.error === null && validSelector.pages.length === 1 &&
     validSelector.pages[0] === "v152/window-shape-api/index.html",
 );
-const unscopedSelection = selectResponsivePages(published);
+const actualCatalogue = await collectPublishedPages(".");
+const unscopedSelection = selectPublishedRootPages(actualCatalogue);
 assert(
-  "normal full-matrix selection is unchanged",
-  unscopedSelection.error === null && unscopedSelection.pages.length === published.length &&
-    unscopedSelection.pages.every((path, i) => path === published[i]),
+  "no-selector conformance/responsive modes enumerate the same full published-root catalogue",
+  unscopedSelection.error === null && actualCatalogue.length > 0 &&
+    unscopedSelection.pages.length === actualCatalogue.length &&
+    unscopedSelection.pages.every((path, i) => path === actualCatalogue[i]),
+  `count=${unscopedSelection.pages.length}`,
 );
+const trackedReportPaths = ["reports/conformance/results.json", "reports/conformance/index.html"];
 for (const selector of ["v152/window-shape-api/setshape", "v152/window-shape-apix"]) {
-  const miss = selectResponsivePages(published, { hasSelector: true, selector });
+  const miss = selectPublishedRootPages(published, { hasSelector: true, selector });
   assert(
     `zero-match --page ${selector} fails with the selector, root-only rule and nearest parent`,
     miss.pages.length === 0 && miss.error?.includes(selector) &&
@@ -80,31 +86,67 @@ for (const selector of ["v152/window-shape-api/setshape", "v152/window-shape-api
   );
   // An actual CLI exit check catches a future caller that ignores the pure decision. This is
   // pre-boot: the child process has only --allow-read and cannot spawn Chrome or a server.
-  const output = await new Deno.Command("deno", {
-    args: ["run", "--allow-read", "scripts/conformance.mjs", "--responsive", "--page", selector],
+  for (const mode of ["responsive", "conformance"]) {
+    const output = await new Deno.Command("deno", {
+      args: [
+        "run",
+        "--allow-read",
+        "scripts/conformance.mjs",
+        ...(mode === "responsive" ? ["--responsive"] : []),
+        "--page",
+        selector,
+      ],
+      stdout: "piped",
+      stderr: "piped",
+    }).output();
+    const stdout = new TextDecoder().decode(output.stdout);
+    const stderr = new TextDecoder().decode(output.stderr);
+    assert(
+      `zero-match ${mode} CLI --page ${selector} exits nonzero before browser/report work`,
+      output.code === 2 && stderr.includes(selector) &&
+        stderr.includes("only published root routes are selectable") &&
+        stderr.includes("v152/window-shape-api") && !stdout.includes("verdict:") &&
+        !stdout.includes("responsive-check:") && !stdout.includes("run-all:"),
+      `code=${output.code} stdout=${stdout.trim()} stderr=${stderr.trim()}`,
+    );
+  }
+  // Unlike the restricted CLI checks above, this is the real task with write permission. A
+  // rejected selector must not mutate either tracked report; a valid scan is allowed to update
+  // them (the scopedResultsReport replacement assertions below pin that positive case).
+  const before = await Promise.all(trackedReportPaths.map((path) => Deno.readFile(path)));
+  const real = await new Deno.Command("deno", {
+    args: ["task", "conformance", "--page", selector],
     stdout: "piped",
     stderr: "piped",
   }).output();
-  const stdout = new TextDecoder().decode(output.stdout);
-  const stderr = new TextDecoder().decode(output.stderr);
+  const realOut = new TextDecoder().decode(real.stdout);
+  const realErr = new TextDecoder().decode(real.stderr);
+  const after = await Promise.all(trackedReportPaths.map((path) => Deno.readFile(path)));
   assert(
-    `zero-match CLI --page ${selector} exits nonzero before browser/report work`,
-    output.code === 2 && stderr.includes(selector) &&
-      stderr.includes("only published root routes are selectable") &&
-      stderr.includes("v152/window-shape-api") && !stdout.includes("verdict:") &&
-      !stdout.includes("responsive-check:"),
-    `code=${output.code} stdout=${stdout.trim()} stderr=${stderr.trim()}`,
+    `real-permission rejected conformance --page ${selector} fails before report generation`,
+    real.code === 2 && realErr.includes(selector) &&
+      realErr.includes("only published root routes are selectable") &&
+      !realOut.includes("run-all:") && !realOut.includes("verdict:"),
+    `code=${real.code} stdout=${realOut.trim()} stderr=${realErr.trim()}`,
+  );
+  assert(
+    `real-permission rejected conformance --page ${selector} preserves both tracked reports byte-for-byte`,
+    before.every((bytes, i) =>
+      bytes.length === after[i].length &&
+      bytes.every((byte, j) => byte === after[i][j])
+    ),
+    trackedReportPaths.join(", "),
   );
 }
 for (const selector of [undefined, "", "--screenshots"]) {
-  const malformed = selectResponsivePages(published, { hasSelector: true, selector });
+  const malformed = selectPublishedRootPages(published, { hasSelector: true, selector });
   assert(
     `missing/empty/option --page ${JSON.stringify(selector)} does not run the full matrix`,
     malformed.pages.length === 0 && malformed.error?.includes("published root route ID"),
     malformed.error ?? "unexpected match",
   );
 }
-const limitedToZero = selectResponsivePages(published, {
+const limitedToZero = selectPublishedRootPages(published, {
   hasSelector: true,
   selector: "v152/window-shape-api",
   limit: 0,
