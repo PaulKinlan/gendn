@@ -371,7 +371,11 @@ const PAGES = [
     // that pairing is NOT recorded as a disagreement. Both sides are named on the page; neither adjudicated.
     page: "v149/overscroll-gestures/index.html",
     marker: "Naming and status disagreement, both sides reported rather than resolved",
-    sideA: ["Overscroll Gestures", "No stable spec URL yet"],
+    // gendn-nni: sideA now guards the CORRECTED status clause ("In developer trial
+    // (behind a flag)") that this pin exists to carry, not just the retracted
+    // pairing's "No stable spec URL yet" clause. Deleting the status disclosure
+    // from the page now fails the fixture.
+    sideA: ["Overscroll Gestures", "In developer trial (behind a flag)", "No stable spec URL yet"],
     sideB: ["Overscroll Areas", "14532", "Proposed"],
     dates: ["fetched 2026-10-07"],
   },
