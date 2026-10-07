@@ -154,7 +154,10 @@ async function baselineRef(root) {
 export async function runRatchet(root) {
   const base = await baselineRef(root);
   if (!base) return { error: "no origin/main or HEAD baseline is available" };
-  const diff = await git(["diff", "--name-only", base, "HEAD"], root);
+  // base -> WORKING TREE (not base..HEAD): the ratchet must also see uncommitted edits to
+  // tracked pages, so a local run mid-work flags what a later commit would carry. The
+  // committed-only view is a subset whenever the worktree mirrors HEAD.
+  const diff = await git(["diff", "--name-only", base], root);
   if (diff === null) return { error: `git diff against ${base} failed` };
   const others = await git(["ls-files", "--others", "--exclude-standard"], root);
   const head = await git(["rev-parse", "HEAD"], root);
@@ -260,7 +263,7 @@ if (import.meta.main) {
   );
   if (r.vacuous) {
     console.log(
-      "  WARNING — base is HEAD itself (no origin/main ref): committed changes are not gated, only untracked files.",
+      "  WARNING — base is HEAD itself (no origin/main ref): committed changes are not gated, only untracked/uncommitted files.",
     );
   }
   for (const f of failures) console.log("  FAIL", f);
