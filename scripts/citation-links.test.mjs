@@ -203,5 +203,11 @@ ok(
   "4g truncated id in a member page detected by the recursive scan",
 );
 
+// case 4h: with no origin/main ref the baseline falls back to HEAD and the
+// ratchet reports itself vacuous instead of passing silently (round-2 P2)
+await g("update-ref", "-d", "refs/remotes/origin/main");
+r = await runRatchet(dir);
+ok(r.vacuous === true, "4h missing origin/main ref yields vacuous=true for the CLI to warn about");
+
 await Deno.remove(dir, { recursive: true });
 console.log(`citation-links fixture: all ${n} assertions passed`);

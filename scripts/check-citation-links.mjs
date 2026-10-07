@@ -230,6 +230,11 @@ if (import.meta.main) {
       r.base.slice(0, 12)
     }; changed pages ${r.changed.length}; pages scanned for id shape ${shapes.scanned}`,
   );
+  if (r.vacuous) {
+    console.log(
+      "  WARNING — base is HEAD itself (no origin/main ref): committed changes are not gated, only untracked files.",
+    );
+  }
   for (const f of failures) console.log("  FAIL", f);
   if (failures.length) {
     console.log(
