@@ -220,7 +220,25 @@ async function runSuite(suite, ctx) {
 
 // ---------- responsive-check harness ----------
 
-const OVERFLOW = "document.documentElement.scrollWidth <= (window.innerWidth + 1)";
+// Discriminating overflow check (gendn-z5w, same defect as gendn-uce).
+//
+// The previous expression compared scrollWidth against window.innerWidth. Under CDP mobile
+// emulation window.innerWidth tracks the CONTENT width: a mutation-proof harness measured it
+// equal to scrollWidth (507 and 453) exactly when the page overflowed, which makes
+// `scrollWidth <= innerWidth + 1` tautological - it passed on pages whose text was visibly cut
+// off by `body { overflow-x: hidden }`. A green check on a broken page is the whole reason
+// gendn-uce exists. documentElement.clientWidth is the true viewport (360 in the mobile class).
+//
+// The harness mutation-proved this exact form on three pages: mutated (fix absent) fails at
+// 507 vs 360, fixed passes at 360 vs 360, and a known-clean control passes in both arms.
+//
+// It also refuted the tempting alternative, which is why the obvious shape is NOT used here:
+// a position check over getBoundingClientRect().right measures the BORDER BOX, not glyph paint,
+// so it misses long-word text overflow entirely (an h1 whose box right is 336 while its glyphs
+// paint to 478.4), and it flagged `pre > code` - a legitimate horizontal scroller - as a
+// permanent false positive. Measuring real overflow beats measuring the box that contains it.
+const OVERFLOW =
+  "document.documentElement.scrollWidth <= (document.documentElement.clientWidth + 1)";
 
 // Single source of truth for a device class's responsive verdict (gendn-jeq): the same
 // four-field conjunction used to be written twice — inline for the per-page ok/REVIEW tokens
@@ -239,6 +257,13 @@ async function responsiveCheck(pageId, meta, ctx, { screenshots }) {
     await page.goto(`${base}${route}`);
     const noOverflow = coerce(await page.evaluate(OVERFLOW)).ok;
     // No interactive control positioned off the viewport horizontally.
+    // No interactive control positioned off the viewport horizontally.
+    // NOTE (gendn-1ml): this still compares against window.innerWidth, which under CDP mobile
+    // emulation tracks the CONTENT width, so it is permissive on any page whose content
+    // overflows - the same pitfall the OVERFLOW check above was fixed for. Re-calibrating it is
+    // deliberately NOT part of gendn-z5w, whose scope is the overflow fix and its assertion
+    // only; coord filed it as gendn-1ml, where the measurement is recorded. Left exactly as it
+    // was so this change's re-validation is not confounded by a second behaviour change.
     const controlsInView = coerce(
       await page.evaluate(
         "[...document.querySelectorAll('a,button,input,select,summary,[tabindex]')].every(el => { const r = el.getBoundingClientRect(); return r.width === 0 || (r.left >= -1 && r.right <= window.innerWidth + 1); })",
