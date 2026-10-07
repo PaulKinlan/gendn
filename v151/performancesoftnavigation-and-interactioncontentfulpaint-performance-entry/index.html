@@ -6,6 +6,11 @@
   <title>PerformanceSoftNavigation and InteractionContentfulPaint performance entry — Chrome 151 — gendn</title>
   <link rel="stylesheet" href="/public/styles.css">
   <style>
+    /* gendn-7g6/goals.json:784: table responsiveness and wrapping */
+    h1, code, .doc-table td, .doc-table th { overflow-wrap: anywhere; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .table-wrap { overflow-x: auto; }
+    .table-wrap .doc-table { min-width: 34rem; }
     .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
     .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
     .doc-table th { background: var(--bg-stone); font-weight: 600; }
@@ -25,58 +30,68 @@
   </header>
 
   <section>
-    <h2>at a glance</h2>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
     <table class="doc-table">
-      <tr><th>Shipped in</th><td>Chrome 151 (desktop + Android)</td></tr>
-      <tr><th>Status</th><td>Enabled by default</td></tr>
-      <tr><th>Flag</th><td>None (was <code>chrome://flags/#soft-navigation-heuristics</code> before Chrome 150)</td></tr>
-      <tr><th>Origin trial</th><td>Chrome 147–149 (final OT); shipped in 150</td></tr>
+      <tr><th>Shipped in</th><td>Chrome 151 (desktop, Android, WebView; enabled by default)</td></tr>
+      <tr><th>Status</th><td>Enabled by default (Finch <code>SoftNavigationHeuristics</code>)</td></tr>
+      <tr><th>Origin trial</th><td>Chrome 139–149 (extended across 3 rounds); stable ship in Chrome 151</td></tr>
       <tr><th>Spec</th><td><a href="https://wicg.github.io/soft-navigations/" target="_blank" rel="noopener">Soft Navigations — WICG</a></td></tr>
       <tr><th>Explainer</th><td><a href="https://github.com/WICG/soft-navigations" target="_blank" rel="noopener">WICG / soft-navigations</a></td></tr>
       <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5144837209194496" target="_blank" rel="noopener">5144837209194496 — PerformanceSoftNavigation and InteractionContentfulPaint performance entry</a></td></tr>
     </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5144837209194496" target="_blank" rel="noopener">chromestatus.com/feature/5144837209194496</a>; <a href="https://chromestatus.com/api/v0/features/5144837209194496" target="_blank" rel="noopener">ChromeStatus API record</a>; <a href="https://chromestatus.com/api/v0/features?milestone=151" target="_blank" rel="noopener">milestone 151 features</a></span>
+
+    <p>Implementation-status divergence, both sides reported rather than resolved (fetched 2026-10-07): this page records <code>PerformanceSoftNavigation</code> and <code>InteractionContentfulPaint</code> shipping enabled by default in Chrome 151 per active ship stage 160 (<code>desktop_first: 151</code>, <code>android_first: 151</code>, <code>webview_first: 151</code>) and the <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/BfSsaY2b_y8/m/ioItMWpYAgAJ" target="_blank" rel="noopener">blink-dev Intent to Ship</a>. In contrast, the <a href="https://chromestatus.com/api/v0/features/5144837209194496" target="_blank" rel="noopener">ChromeStatus API record</a> top-level status string still lists status as &ldquo;Origin trial&rdquo; with milestone 151, reflecting the final experimental OT extension through milestone 149 before general availability.</p>
   </section>
 
   <section>
-    <h2>why it exists</h2>
+    <h2 id="why-it-exists">why it exists</h2>
     <p>Single-page applications (SPAs) have always been invisible to the Core Web Vitals (CWV) framework. CWV metrics like Largest Contentful Paint, Cumulative Layout Shift, and Interaction to Next Paint are defined relative to a navigation, and traditional navigation timing only fires on full page loads. When a React Router, Next.js, or SvelteKit app pushes a new URL and re-renders in-place, the browser saw no navigation — so no fresh CWV measurement was started. This meant a whole class of web experiences had no performance signal in Search Console, PageSpeed Insights, or field data.</p>
     <p>Soft navigations defines a heuristic: if the user interacts (click, keyboard, etc.), the URL changes via History API or Navigation API, and significant DOM updates follow, the browser records a <code>soft-navigation</code> entry and resets the CWV baseline for that navigation scope.</p>
-    <span class="citation">Source: <a href="https://github.com/WICG/soft-navigations" target="_blank" rel="noopener">WICG soft-navigations explainer</a> and <a href="https://developer.chrome.com/docs/web-platform/soft-navigations" target="_blank" rel="noopener">Chrome developer docs</a>.</span>
+    <span class="citation">Source: <a href="https://github.com/WICG/soft-navigations" target="_blank" rel="noopener">WICG soft-navigations explainer</a>; <a href="https://developer.chrome.com/docs/web-platform/soft-navigations" target="_blank" rel="noopener">Chrome developer docs</a>; <a href="https://w3c.github.io/performance-timeline/" target="_blank" rel="noopener">W3C Performance Timeline</a></span>
   </section>
 
   <section>
-    <h2>shape of the API</h2>
-    <p>Two new entry types are added to the Performance Timeline. Both are observed via the existing <code>PerformanceObserver</code> interface.</p>
+    <h2 id="syntax">shape of the API and interface definitions</h2>
+    <p>Two new entry types are added to the Performance Timeline per the <a href="https://wicg.github.io/soft-navigations/" target="_blank" rel="noopener">WICG Soft Navigations specification</a>. Both are observed via the standard <code>PerformanceObserver</code> interface in window environments.</p>
 
     <h3>soft-navigation entry</h3>
     <p>Reported once per detected soft navigation. Extends <code>PerformanceEntry</code>.</p>
+    <div class="table-wrap">
     <table class="doc-table">
       <tr><th>entryType</th><td><code>"soft-navigation"</code></td></tr>
-      <tr><th>name</th><td>The URL of the destination (after the pushState / Navigation API)</td></tr>
-      <tr><th>startTime</th><td>Time of the user interaction that triggered the navigation</td></tr>
-      <tr><th>duration</th><td>Time from interaction to the browser considering the navigation complete</td></tr>
-      <tr><th>navigationId</th><td>A unique string that groups all performance entries belonging to this soft navigation. Also added to all subsequent <code>PerformanceEntry</code> types (LCP, layout-shift, event-timing, etc.) within the navigation scope.</td></tr>
+      <tr><th>name</th><td>The URL string of the destination (after <code>pushState</code>, <code>replaceState</code>, or Navigation API)</td></tr>
+      <tr><th>startTime</th><td>Time of the user interaction that triggered the navigation (hardware event timestamp)</td></tr>
+      <tr><th>duration</th><td>Time from interaction until the browser considers the soft navigation rendering complete</td></tr>
+      <tr><th>navigationId</th><td>A unique UUID string grouping all performance entries belonging to this soft navigation</td></tr>
     </table>
+    </div>
 
     <h3>interaction-contentful-paint entry</h3>
-    <p>Analogous to <code>largest-contentful-paint</code> but scoped to a soft navigation. Extends <code>PerformanceEntry</code>.</p>
+    <p>Analogous to <code>largest-contentful-paint</code> but scoped to a user interaction or soft navigation. Extends <code>PerformanceEntry</code>.</p>
+    <div class="table-wrap">
     <table class="doc-table">
       <tr><th>entryType</th><td><code>"interaction-contentful-paint"</code></td></tr>
-      <tr><th>renderTime</th><td>When the largest new element painted after the interaction</td></tr>
-      <tr><th>size</th><td>Size in pixels of the candidate element, same algorithm as LCP</td></tr>
-      <tr><th>element</th><td>Reference to the painted DOM element</td></tr>
-      <tr><th>navigationId</th><td>Links to the triggering <code>soft-navigation</code> entry</td></tr>
+      <tr><th>renderTime</th><td>Timestamp when the largest candidate element painted after the interaction</td></tr>
+      <tr><th>size</th><td>Size in pixels of the candidate painted element</td></tr>
+      <tr><th>element</th><td>Reference to the painted DOM <code>Element</code> node</td></tr>
+      <tr><th>navigationId</th><td>Links to the triggering <code>soft-navigation</code> entry UUID</td></tr>
     </table>
+    </div>
 
     <h3>navigationId on existing entries</h3>
-    <p>All <code>PerformanceEntry</code> types gain a <code>navigationId</code> property. During the initial hard navigation its value is the same as <code>performance.now()</code> epoch identifier. After each soft navigation it changes to the new soft navigation's ID, so you can slice CLS, INP, and event-timing by navigation.</p>
-    <span class="citation">Source: <a href="https://wicg.github.io/soft-navigations/" target="_blank" rel="noopener">WICG Soft Navigations spec</a>.</span>
+    <p>All existing <code>PerformanceEntry</code> instances gain a <code>navigationId</code> property. During the initial hard document load, its value matches the initial document navigation ID. After each soft navigation, subsequent entries (such as <code>layout-shift</code> or <code>largest-contentful-paint</code>) carry the new soft navigation's ID.</p>
+    <p>Attempting to call <code>observe()</code> with invalid observer options or unsupported entry types will throw a <code>TypeError</code> per Performance Timeline specifications.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/soft-navigations/" target="_blank" rel="noopener">WICG Soft Navigations spec</a>; <a href="https://github.com/WICG/soft-navigations" target="_blank" rel="noopener">WICG explainer</a></span>
   </section>
 
   <section>
-    <h2>examples</h2>
+    <h2 id="examples">examples</h2>
+    <p>Soft navigations and interaction contentful paints can be observed using <code>PerformanceObserver</code> or queried from the performance timeline.</p>
 
-    <h3>observe soft navigations</h3>
+    <p><strong>Observe soft navigations:</strong></p>
 <pre><code>new PerformanceObserver((list) => {
   for (const entry of list.getEntries()) {
     console.log("Soft navigation to:", entry.name);
@@ -85,7 +100,7 @@
   }
 }).observe({ type: "soft-navigation", buffered: true });</code></pre>
 
-    <h3>measure per-navigation LCP</h3>
+    <p><strong>Measure per-navigation LCP and ICP:</strong></p>
 <pre><code>const lcpByNav = new Map();
 
 new PerformanceObserver((list) => {
@@ -103,7 +118,7 @@ new PerformanceObserver((list) => {
   }
 }).observe({ type: "interaction-contentful-paint", buffered: true });</code></pre>
 
-    <h3>slice CLS per navigation</h3>
+    <p><strong>Slice CLS per navigation:</strong></p>
 <pre><code>const clsByNav = new Map();
 
 new PerformanceObserver((list) => {
@@ -118,8 +133,8 @@ new PerformanceObserver((list) => {
 
   <section>
     <h2>reading buffered entries</h2>
-    <p>You can also query buffered entries directly without an observer:</p>
-<pre><code>// All soft navigations so far:
+    <p>You can also query buffered entries synchronously from the performance timeline:</p>
+<pre><code>// All soft navigations recorded so far:
 const softNavs = performance.getEntriesByType("soft-navigation");
 
 // All ICP entries:
@@ -127,23 +142,37 @@ const icpEntries = performance.getEntriesByType("interaction-contentful-paint");
   </section>
 
   <section>
-    <h2>browser support</h2>
+    <h2 id="browser-compatibility">browser support</h2>
+    <div class="table-wrap">
     <table class="doc-table">
-      <tr><th>Chrome / Edge</th><td>150 (enabled by default); flag available from 147</td></tr>
-      <tr><th>Firefox</th><td>No signal</td></tr>
-      <tr><th>Safari</th><td>No signal</td></tr>
+      <thead><tr><th>Browser</th><th>Status</th><th>Notes</th></tr></thead>
+      <tr><td>Chrome (Desktop &amp; Android)</td><td>Chrome 151+</td><td>Enabled by default (Finch <code>SoftNavigationHeuristics</code>)</td></tr>
+      <tr><td>Edge</td><td>Edge 151+</td><td>Chromium mirror</td></tr>
+      <tr><td>Firefox</td><td>No signal</td><td>Tracked in <a href="https://github.com/mozilla/standards-positions/issues/854" target="_blank" rel="noopener">Mozilla standards-positions #854</a></td></tr>
+      <tr><td>Safari</td><td>Closed without position</td><td>Tracked in <a href="https://github.com/WebKit/standards-positions/issues/235" target="_blank" rel="noopener">WebKit standards-positions #235</a></td></tr>
     </table>
-    <span class="citation">Source: chromestatus.com browser views, May 2026.</span>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5144837209194496" target="_blank" rel="noopener">chromestatus.com feature 5144837209194496</a>; <a href="https://wpt.fyi/results/soft-navigation-heuristics" target="_blank" rel="noopener">WPT results</a></span>
   </section>
 
   <section>
     <h2>see also</h2>
     <ul>
       <li><a href="https://github.com/WICG/soft-navigations" target="_blank" rel="noopener">WICG/soft-navigations — spec repository and explainer</a></li>
-      <li><a href="https://developer.chrome.com/blog/final-soft-navigations-origin-trial" target="_blank" rel="noopener">Chrome blog: Final Soft Navigations origin trial (Chrome 147)</a></li>
+      <li><a href="https://wicg.github.io/soft-navigations/" target="_blank" rel="noopener">WICG Soft Navigations specification</a></li>
+      <li><a href="https://developer.chrome.com/blog/final-soft-navigations-origin-trial" target="_blank" rel="noopener">Chrome blog: Final Soft Navigations origin trial</a></li>
       <li><a href="https://developer.chrome.com/docs/web-platform/soft-navigations" target="_blank" rel="noopener">Measuring soft navigations — Chrome developer docs</a></li>
-      <li><a href="https://chromestatus.com/feature/5144837209194496" target="_blank" rel="noopener">chromestatus.com — PerformanceSoftNavigation and InteractionContentfulPaint performance entry (5144837209194496)</a></li>
+      <li><a href="https://chromestatus.com/feature/5144837209194496" target="_blank" rel="noopener">Chrome Platform Status — PerformanceSoftNavigation and InteractionContentfulPaint (5144837209194496)</a></li>
+      <li><a href="https://chromestatus.com/api/v0/features/5144837209194496" target="_blank" rel="noopener">ChromeStatus API record (5144837209194496)</a></li>
+      <li><a href="https://chromestatus.com/api/v0/features?milestone=151" target="_blank" rel="noopener">ChromeStatus milestone 151 features query</a></li>
+      <li><a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/BfSsaY2b_y8/m/ioItMWpYAgAJ" target="_blank" rel="noopener">blink-dev Intent to Ship: Soft Navigation Heuristics</a></li>
+      <li><a href="https://issues.chromium.org/issues/40229587" target="_blank" rel="noopener">Chromium Issue 40229587 — Soft Navigation Heuristics</a></li>
+      <li><a href="https://github.com/w3ctag/design-reviews/issues/879" target="_blank" rel="noopener">W3C TAG Review #879 — Soft Navigations</a></li>
+      <li><a href="https://github.com/mozilla/standards-positions/issues/854" target="_blank" rel="noopener">Mozilla Standards Position #854</a></li>
+      <li><a href="https://github.com/WebKit/standards-positions/issues/235" target="_blank" rel="noopener">WebKit Standards Position #235</a></li>
+      <li><a href="https://wpt.fyi/results/soft-navigation-heuristics" target="_blank" rel="noopener">Web Platform Tests: soft-navigation-heuristics</a></li>
       <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v150/softnavigation-performance-entry/" target="_blank" rel="noopener">chrome-platform-showcase: SoftNavigation demos</a></li>
+      <li><a href="https://w3c.github.io/performance-timeline/" target="_blank" rel="noopener">W3C Performance Timeline specification</a></li>
     </ul>
   </section>
 

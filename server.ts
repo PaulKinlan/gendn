@@ -7,9 +7,11 @@
 
 import {
   Channels,
+  chromeStatusUrl,
   fetchBounded,
   getChannels,
   getMilestoneFeatures,
+  milestonePathSegment,
   slugify,
 } from "./lib/chromestatus.ts";
 import { renderCommitAnchor } from "./lib/external-url.ts";
@@ -21,8 +23,6 @@ import {
   renderSuite,
 } from "./lib/lifecycle.ts";
 
-const PORT = Number(Deno.env.get("PORT") ?? 3000);
-
 // ----- Durable-demo route aliases (301 redirects) -----
 //
 // migrations.json is the single source of truth for the compatibility contract (see AGENTS.md /
@@ -31,38 +31,78 @@ const PORT = Number(Deno.env.get("PORT") ?? 3000);
 // corrections don't 404 old inbound links. `remove` records are provenance only (no redirect).
 // Don't hand-maintain a second list — this reads migrations.json directly.
 
-interface Migration {
+export interface Migration {
   id: string;
-  action: "move" | "alias" | "remove" | "identity-change";
-  from: string;
-  to: string | null;
+  action:
+    | "move"
+    | "alias"
+    | "remove"
+    | "identity-change"
+    | "assertion-migrate"
+    | "support-change"
+    | string;
+  from?: string;
+  to?: string | null;
   reason?: string;
   evidence?: string;
   date?: string;
+  assertion?: string;
 }
 
-function loadRedirects(): { from: string; to: string }[] {
-  try {
-    const raw = Deno.readTextFileSync("./migrations.json");
-    const migrations = JSON.parse(raw) as Migration[];
-    return migrations
-      .filter((m) => (m.action === "move" || m.action === "alias") && m.from && m.to)
-      .map((m) => ({ from: m.from, to: m.to as string }));
-  } catch {
-    return [];
+export function validateMigrationRecord(m: Migration): void {
+  if ((m.action === "move" || m.action === "alias") && m.from) {
+    if (!m.from.endsWith("/")) {
+      throw new Error(
+        `Migration ${
+          m.id ?? "(unknown)"
+        }: action "${m.action}" from "${m.from}" must end in '/' (path boundary invariant; non-slash prefix matches unrelated routes)`,
+      );
+    }
   }
 }
 
-const REDIRECTS = loadRedirects();
+export function loadRedirects(
+  source: string | Migration[] = "./migrations.json",
+): { from: string; to: string }[] {
+  let migrations: Migration[];
+  if (Array.isArray(source)) {
+    migrations = source;
+  } else {
+    let raw: string;
+    try {
+      raw = Deno.readTextFileSync(source);
+    } catch (err) {
+      if (err instanceof Deno.errors.NotFound) return [];
+      throw err;
+    }
+    migrations = JSON.parse(raw) as Migration[];
+  }
+  if (!Array.isArray(migrations)) {
+    throw new Error("migrations.json must be an array");
+  }
+  for (const m of migrations) {
+    validateMigrationRecord(m);
+  }
+  return migrations
+    .filter((m) => (m.action === "move" || m.action === "alias") && m.from && m.to)
+    .map((m) => ({ from: m.from as string, to: m.to as string }));
+}
+
+export const REDIRECTS = loadRedirects();
 
 // Returns the 301 target for a request path if it falls under an aliased old route, else null.
 // Matches the old route exactly (with or without trailing slash) and any deep link under it,
-// carrying the remaining sub-path over to the new route.
-function redirectTarget(path: string): string | null {
-  for (const { from, to } of REDIRECTS) {
+// carrying the remaining sub-path over to the new route. Only applies prefix matching when
+// 'from' ends in '/', enforcing the path boundary invariant (gendn-exxi).
+export function redirectTarget(
+  path: string,
+  redirects: { from: string; to: string }[] = REDIRECTS,
+): string | null {
+  for (const { from, to } of redirects) {
     const fromNoSlash = from.endsWith("/") ? from.slice(0, -1) : from;
-    if (path === fromNoSlash || path === from) return to;
-    if (path.startsWith(from)) return to + path.slice(from.length);
+    const fromWithSlash = from.endsWith("/") ? from : `${from}/`;
+    if (path === fromNoSlash || path === fromWithSlash) return to;
+    if (from.endsWith("/") && path.startsWith(from)) return to + path.slice(from.length);
   }
   return null;
 }
@@ -173,7 +213,23 @@ function formatCommitLine(c: CommitInfo | null): string {
   })</span> &middot; commit ${renderCommitAnchor(c.htmlUrl, c.shortSha)}</p>`;
 }
 
-async function readPublicAsset(path: string): Promise<Response> {
+// gendn-gt7, gendn-izwu: Routine-authored release trees (v<N>/) and developer-curated public
+// assets (/public/) must never serve executable first-party script MIME types. Under the global
+// CSP (script-src 'self' + inline hashes), any same-origin script served with a script MIME
+// would be 'self'-eligible and EXECUTE on this origin (measured in a real browser 2026-10-07 for
+// gt7; measured 2026-10-07 for izwu on /public/*.js). Static asset trees ship no first-party
+// executable scripts (verified: zero .js files under v*/, only styles.css under public/), so
+// script MIME types are served INERT across both readReleaseAsset and readPublicAsset:
+// text/plain + the global X-Content-Type-Options: nosniff makes browsers refuse to execute the
+// response as a script. If executable first-party JS is ever legitimately needed, that is a
+// deliberate, reviewed decision (change this map and THREAT_MODEL §4.3 together).
+export const RELEASE_INERT_SCRIPT_MIME: Record<string, string> = {
+  js: "text/plain; charset=utf-8",
+  mjs: "text/plain; charset=utf-8",
+  cjs: "text/plain; charset=utf-8",
+};
+
+export async function readPublicAsset(path: string): Promise<Response> {
   // DEFENSE IN DEPTH ONLY (gendn-d7a): symmetric with readReleaseAsset's guard below. The
   // nightly vuln-discovery and vuln-verify stations both judged directory traversal SAFE
   // here because the URL is normalised before use — this guard adds no behaviour change
@@ -183,7 +239,10 @@ async function readPublicAsset(path: string): Promise<Response> {
     const file = await Deno.readFile("." + path);
     const ext = path.split(".").pop() ?? "";
     return new Response(file, {
-      headers: { "content-type": MIME[ext] ?? "application/octet-stream" },
+      headers: {
+        "content-type": RELEASE_INERT_SCRIPT_MIME[ext] ?? MIME[ext] ??
+          "application/octet-stream",
+      },
     });
   } catch {
     return new Response("Not found", { status: 404 });
@@ -200,7 +259,10 @@ async function readReleaseAsset(release: string, sub: string): Promise<Response 
     const file = await Deno.readFile(`./${release}/${key}`);
     const ext = key.split(".").pop() ?? "";
     return new Response(file, {
-      headers: { "content-type": MIME[ext] ?? "application/octet-stream" },
+      headers: {
+        "content-type": RELEASE_INERT_SCRIPT_MIME[ext] ?? MIME[ext] ??
+          "application/octet-stream",
+      },
     });
   } catch {
     return null;
@@ -209,7 +271,13 @@ async function readReleaseAsset(release: string, sub: string): Promise<Response 
 
 // ----- Index page -----
 
-async function renderIndex(channels: Channels): Promise<string> {
+// Speculation rules prefetch declaration for reference-doc navigation (gendn-xdw).
+// Moderate eagerness gates requests on reader intent (hover/pointerdown); prerender is off
+// so cross-origin showcase iframes are not triggered speculatively.
+export const SPECULATION_RULES =
+  '<script type="speculationrules">{"prefetch":[{"source":"document","where":{"href_matches":"/v*/**"},"eagerness":"moderate"}]}</script>';
+
+export async function renderIndex(channels: Channels): Promise<string> {
   const commit = await getLatestCommit();
   const prevStable = channels.stable.mstone - 1;
   const releases: { mstone: number; status: string; date: string }[] = [
@@ -254,10 +322,16 @@ async function renderIndex(channels: Channels): Promise<string> {
     } else {
       note = "Most users are here";
     }
+    // Narrowed at runtime, not escaped (gendn-sxn / THREAT_MODEL.md invariant #4).
+    const mstone = milestonePathSegment(r.mstone);
+    const releaseAttrs = mstone
+      ? `href="/v${milestonePathSegment(r.mstone)}/"`
+      : 'aria-disabled="true"';
+    const releaseLabel = mstone ? `Chrome ${mstone}` : `Chrome ${escapeHTML(String(r.mstone))}`;
     return `<li class="release-card">
-      <a class="release-card-link" href="/v${r.mstone}/">
+      <a class="release-card-link" ${releaseAttrs}>
         <span class="release-card-row">
-          <span class="release-label">Chrome ${r.mstone}</span>
+          <span class="release-label">${releaseLabel}</span>
           <span class="release-status">${escapeHTML(r.status)}</span>
         </span>
         <span class="release-note">${escapeHTML(note)}</span>
@@ -272,6 +346,7 @@ async function renderIndex(channels: Channels): Promise<string> {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>gendn — generated web platform docs</title>
   <link rel="stylesheet" href="/public/styles.css">
+  ${SPECULATION_RULES}
 </head>
 <body>
   <main>
@@ -413,6 +488,9 @@ async function renderReleasePage(release: string, milestone: number): Promise<st
       const slug = slugify(f.name);
       const hasDoc = await featureHasDoc(release, slug);
       const summary = (f.summary ?? "").slice(0, 220);
+      // Narrowed at runtime, not escaped (gendn-b2s): a non-canonical id renders the name as
+      // plain text instead of a link — THREAT_MODEL.md invariant #4, renderCommitAnchor shape.
+      const csHref = chromeStatusUrl(f.id);
       let docTag: string;
       if (hasDoc) {
         docTag = referenceTag(release, slug);
@@ -423,9 +501,11 @@ async function renderReleasePage(release: string, milestone: number): Promise<st
           : `<span class="tag tag-pending">doc pending</span>`;
       }
       return `<li class="demo-card">
-        <h3><a href="https://chromestatus.com/feature/${f.id}" target="_blank" rel="noopener">${
-        escapeHTML(f.name)
-      }</a></h3>
+        ${
+        csHref
+          ? `<h3><a href="${csHref}" target="_blank" rel="noopener">${escapeHTML(f.name)}</a></h3>`
+          : `<h3>${escapeHTML(f.name)}</h3>`
+      }
         <p>${escapeHTML(summary)}${summary.length === 220 ? "..." : ""}</p>
         <div class="demo-tags">
           <span class="tag">${escapeHTML(categoryTag(group.category))}</span>
@@ -448,6 +528,7 @@ async function renderReleasePage(release: string, milestone: number): Promise<st
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>chrome ${milestone} reference — gendn</title>
   <link rel="stylesheet" href="/public/styles.css">
+  ${SPECULATION_RULES}
 </head>
 <body>
 <main>
@@ -472,7 +553,7 @@ async function renderReleasePage(release: string, milestone: number): Promise<st
 
 // ----- /features (flat, filterable catalogue) -----
 
-async function renderFeaturesCatalogue(channels: Channels): Promise<string> {
+export async function renderFeaturesCatalogue(channels: Channels): Promise<string> {
   const known = [...await knownReleaseMilestones(channels)].sort((a, b) => b - a);
 
   // PARALLEL, ORDER-PRESERVING (gendn-4ti): milestones are fetched concurrently and the
@@ -545,23 +626,44 @@ async function renderFeaturesCatalogue(channels: Channels): Promise<string> {
   const tableRows = rows.map((r) => {
     const slug = slugify(r.name);
     const cat = categoryTag(r.category);
+    // Narrowed at runtime, not escaped (gendn-sxn / THREAT_MODEL.md invariant #4).
+    const mstone = milestonePathSegment(r.mstone);
+    const docAttrs = mstone
+      ? `href="/v${milestonePathSegment(r.mstone)}/${escapeHTML(slug)}/"`
+      : 'aria-disabled="true"';
     const docCell = r.hasDoc
-      ? `<a class="tag tag-live" href="/v${r.mstone}/${escapeHTML(slug)}/">reference &rarr;</a>`
+      ? `<a class="tag tag-live" ${docAttrs}>reference &rarr;</a>`
       : `<span class="tag tag-pending">pending</span>`;
-    const search = `${r.name} ${r.summary} ${cat} v${r.mstone}`.toLowerCase();
-    return `<tr data-search="${escapeHTML(search)}" data-mstone="${r.mstone}" data-status="${
+    const searchMstone = mstone ?? "";
+    const search = `${r.name} ${r.summary} ${cat} v${searchMstone}`.toLowerCase();
+    // Narrowed at runtime, not escaped (gendn-b2s) — see renderReleasePage.
+    const csHref = chromeStatusUrl(r.id);
+    const mstoneAttr = mstone ? ` data-mstone="${milestonePathSegment(r.mstone)}"` : "";
+    const statusText = mstone
+      ? `v${mstone}`
+      : (r.mstone !== undefined && r.mstone !== null
+        ? `v${escapeHTML(String(r.mstone))}`
+        : "unknown");
+    return `<tr data-search="${escapeHTML(search)}"${mstoneAttr} data-status="${
       escapeHTML(cat)
     }" data-doc="${r.hasDoc}">
-      <td><a href="https://chromestatus.com/feature/${r.id}" target="_blank" rel="noopener">${
-      escapeHTML(r.name)
-    }</a></td>
-      <td><span class="release-status">v${r.mstone}</span></td>
+      <td>${
+      csHref
+        ? `<a href="${csHref}" target="_blank" rel="noopener">${escapeHTML(r.name)}</a>`
+        : escapeHTML(r.name)
+    }</td>
+      <td><span class="release-status">${statusText}</span></td>
       <td><span class="tag">${escapeHTML(cat)}</span></td>
       <td>${docCell}</td>
     </tr>`;
   }).join("");
 
-  const mstoneOptions = known.map((m) => `<option value="${m}">v${m}</option>`).join("");
+  const mstoneOptions = known
+    .map((m) => {
+      const seg = milestonePathSegment(m);
+      return seg ? `<option value="${seg}">v${seg}</option>` : "";
+    })
+    .join("");
 
   return `<!doctype html>
 <html lang="en">
@@ -570,6 +672,7 @@ async function renderFeaturesCatalogue(channels: Channels): Promise<string> {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>all features — gendn</title>
   <link rel="stylesheet" href="/public/styles.css">
+  ${SPECULATION_RULES}
   <style>
     main { max-width: 1100px; }
     .filters {
@@ -589,9 +692,11 @@ async function renderFeaturesCatalogue(channels: Channels): Promise<string> {
       background: var(--bg-paper);
       color: var(--text-black);
       border: 2px solid var(--border-black);
-      outline: none;
     }
-    .filters input:focus { box-shadow: var(--thin-shadow); }
+    .filters input:focus-visible, .filters select:focus-visible {
+      outline: 2px solid var(--accent-blue);
+      outline-offset: 2px;
+    }
     .filters input[type=search] { flex: 1; min-width: 160px; }
     .features-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
     .features-table th, .features-table td { padding: 0.6rem 0.6rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
@@ -707,17 +812,24 @@ async function renderFeaturesCatalogue(channels: Channels): Promise<string> {
 </html>`;
 }
 
-async function knownReleaseMilestones(channels: Channels): Promise<Set<number>> {
-  const set = new Set<number>([
-    channels.stable.mstone - 1,
-    channels.stable.mstone,
-    channels.beta.mstone,
-    channels.dev.mstone,
-  ]);
+export async function knownReleaseMilestones(channels: Channels): Promise<Set<number>> {
+  const set = new Set<number>();
+  for (
+    const raw of [
+      channels.stable.mstone - 1,
+      channels.stable.mstone,
+      channels.beta.mstone,
+      channels.dev.mstone,
+    ]
+  ) {
+    const seg = milestonePathSegment(raw);
+    if (seg !== null) set.add(Number(seg));
+  }
   try {
     for await (const entry of Deno.readDir(".")) {
       if (entry.isDirectory && /^v\d+$/.test(entry.name)) {
-        set.add(Number(entry.name.slice(1)));
+        const seg = milestonePathSegment(entry.name.slice(1));
+        if (seg !== null) set.add(Number(seg));
       }
     }
   } catch {
@@ -734,10 +846,10 @@ async function knownReleaseMilestones(channels: Channels): Promise<Set<number>> 
 //
 // Directives chosen deliberately against what gendn pages actually load:
 //   - default-src 'self': Restrict unspecified resource types to same-origin.
-//   - script-src 'self' 'sha256-KuiJqU/ZOCGu7VsWUb6EUZO+z/j7PyH/zkKtY2HByvg=':
-//       The only JavaScript across the entire site is the client-side table filter on /features.
-//       Rather than disabling protection wholesale with 'unsafe-inline', the allowance is
-//       scoped strictly to the exact SHA-256 hash of that inline script. No external scripts.
+//   - script-src 'self' 'sha256-KuiJqU/ZOCGu7VsWUb6EUZO+z/j7PyH/zkKtY2HByvg=' 'sha256-QwyzFy+aVtqlhWpm/o9TrKyuCXBZ7CCOnC55e6JBn+A=':
+//       The client-side table filter on /features, plus the speculation rules prefetch
+//       declaration on server-rendered routes (gendn-xdw). Rather than disabling protection
+//       wholesale with 'unsafe-inline', each inline script is permitted by its exact SHA-256 hash.
 //   - style-src 'self' 'unsafe-inline':
 //       Allows /public/styles.css plus inline <style> blocks and style="" attributes present
 //       across all 201 reference pages in v<N>/ and SSR templates for per-feature layout.
@@ -762,7 +874,7 @@ async function knownReleaseMilestones(channels: Channels): Promise<Set<number>> 
 
 export const CSP_DIRECTIVES = [
   "default-src 'self'",
-  "script-src 'self' 'sha256-KuiJqU/ZOCGu7VsWUb6EUZO+z/j7PyH/zkKtY2HByvg='",
+  "script-src 'self' 'sha256-KuiJqU/ZOCGu7VsWUb6EUZO+z/j7PyH/zkKtY2HByvg=' 'sha256-QwyzFy+aVtqlhWpm/o9TrKyuCXBZ7CCOnC55e6JBn+A='",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data:",
@@ -782,6 +894,100 @@ export function addSecurityHeaders(res: Response): Response {
   res.headers.set("content-security-policy", CSP_HEADER_VALUE);
   res.headers.set("x-frame-options", "SAMEORIGIN");
   return res;
+}
+
+// ----- Transport: automatic compression + revalidation caching (gendn-3ux) -----
+//
+// Two transport headers were missing. Neither is visible in a status code, which is the whole shape of
+// this defect: the bug IS a 200 whose transport is wrong.
+//
+// 1. COMPRESSION. Deno's HTTP server compresses response bodies only when asked - the manual says
+//    "The HTTP server can automatically compress response bodies, but this is off by default" - so every
+//    page shipped raw. `automaticCompression: true` (in Deno.serve below) lets the RUNTIME do it natively
+//    rather than hand-rolling gzip per request in application code. Measured over the repo's own bytes:
+//    201 index.html files, raw mean 11.8KB / median 7.1KB vs gzip-6 mean 3.4KB / median 2.4KB (~3.5x),
+//    with the largest routes far bigger (/features ~194KB, a hub route ~21KB).
+//
+// 2. REVALIDATION. Nothing set cache-control, so every back-navigation refetched the entire document.
+//    A validator is derived from the body bytes and `no-cache` makes clients REVALIDATE instead of
+//    refetching, so a repeat navigation costs one conditional request and a 304 with no body. The
+//    If-None-Match comparison below is required for that to be worth anything: with a validator but no
+//    304 branch the server would answer every revalidation with the full body again, so the header alone
+//    would save nothing. Weak (W/) because the same content is legitimately served under different
+//    content-codings once compression is on, which is exactly what a weak validator asserts. `no-cache`
+//    rather than a max-age because it keeps every response fresh and so needs no decision about how much
+//    staleness is acceptable.
+//
+// ONLY SUCCESSFUL REPRESENTATIONS ARE REVALIDATED. A 404 or a 500 has no current representation, and
+// RFC 9110 13.1.2 says the `If-None-Match: *` condition is FALSE only when the server DOES have a
+// current representation - so "*" on a missing route must let the 404 through, not answer "Not
+// Modified". Hashing the error body and matching "*" against it (the first form of this function) turned
+// every conditional request for a nonexistent resource into a 304, which tells a cache the resource is
+// there. Measured before the guard: /__definitely_missing__ with If-None-Match: * answered 304.
+const REVALIDATION_CACHE_CONTROL = "no-cache";
+
+// Mirrors the codings the runtime actually negotiates (measured: it answers gzip when offered gzip, br
+// when offered br, and leaves identity alone). Used only to decide whether a 304 owes a Vary.
+const ACCEPTS_COMPRESSION = /\b(?:gzip|br)\b/i;
+
+export async function withRevalidation(req: Request, res: Response): Promise<Response> {
+  if (res.body === null) return res; // 204/302: no representation to validate
+  // 200 ONLY. A 404/500 has no current representation to validate (see the note above), and a future 206
+  // would have only a PARTIAL one - an ETag hashed over part of a body conflicts with range requests,
+  // exactly as RFC 9110 8.8.3.3 warns. Reachable statuses here are 200/204/301/400/404/502, so this
+  // is equivalent to !res.ok today and closes that hole in advance.
+  if (res.status !== 200) return res;
+  // Only GET and HEAD revalidate. RFC 9110 13.1.2 defines this condition in terms of "the request method
+  // is GET or HEAD", and its 412 branch binds a server that EVALUATES the precondition for another
+  // method. This server performs no state-changing method and evaluates no precondition for one, so any
+  // other method gets the ordinary response - which is also what it got before this unit. Evaluating it
+  // there produced a 304 for POST/PUT, which this line removes.
+  if (req.method !== "GET" && req.method !== "HEAD") return res;
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-1", bytes));
+  const etag = `W/"${[...digest].map((b) => b.toString(16).padStart(2, "0")).join("")}"`;
+  // The validator always describes the bytes actually served (the bytes hashed just above), so a
+  // route-supplied ETag would be a validator for content this code did not measure. There is no such
+  // route today; if one is added, this deliberately overrides it rather than silently skipping
+  // revalidation (which would emit a validator without any way to use it).
+  const headers = new Headers(res.headers);
+  headers.set("etag", etag);
+  headers.set("cache-control", REVALIDATION_CACHE_CONTROL);
+  if (ifNoneMatchMatches(req.headers.get("if-none-match"), etag)) {
+    // RFC 9110 15.4.5: a 304 MUST carry the Vary that a 200 to the SAME request would have carried. The
+    // runtime adds vary: Accept-Encoding only when it compresses, and it cannot add anything to a
+    // bodyless 304, so it is merged here whenever this request is one the runtime would compress.
+    // If a future route already set Vary, accept-encoding is appended rather than clobbering it.
+    if (ACCEPTS_COMPRESSION.test(req.headers.get("accept-encoding") ?? "")) {
+      const existing = headers.get("vary");
+      if (!existing) {
+        headers.set("vary", "accept-encoding");
+      } else if (
+        !existing.split(",").some((part) => part.trim().toLowerCase() === "accept-encoding")
+      ) {
+        headers.append("vary", "accept-encoding");
+      }
+    }
+    // DEFENSIVE, AND MEASURED RATHER THAN ASSUMED (review P2-4). No route sets either header today. The
+    // runtime already strips content-length from a bodiless 304 - forcing a value on and probing the wire
+    // showed it never arrives - so that delete is belt-and-braces. The runtime does NOT strip
+    // content-encoding (the same probe showed a forced value DID reach the wire), so this is the one line
+    // that keeps a future route's coding header off a bodiless response. The fixture asserts the invariant;
+    // it is not a mutation-detector in this tree, and its comment says so.
+    headers.delete("content-length");
+    headers.delete("content-encoding");
+    return new Response(null, { status: 304, headers });
+  }
+  return new Response(bytes, { status: res.status, statusText: res.statusText, headers });
+}
+
+// If-None-Match is a comma-separated list of validators, or "*". A weak validator matches its strong
+// twin, so W/"x" and "x" are the same validator for this purpose.
+function ifNoneMatchMatches(header: string | null, etag: string): boolean {
+  if (!header) return false;
+  if (header.trim() === "*") return true;
+  const bare = (tag: string) => tag.trim().replace(/^W\//, "");
+  return header.split(",").some((tag) => bare(tag) === bare(etag));
 }
 
 export async function handleRequest(req: Request): Promise<Response> {
@@ -903,10 +1109,10 @@ export async function handleRequest(req: Request): Promise<Response> {
 }
 
 if (import.meta.main) {
-  const server = Deno.serve({ port: PORT }, async (req) => {
+  const PORT = Number(Deno.env.get("PORT") ?? 3000);
+  const server = Deno.serve({ port: PORT, automaticCompression: true }, async (req) => {
     try {
-      const res = await handleRequest(req);
-      return addSecurityHeaders(res);
+      return addSecurityHeaders(await withRevalidation(req, await handleRequest(req)));
     } catch (err) {
       return addSecurityHeaders(serverError(req, "unhandled request", err));
     }

@@ -6,6 +6,10 @@
   <title>Local Network Access restrictions on Service Worker WindowClient.navigate() — Chrome 147 — gendn</title>
   <link rel="stylesheet" href="/public/styles.css">
   <style>
+    /* THIS PAGE'S h1 carries an unbreakable token (WindowClient.navigate()) which overflows and is clipped at
+       narrow mobile widths; the site stylesheet sets overflow-wrap only for .demo-card p, so it is set here.
+       Matches the page-scoped precedent in v147/autofill-event/* and v147/css-border-shape. */
+    h1, .lede { overflow-wrap: anywhere; }
     .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
     .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
     .doc-table th { background: var(--bg-stone); font-weight: 600; }
@@ -38,7 +42,7 @@
   </div>
 
   <section>
-    <h2>at a glance</h2>
+    <h2 id="at-a-glance">at a glance</h2>
     <table class="doc-table">
       <tr><th>Shipped in</th><td>Chrome 147 (desktop, Android)</td></tr>
       <tr><th>Status</th><td>Enabled by default</td></tr>
@@ -46,17 +50,26 @@
       <tr><th>Spec</th><td><a href="https://wicg.github.io/local-network-access/" target="_blank" rel="noopener">WICG Local Network Access spec</a></td></tr>
       <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5172375182245888" target="_blank" rel="noopener">5172375182245888 — Local Network Access restrictions on Service Worker WindowClient.navigate()</a></td></tr>
     </table>
-  </section>
+  
+    <p>Status and scope divergence, both sides reported rather than resolved (fetched 2026-10-06): this page records
+      the feature as shipped in Chrome 147 with the Local Network Access check enabled by default, while the ChromeStatus
+      record for feature <code>5172375182245888</code> still reads status &ldquo;Proposed&rdquo; with
+      <code>is_released false</code>, and that record also lists Firefox as Shipped/Shipping pointing at a Mozilla
+      support article, where this page&rsquo;s support table says Firefox has no position. A scope limit is carried with
+      it: the WICG Local Network Access specification this page cites never names <code>WindowClient.navigate()</code>
+      &mdash; its restricted-request surface is fetch-type requests &mdash; so this is Chromium enforcement reusing the
+      spec&rsquo;s model rather than a spec-defined surface.</p>
+</section>
 
   <section>
-    <h2>why it exists</h2>
+    <h2 id="why-it-exists">why it exists</h2>
     <p>Chrome's Local Network Access protections prevent public websites from silently reaching devices on the user's private network. Earlier work applied LNA checks to <code>fetch()</code> requests initiated from service workers. However, service workers can also trigger subframe navigations via <code>WindowClient.navigate()</code> — and that path was not covered. A compromised or malicious service worker from a public origin could navigate an embedded subframe to a local admin interface or device URL without the user's knowledge. Chrome 147 closes this hole by applying the same initiator-based LNA logic to <code>WindowClient.navigate()</code> calls.</p>
     <p>Only subframe <code>WindowClient</code> navigations are affected. Chrome does not currently enforce LNA restrictions on main-frame navigations.</p>
-    <span class="citation">Source: blink-dev Intent to Ship — Local Network Access restrictions on Service Worker WindowClient.navigate(), April 2026.</span>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/698b7e59.050a0220.29f6fd.0634.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a> — Local Network Access restrictions on Service Worker WindowClient.navigate(), April 2026.</span>
   </section>
 
   <section>
-    <h2>what changes</h2>
+    <h2 id="what-changes">what changes</h2>
     <p>When a service worker calls <code>windowClient.navigate(url)</code>:</p>
     <ul>
       <li>If the <code>WindowClient</code> is a <strong>main frame</strong>: no change, no LNA check is applied.</li>
@@ -69,25 +82,36 @@
       </li>
     </ul>
 
-    <h3>Affected address ranges</h3>
+    <pre><code>// A service worker navigating a subframe WindowClient to a local-network address.
+// Chrome 147 uses the subframe's origin as the navigation initiator, so this
+// call triggers the Local Network Access permission check and may be blocked.
+self.addEventListener("message", async (event) =&gt; {
+  const client = await self.clients.get(event.source.id);
+  if (client?.frameType === "nested") {
+    await client.navigate("http://192.168.1.1:8080/status");
+  }
+});
+</code></pre>
+
+    <h3 id="affected-address-ranges">Affected address ranges</h3>
     <table class="doc-table">
       <thead><tr><th>Address range</th><th>Examples</th></tr></thead>
       <tr><td>Loopback</td><td><code>127.0.0.1</code>, <code>localhost</code>, <code>::1</code></td></tr>
       <tr><td>Private (RFC 1918)</td><td><code>10.x.x.x</code>, <code>172.16–31.x.x</code>, <code>192.168.x.x</code></td></tr>
       <tr><td>Link-local</td><td><code>169.254.x.x</code>, <code>fe80::/10</code></td></tr>
     </table>
-    <span class="citation">Source: blink-dev Intent to Ship — Local Network Access restrictions on Service Worker WindowClient.navigate(), April 2026.</span>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/698b7e59.050a0220.29f6fd.0634.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a> — Local Network Access restrictions on Service Worker WindowClient.navigate(), April 2026.</span>
   </section>
 
   <section>
-    <h2>browser support</h2>
+    <h2 id="browser-support">browser support</h2>
     <table class="doc-table">
       <thead><tr><th>Browser</th><th>Support</th></tr></thead>
       <tr><td>Chrome 147+ (desktop, Android)</td><td>Enabled by default</td></tr>
       <tr><td>Firefox</td><td>No position</td></tr>
       <tr><td>Safari</td><td>No position</td></tr>
     </table>
-    <span class="citation">Source: chromestatus.com feature page, April 2026.</span>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5172375182245888" target="_blank" rel="noopener">chromestatus.com feature page</a>, April 2026.</span>
   </section>
 
   <section>

@@ -11,7 +11,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -21,50 +21,95 @@ jobs:
       - name: Fetch channels
         run: |
           echo "Fetching channels..."
-          HTTP=$(curl -sfw '%{http_code}' -o /tmp/channels_raw.txt 'https://chromestatus.com/api/v0/channels' -H 'accept: application/json')
+          # Transfer bounds are set for CI; they are NOT a copy of lib/chromestatus.ts.
+          # The in-process budget is UPSTREAM_TIMEOUT_MS = 15_000, but CI deliberately
+          # uses a LONGER ceiling (--connect-timeout 10 --max-time 30) so a degraded upstream
+          # response that arrives within 30s is judged by the payload checks below rather than
+          # being cut off early by a shorter timeout.
+          # Do NOT lower --max-time 30 to 15s to 'match' the library value.
+          # UPSTREAM_MAX_BYTES = 8388608 does mirror the 8 MiB response size ceiling exactly.
+          HTTP=$(curl -s --fail --show-error --connect-timeout 10 --max-time 30 --max-filesize 8388608 -w '%{http_code}' -o /tmp/channels_raw.txt 'https://chromestatus.com/api/v0/channels' -H 'accept: application/json')
           echo "HTTP status: $HTTP"
           if [ "$HTTP" = "200" ]; then
-            tail -c +6 /tmp/channels_raw.txt > _data/channels.json
+            tail -c +6 /tmp/channels_raw.txt > /tmp/channels.json
+            python3 -c "import json; d = json.load(open('/tmp/channels.json')); assert isinstance(d, dict) and 'stable' in d, 'Invalid channels payload'"
+            mv /tmp/channels.json _data/channels.json
             echo "OK: $(wc -c < _data/channels.json) bytes"
           else
-            cat /tmp/channels_raw.txt
-            echo '{}' > _data/channels.json
+            cat /tmp/channels_raw.txt >&2
+            echo "Failed to fetch channels: HTTP $HTTP" >&2
+            exit 1
           fi
 
       - name: Fetch features milestone 147
         run: |
-          HTTP=$(curl -sfw '%{http_code}' -o /tmp/f147_raw.txt 'https://chromestatus.com/api/v0/features?milestone=147' -H 'accept: application/json')
-          if [ "$HTTP" = "200" ]; then tail -c +6 /tmp/f147_raw.txt > _data/features-147.json; else echo '{}' > _data/features-147.json; fi
-          echo "147: HTTP $HTTP"
+          HTTP=$(curl -s --fail --show-error --connect-timeout 10 --max-time 30 --max-filesize 8388608 -w '%{http_code}' -o /tmp/f147_raw.txt 'https://chromestatus.com/api/v0/features?milestone=147' -H 'accept: application/json')
+          if [ "$HTTP" = "200" ]; then
+            tail -c +6 /tmp/f147_raw.txt > /tmp/features-147.json
+            python3 -c "import json; d = json.load(open('/tmp/features-147.json')); assert isinstance(d, dict) and 'features_by_type' in d, 'Invalid features payload'"
+            mv /tmp/features-147.json _data/features-147.json
+            echo "147: OK ($(wc -c < _data/features-147.json) bytes)"
+          else
+            echo "147: failed with HTTP $HTTP" >&2
+            exit 1
+          fi
 
       - name: Fetch features milestone 148
         run: |
-          HTTP=$(curl -sfw '%{http_code}' -o /tmp/f148_raw.txt 'https://chromestatus.com/api/v0/features?milestone=148' -H 'accept: application/json')
-          if [ "$HTTP" = "200" ]; then tail -c +6 /tmp/f148_raw.txt > _data/features-148.json; else echo '{}' > _data/features-148.json; fi
-          echo "148: HTTP $HTTP"
+          HTTP=$(curl -s --fail --show-error --connect-timeout 10 --max-time 30 --max-filesize 8388608 -w '%{http_code}' -o /tmp/f148_raw.txt 'https://chromestatus.com/api/v0/features?milestone=148' -H 'accept: application/json')
+          if [ "$HTTP" = "200" ]; then
+            tail -c +6 /tmp/f148_raw.txt > /tmp/features-148.json
+            python3 -c "import json; d = json.load(open('/tmp/features-148.json')); assert isinstance(d, dict) and 'features_by_type' in d, 'Invalid features payload'"
+            mv /tmp/features-148.json _data/features-148.json
+            echo "148: OK ($(wc -c < _data/features-148.json) bytes)"
+          else
+            echo "148: failed with HTTP $HTTP" >&2
+            exit 1
+          fi
 
       - name: Fetch features milestone 149
         run: |
-          HTTP=$(curl -sfw '%{http_code}' -o /tmp/f149_raw.txt 'https://chromestatus.com/api/v0/features?milestone=149' -H 'accept: application/json')
-          if [ "$HTTP" = "200" ]; then tail -c +6 /tmp/f149_raw.txt > _data/features-149.json; else echo '{}' > _data/features-149.json; fi
-          echo "149: HTTP $HTTP"
+          HTTP=$(curl -s --fail --show-error --connect-timeout 10 --max-time 30 --max-filesize 8388608 -w '%{http_code}' -o /tmp/f149_raw.txt 'https://chromestatus.com/api/v0/features?milestone=149' -H 'accept: application/json')
+          if [ "$HTTP" = "200" ]; then
+            tail -c +6 /tmp/f149_raw.txt > /tmp/features-149.json
+            python3 -c "import json; d = json.load(open('/tmp/features-149.json')); assert isinstance(d, dict) and 'features_by_type' in d, 'Invalid features payload'"
+            mv /tmp/features-149.json _data/features-149.json
+            echo "149: OK ($(wc -c < _data/features-149.json) bytes)"
+          else
+            echo "149: failed with HTTP $HTTP" >&2
+            exit 1
+          fi
 
       - name: Fetch features milestone 150
         run: |
-          HTTP=$(curl -sfw '%{http_code}' -o /tmp/f150_raw.txt 'https://chromestatus.com/api/v0/features?milestone=150' -H 'accept: application/json')
-          if [ "$HTTP" = "200" ]; then tail -c +6 /tmp/f150_raw.txt > _data/features-150.json; else echo '{}' > _data/features-150.json; fi
-          echo "150: HTTP $HTTP"
+          HTTP=$(curl -s --fail --show-error --connect-timeout 10 --max-time 30 --max-filesize 8388608 -w '%{http_code}' -o /tmp/f150_raw.txt 'https://chromestatus.com/api/v0/features?milestone=150' -H 'accept: application/json')
+          if [ "$HTTP" = "200" ]; then
+            tail -c +6 /tmp/f150_raw.txt > /tmp/features-150.json
+            python3 -c "import json; d = json.load(open('/tmp/features-150.json')); assert isinstance(d, dict) and 'features_by_type' in d, 'Invalid features payload'"
+            mv /tmp/features-150.json _data/features-150.json
+            echo "150: OK ($(wc -c < _data/features-150.json) bytes)"
+          else
+            echo "150: failed with HTTP $HTTP" >&2
+            exit 1
+          fi
 
       - name: Fetch features milestone 151
         run: |
-          HTTP=$(curl -sfw '%{http_code}' -o /tmp/f151_raw.txt 'https://chromestatus.com/api/v0/features?milestone=151' -H 'accept: application/json')
-          if [ "$HTTP" = "200" ]; then tail -c +6 /tmp/f151_raw.txt > _data/features-151.json; else echo '{}' > _data/features-151.json; fi
-          echo "151: HTTP $HTTP"
+          HTTP=$(curl -s --fail --show-error --connect-timeout 10 --max-time 30 --max-filesize 8388608 -w '%{http_code}' -o /tmp/f151_raw.txt 'https://chromestatus.com/api/v0/features?milestone=151' -H 'accept: application/json')
+          if [ "$HTTP" = "200" ]; then
+            tail -c +6 /tmp/f151_raw.txt > /tmp/features-151.json
+            python3 -c "import json; d = json.load(open('/tmp/features-151.json')); assert isinstance(d, dict) and 'features_by_type' in d, 'Invalid features payload'"
+            mv /tmp/features-151.json _data/features-151.json
+            echo "151: OK ($(wc -c < _data/features-151.json) bytes)"
+          else
+            echo "151: failed with HTTP $HTTP" >&2
+            exit 1
+          fi
 
       - name: Show summary
         run: |
           for f in _data/*.json; do
-            COUNT=$(python3 -c "import json,sys; d=json.load(open('$f')); print(sum(len(v) for v in d.get('features_by_type',{}).values()))" 2>/dev/null || echo '?')
+            COUNT=$(python3 -c "import json,sys; d=json.load(open('$f')); print(sum(len(v) for v in d.get('features_by_type',{}).values()))")
             echo "$f: $COUNT features"
           done
 

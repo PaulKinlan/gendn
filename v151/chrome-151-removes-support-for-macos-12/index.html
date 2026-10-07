@@ -6,6 +6,11 @@
   <title>Chrome 151 removes support for macOS 12 — Chrome 151 — gendn</title>
   <link rel="stylesheet" href="/public/styles.css">
   <style>
+    /* gendn-7g6/goals.json:784: table responsiveness and wrapping */
+    h1, code, .doc-table td, .doc-table th { overflow-wrap: anywhere; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .table-wrap { overflow-x: auto; }
+    .table-wrap .doc-table { min-width: 34rem; }
     .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
     .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
     .doc-table th { background: var(--bg-stone); font-weight: 600; }
@@ -38,7 +43,8 @@
   </div>
 
   <section>
-    <h2>at a glance</h2>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
     <table class="doc-table">
       <tr><th>Deprecated in</th><td>Chrome 151 (stable: July 28, 2026)</td></tr>
       <tr><th>Last supported version</th><td>Chrome 150 (last version to run on macOS 12 Monterey)</td></tr>
@@ -46,35 +52,70 @@
       <tr><th>Affected machines</th><td>MacBook Air / Pro 2017 and older that cannot upgrade past macOS 12</td></tr>
       <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5077742779498496" target="_blank" rel="noopener">5077742779498496 — Chrome 151 removes support for macOS 12</a></td></tr>
     </table>
+    </div>
     <span class="citation">Source: <a href="https://chromestatus.com/feature/5077742779498496" target="_blank" rel="noopener">chromestatus.com/feature/5077742779498496</a></span>
+
+    <p>Removal-status divergence, both sides reported rather than resolved (fetched 2026-10-07): this page records the removal in Chrome 151 (stable July 28, 2026), while the <a href="https://chromestatus.com/api/v0/features/5077742779498496" target="_blank" rel="noopener">ChromeStatus API record</a> for feature <code>5077742779498496</code> (also listed in <a href="https://chromestatus.com/api/v0/features?milestone=151" target="_blank" rel="noopener">milestone 151 features</a>) still reports top-level status as &ldquo;Proposed&rdquo; (accurate_as_of 2026-07-13). However, its active ship stage 460 explicitly sets <code>desktop_first: 151</code> and its summary confirms that Chrome 150 is the last release to support macOS 12 Monterey and Chrome 151+ requires macOS 13+ Ventura.</p>
   </section>
 
   <section>
-    <h2>what this means</h2>
-    <p>Apple ended security support for macOS 12 Monterey in 2024. To align with Apple's support window, Chrome removed support for macOS 12 in Chrome 151 (stable July 28, 2026).</p>
-    <p>Machines running macOS 12 that have Chrome installed will retain Chrome 150 and can continue using it, but Chrome will display a warning banner and will not receive further updates. Security vulnerabilities discovered after Chrome 150's release will not be patched on those machines.</p>
-    <p>Users who can update their Mac to macOS 13 Ventura or later should do so to continue receiving Chrome updates. Some older Mac hardware is not eligible for macOS 13 and will be permanently stuck on Chrome 150.</p>
-    <span class="citation">Source: <a href="https://chromestatus.com/feature/5077742779498496" target="_blank" rel="noopener">chromestatus.com/feature/5077742779498496</a></span>
+    <h2 id="syntax">what this means and system requirements</h2>
+    <p>Apple ended security support for macOS 12 Monterey in 2024. To align with Apple's support window and maintain browser security guarantees, Chrome removed support for macOS 12 in Chrome 151 (stable July 28, 2026). The updated baseline requirement per <a href="https://support.google.com/chrome/a/answer/7100626" target="_blank" rel="noopener">Chrome browser system requirements</a> requires <code>macOS 13 Ventura</code> or later for all Chrome 151+ desktop installations.</p>
+    <p>Machines running macOS 12 that already have Chrome installed will retain <code>Chrome 150</code> and can continue running it, but Chrome will display a warning infobar and will not receive further updates. Security vulnerabilities discovered after Chrome 150's release will not be patched on those machines, creating ongoing exposure for unmanaged installations.</p>
+    <p>Users who can update their Mac to <code>macOS 13 Ventura</code> or later should do so to continue receiving Chrome updates. For new installations or manual updates on macOS 12, the installer will refuse installation or fail to launch Chrome 151+ binaries due to SDK and OS version minimums. Some older Mac hardware is not eligible for macOS 13 and will remain permanently on Chrome 150.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5077742779498496" target="_blank" rel="noopener">chromestatus.com/feature/5077742779498496</a>; <a href="https://support.google.com/chrome/a/answer/7100626" target="_blank" rel="noopener">Chrome browser system requirements</a></span>
   </section>
 
   <section>
-    <h2>affected hardware</h2>
+    <h2 id="examples">examples</h2>
+    <p>Web applications and administration scripts can inspect client platform version via User-Agent Client Hints (<code>navigator.userAgentData</code>) to detect clients frozen on macOS 12:</p>
+<pre><code>// Detect client platform version via User-Agent Client Hints
+if (navigator.userAgentData &amp;&amp; navigator.userAgentData.platform === "macOS") {
+  navigator.userAgentData.getHighEntropyValues(["platformVersion"])
+    .then(({ platformVersion }) => {
+      // macOS Monterey reports major version 12
+      const major = parseInt(platformVersion.split(".")[0], 10);
+      if (major &lt;= 12) {
+        console.warn("Client running macOS 12 Monterey: Chrome updates end at Chrome 150.");
+      } else {
+        console.log("Client running macOS 13+ (Chrome 151+ supported).");
+      }
+    })
+    .catch((err) => {
+      console.error("Failed to query platformVersion hint:", err);
+    });
+}</code></pre>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">browser support and OS compatibility</h2>
+    <p>Hardware compatibility breakdown across Mac hardware generations and macOS versions:</p>
+    <div class="table-wrap">
     <table class="doc-table">
       <thead><tr><th>Mac model</th><th>Max macOS</th><th>Chrome status after Chrome 151</th></tr></thead>
-      <tr><td>MacBook, MacBook Air, MacBook Pro 2017 and earlier</td><td>macOS 12</td><td>Stuck on Chrome 150, no further updates</td></tr>
-      <tr><td>Mac mini 2017 and earlier</td><td>macOS 12</td><td>Stuck on Chrome 150, no further updates</td></tr>
-      <tr><td>iMac 2017 and earlier</td><td>macOS 12</td><td>Stuck on Chrome 150, no further updates</td></tr>
-      <tr><td>Mac Pro 2013 and earlier</td><td>macOS 12</td><td>Stuck on Chrome 150, no further updates</td></tr>
-      <tr><td>2018+ models that can upgrade to macOS 13+</td><td>macOS 13+</td><td>Receives Chrome 151+ updates normally</td></tr>
+      <tr><td>MacBook, MacBook Air, MacBook Pro 2017 and earlier</td><td>macOS 12 Monterey</td><td>Stuck on Chrome 150, no further updates</td></tr>
+      <tr><td>Mac mini 2017 and earlier</td><td>macOS 12 Monterey</td><td>Stuck on Chrome 150, no further updates</td></tr>
+      <tr><td>iMac 2017 and earlier</td><td>macOS 12 Monterey</td><td>Stuck on Chrome 150, no further updates</td></tr>
+      <tr><td>Mac Pro 2013 and earlier</td><td>macOS 12 Monterey</td><td>Stuck on Chrome 150, no further updates</td></tr>
+      <tr><td>2018+ models that can upgrade to macOS 13+</td><td>macOS 13 Ventura or newer</td><td>Receives Chrome 151+ updates normally</td></tr>
     </table>
-    <span class="citation">Source: Apple macOS compatibility guides; chromestatus.com/feature/5077742779498496</span>
+    </div>
+    <span class="citation">Source: <a href="https://support.apple.com/en-us/103260" target="_blank" rel="noopener">Apple Support: macOS Monterey compatibility guide</a>; <a href="https://support.apple.com/en-us/102861" target="_blank" rel="noopener">Apple Support: macOS Ventura compatibility guide</a>; <a href="https://support.apple.com/en-us/105113" target="_blank" rel="noopener">Apple Support: macOS Sonoma compatibility guide</a>; <a href="https://chromestatus.com/feature/5077742779498496" target="_blank" rel="noopener">chromestatus.com/feature/5077742779498496</a></span>
   </section>
 
   <section>
     <h2>see also</h2>
     <ul>
       <li><a href="https://chromestatus.com/feature/5077742779498496" target="_blank" rel="noopener">Chrome Platform Status — Chrome 151 removes support for macOS 12</a></li>
+      <li><a href="https://chromestatus.com/api/v0/features/5077742779498496" target="_blank" rel="noopener">ChromeStatus API record (5077742779498496)</a></li>
+      <li><a href="https://chromestatus.com/api/v0/features?milestone=151" target="_blank" rel="noopener">ChromeStatus milestone 151 features query</a></li>
       <li><a href="https://chromestatus.com/feature/4504090090143744" target="_blank" rel="noopener">Chrome Platform Status — Chrome removes support for macOS 11 (previous macOS drop)</a></li>
+      <li><a href="https://chromestatus.com/api/v0/features/4504090090143744" target="_blank" rel="noopener">ChromeStatus API record (4504090090143744)</a></li>
+      <li><a href="https://support.google.com/chrome/a/answer/7100626" target="_blank" rel="noopener">Chrome browser system requirements — Chrome Enterprise Help</a></li>
+      <li><a href="https://support.apple.com/en-us/103260" target="_blank" rel="noopener">Apple Support — macOS Monterey is compatible with these computers</a></li>
+      <li><a href="https://support.apple.com/en-us/102861" target="_blank" rel="noopener">Apple Support — macOS Ventura is compatible with these computers</a></li>
+      <li><a href="https://support.apple.com/en-us/105113" target="_blank" rel="noopener">Apple Support — macOS Sonoma is compatible with these computers</a></li>
+      <li><a href="https://chromiumdash.appspot.com/releases?platform=Mac" target="_blank" rel="noopener">ChromiumDash — Mac Releases Schedule</a></li>
     </ul>
   </section>
 

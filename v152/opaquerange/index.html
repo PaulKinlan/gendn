@@ -6,6 +6,11 @@
   <title>OpaqueRange — Chrome 152 — gendn</title>
   <link rel="stylesheet" href="/public/styles.css">
   <style>
+    /* Table styles conforming to gendn-7g6/goals.json:784 */
+    h1, code, .doc-table td, .doc-table th { overflow-wrap: anywhere; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .table-wrap { overflow-x: auto; }
+    .table-wrap .doc-table { min-width: 34rem; }
     .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
     .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
     .doc-table th { background: var(--bg-stone); font-weight: 600; }
@@ -39,6 +44,7 @@
 
   <section>
     <h2>at a glance</h2>
+    <div class="table-wrap">
     <table class="doc-table">
       <tr><th>Shipped in</th><td>Chrome 152 (Enabled by default)</td></tr>
       <tr><th>Origin trial from</th><td>Chrome 148 (desktop, Android)</td></tr>
@@ -46,25 +52,43 @@
       <tr><th>Spec</th><td><a href="https://github.com/whatwg/dom/pull/1404" target="_blank" rel="noopener">whatwg/dom PR #1404</a> (under active spec discussion; see also <a href="https://github.com/whatwg/html/issues/10614" target="_blank" rel="noopener">whatwg/html #10614</a> and the <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/OpaqueRange/explainer.md" target="_blank" rel="noopener">MSEdge OpaqueRange explainer</a>)</td></tr>
       <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/6297362687066112" target="_blank" rel="noopener">6297362687066112 — OpaqueRange</a></td></tr>
     </table>
+    </div>
   </section>
 
   <section>
     <h2>why it exists</h2>
     <p>Building inline-suggestion UI (AI autocomplete, spell-check, editor annotations) inside a <code>&lt;textarea&gt;</code> or <code>&lt;input&gt;</code> requires knowing the pixel position of a text offset in the control's value — but there is no standard API for that. Today developers work around this by mirroring the control's content into a hidden <code>&lt;div&gt;</code> overlay, measuring the clone, then positioning their UI relative to the clone. This is fragile and breaks whenever the control's font, padding, or scroll position differs from the mirror. OpaqueRange makes the browser do the geometry: create a range over value text offsets, call <code>getBoundingClientRect()</code>, and get the correct on-screen bounds. The range is <em>live</em> — its offsets stay valid as the value is edited.</p>
-    <span class="citation">Source: blink-dev Intent to Experiment — OpaqueRange, May 2026.</span>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/jrIXiBUbQm0" target="_blank" rel="noopener">blink-dev Intent to Experiment — OpaqueRange</a>.</span>
   </section>
 
   <section>
-    <h2>shape of the API</h2>
+    <h2 id="syntax">shape of the API</h2>
+<pre><code>[Exposed=Window]
+interface OpaqueRange : AbstractRange {
+  DOMRect getBoundingClientRect();
+  DOMRectList getClientRects();
+  undefined disconnect();
+};
 
-    <h3>Creating an OpaqueRange</h3>
+partial interface HTMLTextAreaElement {
+  OpaqueRange createValueRange(unsigned long start, unsigned long end);
+};</code></pre>
+
+    <p>The <code>createValueRange(start, end)</code> method creates a live range over characters in the control's value. Offsets are 0-based character indices into the value string. If <code>start &gt; end</code>, or if an offset exceeds the value length, the method throws an <code>IndexSizeError</code> DOMException. <code>getBoundingClientRect()</code> returns the union of client rects (or empty rect if not rendered or disconnected), <code>getClientRects()</code> returns line rects, and <code>disconnect()</code> stops tracking changes.</p>
+    <span class="citation">Source: <a href="https://github.com/whatwg/dom/pull/1404" target="_blank" rel="noopener">whatwg/dom PR #1404</a>; <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/OpaqueRange/explainer.md" target="_blank" rel="noopener">MSEdge OpaqueRange explainer</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+
+    <p><strong>Creating an OpaqueRange</strong></p>
     <p><code>OpaqueRange</code> objects are created via a new <code>createValueRange()</code> method on <code>HTMLTextAreaElement</code> and <code>HTMLInputElement</code> (text type):</p>
     <pre><code>const textarea = document.querySelector('textarea');
 
 // Create a range covering characters 4–12 in the textarea's value
 const range = textarea.createValueRange(4, 12);</code></pre>
 
-    <h3>Getting geometry</h3>
+    <p><strong>Getting geometry</strong></p>
     <pre><code>// Returns the bounding rect of the text span in the control
 const rect = range.getBoundingClientRect();
 
@@ -73,37 +97,52 @@ const rects = range.getClientRects();
 
 console.log('Text starts at:', rect.left, rect.top);</code></pre>
 
-    <h3>Using with the CSS Highlights API</h3>
+    <p><strong>Using with the CSS Highlights API</strong></p>
     <pre><code>// Highlight a range of value text (e.g., a misspelled word)
 const range = textarea.createValueRange(7, 14);
 const highlight = new Highlight(range);
 CSS.highlights.set('spelling-error', highlight);</code></pre>
 
-    <h3>Live range behaviour</h3>
+    <p><strong>Live range behaviour and disconnect</strong></p>
     <pre><code>const range = textarea.createValueRange(3, 8);
 
 // User types at position 0 → range offsets update automatically
 textarea.value = 'AB' + textarea.value;  // inserts at start
-// range now covers the same original text at new positions</code></pre>
-    <span class="citation">Source: blink-dev Intent to Experiment — OpaqueRange, May 2026.</span>
+// range now covers the same original text at new positions
+
+// Clean up range tracking when no longer needed
+range.disconnect();</code></pre>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/otEJ9AacRg4/m/XilKgTTIBwAJ" target="_blank" rel="noopener">blink-dev Intent to Ship — OpaqueRange</a>; <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/OpaqueRange/explainer.md" target="_blank" rel="noopener">MSEdge OpaqueRange explainer</a>.</span>
   </section>
 
   <section>
-    <h2>browser support</h2>
+    <h2 id="browser-compatibility">browser support</h2>
+    <div class="table-wrap">
     <table class="doc-table">
       <thead><tr><th>Browser</th><th>Support</th></tr></thead>
-      <tr><td>Chrome 148 – 151 (desktop, Android)</td><td>Origin trial / flag</td></tr>
-      <tr><td>Chrome 152+</td><td>Enabled by default</td></tr>
-      <tr><td>Firefox</td><td>No position</td></tr>
-      <tr><td>Safari</td><td>No position</td></tr>
+      <tr><th>Chrome</th><td>Chrome 152+ (enabled by default; origin trial Chrome 148–151)</td></tr>
+      <tr><th>Edge</th><td>Edge 152+ (origin trial 148–151)</td></tr>
+      <tr><th>Firefox</th><td>Positive signal (<a href="https://github.com/mozilla/standards-positions/issues/1289" target="_blank" rel="noopener">mozilla/standards-positions #1289</a>)</td></tr>
+      <tr><th>Safari</th><td>Support signal (<a href="https://github.com/WebKit/standards-positions/issues/541" target="_blank" rel="noopener">WebKit/standards-positions #541</a>)</td></tr>
     </table>
-    <span class="citation">Source: chromestatus.com feature page, May 2026.</span>
+    </div>
+    <p>Security and privacy: OpaqueRange operates strictly on the value text of form controls that script already has access to. It encapsulates internal control DOM by returning null for startContainer and endContainer, preventing script from inspecting internal Shadow DOM structure of native inputs or textareas.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6297362687066112" target="_blank" rel="noopener">chromestatus.com/feature/6297362687066112</a>.</span>
   </section>
 
   <section>
     <h2>see also</h2>
     <ul>
       <li><a href="https://chromestatus.com/feature/6297362687066112" target="_blank" rel="noopener">chromestatus — OpaqueRange (6297362687066112)</a></li>
+      <li><a href="https://chromestatus.com/api/v0/features/6297362687066112" target="_blank" rel="noopener">ChromeStatus API record 6297362687066112</a></li>
+      <li><a href="https://github.com/whatwg/dom/pull/1404" target="_blank" rel="noopener">whatwg/dom PR #1404 — Add OpaqueRange</a></li>
+      <li><a href="https://github.com/whatwg/html/issues/10614" target="_blank" rel="noopener">whatwg/html #10614 — Proposal for OpaqueRange</a></li>
+      <li><a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/OpaqueRange/explainer.md" target="_blank" rel="noopener">MSEdge OpaqueRange explainer</a></li>
+      <li><a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/otEJ9AacRg4/m/XilKgTTIBwAJ" target="_blank" rel="noopener">blink-dev Intent to Ship: OpaqueRange</a></li>
+      <li><a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/jrIXiBUbQm0" target="_blank" rel="noopener">blink-dev Intent to Experiment: OpaqueRange</a></li>
+      <li><a href="https://github.com/mozilla/standards-positions/issues/1289" target="_blank" rel="noopener">Mozilla standards position #1289</a></li>
+      <li><a href="https://github.com/WebKit/standards-positions/issues/541" target="_blank" rel="noopener">WebKit standards position #541</a></li>
+      <li><a href="https://issues.chromium.org/issues/421421332" target="_blank" rel="noopener">Chromium tracking issue 421421332</a></li>
       <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/CSS_Custom_Highlight_API" target="_blank" rel="noopener">MDN: CSS Custom Highlight API</a></li>
       <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/AbstractRange" target="_blank" rel="noopener">MDN: AbstractRange</a></li>
       <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/opaquerange/" target="_blank" rel="noopener">chrome-platform-showcase — live demo</a></li>

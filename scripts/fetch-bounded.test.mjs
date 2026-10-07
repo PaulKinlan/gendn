@@ -13,10 +13,13 @@
 //     that lie about / omit content-length
 //   - a non-ok status is returned to the caller (fetchBounded does not throw on status; the
 //     caller decides, and server.ts's error handling is the single place that shapes responses)
+//   - a 3xx redirect destination is bounded against an explicit allowlist (gendn-lkj), and
+//     that bound is enforced BEFORE the hop: an off-allowlist destination receives ZERO
+//     requests (gendn-lr61 - the destination hit counter is the discriminating assertion)
 //
 // Run: deno task test-fetch-bounded  (or: deno run scripts/fetch-bounded.test.mjs)
 
-import { fetchBounded, readCapped } from "../lib/chromestatus.ts";
+import { ALLOWED_ORIGINS, fetchBounded, readCapped } from "../lib/chromestatus.ts";
 
 let failures = 0;
 let passed = 0;
@@ -99,6 +102,17 @@ const server = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
     // Declared size above the cap (content-length path).
     return new Response(new Uint8Array(BIG), { headers: { "content-length": String(BIG) } });
   }
+  if (path === "/redirect-other-origin") {
+    return new Response(null, {
+      status: 302,
+      headers: { location: `${destBase}/dest` },
+    });
+  }
+  if (path === "/redirect-no-location") {
+    // gendn-lr61 review coverage: a redirect status with no Location header must throw,
+    // not fall through to the caller as a 3xx.
+    return new Response(null, { status: 302 });
+  }
   if (path === "/liar") {
     // Streaming body that lies about its size (no content-length, chunked), so only the
     // streaming cap can stop it.
@@ -117,8 +131,98 @@ const server = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
       }),
     );
   }
+  if (path === "/redirect-to-echo") {
+    // gendn-lr61 review coverage: CROSS-ORIGIN hop into the header-echo endpoint (the
+    // credential-strip case; run with BOTH loopback origins allowlisted).
+    return new Response(null, {
+      status: 302,
+      headers: { location: `${destBase}/echo-headers` },
+    });
+  }
   return new Response("nope", { status: 404 });
 });
+// Stand-in for an off-allowlist destination origin (distinct port on loopback).
+// gendn-lr61: the destination server counts every request it receives. The
+// off-allowlist assertion below is discriminated by this counter staying at ZERO - a
+// thrown error alone does not prove the destination was never contacted (the old
+// guard threw AFTER following the redirect, having already reached it).
+let destHits = 0;
+const destServer = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
+  const path = new URL(req.url).pathname;
+  if (path === "/dest") {
+    destHits++;
+    return new Response("off-allowlist destination reached", {
+      headers: { "content-type": "text/plain" },
+    });
+  }
+  if (path === "/redirect-relative") {
+    // gendn-lr61 review coverage: a RELATIVE Location must resolve against the current URL.
+    return new Response(null, { status: 302, headers: { location: "dest" } });
+  }
+  if (path === "/redirect-head") {
+    // gendn-lr61 review coverage: HEAD must stay HEAD through a hop.
+    return new Response(null, { status: 302, headers: { location: `${destBase}/dest` } });
+  }
+  if (path === "/redirect-loop") {
+    // gendn-lr61 review coverage: a redirect chain that never terminates must hit the hop
+    // cap, not loop forever. On THIS server (allowlisted for the positive-path block) so
+    // the origin check passes and only the cap can stop it.
+    return new Response(null, {
+      status: 302,
+      headers: { location: `${destBase}/redirect-loop` },
+    });
+  }
+  if (path === "/echo-headers") {
+    // gendn-lr61 review coverage: reports whether credential-bearing headers arrived.
+    return new Response(
+      JSON.stringify({
+        authorization: req.headers.get("authorization"),
+        cookie: req.headers.get("cookie"),
+        accept: req.headers.get("accept"),
+      }),
+      { headers: { "content-type": "application/json" } },
+    );
+  }
+  if (path === "/redirect-echo-same") {
+    // gendn-lr61 review coverage: SAME-ORIGIN control hop into the echo endpoint.
+    return new Response(null, {
+      status: 302,
+      headers: { location: `${destBase}/echo-headers` },
+    });
+  }
+  if (path === "/redirect-304") {
+    // gendn-lr61 review coverage: 304 is NOT a redirect status here - it must fall through
+    // to the caller, Location header or not.
+    return new Response(null, {
+      status: 304,
+      headers: { location: `${destBase}/dest` },
+    });
+  }
+  if (path === "/slow-redirect-1" || path === "/slow-redirect-2") {
+    // gendn-lr61 review coverage: two ~350ms hops under a 500ms budget - the whole CHAIN
+    // shares one timeout, so this must abort; a per-hop budget would complete (~700ms).
+    return new Promise((resolve) => {
+      setTimeout(
+        () =>
+          resolve(
+            new Response(null, {
+              status: 302,
+              headers: {
+                location: path === "/slow-redirect-1"
+                  ? `${destBase}/slow-redirect-2`
+                  : `${destBase}/dest`,
+              },
+            }),
+          ),
+        350,
+      );
+    });
+  }
+  return new Response("nope", { status: 404 });
+});
+const destBase = `http://127.0.0.1:${destServer.addr.port}`;
+const destOrigin = new URL(destBase).origin;
+
 const base = `http://127.0.0.1:${server.addr.port}`;
 
 const timed = async (label, fn) => {
@@ -229,6 +333,202 @@ try {
   // 7. readCapped works standalone too (server.ts uses fetchBounded; this pins the primitive)
   const direct = await timed("readCapped", () => readCapped(new Response("abc"), 1024));
   assert("readCapped returns the body under the cap", direct.ok && direct.value === "abc");
+
+  // 8. redirect destination is bounded: following a 3xx to an off-allowlist origin is refused
+  // (gendn-lkj; THREAT_MODEL.md invariant #7).
+  const redir = await timed(
+    "redirect-off-allowlist",
+    () => fetchBounded(`${base}/redirect-other-origin`, { timeoutMs: 5000 }),
+  );
+  assert(
+    "redirect to off-allowlist origin is refused",
+    !redir.ok && /fetchBounded: redirected off-allowlist to/.test(String(redir.err?.message)),
+    `rejected: ${redir.err?.message}`,
+  );
+  assert(
+    "gendn-lr61: the off-allowlist destination received ZERO requests (validated before the hop, not after)",
+    destHits === 0,
+    `destHits: ${destHits}`,
+  );
+  const noLoc = await timed(
+    "redirect-no-location",
+    () => fetchBounded(`${base}/redirect-no-location`, { timeoutMs: 5000 }),
+  );
+  assert(
+    "gendn-lr61: a redirect status without a Location header throws",
+    !noLoc.ok && /without a Location header/.test(String(noLoc.err?.message)),
+    `rejected: ${noLoc.err?.message}`,
+  );
+
+  // 8b. positive path: when the destination origin is in ALLOWED_ORIGINS, following succeeds
+  ALLOWED_ORIGINS.add(destOrigin);
+  const sourceOrigin = new URL(base).origin;
+  ALLOWED_ORIGINS.add(sourceOrigin); // for the cross-origin credential case only
+  try {
+    const allowedRedir = await timed(
+      "redirect-allowlist-positive",
+      () => fetchBounded(`${base}/redirect-other-origin`, { timeoutMs: 5000 }),
+    );
+    assert(
+      "redirect to allowlisted origin succeeds and returns body",
+      allowedRedir.ok && allowedRedir.value?.text === "off-allowlist destination reached",
+      `status=${allowedRedir.value?.res?.status}`,
+    );
+    assert(
+      "gendn-lr61: an allowlisted redirect IS followed (the destination was reached exactly once)",
+      destHits === 1,
+      `destHits: ${destHits}`,
+    );
+    const before = destHits;
+    const rel = await timed(
+      "redirect-relative",
+      () => fetchBounded(`${destBase}/redirect-relative`, { timeoutMs: 5000 }),
+    );
+    assert(
+      "gendn-lr61: a RELATIVE Location resolves against the current URL and is followed",
+      rel.ok && rel.value?.text === "off-allowlist destination reached",
+      `text=${rel.value?.text ?? rel.err?.message}`,
+    );
+    const head = await timed(
+      "redirect-head",
+      () => fetchBounded(`${destBase}/redirect-head`, { timeoutMs: 5000, method: "HEAD" }),
+    );
+    assert(
+      "gendn-lr61: HEAD stays HEAD through a hop (final status 200 AND empty body - a silently-downgraded GET would return the body)",
+      head.ok && head.value?.res?.status === 200 && head.value?.text === "",
+      `status=${head.value?.res?.status}; text=${
+        JSON.stringify(head.value?.text ?? head.err?.message)
+      }`,
+    );
+    assert(
+      "gendn-lr61 review: positive-path hops reached the destination exactly twice more",
+      destHits === before + 2,
+      `destHits delta: ${destHits - before}`,
+    );
+    const loop = await timed(
+      "redirect-loop",
+      () => fetchBounded(`${destBase}/redirect-loop`, { timeoutMs: 5000 }),
+    );
+    assert(
+      "gendn-lr61: an allowlisted self-redirecting chain hits the hop cap",
+      !loop.ok && /exceeded 5 redirect hops/.test(String(loop.err?.message)),
+      `rejected: ${loop.err?.message}`,
+    );
+
+    // ---- gendn-lr61 review round-2 coverage: fixes 1-3 get their own fixtures ----
+    // (a) 304 + Location falls through to the caller (NOT followed - not in the spec set)
+    const destHitsBefore304 = destHits;
+    const notMod = await timed(
+      "redirect-304",
+      () => fetchBounded(`${destBase}/redirect-304`, { timeoutMs: 5000 }),
+    );
+    assert(
+      "gendn-lr61: a 304 with a Location header is returned to the caller, never followed",
+      notMod.ok && notMod.value?.res?.status === 304 && destHits === destHitsBefore304,
+      `status=${notMod.value?.res?.status}; destHits delta ${destHits - destHitsBefore304}`,
+    );
+    // (b) the timeout budget is per CHAIN: two ~350ms hops under a 500ms budget abort; a
+    // per-hop budget would complete at ~700ms
+    const slowChain = await timed(
+      "slow-redirect-chain",
+      () => fetchBounded(`${destBase}/slow-redirect-1`, { timeoutMs: 500 }),
+    );
+    assert(
+      "gendn-lr61: the timeout budget spans the whole chain (aborted mid-hop-2, not per-hop)",
+      !slowChain.ok && /aborted|timed? ?out/i.test(String(slowChain.err?.message)),
+      `rejected after ${slowChain.ms}ms: ${slowChain.err?.message}`,
+    );
+    // (c) credential strip: CROSS-ORIGIN hop drops authorization/cookie; SAME-ORIGIN keeps
+    const credHeaders = {
+      authorization: "Bearer sekrit",
+      cookie: "session=1",
+      accept: "application/json",
+    };
+    const crossEcho = await timed(
+      "echo-cross-origin",
+      () => fetchBounded(`${base}/redirect-to-echo`, { timeoutMs: 5000, headers: credHeaders }),
+    );
+    const cross = crossEcho.ok ? JSON.parse(crossEcho.value.text) : {};
+    assert(
+      "gendn-lr61: a CROSS-ORIGIN hop strips authorization and cookie (auto-follow parity)",
+      crossEcho.ok && cross.authorization === null && cross.cookie === null,
+      `authorization=${cross.authorization}; cookie=${cross.cookie}`,
+    );
+    const sameEcho = await timed(
+      "echo-same-origin",
+      () =>
+        fetchBounded(`${destBase}/redirect-echo-same`, { timeoutMs: 5000, headers: credHeaders }),
+    );
+    const same = sameEcho.ok ? JSON.parse(sameEcho.value.text) : {};
+    assert(
+      "gendn-lr61: a SAME-ORIGIN hop preserves authorization and cookie, and accept survives both",
+      sameEcho.ok && same.authorization === "Bearer sekrit" && same.cookie === "session=1" &&
+        cross.accept === "application/json",
+      `authorization=${same.authorization}; accept(cross)=${cross.accept}`,
+    );
+  } finally {
+    ALLOWED_ORIGINS.delete(destOrigin);
+    ALLOWED_ORIGINS.delete(sourceOrigin);
+  }
+
+  // 8c. ALLOWED_ORIGINS contains all canonical caller origins across the repo
+  assert(
+    "ALLOWED_ORIGINS includes the vendor-fonts caller origin https://fonts.googleapis.com",
+    ALLOWED_ORIGINS.has("https://fonts.googleapis.com"),
+  );
+  assert(
+    "ALLOWED_ORIGINS contains exactly chromestatus, github, mdn, and google fonts",
+    ALLOWED_ORIGINS.has("https://chromestatus.com") &&
+      ALLOWED_ORIGINS.has("https://api.github.com") &&
+      ALLOWED_ORIGINS.has("https://developer.mozilla.org") &&
+      ALLOWED_ORIGINS.has("https://fonts.googleapis.com") &&
+      ALLOWED_ORIGINS.size === 4,
+    `size=${ALLOWED_ORIGINS.size}`,
+  );
+
+  // 8d. a redirect to each allowlisted origin (including fonts.googleapis.com) is allowed (passes),
+  // while an off-allowlist redirect still throws.
+  const origFetch = globalThis.fetch;
+  try {
+    for (const origin of ALLOWED_ORIGINS) {
+      globalThis.fetch = async () => {
+        const resp = new Response(`content from ${origin}`, { status: 200 });
+        Object.defineProperty(resp, "redirected", { value: true });
+        Object.defineProperty(resp, "url", { value: `${origin}/endpoint` });
+        return resp;
+      };
+      const allowed = await timed(
+        `redirect-to-${origin}`,
+        () => fetchBounded("http://127.0.0.1:0/mock-redirect", { timeoutMs: 1000 }),
+      );
+      assert(
+        `redirect to allowlisted origin ${origin} is allowed (passes)`,
+        allowed.ok && allowed.value?.text === `content from ${origin}`,
+        `${allowed.err?.message}`,
+      );
+    }
+
+    globalThis.fetch = async () => {
+      const resp = new Response("evil", { status: 200 });
+      Object.defineProperty(resp, "redirected", { value: true });
+      Object.defineProperty(resp, "url", { value: "https://evil.example.com/exploit" });
+      return resp;
+    };
+    const offMock = await timed(
+      "redirect-mock-off-allowlist",
+      () => fetchBounded("http://127.0.0.1:0/mock-redirect", { timeoutMs: 1000 }),
+    );
+    assert(
+      "redirect to off-allowlist origin throws (simulated)",
+      !offMock.ok &&
+        /fetchBounded: redirected off-allowlist to https:\/\/evil\.example\.com/.test(
+          String(offMock.err?.message),
+        ),
+      `rejected: ${offMock.err?.message}`,
+    );
+  } finally {
+    globalThis.fetch = origFetch;
+  }
 } finally {
   // Drain every cleanup, each wrapped so one failure cannot skip the rest.
   for (const cleanup of hangCleanups) {
@@ -240,6 +540,11 @@ try {
   }
   try {
     await server.shutdown();
+  } catch {
+    // ignore
+  }
+  try {
+    await destServer.shutdown();
   } catch {
     // ignore
   }

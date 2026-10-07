@@ -6,7 +6,9 @@ function assert(condition, message) {
 }
 
 const sourceUrl = "https://example.com/reference-browser-spec";
-const milestone = "v2147483647";
+// gendn-sxn: milestonePathSegment bounds Chrome milestones to 1..9999 (/^[1-9][0-9]{0,3}$/);
+// extreme-value v2147483647 is rejected as invalid by server.ts. Use valid high milestone v9998.
+const milestone = "v9998";
 const nonce = crypto.randomUUID().slice(0, 8);
 const ids = [
   `${milestone}/reference-browser-visible-${nonce}`,

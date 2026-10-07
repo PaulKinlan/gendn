@@ -14,12 +14,14 @@
 //   1. a baseline published id is MISSING from current (deleted or renamed), and not covered by a
 //      migration record;
 //   2. a baseline "built" route no longer resolves (its `v<N>/<slug>/index.html` page file is gone);
-//   3. a baseline id's IDENTITY changed (its chromestatus feature id now differs — the slug was
-//      repurposed to a different feature), and not covered by an identity-change migration;
-//   4. a baseline "stub" id (gendn's analogue of an honestly-recorded `blocked` entry — an
+//   3. a baseline id's IDENTITY changed or became null (its chromestatus feature id now differs or
+//      was removed — slug repurposed or identity lost), and not covered by an identity-change migration;
+//   4. a baseline id's DEMO identity changed or became null (its showcase demo link now differs or
+//      was removed — demo repointed or lost), and not covered by a demo-change migration;
+//   5. a baseline "stub" id (gendn's analogue of an honestly-recorded `blocked` entry — an
 //      MDN-covered redirect) was DELETED (stubs must stay recorded);
-//   5. a stable member/protocol route declared by a baseline reference contract disappeared;
-//   6. the published count DROPPED vs baseline and the difference is not covered by migrations.
+//   6. a stable member/protocol route declared by a baseline reference contract disappeared;
+//   7. the published count DROPPED vs baseline and the difference is not covered by migrations.
 //
 // PASS for: additive new ids, honest new stubs, in-place fixes that keep the same id + identity +
 // live route, and any change explicitly listed in migrations.json.
@@ -94,16 +96,36 @@ async function headContainsBaseline(commit) {
   }
 }
 
-async function loadMigrations() {
-  try {
-    const raw = await Deno.readTextFile(MIGRATIONS);
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) throw new Error("migrations.json must be an array");
-    return parsed;
-  } catch (err) {
-    if (err instanceof Deno.errors.NotFound) return [];
-    throw err;
+export function validateMigrationRecord(m) {
+  if ((m.action === "move" || m.action === "alias") && m.from) {
+    if (!m.from.endsWith("/")) {
+      throw new Error(
+        `migration ${
+          m.id ?? "(unknown)"
+        }: action "${m.action}" from "${m.from}" must end in '/' (path boundary invariant; non-slash prefix matches unrelated routes)`,
+      );
+    }
   }
+}
+
+export async function loadMigrations(source = MIGRATIONS) {
+  let parsed;
+  if (Array.isArray(source)) {
+    parsed = source;
+  } else {
+    try {
+      const raw = await Deno.readTextFile(source);
+      parsed = JSON.parse(raw);
+    } catch (err) {
+      if (err instanceof Deno.errors.NotFound) return [];
+      throw err;
+    }
+  }
+  if (!Array.isArray(parsed)) throw new Error("migrations.json must be an array");
+  for (const m of parsed) {
+    validateMigrationRecord(m);
+  }
+  return parsed;
 }
 
 async function fileExists(path) {
@@ -154,6 +176,16 @@ export async function evaluateRouteContract(
   const failures = [];
   const migrated = [];
 
+  for (const m of migrations) {
+    if ((m.action === "move" || m.action === "alias") && m.from && !m.from.endsWith("/")) {
+      failures.push(
+        `migration ${
+          m.id ?? "(unknown)"
+        }: action "${m.action}" from "${m.from}" must end in '/' (path boundary invariant; non-slash prefix matches unrelated routes)`,
+      );
+    }
+  }
+
   // Conditions 1-4, per baseline entry.
   for (const b of baseline) {
     const c = currById.get(b.id);
@@ -186,13 +218,49 @@ export async function evaluateRouteContract(
       }
     }
 
-    // Condition 3: identity changed (slug repurposed to a different feature).
-    if (b.identity && c.identity && b.identity !== c.identity) {
+    // Condition 3: identity changed (slug repurposed to a different feature) or removed.
+    if (b.identity && !c.identity) {
+      if (migrationCovers(migrations, b.id, "identity-change")) {
+        migrated.push(`${b.id} (identity change via migration: ${b.identity} -> null)`);
+      } else {
+        failures.push(
+          `missing identity for published route ${b.id}: feature ${b.identity} was removed` +
+            `${where}${driftNote}`,
+        );
+      }
+    } else if (b.identity && c.identity && b.identity !== c.identity) {
       if (migrationCovers(migrations, b.id, "identity-change")) {
         migrated.push(`${b.id} (identity change via migration: ${b.identity} -> ${c.identity})`);
       } else {
         failures.push(
           `identity changed for ${b.id}: feature ${b.identity} -> ${c.identity} (slug repurposed)` +
+            `${where}${driftNote}`,
+        );
+      }
+    }
+
+    // Condition 4: demo link changed (repointed to a different showcase route) or removed.
+    if (b.demo && !c.demo) {
+      if (
+        migrationCovers(migrations, b.id, "demo-change") ||
+        migrationCovers(migrations, b.id, "identity-change")
+      ) {
+        migrated.push(`${b.id} (demo link change via migration: ${b.demo} -> null)`);
+      } else {
+        failures.push(
+          `missing demo link for published route ${b.id}: showcase demo ${b.demo} was removed` +
+            `${where}${driftNote}`,
+        );
+      }
+    } else if (b.demo && c.demo && b.demo !== c.demo) {
+      if (
+        migrationCovers(migrations, b.id, "demo-change") ||
+        migrationCovers(migrations, b.id, "identity-change")
+      ) {
+        migrated.push(`${b.id} (demo link change via migration: ${b.demo} -> ${c.demo})`);
+      } else {
+        failures.push(
+          `demo link changed for ${b.id}: showcase demo ${b.demo} -> ${c.demo} (repointed)` +
             `${where}${driftNote}`,
         );
       }
@@ -337,7 +405,7 @@ async function main() {
     for (const f of failures) console.error(`  - ${f}`);
     console.error(
       "\nAdditive changes, honest stubs, and same-id in-place fixes are allowed. Any removal, " +
-        "rename, route move, or identity change needs a reviewed record in migrations.json.",
+        "rename, route move, identity change, or demo link change needs a reviewed record in migrations.json.",
     );
     Deno.exit(1);
   }

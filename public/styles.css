@@ -166,26 +166,116 @@
 /* --- END vendored @font-face --- */
 
 :root {
-  /* Palette */
-  --bg-ivory: #fdfcf8;
-  --bg-stone: #f4f3ee;
-  --bg-paper: #ffffff;
+  /* Palette — theme-aware (gendn-u2oo, modern-web-guidance `dark-mode`).
+     Structure per the guide: raw LIGHT/DARK pairs, then semantic tokens with a
+     prefers-color-scheme fallback (same dark values, for browsers without light-dark()),
+     then an @supports upgrade to light-dark() (which also honors any manual
+     color-scheme override), and color-scheme: light dark so native UI (scrollbars, form
+     controls, the canvas) follows the user's preference.
+     Dark values keep the editorial ivory-paper character — warm near-blacks, ink inverted
+     to warm off-white — with contrast audited in-browser (SC 1.4.3 4.5:1 text, 1.4.11 3:1
+     borders; evidence on the bead). */
+  --bg-ivory-light: #fdfcf8;
+  --bg-ivory-dark: #131210;
+  --bg-stone-light: #f4f3ee;
+  --bg-stone-dark: #1f1d19;
+  --bg-paper-light: #ffffff;
+  --bg-paper-dark: #191813;
 
-  --text-black: #000000;
-  --text-charcoal: #2d2d2d;
-  --text-muted: #666666;
-  --border-black: #000000;
+  --text-black-light: #000000;
+  --text-black-dark: #f4f1e8;
+  --text-charcoal-light: #2d2d2d;
+  --text-charcoal-dark: #c9c5ba;
+  --text-muted-light: #666666;
+  --text-muted-dark: #a29c8e;
 
-  --accent-blue: #0022ff;
-  --accent-emerald: #0a8f5c;
-  --accent-rose: #d11a2a;
-  --accent-amber: #b87b00;
+  --border-black-light: #000000;
+  --border-black-dark: #e8e4da;
 
+  --accent-blue-light: #0022ff;
+  --accent-blue-dark: #8f9dff;
+  --accent-emerald-light: #0a8f5c;
+  --accent-emerald-dark: #57d99c;
+  --accent-rose-light: #d11a2a;
+  --accent-rose-dark: #ff7a82;
+  --accent-amber-light: #b87b00;
+  --accent-amber-dark: #ffc554;
+
+  /* Semantic tokens: light by default (also the non-dark-preference answer) */
+  --bg-ivory: var(--bg-ivory-light);
+  --bg-stone: var(--bg-stone-light);
+  --bg-paper: var(--bg-paper-light);
+
+  --text-black: var(--text-black-light);
+  --text-charcoal: var(--text-charcoal-light);
+  --text-muted: var(--text-muted-light);
+  --border-black: var(--border-black-light);
+
+  --accent-blue: var(--accent-blue-light);
+  --accent-emerald: var(--accent-emerald-light);
+  --accent-rose: var(--accent-rose-light);
+  --accent-amber: var(--accent-amber-light);
+
+  /* Automatically adapt native UI to the user's system preference */
+  color-scheme: light dark;
+}
+
+/* Fallback for browsers without light-dark(): the SAME dark values via media query
+   (the guide's mandatory fallback shape). Browsers that DO support light-dark() get the
+   @supports upgrade below, which additionally honors any manual color-scheme override.
+   TODO(baseline/light-dark): Remove this media-query fallback and the @supports wrapper;
+   assign the semantic tokens with light-dark() directly in :root. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-ivory: var(--bg-ivory-dark);
+    --bg-stone: var(--bg-stone-dark);
+    --bg-paper: var(--bg-paper-dark);
+    --text-black: var(--text-black-dark);
+    --text-charcoal: var(--text-charcoal-dark);
+    --text-muted: var(--text-muted-dark);
+    --border-black: var(--border-black-dark);
+    --accent-blue: var(--accent-blue-dark);
+    --accent-emerald: var(--accent-emerald-dark);
+    --accent-rose: var(--accent-rose-dark);
+    --accent-amber: var(--accent-amber-dark);
+  }
+}
+
+@supports (color: light-dark(white, black)) {
+  :root {
+    --bg-ivory: light-dark(var(--bg-ivory-light), var(--bg-ivory-dark));
+    --bg-stone: light-dark(var(--bg-stone-light), var(--bg-stone-dark));
+    --bg-paper: light-dark(var(--bg-paper-light), var(--bg-paper-dark));
+    --text-black: light-dark(var(--text-black-light), var(--text-black-dark));
+    --text-charcoal: light-dark(var(--text-charcoal-light), var(--text-charcoal-dark));
+    --text-muted: light-dark(var(--text-muted-light), var(--text-muted-dark));
+    --border-black: light-dark(var(--border-black-light), var(--border-black-dark));
+    --accent-blue: light-dark(var(--accent-blue-light), var(--accent-blue-dark));
+    --accent-emerald: light-dark(var(--accent-emerald-light), var(--accent-emerald-dark));
+    --accent-rose: light-dark(var(--accent-rose-light), var(--accent-rose-dark));
+    --accent-amber: light-dark(var(--accent-amber-light), var(--accent-amber-dark));
+  }
+}
+
+:root {
   /* Typography */
   --font-serif: "Lora", Georgia, "Times New Roman", serif;
   --font-display: "Joan", Georgia, serif;
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* font-size-adjust aspect values — MEASURED at float precision, not quoted (gendn-2tx): a
+     1ex probe at font-size:100px in headless Chrome against the exact vendored faces above,
+     read via getBoundingClientRect after document.fonts.ready — Lora 400 = 50.000px (0.5),
+     Joan 400 = 45.594px (0.456), JetBrains Mono 400 = 55.000px (0.55). An integer-rounded
+     first measurement read Joan as 0.46 and inflated every heading ~0.9% — the values below
+     are the float measurements. (The serif fallback measures 0.46 against Lora's 0.5: the
+     swap-window shift is real.) Applied on the CONSUMING rules below, never inside the
+     generated @font-face block, and deliberately NOT `from-font`: during the swap window the
+     first available font is the fallback, so from-font would size to the fallback and
+     re-introduce the shift this prevents. */
+  --adjust-serif: 0.5; /* Lora */
+  --adjust-display: 0.456; /* Joan */
+  --adjust-mono: 0.55; /* JetBrains Mono */
 
   /* Editorial shadows (hard, offset, no blur) */
   --flat-shadow: 4px 4px 0px var(--border-black);
@@ -228,10 +318,76 @@ main {
   padding: var(--space-7) var(--space-5) var(--space-8);
 }
 
+/* Horizontal-overflow guard (gendn-z5w, same defect as gendn-uce). Two measured sources of
+   overflow at narrow widths: long unbreakable tokens (API names, identifiers) and wide data
+   tables. `min-inline-size: 0` lets flex and grid children shrink rather than forcing the page
+   wide; the wrap rule keeps inline code and cell text from setting the page's width - the
+   harness measured that td/th/links inside cells, not just code inside them, were the actual
+   overflow on two real pages.
+   HOW THE TABLE RULE ACTUALLY WORKS, stated precisely because an earlier version of this
+   comment claimed otherwise: most existing tables are `<table class="doc-table">` with NO
+   `.table-wrap` around them, so for those pages it is `td, th { overflow-wrap: anywhere }` -
+   not a scroller - that stops the table forcing the viewport wide. `.table-wrap` is the
+   scroll container for the tables that DO have one, and this rule gives it the behaviour those
+   wrappers previously got from per-page inline styles.
+   The trade-off is deliberate and worth naming: `overflow-wrap: anywhere` can break a long word
+   mid-token inside a narrow table cell (an identifier or a ChromeStatus id), which is poorer
+   typography than a scrollbar. It is still the right default here because the alternative on an
+   unwrapped table is text clipped invisibly by `body { overflow-x: hidden }` - a reader can see
+   a broken word, but cannot see a missing column. `table-layout: fixed` and `hyphens: auto` are
+   NOT used corpus-wide, since both would silently change existing line breaking and text flow.
+   The 158 page-scoped inline copies of a narrower version of this fix are now redundant rather
+   than wrong; consolidating them is a separate change so it cannot confound this one's
+   re-validation.
+   Residual measured after that fix (gendn-9nf): five more selectors, four of them coverage gaps
+   in this same list and one a genuinely new component class. `h2` is the `h1` rule that was
+   never mirrored - a long identifier in a level-2 heading painted past its box on one page.
+   `h3 code` and `li var` extend the code-token cases this list already covers for `p`/`li` to
+   the heading and the `<var>` identifier tag (on three of the failing routes: four overflowing
+   `h3` code tokens and one `li` var token). `li a` is the same long-link mechanism already
+   accepted for `td a, th a`, applied to plain list links. The one new component is `.mdn-card`:
+   the page-scoped MDN card (50 pages - 40 with a descendant title link, 10 where the anchor is
+   the card) sits outside any cell, and none of those pages' inline styles set
+   overflow-wrap/word-break on the card link, so the global rule applies without conflict. Each
+   breaks a token only when it alone exceeds its line box - the same mid-token trade-off the
+   `p code`/`td` rules already accept. */
+main {
+  min-inline-size: 0;
+}
+h1,
+h2,
+.lede {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+p code,
+li code,
+h3 code,
+li var,
+td,
+th,
+td a,
+th a,
+li a,
+a.mdn-card,
+.mdn-card a {
+  overflow-wrap: anywhere;
+}
+.table-wrap {
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-gutter: stable;
+}
+/* Component layout fix (gendn-d83): wrap the button row on narrow viewports to prevent overflow. */
+.demo-focusgroup {
+  flex-wrap: wrap;
+}
+
 /* ----- Type ----- */
 
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-display);
+  font-size-adjust: var(--adjust-display);
   font-weight: 400;
   color: var(--text-black);
   line-height: 1.2;
@@ -254,6 +410,7 @@ h3 {
   font-size: 1.3rem;
   margin: var(--space-5) 0 var(--space-3);
   font-family: var(--font-display);
+  font-size-adjust: var(--adjust-display);
 }
 
 /* Text wrapping (gendn-d7a): balance headings (orphaned last words at clamp() sizes on long
@@ -271,6 +428,7 @@ h1, h3, h4, h5, h6 {
 
 p {
   font-family: var(--font-serif);
+  font-size-adjust: var(--adjust-serif);
   font-size: 1.1rem;
   color: var(--text-charcoal);
   margin: 0 0 var(--space-4);
@@ -289,15 +447,15 @@ a:hover { color: var(--text-black); }
  * this overrides it consistently with the existing accent token. Modern-web-guidance
  * (accessibility guide, "Visible Focus Indicators"): always style :focus-visible states
  * explicitly; overrides must keep sufficient contrast. MEASURED contrast for --accent-blue
- * (#0022ff) against each background this ring is drawn on — 7.86:1 on #ffffff (--bg-paper),
- * 7.65:1 on #fdfcf8 (--bg-ivory), 7.07:1 on #f4f3ee (--bg-stone) — all above WCAG 2.1
+ * against paper/ivory/stone: light (#0022ff) 7.86:1 / 7.65:1 / 7.07:1;
+ * dark (#8f9dff) 7.14:1 / 7.52:1 / 6.76:1 — all above WCAG 2.1
  * SC 1.4.11 non-text contrast (3:1) and SC 1.4.3 text contrast (4.5:1). */
 :focus-visible {
   outline: 2px solid var(--accent-blue);
   outline-offset: 2px;
 }
 
-code, pre { font-family: var(--font-mono); font-size: 0.9rem; }
+code, pre { font-family: var(--font-mono); font-size-adjust: var(--adjust-mono); font-size: 0.9rem; }
 code {
   background-color: var(--bg-stone);
   border: 1px solid var(--border-black);
@@ -320,6 +478,7 @@ pre code { background: transparent; border: none; padding: 0; }
 .lede-block { margin-bottom: var(--space-7); }
 .eyebrow {
   font-family: var(--font-mono);
+  font-size-adjust: var(--adjust-mono);
   display: inline-block;
   font-size: 0.78rem;
   font-weight: 500;
@@ -332,6 +491,7 @@ pre code { background: transparent; border: none; padding: 0; }
 }
 .lede {
   font-family: var(--font-serif);
+  font-size-adjust: var(--adjust-serif);
   font-style: italic;
   font-size: 1.2rem;
   color: var(--text-charcoal);
@@ -342,6 +502,7 @@ pre code { background: transparent; border: none; padding: 0; }
 
 .crumbs {
   font-family: var(--font-mono);
+  font-size-adjust: var(--adjust-mono);
   font-size: 0.8rem;
   color: var(--text-muted);
   margin-bottom: var(--space-5);
@@ -370,7 +531,7 @@ pre code { background: transparent; border: none; padding: 0; }
   min-inline-size: 0;
   transition: var(--transition);
 }
-.release-card:hover,
+.release-card:not(:has([aria-disabled="true"])):hover,
 .demo-card:hover {
   transform: translate(-2px, -2px);
   box-shadow: var(--flat-shadow-hover);
@@ -380,7 +541,7 @@ pre code { background: transparent; border: none; padding: 0; }
   text-decoration: none;
   color: var(--text-black);
 }
-.release-card-link:hover { color: var(--accent-blue); }
+.release-card-link:not([aria-disabled="true"]):hover { color: var(--accent-blue); }
 .release-card-row {
   display: flex;
   align-items: baseline;
@@ -389,10 +550,12 @@ pre code { background: transparent; border: none; padding: 0; }
 }
 .release-label {
   font-family: var(--font-display);
+  font-size-adjust: var(--adjust-display);
   font-size: 1.5rem;
 }
 .release-status {
   font-family: var(--font-mono);
+  font-size-adjust: var(--adjust-mono);
   font-size: 0.7rem;
   font-weight: 500;
   letter-spacing: 0.06em;
@@ -404,6 +567,7 @@ pre code { background: transparent; border: none; padding: 0; }
 .release-note {
   display: block;
   font-family: var(--font-mono);
+  font-size-adjust: var(--adjust-mono);
   color: var(--text-muted);
   margin: var(--space-3) 0 0;
   font-size: 0.78rem;
@@ -411,6 +575,7 @@ pre code { background: transparent; border: none; padding: 0; }
 
 .updated-line {
   font-family: var(--font-mono);
+  font-size-adjust: var(--adjust-mono);
   font-size: 0.78rem;
   color: var(--text-muted);
   margin: calc(-1 * var(--space-3)) 0 var(--space-5);
@@ -429,6 +594,7 @@ pre code { background: transparent; border: none; padding: 0; }
 .demo-card h3 {
   margin: 0 0 var(--space-3);
   font-family: var(--font-display);
+  font-size-adjust: var(--adjust-display);
   font-size: 1.15rem;
   line-height: 1.25;
 }
@@ -441,6 +607,7 @@ pre code { background: transparent; border: none; padding: 0; }
 .demo-card h3 a:hover { color: var(--accent-blue); }
 .demo-card p {
   font-family: var(--font-serif);
+  font-size-adjust: var(--adjust-serif);
   font-size: 0.95rem;
   line-height: 1.5;
   color: var(--text-charcoal);
@@ -455,6 +622,7 @@ pre code { background: transparent; border: none; padding: 0; }
 }
 .demo-card .tag {
   font-family: var(--font-mono);
+  font-size-adjust: var(--adjust-mono);
   font-size: 0.7rem;
   font-weight: 500;
   letter-spacing: 0.06em;
@@ -485,6 +653,7 @@ pre code { background: transparent; border: none; padding: 0; }
 
 .group-title {
   font-family: var(--font-mono);
+  font-size-adjust: var(--adjust-mono);
   font-size: 0.78rem;
   font-weight: 500;
   letter-spacing: 0.1em;
@@ -507,18 +676,21 @@ pre code { background: transparent; border: none; padding: 0; }
 .how ol {
   padding-left: 1.4rem;
   font-family: var(--font-serif);
+  font-size-adjust: var(--adjust-serif);
   color: var(--text-charcoal);
   font-size: 1.05rem;
 }
 .how li { margin-bottom: var(--space-2); }
 .how .note {
   font-family: var(--font-mono);
+  font-size-adjust: var(--adjust-mono);
   color: var(--text-muted);
   font-size: 0.85rem;
   margin-top: var(--space-4);
 }
 .note {
   font-family: var(--font-mono);
+  font-size-adjust: var(--adjust-mono);
   color: var(--text-muted);
   font-size: 0.85rem;
 }
@@ -573,6 +745,7 @@ button:active, .btn:active {
   padding-top: var(--space-5);
   border-top: 1px solid var(--border-black);
   font-family: var(--font-mono);
+  font-size-adjust: var(--adjust-mono);
   color: var(--text-muted);
   font-size: 0.82rem;
   text-align: center;

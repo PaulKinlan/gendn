@@ -28,7 +28,7 @@ silently complete.
 
 | Dimension | Required content |
 |---|---|
-| `syntax` | Exact call, grammar, header syntax, or algorithm entry point. Must be documented. |
+| `syntax` | Exact call, grammar, header syntax, or algorithm entry point. Must be documented — or `not-applicable` (with the sourced rationale + rendered fragment) when the change ships nothing declarable at all (removal-only, runtime-mechanism, "API change: None"). A page that documents an EXISTING call form, attribute values or member-enumeration table (e.g. a JS API's interface table) is `documented`, not `not-applicable`: the dimension requires the page to document the item's declaration surface, not to introduce a new grammar. |
 | `inputs` | Parameters, fields, accepted types/values, defaults, constraints, and validation. |
 | `outputs` | Return values, response fields, observable effects, and settlement behavior. |
 | `errors` | Exceptions, rejection/status paths, malformed input, and recovery behavior. |

@@ -18,7 +18,8 @@
 // re-derived from that log's phase (never a constant carried over from a previous landing):
 //
 //   phase         recognised by                                                    owes
-//   run-all       its completion summary `run-all: <n> suites …`                   exactly 1
+//   run-all       full `run-all: <n> suites · assertions …` OR scoped             exactly 1
+//                 `run-all: <n> suite(s) scanned (merged into …)`
 //   responsive    its completion summary `responsive-check: <n> pages scanned …`   exactly 1
 //   behavioural   no completion summary, PLUS probe-initiation evidence (the         exactly 0
 //                 harness banner `Task <name> … scripts/conformance.mjs`), PLUS an
@@ -55,7 +56,7 @@
 //     it: the evidence cannot be produced by a run that merely died.
 //
 // A COMPLETED single-suite run (`deno task conformance --page <id>`, the landing gate's behavioural
-// accumulation runs) takes the run-all arm and prints `run-all: 1 suites …`, so it is a run-all
+// accumulation runs) takes the run-all arm and prints `run-all: 1 suite(s) scanned (merged into …)`, so it is a run-all
 // phase log and owes exactly 1 (measured in the gendn-jeq landing logs). Only the SIGKILLed probe
 // log has no summary and owes 0.
 //
@@ -106,8 +107,11 @@ export function emittedVerdictLines(logText) {
 // order the CLI documents (run-all|responsive|behavioural).
 const PHASES = {
   "run-all": {
-    summary: /^run-all: \d+ suites\b/m,
-    shape: "run-all: <n> suites",
+    // Both exact producer forms: a --page/--limit run reports the scan count AND the merged
+    // report size. Do not accept a truncated or merely similar line as a completed run.
+    summary:
+      /^run-all: \d+ (?:suites · assertions \d+ pass \/ \d+ fail \/ \d+ blocked \(of \d+\)|suite\(s\) scanned \(merged into reports\/conformance\/results\.json; report now \d+ suites\))$/m,
+    shape: "run-all: <n> suites · assertions … or run-all: <n> suite(s) scanned (merged into …)",
     command: "deno task conformance [--page <id>]",
   },
   responsive: {

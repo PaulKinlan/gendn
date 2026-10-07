@@ -367,7 +367,9 @@ Candidate MDN URLs:
 - **HTML element**: `https://developer.mozilla.org/en-US/docs/Web/HTML/Element/<tag>`.
 - **HTTP**: `https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/<HeaderName>`.
 
-HEAD each. 200 = present, anything else = absent. Also:
+HEAD each. Three outcomes: 200 = present, 404 = missing, anything else (timeout, transport error,
+5xx, 429) = unknown. A transport failure is UNKNOWN, never a definitive absent — do not conclude
+absence from a failed check. Also:
 
 ```bash
 curl -s "https://developer.mozilla.org/api/v1/search?q=<urlencoded listing name>&locale=en-US" > /tmp/mdn-search.json
@@ -375,7 +377,7 @@ curl -s "https://developer.mozilla.org/api/v1/search?q=<urlencoded listing name>
 
 If a search hit's `url` starts with `/en-US/docs/Web/` and matches the feature, that's the MDN page.
 If MDN coverage is real (has Specifications + Browser compat sections), treat as covered. If
-unclear, prefer to generate a gendn page.
+unclear or unknown, prefer to generate a gendn page (never mis-redirect on ambiguous coverage).
 
 ## Step 6: Two possible outputs
 

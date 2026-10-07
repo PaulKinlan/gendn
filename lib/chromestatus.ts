@@ -21,6 +21,20 @@ try {
 const TTL_MS = 5 * 60 * 1000;
 const XSSI_PREFIX = ")]}'";
 
+// Allowed origins for redirect DESTINATIONS (gendn-lkj, reworded gendn-iiex): fetchBounded()
+// is the single outbound primitive in the repo (THREAT_MODEL.md invariant #7). The CALL SITES
+// decide which origins are fetched (this set is the complete set of origins fetchBounded is
+// called with across the repo: lib/chromestatus.ts, server.ts, lib/mdn.ts,
+// scripts/vendor-fonts.mjs) — the guard below enforces only that an upstream REDIRECT
+// destination stays on this allowlist rather than an arbitrary host - validated BEFORE the
+// hop, so no connection is ever opened to an off-allowlist destination (gendn-lr61).
+export const ALLOWED_ORIGINS = new Set([
+  "https://chromestatus.com",
+  "https://api.github.com",
+  "https://developer.mozilla.org",
+  "https://fonts.googleapis.com",
+]);
+
 // Bounded upstream fetches (gendn-snd). A hung or oversized upstream must not be able to stall
 // or balloon the server.
 //
@@ -89,9 +103,68 @@ export async function fetchBounded(
     method?: string;
   } = {},
 ): Promise<{ res: Response; text: string }> {
-  const res = await fetch(url, { method, headers, signal: AbortSignal.timeout(timeoutMs) });
-  const text = await readCapped(res, maxBytes);
-  return { res, text };
+  // gendn-lr61: redirects are followed MANUALLY. Each hop's Location header is resolved and
+  // validated against ALLOWED_ORIGINS BEFORE the next request is issued, so a hostile or
+  // misbehaving upstream can never make this process open a connection to an off-allowlist
+  // host. The old guard followed first and threw after - the destination had already been
+  // reached (measured: the test destination logged a request before the rejection). The
+  // post-hoc res.redirected check below stays as defence in depth: with redirect:"manual"
+  // it is unreachable, but if auto-following is ever re-enabled the destination check holds.
+  const MAX_REDIRECT_HOPS = 5;
+  // gendn-lr61 review: ONE timeout budget per CALL, not per hop - a redirect chain must
+  // not multiply the bound (auto-follow gave the whole chain a single signal; the hoisted
+  // signal restores exactly that, as THREAT_MODEL.md's "15 s AbortSignal.timeout" states).
+  const signal = AbortSignal.timeout(timeoutMs);
+  // gendn-lr61 review: follow only the Fetch spec's redirect statuses. A 304 (or any other
+  // 3xx) is NOT a redirect here - it falls through to the caller, matching auto-follow.
+  const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+  let current = url;
+  for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
+    const res = await fetch(current, {
+      method,
+      headers,
+      redirect: "manual",
+      signal,
+    });
+    if (REDIRECT_STATUSES.has(res.status)) {
+      const location = res.headers.get("location");
+      try {
+        await res.body?.cancel();
+      } catch {
+        // already closed or absent
+      }
+      if (!location) {
+        throw new Error(`fetchBounded: ${res.status} redirect without a Location header`);
+      }
+      const next = new URL(location, current);
+      if (!ALLOWED_ORIGINS.has(next.origin)) {
+        throw new Error(`fetchBounded: redirected off-allowlist to ${next.origin}`);
+      }
+      // gendn-lr61 review: auto-follow strips CORS-non-wildcard headers (authorization,
+      // cookie) on a CROSS-ORIGIN redirect; a manual hop must match that or a future
+      // credentialed caller would leak to an allowlisted destination. No current caller
+      // sends credentials - this pins the invariant anyway.
+      if (next.origin !== new URL(current).origin) {
+        const stripped = new Headers(headers);
+        stripped.delete("authorization");
+        stripped.delete("cookie");
+        headers = stripped;
+      }
+      current = next.href;
+      continue;
+    }
+    if (res.redirected && !ALLOWED_ORIGINS.has(new URL(res.url).origin)) {
+      try {
+        await res.body?.cancel();
+      } catch {
+        // already closed or absent
+      }
+      throw new Error(`fetchBounded: redirected off-allowlist to ${new URL(res.url).origin}`);
+    }
+    const text = await readCapped(res, maxBytes);
+    return { res, text };
+  }
+  throw new Error(`fetchBounded: exceeded ${MAX_REDIRECT_HOPS} redirect hops`);
 }
 
 const cache = new Map<string, { at: number; value: unknown }>();
@@ -219,6 +292,56 @@ export function slugify(s: string): string {
     .slice(0, 80);
 }
 
-export function chromeStatusUrl(id: number): string {
-  return `https://chromestatus.com/feature/${id}`;
+// Runtime narrowing for untrusted upstream feature ids (gendn-b2s / finding TM-1,
+// THREAT_MODEL.md invariant #4): the compile-time `number` on FeatureSummary.id is a CLAIM
+// about JSON that arrives from chromestatus.com at runtime, and lifecycle artifacts carry the
+// identity as a STRING — the string path is a PRIMARY path, not an edge. The existing failure
+// mode is exactly a value that looked numeric and was not, so the guard checks the VALUE, not
+// the type.
+//
+// THE ENFORCED BOUNDS, stated exactly because a claim of narrowing that the code does not
+// enforce is worse than no claim (review finding 1, rule 67): both arrival types normalize to a
+// digit string and then face the SAME two checks — (a) canonical shape: no leading zero, at
+// most 19 characters (FEATURE_ID_RE, defence-in-depth); (b) safe-integer VALUE:
+// Number.isSafeInteger(Number(digits)), i.e. <= 2^53 - 1, which binds at 16 digits and is the
+// bound that actually rejects '9007199254740992' and 19-digit strings. An earlier version
+// applied (b) only on the number branch, so the same conceptual value passed or failed
+// depending on how it arrived — the asymmetry was the defect. Anything failing either check
+// yields null and the render seam falls back to plain text instead of a link — the
+// renderCommitAnchor shape from lib/external-url.ts. Digits need no escaping: the narrowed
+// output is canonical by construction, which is stronger than encoding an unvalidated value
+// (encoding was never the missing check here — narrowness is).
+const FEATURE_ID_RE = /^[1-9][0-9]{0,18}$/;
+
+export function chromeStatusUrl(id: unknown): string | null {
+  const digits = typeof id === "number" ? String(id) : typeof id === "string" ? id.trim() : null;
+  return digits !== null &&
+      FEATURE_ID_RE.test(digits) &&
+      Number.isSafeInteger(Number(digits))
+    ? `https://chromestatus.com/feature/${digits}`
+    : null;
+}
+
+// Runtime narrowing for untrusted Chrome milestone values (gendn-sxn / THREAT_MODEL.md invariant #4).
+// Milestone values arrive from upstream channels.json or chromestatus API JSON typed as `number`
+// at compile time, but can arrive as untrusted runtime values or strings.
+//
+// THE ENFORCED BOUND: A valid Chrome milestone is a canonical positive integer from 1 to 9999
+// (1 to 4 digits, no leading zero). Both number and string arrivals normalize to a trimmed digit
+// string and face the same check: /^[1-9][0-9]{0,3}$/ and Number.isSafeInteger(Number(digits)).
+// Values outside 1..9999, floats, negatives, zero, leading zeros, and non-numeric inputs yield null.
+// Callers fall back safely (plain text or aria-disabled) so broken or injectable attributes/hrefs are never emitted.
+const MILESTONE_RE = /^[1-9][0-9]{0,3}$/;
+
+export function milestonePathSegment(m: unknown): string | null {
+  const digits = typeof m === "number"
+    ? (Number.isFinite(m) ? String(m) : null)
+    : typeof m === "string"
+    ? m.trim()
+    : null;
+  return digits !== null &&
+      MILESTONE_RE.test(digits) &&
+      Number.isSafeInteger(Number(digits))
+    ? digits
+    : null;
 }

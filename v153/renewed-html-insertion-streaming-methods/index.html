@@ -6,6 +6,11 @@
   <title>Renewed HTML insertion &amp; streaming methods — Chrome 153 — gendn</title>
   <link rel="stylesheet" href="/public/styles.css">
   <style>
+    /* Table wrap pattern per gendn-7g6/goals.json:784 */
+    h1, code, .doc-table td, .doc-table th { overflow-wrap: anywhere; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .table-wrap { overflow-x: auto; }
+    .table-wrap .doc-table { min-width: 34rem; }
     .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
     .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
     .doc-table th { background: var(--bg-stone); font-weight: 600; }
@@ -21,83 +26,132 @@
   <header class="lede-block">
     <p class="eyebrow">v153 · html · dom · streaming</p>
     <h1>Renewed HTML insertion &amp; streaming methods</h1>
-    <p class="lede">Chrome 153 adds a coherent set of HTML-string insertion methods to <code>Element</code> — positional variants of <code>before</code>, <code>after</code>, <code>append</code>, <code>prepend</code>, and <code>replaceWith</code> that accept raw HTML strings — plus a <code>streamAppendHTML()</code> method for incrementally inserting HTML from a <code>ReadableStream</code> without blocking the main thread.</p>
+    <p class="lede">Chrome 153 adds a coherent set of HTML-string insertion methods to <code>Element</code> — positional variants of <code>before</code>, <code>after</code>, <code>append</code>, <code>prepend</code>, and <code>replaceWith</code> that accept raw HTML strings — plus a <code>streamAppendHTML()</code> method for incremental streaming insertion without blocking the main thread (its input/return contract is unsettled &mdash; see the syntax section).</p>
   </header>
 
   <section>
-    <h2>at a glance</h2>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
     <table class="doc-table">
-      <tr><th>Shipped in</th><td>Chrome 153 (Enabled by default)</td></tr>
-      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Shipped in</th><td>Chrome 153 (status tracking; see ship status note below)</td></tr>
+      <tr><th>Status</th><td>In developer trial / proposed (milestone 157 in ChromeStatus)</td></tr>
       <tr><th>Explainer</th><td><a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md" target="_blank" rel="noopener">WICG/declarative-partial-updates — dynamic markup explainer</a></td></tr>
-      <tr><th>Standards position (Firefox)</th><td>No signal</td></tr>
-      <tr><th>Standards position (Safari)</th><td>No signal</td></tr>
+      <tr><th>Repository</th><td><a href="https://github.com/WICG/declarative-partial-updates" target="_blank" rel="noopener">WICG/declarative-partial-updates</a></td></tr>
+      <tr><th>Standards position (Firefox)</th><td>Positive (<a href="https://github.com/mozilla/standards-positions/issues/1370" target="_blank" rel="noopener">mozilla/standards-positions #1370</a>)</td></tr>
+      <tr><th>Standards position (Safari)</th><td>Active discussion (<a href="https://github.com/WebKit/standards-positions/issues/629" target="_blank" rel="noopener">WebKit/standards-positions #629</a>)</td></tr>
+      <tr><th>Discussion issues</th><td><a href="https://github.com/whatwg/html/issues/2142" target="_blank" rel="noopener">WHATWG HTML #2142</a> · <a href="https://github.com/whatwg/html/issues/10122" target="_blank" rel="noopener">WHATWG HTML #10122</a> · <a href="https://github.com/w3c/trusted-types/issues/594" target="_blank" rel="noopener">Trusted Types #594</a></td></tr>
+      <tr><th>Implementation bug</th><td><a href="https://issues.chromium.org/issues/491743369" target="_blank" rel="noopener">Chromium Issue 491743369</a></td></tr>
       <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5054329641893888" target="_blank" rel="noopener">5054329641893888 — Renewed HTML insertion &amp; streaming methods</a></td></tr>
     </table>
-    <span class="citation">Source: <a href="https://chromestatus.com/feature/5054329641893888" target="_blank" rel="noopener">chromestatus.com/feature/5054329641893888</a></span>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5054329641893888" target="_blank" rel="noopener">chromestatus.com/feature/5054329641893888</a>; <a href="https://chromestatus.com/api/v0/features/5054329641893888" target="_blank" rel="noopener">ChromeStatus API record 5054329641893888</a>.</span>
   </section>
 
   <section>
-    <h2>why it exists</h2>
+    <h2 id="why">why it exists</h2>
     <p>The existing <code>insertAdjacentHTML()</code> method works but is verbose, positional-string-based, and has no streaming counterpart. The <code>innerHTML</code> setter destroys and recreates the full subtree, breaking references and event listeners. Server-side rendering and MPA frameworks that stream HTML fragments (out-of-order streaming, HTMX-style patterns) need a way to <em>append</em> HTML from a <code>fetch()</code> <code>ReadableStream</code> chunk-by-chunk, exactly as the network delivers it, without accumulating the whole string first.</p>
-    <p>The new methods provide: clean positional shortcuts that replace <code>insertAdjacentHTML</code>, and <code>streamAppendHTML()</code> which accepts a <code>ReadableStream&lt;string&gt;</code> and feeds it to the HTML parser incrementally, yielding control back to the event loop between chunks.</p>
-    <span class="citation">Source: <a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md" target="_blank" rel="noopener">WICG explainer</a></span>
+    <p>The new methods provide: clean positional shortcuts that replace <code>insertAdjacentHTML</code>, and <code>streamAppendHTML()</code> which feeds stream chunks to the HTML parser incrementally, yielding control back to the event loop between chunks.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md" target="_blank" rel="noopener">WICG explainer</a>; <a href="https://wicg.github.io/sanitizer-api/" target="_blank" rel="noopener">Sanitizer API</a>.</span>
   </section>
 
   <section>
-    <h2>shape of the API</h2>
-    <p><strong>Positional HTML-string methods</strong> on <code>Element</code>:</p>
+    <h2 id="syntax">Syntax and methods</h2>
+    <pre><code>// WebIDL surface from the WICG dynamic-markup-revamped explainer:
+partial interface Element {
+  void beforeHTML(DOMString html, optional SetHTMLOptions options);
+  void afterHTML(DOMString html, optional SetHTMLOptions options);
+  void prependHTML(DOMString html, optional SetHTMLOptions options);
+  void appendHTML(DOMString html, optional SetHTMLOptions options);
+  void replaceWithHTML(DOMString html, optional SetHTMLOptions options);
+  // Streaming input/return contract unsettled: the explainer WebIDL returns a
+  // WritableStream you write chunks into; the earlier WHATWG discussion (issue
+  // #2142) centered on piping a ReadableStream input instead.
+  WritableStream streamAppendHTML(SetHTMLOptions options); // explainer shape
+};</code></pre>
+    <p>The renewed HTML insertion suite adds ergonomic string-based positional methods alongside incremental streaming insertion on DOM elements:</p>
+
+    <div class="table-wrap">
     <table class="doc-table">
-      <tr><th>Method</th><th>Inserts</th></tr>
-      <tr><td><code>element.beforeHTML(html)</code></td><td>HTML string immediately before <code>element</code></td></tr>
-      <tr><td><code>element.afterHTML(html)</code></td><td>HTML string immediately after <code>element</code></td></tr>
-      <tr><td><code>element.prependHTML(html)</code></td><td>HTML string as first child(ren)</td></tr>
-      <tr><td><code>element.appendHTML(html)</code></td><td>HTML string as last child(ren)</td></tr>
-      <tr><td><code>element.replaceWithHTML(html)</code></td><td>Replaces <code>element</code> with parsed HTML</td></tr>
+      <thead><tr><th>Method</th><th>Target location</th><th>Legacy equivalent</th></tr></thead>
+      <tr><td><code>element.beforeHTML(html)</code></td><td>Immediately before <code>element</code></td><td><code>insertAdjacentHTML("beforebegin", html)</code></td></tr>
+      <tr><td><code>element.afterHTML(html)</code></td><td>Immediately after <code>element</code></td><td><code>insertAdjacentHTML("afterend", html)</code></td></tr>
+      <tr><td><code>element.prependHTML(html)</code></td><td>As the first child of <code>element</code></td><td><code>insertAdjacentHTML("afterbegin", html)</code></td></tr>
+      <tr><td><code>element.appendHTML(html)</code></td><td>As the last child of <code>element</code></td><td><code>insertAdjacentHTML("beforeend", html)</code></td></tr>
+      <tr><td><code>element.replaceWithHTML(html)</code></td><td>Replaces <code>element</code> with parsed nodes</td><td><code>outerHTML = html</code></td></tr>
     </table>
-    <p><strong>Streaming method</strong>:</p>
+    </div>
+
+    <p><strong>Streaming insertion method:</strong></p>
+    <div class="table-wrap">
     <table class="doc-table">
-      <tr><th>Method</th><th>Signature</th><th>Returns</th></tr>
-      <tr><td><code>element.streamAppendHTML(stream)</code></td><td><code>ReadableStream&lt;string&gt;</code></td><td><code>Promise&lt;void&gt;</code> — resolves when stream closes</td></tr>
+      <thead><tr><th>Method</th><th>Parameter</th><th>Return contract (unsettled)</th></tr></thead>
+      <tr>
+        <td><code>element.streamAppendHTML(...)</code></td>
+        <td>Stream or options bag</td>
+        <td><strong>Unsettled:</strong> The <a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md#resulting-api" target="_blank" rel="noopener">WICG explainer WebIDL</a> specifies returning a <code>WritableStream</code> to pipe data into, whereas the earlier WHATWG discussion (issue #2142) centered on piping a <code>ReadableStream</code> of decoded chunks into the insertion point. Applications must treat this return contract as unsettled until the specification reaches consensus.</td>
+      </tr>
     </table>
-    <p>All methods parse the HTML in the context of the element's owner document. Script execution behaviour follows the same rules as <code>innerHTML</code>.</p>
-    <span class="citation">Source: <a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md#resulting-api" target="_blank" rel="noopener">WICG explainer — Resulting API</a></span>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md#resulting-api" target="_blank" rel="noopener">WICG explainer — Resulting API</a>; <a href="https://github.com/whatwg/html/issues/2142" target="_blank" rel="noopener">WHATWG HTML issue #2142</a>.</span>
   </section>
 
   <section>
-    <h2>example</h2>
-<pre><code>// Positional insertion (replaces insertAdjacentHTML)
+    <h2 id="inputs-and-outputs">Inputs and outputs</h2>
+    <p><strong>Inputs:</strong> The positional methods (<code>beforeHTML</code>, <code>afterHTML</code>, <code>prependHTML</code>, <code>appendHTML</code>, <code>replaceWithHTML</code>) take a mandatory <code>html</code> string (or <code>TrustedHTML</code> under Trusted Types enforcement) and an optional <code>SetHTMLOptions</code> dictionary containing sanitizer configurations. For <code>streamAppendHTML</code>, input parameter conventions remain unsettled between a stream source and an options bag.</p>
+    <p><strong>Outputs:</strong> Positional methods return <code>undefined</code> (WebIDL <code>void</code>) synchronously. For <code>streamAppendHTML</code>, the input/return contract remains explicitly unsettled: the explainer WebIDL defines returning a <code>WritableStream</code> you write chunks into, while the earlier WHATWG discussion (issue #2142) centered on a <code>ReadableStream</code> input. Authors must avoid asserting either return shape.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md#resulting-api" target="_blank" rel="noopener">WICG explainer — Resulting API</a>; <a href="https://github.com/whatwg/html/issues/10122" target="_blank" rel="noopener">WHATWG HTML issue #10122</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="errors-and-lifecycle">Errors and lifecycle</h2>
+    <p><strong>Errors:</strong> The explainer does not define novel exception classes for the positional methods (<code>beforeHTML</code>, <code>afterHTML</code>, <code>prependHTML</code>, <code>appendHTML</code>, <code>replaceWithHTML</code>, and <code>streamAppendHTML</code>). As with <code>insertAdjacentHTML</code> and <code>innerHTML</code>, passing malformed HTML does not throw a parsing error; the HTML parser invokes resilient error-recovery steps to construct a DOM tree. The explainer does not yet define which exceptions, if any, apply to the new methods (its WICG template question on error raising is open): whether parent-requiring methods reject detached elements, and how stream aborts surface, are open questions &mdash; verify against your build rather than assuming <code>insertAdjacentHTML</code> semantics carry over.</p>
+    <p><strong>Lifecycle:</strong> Markup injected synchronously undergoes immediate DOM insertion and tree mutation events. For streaming insertion, parsed nodes are appended incrementally as chunks arrive from the stream, yielding execution to the browser between chunks to preserve user responsiveness.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md" target="_blank" rel="noopener">WICG explainer</a>; <a href="https://issues.chromium.org/issues/491743369" target="_blank" rel="noopener">Chromium Issue 491743369</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+    <p>The following examples exercise the positional insertion methods; the streaming insertion appears only as a non-runnable contract note while its input/return contract is unsettled:</p>
+<pre><code>// 1. Positional HTML insertions (replaces insertAdjacentHTML)
 const list = document.querySelector('#results');
-list.appendHTML('&lt;li&gt;New item&lt;/li&gt;');
-list.prependHTML('&lt;li class="pinned"&gt;Pinned&lt;/li&gt;');
+list.appendHTML('&lt;li&gt;Appended item&lt;/li&gt;');
+list.prependHTML('&lt;li class="pinned"&gt;Pinned top item&lt;/li&gt;');
 
-// Streaming: append HTML as it arrives from the network
-const container = document.querySelector('#stream-target');
-const response = await fetch('/api/html-fragment');
-// response.body is a ReadableStream&lt;Uint8Array&gt;; decode to strings
-const textStream = response.body.pipeThrough(new TextDecoderStream());
-await container.streamAppendHTML(textStream);
-console.log('Stream complete');
+const target = document.querySelector('#current-card');
+target.beforeHTML('&lt;div class="notice"&gt;Before notice&lt;/div&gt;');
+target.afterHTML('&lt;div class="notice"&gt;After notice&lt;/div&gt;');
+target.replaceWithHTML('&lt;div id="current-card" class="updated"&gt;New card content&lt;/div&gt;');
 
-// Works well with server-sent HTML updates
-async function loadMoreResults(url) {
-  const res = await fetch(url);
-  await list.streamAppendHTML(
-    res.body.pipeThrough(new TextDecoderStream())
-  );
-}</code></pre>
-    <span class="citation">Source: <a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md#resulting-api" target="_blank" rel="noopener">WICG explainer</a></span>
+// 2. Streaming insertion (streamAppendHTML) is deliberately not shown as runnable code:
+// the explainer WebIDL returns a WritableStream you write HTML chunks into, while the
+// earlier WHATWG discussion (issue #2142) centered on piping a ReadableStream of decoded
+// chunks into the insertion point. The input/return contract is unsettled (see the syntax
+// table); do not code against either shape until the specification settles.</code></pre>
+    <span class="citation">Source: <a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md#resulting-api" target="_blank" rel="noopener">WICG explainer — Resulting API</a>.</span>
   </section>
 
   <section>
-    <h2>browser support</h2>
+    <h2 id="browser-compatibility">browser compatibility</h2>
+    <p>The page previously listed this feature as shipped enabled by default in Chrome 153. However, when queried on 2026-10-07, the authoritative ChromeStatus API record (<a href="https://chromestatus.com/api/v0/features/5054329641893888" target="_blank" rel="noopener">feature 5054329641893888</a>) reports <code>is_released: false</code> with status "Proposed" and desktop target milestone 157. Developers should verify availability behind experimental flags (<code>chrome://flags/#enable-experimental-web-platform-features</code>) in target builds.</p>
+    <div class="table-wrap">
     <table class="doc-table">
-      <tr><th>Browser</th><th>Support</th><th>Notes</th></tr>
-      <tr><td>Chrome 153+</td><td>Enabled by default</td><td>All platforms</td></tr>
-      <tr><td>Firefox</td><td>No signal</td><td>—</td></tr>
-      <tr><td>Safari</td><td>No signal</td><td>—</td></tr>
+      <thead><tr><th>Engine / Browser</th><th>Status</th><th>Evidence &amp; Notes</th></tr></thead>
+      <tr><td>Chrome (Chromium)</td><td>Proposed / Target 157</td><td><a href="https://chromestatus.com/feature/5054329641893888" target="_blank" rel="noopener">ChromeStatus 5054329641893888</a>; <a href="https://issues.chromium.org/issues/491743369" target="_blank" rel="noopener">Issue 491743369</a></td></tr>
+      <tr><td>Firefox (Gecko)</td><td>Positive signal</td><td><a href="https://github.com/mozilla/standards-positions/issues/1370" target="_blank" rel="noopener">Mozilla standards-positions #1370</a></td></tr>
+      <tr><td>Safari (WebKit)</td><td>No formal signal</td><td><a href="https://github.com/WebKit/standards-positions/issues/629" target="_blank" rel="noopener">WebKit standards-positions #629</a></td></tr>
     </table>
-    <span class="citation">Source: <a href="https://chromestatus.com/feature/5054329641893888" target="_blank" rel="noopener">chromestatus.com/feature/5054329641893888</a></span>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5054329641893888" target="_blank" rel="noopener">ChromeStatus API record 5054329641893888</a>; <a href="https://github.com/mozilla/standards-positions/issues/1370" target="_blank" rel="noopener">Mozilla standards-positions #1370</a>; <a href="https://github.com/WebKit/standards-positions/issues/629" target="_blank" rel="noopener">WebKit standards-positions #629</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <ul>
+      <li><strong>Script execution:</strong> Classic positional HTML insertion methods follow the same security model as <code>innerHTML</code>: inline <code>&lt;script&gt;</code> elements inserted via these methods do not execute. The unsafe/trusted options dictionary may permit opt-in script execution via <code>runScripts: true</code> when explicitly supported.</li>
+      <li><strong>Sanitization &amp; Trusted Types:</strong> The proposal is designed to integrate natively with the <a href="https://wicg.github.io/sanitizer-api/" target="_blank" rel="noopener">Sanitizer API</a> and allows <a href="https://github.com/w3c/trusted-types/issues/594" target="_blank" rel="noopener">Trusted Types policies</a> to transform parser options rather than requiring synchronous string transforms.</li>
+      <li><strong>Streaming parser safety:</strong> Streaming HTML parsing prevents large payload buffering, mitigating memory exhaustion denial-of-service risks on constrained devices.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md" target="_blank" rel="noopener">WICG explainer</a>; <a href="https://wicg.github.io/sanitizer-api/" target="_blank" rel="noopener">Sanitizer API</a>; <a href="https://github.com/w3c/trusted-types/issues/594" target="_blank" rel="noopener">Trusted Types issue #594</a>.</span>
   </section>
 
   <section>

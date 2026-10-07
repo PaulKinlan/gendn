@@ -33,7 +33,10 @@ import { validateReferenceContractsInBrowser } from "./lib/reference-browser.mjs
 import { gitRefExists, runGit } from "./lib/bounded-git.mjs";
 import {
   collectReferenceContracts,
+  declaredSurfaceMembers,
   declaredSurfaceSummary,
+  skippedSurfaceDeclarations,
+  surfaceNotePages,
   validateContractOwnership,
   validateDeclaredSurface,
   validateReferenceContract,
@@ -244,8 +247,20 @@ async function main() {
           // syntax IDL, or list it in outOfScope with a rationale - so a collapsed inventory is an
           // explicit, reviewable statement instead of an invisible one. Deliberately NOT applied to
           // untouched contracts, so this does not go red for pre-existing state.
+          // ONE READ, ABOVE THE COMPLETENESS BRANCH (gendn-ijf). The declared-surface check needs the
+          // page's HTML and so does the parser-skip report, but they answer DIFFERENT questions: the
+          // surface check asks whether the CONTRACT accounts for the page, the skip report says what the
+          // PARSER could read. A touched page whose contract is not yet implementation-sufficient can
+          // still be parsed, so the read belongs here and the skip report stays outside the branch.
+          // BEFORE THIS, the skip call sat outside a block that declared `pageHtml` INSIDE it, so every
+          // touched built page with a sufficient contract threw `ReferenceError: pageHtml is not
+          // defined` and the gate exited 1 - and it was invisible on every tree where no page is
+          // touched, which is exactly the case the touched-page ratchet exists for. It survived
+          // fleet-check, an 18/18 fixture suite and a three-way mutation matrix because those mutate the
+          // DETECTOR and this is the CALLER: the library and its call sites fail independently, and
+          // `check-conformance` is not part of `fleet-check` (rule 121).
+          const pageHtml = await Deno.readTextFile(`./${id}/index.html`).catch(() => null);
           if (contract.completeness === "implementation-sufficient") {
-            const pageHtml = await Deno.readTextFile(`./${id}/index.html`).catch(() => null);
             if (pageHtml) {
               structuralErrors.push(...validateDeclaredSurface(contract, pageHtml));
               const surface = declaredSurfaceSummary(contract, pageHtml);
@@ -254,6 +269,24 @@ async function main() {
                   `  ${id}: declared ${surface.declared} = inventory ${surface.inventory} + outOfScope ${surface.outOfScope}`,
                 );
               }
+            }
+          }
+          // PARSER SKIPS ARE REPORTED AND NEVER FAIL (gendn-ijf): an anonymous special operation
+          // declares no name, so the parser cannot turn it into a member - a limit of the CHECK, not a
+          // defect in the page. Printed so the limit stays visible, and deliberately kept out of
+          // `failures`, because a gate that fails correct contracts teaches lanes to stop reading it (rule 87).
+          // THE LIMIT OF THIS CHANNEL, stated rather than implied: it runs for TOUCHED pages and prints
+          // near the end of a run, so an omitted anonymous accessor on an untouched page is NOT
+          // independently assessed by this gate - it is visible only when someone touches the page and
+          // the note appears. A warning channel is not an assessment.
+          if (pageHtml) {
+            const skipped = skippedSurfaceDeclarations(pageHtml);
+            if (skipped.length > 0) {
+              surfaceNotes.push(
+                `  ${id}: parser skipped ${skipped.length} anonymous special operation(s) - nothing to account for: ${
+                  skipped.join(" | ")
+                }`,
+              );
             }
           }
           for (const error of structuralErrors) {
@@ -297,18 +330,38 @@ async function main() {
     return contract?.id === id && contract.completeness === "partial" &&
       referenceErrorsById.get(id)?.length === 0;
   }).length;
+  // The legacy-unassessed remainder folds two populations the reference-contract schema treats
+  // differently: pages whose #syntax block declares a WebIDL surface the schema could assess, and
+  // pages with no IDL at all (CSS / HTML feature pages) that the schema cannot assess in its
+  // present form. The split below runs over that same remainder — built, neither sufficient nor
+  // partial — using declaredSurfaceMembers(html), the instrument the touched-page campaign uses,
+  // so "no IDL surface" is not read as "nothing to do".
+  let noIdlSurface = 0;
+  for (const id of builtPages) {
+    const contract = referenceById.get(id)?.contract;
+    const isSufficient = contract?.id === id &&
+      contract.completeness === "implementation-sufficient" &&
+      referenceErrorsById.get(id)?.length === 0;
+    const isPartial = contract?.id === id && contract.completeness === "partial" &&
+      referenceErrorsById.get(id)?.length === 0;
+    if (isSufficient || isPartial) continue;
+    const html = await Deno.readTextFile(`./${id}/index.html`).catch(() => null);
+    if (html && declaredSurfaceMembers(html).length === 0) noIdlSurface++;
+  }
   console.log(`  critiques          : ${critiquePages.length}/${pageIds.size} published pages`);
   console.log(
     `  implementation refs: ${sufficientRefs} sufficient / ${partialRefs} partial / ${
       builtPages.length - sufficientRefs - partialRefs
-    } legacy-unassessed (of ${builtPages.length} built)`,
+    } legacy-unassessed (of ${builtPages.length} built; ${noIdlSurface} have no IDL surface and are outside the reference-contract schema)`,
   );
   console.log(`  desktop matrix ok  : ${okCls("desktop")}/${pageIds.size}`);
   console.log(`  mobile matrix ok   : ${okCls("mobile")}/${pageIds.size}`);
   console.log(`  baseline suites    : ${baselineChecked} checked for weakening`);
   if (surfaceNotes.length) {
     console.log(
-      `  declared surfaces  : ${surfaceNotes.length} touched contract(s) - inventory N + outOfScope M of the page's declared members`,
+      `  declared surfaces  : ${
+        surfaceNotePages(surfaceNotes)
+      } touched contract(s) - inventory N + outOfScope M of the page's declared members`,
     );
     for (const note of surfaceNotes) console.log(note);
   }

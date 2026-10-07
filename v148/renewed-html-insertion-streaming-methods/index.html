@@ -20,6 +20,10 @@
       box-shadow: var(--thin-shadow);
     }
     .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+      /* B2 house table pattern (gendn-efu, per v152/reference-target-for-cross-root-aria +
+       goals.json:784): scroll wrapper instead of body{overflow-x:hidden} clipping */
+    .table-wrap { overflow-x: auto; }
+    .table-wrap .doc-table { min-width: 34rem; }
   </style>
 </head>
 <body>
@@ -38,8 +42,9 @@
   </div>
 
   <section>
-    <h2>at a glance</h2>
-    <table class="doc-table">
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+<table class="doc-table">
       <tr><th>Status in 148</th><td>In developer trial (behind a flag)</td></tr>
       <tr><th>Flag</th><td><code>chrome://flags/#enable-experimental-web-platform-features</code></td></tr>
       <tr><th>Standards position</th><td>Firefox: No signal &nbsp;·&nbsp; Safari: No signal</td></tr>
@@ -47,40 +52,47 @@
       <tr><th>Blink component</th><td>Blink&gt;HTML</td></tr>
       <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5054329641893888" target="_blank" rel="noopener">5054329641893888 — Renewed HTML insertion &amp; streaming methods</a></td></tr>
     </table>
+</div>
   </section>
 
   <section>
-    <h2>why it exists</h2>
+    <h2 id="why">why it exists</h2>
     <p><code>insertAdjacentHTML</code> was designed in the IE era and has a string-enum position argument (<code>"beforebegin"</code>, <code>"afterend"</code>, etc.) that is error-prone and verbose. <code>innerHTML</code> replaces content but doesn't provide relative insertion. Neither accepts streams. This feature replaces both with ergonomic methods that follow the naming of the existing <code>Element</code> manipulation API and adds streaming variants for progressive server-rendered HTML.</p>
-    <span class="citation">Source: chromestatus summary + <a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md" target="_blank" rel="noopener">WICG explainer</a>.</span>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5054329641893888" target="_blank" rel="noopener">chromestatus summary</a>; <a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md" target="_blank" rel="noopener">WICG explainer</a>.</span>
   </section>
 
   <section>
-    <h2>positional insertion methods</h2>
+    <h2 id="syntax">positional insertion methods</h2>
     <p>These methods mirror the existing <code>Node</code> manipulation API but accept HTML strings instead of <code>Node</code> objects. Each parses the string in the context of the element's owner document.</p>
-    <table class="doc-table">
+    <div class="table-wrap">
+<table class="doc-table">
       <tr><th>el.setHTMLBefore(html)</th><td>Inserts parsed HTML immediately before <code>el</code> in its parent. Replaces <code>insertAdjacentHTML("beforebegin", html)</code>.</td></tr>
       <tr><th>el.setHTMLAfter(html)</th><td>Inserts parsed HTML immediately after <code>el</code>. Replaces <code>insertAdjacentHTML("afterend", html)</code>.</td></tr>
       <tr><th>el.setHTMLFirst(html)</th><td>Inserts parsed HTML as the first child. Replaces <code>insertAdjacentHTML("afterbegin", html)</code>.</td></tr>
       <tr><th>el.setHTMLLast(html)</th><td>Inserts parsed HTML as the last child. Replaces <code>insertAdjacentHTML("beforeend", html)</code>.</td></tr>
       <tr><th>el.setHTMLReplacing(html)</th><td>Replaces <code>el</code> itself with parsed HTML nodes. Replaces <code>outerHTML = html</code>.</td></tr>
     </table>
-    <span class="citation">Source: <a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md#resulting-api" target="_blank" rel="noopener">WICG explainer §Resulting API</a>. Names paraphrased; verify in the spec before shipping.</span>
+</div>
+    <span class="citation">Source: <a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md#resulting-api" target="_blank" rel="noopener">WICG explainer §Resulting API</a>; <a href="https://github.com/whatwg/html/issues/11669" target="_blank" rel="noopener">WHATWG HTML issue #11669</a>. Names paraphrased; verify in the spec before shipping.</span>
 
     <h2>streaming methods</h2>
     <p>Streaming variants accept a <code>ReadableStream</code> of HTML chunks and parse them progressively into the document, enabling low-latency rendering of server-streamed responses without JavaScript orchestration beyond kicking off the stream.</p>
-    <table class="doc-table">
-      <tr><th>el.streamHTMLBefore(stream)</th><td>Streams HTML before <code>el</code>. Returns a <code>Promise</code> that resolves when the stream ends.</td></tr>
+    <div class="table-wrap">
+<table class="doc-table">
+      <tr><th>el.streamHTMLBefore(stream)</th><td>Streams HTML before <code>el</code>. The return contract is unsettled in the explainer (promise vs <code>WritableStream</code>) &mdash; verify in your build.</td></tr>
       <tr><th>el.streamHTMLAfter(stream)</th><td>Streams HTML after <code>el</code>.</td></tr>
       <tr><th>el.streamHTMLFirst(stream)</th><td>Streams HTML as first children.</td></tr>
       <tr><th>el.streamHTMLLast(stream)</th><td>Streams HTML as last children.</td></tr>
       <tr><th>el.streamHTMLReplacing(stream)</th><td>Streams HTML to replace <code>el</code> itself.</td></tr>
     </table>
+</div>
+    <p>Error paths: the explainer does not yet define when or how these methods raise errors &mdash; its security-and-privacy questionnaire answers &ldquo;It will.&rdquo; One open question is whether positional insertion on an element with no parent should throw a hierarchy exception or fail silently the way <code>before()</code>/<code>after()</code> do. Until error behaviour is specified, verify it in the browser before shipping.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md#resulting-api" target="_blank" rel="noopener">WICG explainer &sect;Resulting API</a>; <a href="https://github.com/whatwg/html/issues/11669" target="_blank" rel="noopener">WHATWG HTML issue #11669</a>, May 2026.</span>
   </section>
 
   <section>
-    <h2>example</h2>
-    <h3>Positional insert</h3>
+    <h2 id="examples">example</h2>
+    <p>Perform positional HTML insertion or stream server-sent HTML chunks directly into an element:</p>
 <pre><code>// Old
 container.insertAdjacentHTML("beforeend", "&lt;li&gt;New item&lt;/li&gt;");
 
@@ -91,19 +103,38 @@ container.setHTMLLast("&lt;li&gt;New item&lt;/li&gt;");</code></pre>
 <pre><code>const res = await fetch("/partial/comments");
 const stream = res.body.pipeThrough(new TextDecoderStream());
 
-// Stream comment HTML into #comments-container without JS parsing
-await document.getElementById("comments-container").streamHTMLLast(stream);</code></pre>
+// Stream comment HTML into #comments-container without JS parsing.
+// Bare call: the return contract is unsettled (promise vs WritableStream) - do not
+// rely on awaiting it until the API contract is established (see the syntax section).
+document.getElementById("comments-container").streamHTMLLast(stream);</code></pre>
+
+    <h3>The full positional and streaming set</h3>
+    <pre><code>// Positional variants (string HTML)
+item.setHTMLBefore('&lt;li&gt;before&lt;/li&gt;');
+item.setHTMLAfter('&lt;li&gt;after&lt;/li&gt;');
+list.setHTMLFirst('&lt;li&gt;first&lt;/li&gt;');
+item.setHTMLReplacing('&lt;section&gt;replaced&lt;/section&gt;');
+
+// Streaming variants accept a ReadableStream of HTML chunks. Their return contract is
+// unsettled in the explainer (promise vs WritableStream), so the calls are shown bare -
+// do not rely on awaiting them until the API contract is established.
+item.streamHTMLBefore(beforeStream);
+item.streamHTMLAfter(afterStream);
+list.streamHTMLFirst(firstStream);
+item.streamHTMLReplacing(replaceStream);</code></pre>
   </section>
 
   <section>
-    <h2>browser support</h2>
-    <table class="doc-table">
+    <h2 id="browser-compatibility">browser support</h2>
+    <div class="table-wrap">
+<table class="doc-table">
       <tr><th>Chrome</th><td>148 — developer trial (flag required)</td></tr>
       <tr><th>Edge</th><td>Tracking Chromium</td></tr>
       <tr><th>Firefox</th><td>No signal</td></tr>
       <tr><th>Safari</th><td>No signal</td></tr>
     </table>
-    <span class="citation">Source: chromestatus browser views, May 2026.</span>
+</div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5054329641893888" target="_blank" rel="noopener">chromestatus browser views</a>, May 2026; <a href="https://github.com/mozilla/standards-positions/issues/1370" target="_blank" rel="noopener">Mozilla standards-positions #1370</a>; <a href="https://github.com/WebKit/standards-positions/issues/629" target="_blank" rel="noopener">WebKit standards-positions #629</a>; <a href="https://github.com/whatwg/html/issues/2142" target="_blank" rel="noopener">WHATWG HTML issue #2142</a>.</span>
   </section>
 
   <section>
@@ -112,6 +143,11 @@ await document.getElementById("comments-container").streamHTMLLast(stream);</cod
       <li><a href="https://github.com/WICG/declarative-partial-updates" target="_blank" rel="noopener">WICG/declarative-partial-updates</a> — spec repository</li>
       <li><a href="/v148/out-of-order-streaming/">Out of order streaming</a> — declarative (no-JS) streaming companion</li>
       <li><a href="https://chromestatus.com/feature/5054329641893888" target="_blank" rel="noopener">chromestatus: Renewed HTML insertion &amp; streaming methods</a></li>
+      <li><a href="https://chromestatus.com/api/v0/features/5054329641893888" target="_blank" rel="noopener">chromestatus: API record 5054329641893888</a></li>
+      <li><a href="https://chromestatus.com/api/v0/features?milestone=148" target="_blank" rel="noopener">chromestatus: milestone=148 listing</a></li>
+      <li><a href="https://issues.chromium.org/issues/491743369" target="_blank" rel="noopener">Chromium Issue 491743369</a></li>
+      <li><a href="https://github.com/GoogleChromeLabs/html-setters-polyfill" target="_blank" rel="noopener">GoogleChromeLabs/html-setters-polyfill</a></li>
+      <li><a href="https://wpt.fyi/results/domparsing/tentative" target="_blank" rel="noopener">WPT results: domparsing/tentative</a></li>
       <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/renewed-html-insertion-streaming-methods/" target="_blank" rel="noopener">chrome-platform-showcase: demos</a></li>
     </ul>
   </section>
