@@ -243,6 +243,36 @@ export function supportForRoute(support, route) {
   return support.routes?.[route] ?? { desktop: "untested", mobile: "untested" };
 }
 
+/** Conditional unsupported evidence that our minimal JSON-schema validator cannot express. */
+export function validateSupportRecord(route, record) {
+  const unsupported = ["desktop", "mobile"].filter((cls) => record?.[cls] === "unsupported");
+  if (unsupported.length === 0) return [];
+  const errors = [];
+  if (unsupported.length === 2) {
+    errors.push(
+      `${route}: both classes are unsupported, but this schema models evidence for only one class; add per-class evidence to the schema before recording both`,
+    );
+  } else if (record.unsupportedClass !== unsupported[0]) {
+    errors.push(
+      `${route}: ${unsupported[0]} unsupported requires unsupportedClass ${
+        JSON.stringify(unsupported[0])
+      } (got ${JSON.stringify(record.unsupportedClass)})`,
+    );
+  }
+  const evidence = typeof record.evidence === "string" ? record.evidence.trim() : "";
+  if (evidence.length < 20) {
+    errors.push(
+      `${route}: unsupported requires substantive evidence of platform unavailability (at least 20 non-whitespace characters)`,
+    );
+  }
+  // The automated overflow scan can flag needs-review/broken; it cannot prove an API is
+  // unavailable on an entire device class. Match the exact method, not prose mentioning it.
+  if (record.method === "auto-scan") {
+    errors.push(`${route}: auto-scan cannot establish unsupported platform capability`);
+  }
+  return errors;
+}
+
 // ---------- minimal draft-07 validator (dependency-free) ----------
 //
 // Covers the subset of JSON Schema this repo's four schemas use: type, required, enum, const,
