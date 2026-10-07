@@ -142,6 +142,16 @@ try {
     r.text.includes("1 have no IDL surface"),
     r.text,
   );
+  const unchangedNote =
+    "[UNCHANGED: fetched baseline == HEAD - committed changes not in scope; uncommitted edits still checked]";
+  assert(
+    "rtvp check-conformance Case 1: equal fetched baseline qualifies BOTH the suite count and PASS line",
+    r.text.split("\n").some((line) =>
+      line.includes("baseline suites") && line.includes(unchangedNote)
+    ) &&
+      r.text.split("\n").some((line) => line.startsWith("PASS —") && line.includes(unchangedNote)),
+    r.text,
+  );
 
   // Case 2: Ordinary uncommitted edit to declared surface in working tree fails gate
   const indexPath = `${scratch}/${FEATURE}/index.html`;
@@ -235,7 +245,8 @@ try {
   r = await runGate();
   assert(
     "rtvp check-conformance Case 7: independent baseline detects committed assertion removal",
-    r.code === 1 && r.text.includes(`assertion "${removedId}" was REMOVED`),
+    r.code === 1 && r.text.includes(`assertion "${removedId}" was REMOVED`) &&
+      !r.text.includes(unchangedNote),
     r.text,
   );
   await g("update-ref", "-d", "refs/remotes/origin/main");

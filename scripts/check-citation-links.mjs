@@ -272,10 +272,13 @@ if (import.meta.main) {
     Deno.exit(6);
   }
   const failures = [...r.failures, ...shapes.failures];
+  const unchangedNote = r.vacuous
+    ? " [UNCHANGED: fetched baseline == HEAD - committed changes not in scope; uncommitted edits still checked]"
+    : "";
   console.log(
     `citation-links ratchet: base ${
       r.base.slice(0, 12)
-    }; changed pages ${r.changed.length}; pages scanned for id shape ${shapes.scanned}`,
+    }; changed pages ${r.changed.length}; pages scanned for id shape ${shapes.scanned}${unchangedNote}`,
   );
   if (r.vacuous) {
     console.log(
@@ -289,5 +292,7 @@ if (import.meta.main) {
     );
     Deno.exit(1);
   }
-  console.log("PASS — no unlinked citation labels on changed pages; chromestatus id shapes clean.");
+  console.log(
+    `PASS — no unlinked citation labels on changed pages; chromestatus id shapes clean.${unchangedNote}`,
+  );
 }

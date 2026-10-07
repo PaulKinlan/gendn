@@ -211,9 +211,12 @@ if (import.meta.main) {
     Deno.exit(6);
   }
   for (const w of r.warnings) console.log(`WARNING: ${w}`);
+  const unchangedNote = r.vacuous
+    ? " [UNCHANGED: fetched baseline == HEAD - committed changes not in scope; uncommitted edits still checked]"
+    : "";
   if (r.vacuous) {
     console.log(
-      `NOTE: fetched baseline ${r.base} equals HEAD; no committed contract/page changes are in scope, but uncommitted files were checked.`,
+      `surface-coverage ratchet: base ${r.base}; checked contracts ${r.changed.length}; page owners ${r.pageOwners.length}${unchangedNote}`,
     );
   }
   if (r.failures.length > 0) {
@@ -224,8 +227,6 @@ if (import.meta.main) {
     Deno.exit(1);
   }
   console.log(
-    `PASS — no wrong-surface mappings on touched contracts/pages (base ${r.base}; checked contracts ${r.changed.length}; page owners ${r.pageOwners.length}; warnings ${r.warnings.length})${
-      r.vacuous ? " [UNCHANGED: fetched baseline == HEAD]" : ""
-    }.`,
+    `PASS — no wrong-surface mappings on touched contracts/pages (base ${r.base}; checked contracts ${r.changed.length}; page owners ${r.pageOwners.length}; warnings ${r.warnings.length})${unchangedNote}.`,
   );
 }

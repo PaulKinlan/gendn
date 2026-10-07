@@ -102,6 +102,15 @@ async function main() {
     );
     Deno.exit(6);
   }
+  // The fetched ref can be independent yet equal to HEAD (a run on main). In that case
+  // no committed change was compared; qualify BOTH the count and success verdict.
+  const headCommit = (await git(["rev-parse", "--verify", "HEAD^{commit}"]))?.trim();
+  const baselineCommit = (await git(["rev-parse", "--verify", "refs/remotes/origin/main^{commit}"]))
+    ?.trim();
+  const vacuous = !!headCommit && headCommit === baselineCommit;
+  const unchangedNote = vacuous
+    ? " [UNCHANGED: fetched baseline == HEAD - committed changes not in scope; uncommitted edits still checked]"
+    : "";
   if (baselineRef) {
     for (const s of suites) {
       const baseRaw = await git(["show", `${baselineRef}:${s.id}/conformance.json`]);
@@ -368,7 +377,7 @@ async function main() {
   );
   console.log(`  desktop matrix ok  : ${okCls("desktop")}/${pageIds.size}`);
   console.log(`  mobile matrix ok   : ${okCls("mobile")}/${pageIds.size}`);
-  console.log(`  baseline suites    : ${baselineChecked} checked for weakening`);
+  console.log(`  baseline suites    : ${baselineChecked} checked for weakening${unchangedNote}`);
   if (surfaceNotes.length) {
     console.log(
       `  declared surfaces  : ${
@@ -395,7 +404,7 @@ async function main() {
     );
     Deno.exit(1);
   }
-  console.log("\nPASS — full conformance coverage, no weakened assertions.");
+  console.log(`\nPASS — full conformance coverage, no weakened assertions.${unchangedNote}`);
 }
 
 if (import.meta.main) {

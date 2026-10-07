@@ -486,16 +486,31 @@ const runCitationGate = async () => {
     text: new TextDecoder().decode(out.stdout) + new TextDecoder().decode(out.stderr),
   };
 };
+await g4j("update-ref", "refs/remotes/origin/main", "HEAD");
+const unchangedNote4j =
+  "[UNCHANGED: fetched baseline == HEAD - committed changes not in scope; uncommitted edits still checked]";
+let cli4j = await runCitationGate();
+ok(
+  cli4j.code === 0 &&
+    cli4j.text.split("\n").some((line) =>
+      line.startsWith("citation-links ratchet:") && line.includes(unchangedNote4j)
+    ) &&
+    cli4j.text.split("\n").some((line) =>
+      line.startsWith("PASS —") && line.includes(unchangedNote4j)
+    ),
+  "4j equal fetched baseline qualifies BOTH citation count and PASS line",
+);
 await Deno.writeTextFile(
   `${dir4j}/${TRACKED_PAGE}`,
   cleanDoc("focusgroup") + '\n<span class="citation">Source: Unlinked Test Citation 2026.</span>',
 );
 await g4j("add", TRACKED_PAGE);
 await g4j("commit", "-qm", "fixture-only committed unlinked citation");
-let cli4j = await runCitationGate();
+cli4j = await runCitationGate();
 ok(
   cli4j.code === 1 && cli4j.text.includes("unlinked citation label") &&
-    cli4j.text.includes("Source: Unlinked Test Citation 2026."),
+    cli4j.text.includes("Source: Unlinked Test Citation 2026.") &&
+    !cli4j.text.includes(unchangedNote4j),
   "4j independent baseline detects committed unlinked citation (CLI rc1)",
 );
 await g4j("update-ref", "-d", "refs/remotes/origin/main");

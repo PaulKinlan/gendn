@@ -302,6 +302,37 @@ const root = Deno.cwd();
     await g("add", ".");
     await g("commit", "-qm", "clean baseline");
     await g("update-ref", "refs/remotes/origin/main", "HEAD");
+    const runSurfaceGate = async () => {
+      const out = await new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          "--allow-read",
+          "--allow-run",
+          new URL("./check-surface-coverage.mjs", import.meta.url).pathname,
+        ],
+        cwd: scratch,
+        stdout: "piped",
+        stderr: "piped",
+      }).output();
+      return {
+        code: out.code,
+        text: new TextDecoder().decode(out.stdout) + new TextDecoder().decode(out.stderr),
+      };
+    };
+    const unchangedNote =
+      "[UNCHANGED: fetched baseline == HEAD - committed changes not in scope; uncommitted edits still checked]";
+    let cli = await runSurfaceGate();
+    assert(
+      "equal fetched baseline qualifies BOTH surface count and PASS line",
+      cli.code === 0 &&
+        cli.text.split("\n").some((line) =>
+          line.startsWith("surface-coverage ratchet:") && line.includes(unchangedNote)
+        ) &&
+        cli.text.split("\n").some((line) =>
+          line.startsWith("PASS —") && line.includes(unchangedNote)
+        ),
+      cli.text,
+    );
     const baseline = await scanCorpus(scratch);
     assert(
       "scratch corpus starts clean with root + nested contracts",
@@ -362,28 +393,12 @@ const root = Deno.cwd();
 
     // Exercise the actual CLI in both directions on the SAME committed wrong-surface tree.
     // The scratch repo's origin/main is a local ref: no network or browser is involved.
-    const runSurfaceGate = async () => {
-      const out = await new Deno.Command(Deno.execPath(), {
-        args: [
-          "run",
-          "--allow-read",
-          "--allow-run",
-          new URL("./check-surface-coverage.mjs", import.meta.url).pathname,
-        ],
-        cwd: scratch,
-        stdout: "piped",
-        stderr: "piped",
-      }).output();
-      return {
-        code: out.code,
-        text: new TextDecoder().decode(out.stdout) + new TextDecoder().decode(out.stderr),
-      };
-    };
-    let cli = await runSurfaceGate();
+    cli = await runSurfaceGate();
     assert(
       "independent baseline detects committed wrong-surface page (CLI rc1)",
       cli.code === 1 && cli.text.includes("surface-coverage violation(s)") &&
-        cli.text.includes("computequota-method.syntax"),
+        cli.text.includes("computequota-method.syntax") &&
+        !cli.text.includes(unchangedNote),
       cli.text,
     );
     await g("update-ref", "-d", "refs/remotes/origin/main");
