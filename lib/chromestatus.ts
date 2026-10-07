@@ -21,11 +21,12 @@ try {
 const TTL_MS = 5 * 60 * 1000;
 const XSSI_PREFIX = ")]}'";
 
-// Allowed origins for outbound fetches and redirect destinations (gendn-lkj). fetchBounded()
-// is the single outbound primitive in the repo (THREAT_MODEL.md invariant #7). This set is the
-// complete set of origins fetchBounded is called with across the repo (lib/chromestatus.ts,
-// server.ts, lib/mdn.ts, scripts/vendor-fonts.mjs). If an upstream redirects, the destination
-// origin must remain on this allowlist rather than an arbitrary host.
+// Allowed origins for redirect DESTINATIONS (gendn-lkj, reworded gendn-iiex): fetchBounded()
+// is the single outbound primitive in the repo (THREAT_MODEL.md invariant #7). The CALL SITES
+// decide which origins are fetched (this set is the complete set of origins fetchBounded is
+// called with across the repo: lib/chromestatus.ts, server.ts, lib/mdn.ts,
+// scripts/vendor-fonts.mjs) — the guard below enforces only that an upstream REDIRECT
+// destination stays on this allowlist rather than an arbitrary host.
 export const ALLOWED_ORIGINS = new Set([
   "https://chromestatus.com",
   "https://api.github.com",
