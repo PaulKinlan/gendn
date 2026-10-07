@@ -39,7 +39,11 @@
 import { buildManifest } from "./route-manifest.mjs";
 import { gitRefExists, runGit } from "./lib/bounded-git.mjs";
 import { judgedFileExists, readJudgedFile } from "./lib/judged-content.mjs";
-import { BINDING_LEDGER, evaluateBindingLedger } from "./lib/binding-ledger.mjs";
+import {
+  BINDING_LEDGER,
+  bindingsFromManifest,
+  evaluateBindingLedger,
+} from "./lib/binding-ledger.mjs";
 
 const BASELINE_SNAPSHOT = ".route-manifest.baseline.json";
 const MIGRATIONS = "migrations.json";
@@ -74,6 +78,34 @@ async function readPriorMigrations(ref) {
   const parsed = JSON.parse(old.stdout);
   if (!Array.isArray(parsed)) throw new Error(`${ref}:${MIGRATIONS} is not an array`);
   return parsed;
+}
+
+// The first rollout has no prior ledger. The baseline manifest is a trustworthy one-time seed
+// ONLY if the extractor pipeline has not changed relative to that ref. Otherwise the original
+// blind spot would be reintroduced during bootstrap by regenerating the new ledger and gate.
+async function bootstrapExtractorChanges(ref) {
+  const files = [
+    "scripts/route-manifest.mjs",
+    "scripts/lib/artifacts.mjs",
+    "scripts/lib/judged-content.mjs",
+    "scripts/lib/bounded-git.mjs",
+  ];
+  const changed = new Set();
+  for (
+    const args of [["diff", "--name-only", ref, "--", ...files], [
+      "diff",
+      "--cached",
+      "--name-only",
+      ref,
+      "--",
+      ...files,
+    ]]
+  ) {
+    const result = await runGit(args, { stdout: "piped", stderr: "piped" });
+    if (result.code !== 0) throw new Error(`git ${args.join(" ")} failed: ${result.stderr.trim()}`);
+    for (const file of result.stdout.trim().split("\n").filter(Boolean)) changed.add(file);
+  }
+  return [...changed].sort();
 }
 
 // The bounded runner is shared (gendn-8q2): this gate must not be able to hang on the same
@@ -399,15 +431,26 @@ async function main() {
   let priorCount = "bootstrap";
   try {
     const ledger = JSON.parse(await readJudgedFile(BINDING_LEDGER));
-    const priorLedger = await readPriorBindings(ref);
+    const oldLedger = await readPriorBindings(ref);
     ledgerCount = Array.isArray(ledger) ? ledger.length : 0;
-    priorCount = priorLedger === null ? "bootstrap" : priorLedger.length;
+    priorCount = oldLedger === null ? "bootstrap" : oldLedger.length;
+    if (oldLedger === null) {
+      const changed = await bootstrapExtractorChanges(ref);
+      if (changed.length) {
+        failures.push(
+          `${BINDING_LEDGER} first-rollout bootstrap cannot change extractor sources: ` +
+            `${changed.join(", ")}; land the ledger first, then change extraction with a migration`,
+        );
+      }
+    }
+    // During the one-time bootstrap only, the unchanged extractor can derive the old bindings
+    // from baseline pages; thereafter the committed PRIOR ledger is authoritative instead.
     failures.push(...evaluateBindingLedger({
       current,
       ledger,
-      priorLedger,
+      priorLedger: oldLedger ?? bindingsFromManifest(baseline),
       migrations,
-      priorMigrations: priorLedger === null ? [] : await readPriorMigrations(ref),
+      priorMigrations: await readPriorMigrations(ref),
     }));
   } catch (err) {
     failures.push(

@@ -100,7 +100,9 @@ durable identity is:
   extractor binding change, run **`deno task refresh-bindings` explicitly**, inspect the ledger diff
   against the previous committed version, and commit it alongside the migration. New routes need a
   ledger entry but no migration. Do not copy `.route-manifest.baseline.json` as this ledger: that
-  fallback contains different fields and may not represent the current route census.
+  fallback contains different fields and may not represent the current route census. During the
+  one-time initial rollout (when the baseline has no ledger), the gate refuses simultaneous edits
+  to the extractor pipeline; land the ledger first, then do any extractor rebinding separately.
 - `migrations.json` — array of `{ id, action, from, to, reason, evidence, date }` records for
   exceptional removals/moves/identity-changes/demo-changes and aliases for moved routes. The
   original origin/main-derived check matches only `id` + `action`. **For an existing route whose

@@ -197,11 +197,15 @@ try {
   await git("init", "-q", "-b", "main");
   await git("config", "user.name", "binding-fixture");
   await git("config", "user.email", "binding-fixture@example.test");
-  await git("add", ".");
-  await git("commit", "-qm", "pinned baseline");
+  await git("add", "scripts", page, "migrations.json");
+  await git("commit", "-qm", "baseline before first ledger");
   await git("update-ref", "refs/remotes/origin/main", "HEAD");
-  const clean = await gate();
-  assert("real gate: clean binding passes", clean.code === 0, clean.text);
+  const bootstrap = await gate();
+  assert(
+    "REAL gate: first rollout accepts the correct ledger with unchanged extractor",
+    bootstrap.code === 0,
+    bootstrap.text,
+  );
 
   const artifactPath = `${temp}/scripts/lib/artifacts.mjs`;
   const original = await Deno.readTextFile(artifactPath);
@@ -210,6 +214,23 @@ try {
     "  const fallbackMatch = html.match(FEATURE_ID_RE);\n  if (fallbackMatch) return fallbackMatch[1];\n  const declaredMatch = html.match(DECLARED_FEATURE_ID_RE);\n  return declaredMatch ? declaredMatch[1] : null;",
   );
   if (identityMutant === original) throw new Error("fixture identity extractor mutation failed");
+  await Deno.writeTextFile(artifactPath, identityMutant);
+  await refresh();
+  const bootstrapEscape = await gate();
+  assert(
+    "REAL gate: initial rollout rejects a simultaneously changed extractor even after ledger refresh",
+    bootstrapEscape.code !== 0 &&
+      /bootstrap cannot change extractor sources/.test(bootstrapEscape.text),
+    bootstrapEscape.text,
+  );
+  await Deno.writeTextFile(artifactPath, original);
+  await Deno.writeTextFile(`${temp}/${BINDING_LEDGER}`, JSON.stringify(base, null, 2) + "\n");
+  await git("add", BINDING_LEDGER);
+  await git("commit", "-qm", "pinned binding ledger");
+  await git("update-ref", "refs/remotes/origin/main", "HEAD");
+  const clean = await gate();
+  assert("real gate: clean binding passes", clean.code === 0, clean.text);
+
   await Deno.writeTextFile(artifactPath, identityMutant);
   const idStale = await gate();
   assert(
