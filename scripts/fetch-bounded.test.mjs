@@ -13,7 +13,9 @@
 //     that lie about / omit content-length
 //   - a non-ok status is returned to the caller (fetchBounded does not throw on status; the
 //     caller decides, and server.ts's error handling is the single place that shapes responses)
-//   - a 3xx redirect destination is bounded against an explicit allowlist (gendn-lkj)
+//   - a 3xx redirect destination is bounded against an explicit allowlist (gendn-lkj), and
+//     that bound is enforced BEFORE the hop: an off-allowlist destination receives ZERO
+//     requests (gendn-lr61 - the destination hit counter is the discriminating assertion)
 //
 // Run: deno task test-fetch-bounded  (or: deno run scripts/fetch-bounded.test.mjs)
 
@@ -127,9 +129,15 @@ const server = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
   return new Response("nope", { status: 404 });
 });
 // Stand-in for an off-allowlist destination origin (distinct port on loopback).
+// gendn-lr61: the destination server counts every request it receives. The
+// off-allowlist assertion below is discriminated by this counter staying at ZERO - a
+// thrown error alone does not prove the destination was never contacted (the old
+// guard threw AFTER following the redirect, having already reached it).
+let destHits = 0;
 const destServer = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
   const path = new URL(req.url).pathname;
   if (path === "/dest") {
+    destHits++;
     return new Response("off-allowlist destination reached", {
       headers: { "content-type": "text/plain" },
     });
@@ -261,6 +269,11 @@ try {
     !redir.ok && /fetchBounded: redirected off-allowlist to/.test(String(redir.err?.message)),
     `rejected: ${redir.err?.message}`,
   );
+  assert(
+    "gendn-lr61: the off-allowlist destination received ZERO requests (validated before the hop, not after)",
+    destHits === 0,
+    `destHits: ${destHits}`,
+  );
 
   // 8b. positive path: when the destination origin is in ALLOWED_ORIGINS, following succeeds
   ALLOWED_ORIGINS.add(destOrigin);
@@ -273,6 +286,11 @@ try {
       "redirect to allowlisted origin succeeds and returns body",
       allowedRedir.ok && allowedRedir.value?.text === "off-allowlist destination reached",
       `status=${allowedRedir.value?.res?.status}`,
+    );
+    assert(
+      "gendn-lr61: an allowlisted redirect IS followed (the destination was reached exactly once)",
+      destHits === 1,
+      `destHits: ${destHits}`,
     );
   } finally {
     ALLOWED_ORIGINS.delete(destOrigin);

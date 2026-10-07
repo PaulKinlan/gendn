@@ -26,7 +26,8 @@ const XSSI_PREFIX = ")]}'";
 // decide which origins are fetched (this set is the complete set of origins fetchBounded is
 // called with across the repo: lib/chromestatus.ts, server.ts, lib/mdn.ts,
 // scripts/vendor-fonts.mjs) — the guard below enforces only that an upstream REDIRECT
-// destination stays on this allowlist rather than an arbitrary host.
+// destination stays on this allowlist rather than an arbitrary host - validated BEFORE the
+// hop, so no connection is ever opened to an off-allowlist destination (gendn-lr61).
 export const ALLOWED_ORIGINS = new Set([
   "https://chromestatus.com",
   "https://api.github.com",
@@ -102,17 +103,51 @@ export async function fetchBounded(
     method?: string;
   } = {},
 ): Promise<{ res: Response; text: string }> {
-  const res = await fetch(url, { method, headers, signal: AbortSignal.timeout(timeoutMs) });
-  if (res.redirected && !ALLOWED_ORIGINS.has(new URL(res.url).origin)) {
-    try {
-      await res.body?.cancel();
-    } catch {
-      // already closed or absent
+  // gendn-lr61: redirects are followed MANUALLY. Each hop's Location header is resolved and
+  // validated against ALLOWED_ORIGINS BEFORE the next request is issued, so a hostile or
+  // misbehaving upstream can never make this process open a connection to an off-allowlist
+  // host. The old guard followed first and threw after - the destination had already been
+  // reached (measured: the test destination logged a request before the rejection). The
+  // post-hoc res.redirected check below stays as defence in depth: with redirect:"manual"
+  // it is unreachable, but if auto-following is ever re-enabled the destination check holds.
+  const MAX_REDIRECT_HOPS = 5;
+  let current = url;
+  for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
+    const res = await fetch(current, {
+      method,
+      headers,
+      redirect: "manual",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (res.status >= 300 && res.status < 400) {
+      const location = res.headers.get("location");
+      try {
+        await res.body?.cancel();
+      } catch {
+        // already closed or absent
+      }
+      if (!location) {
+        throw new Error(`fetchBounded: ${res.status} redirect without a Location header`);
+      }
+      const next = new URL(location, current);
+      if (!ALLOWED_ORIGINS.has(next.origin)) {
+        throw new Error(`fetchBounded: redirected off-allowlist to ${next.origin}`);
+      }
+      current = next.href;
+      continue;
     }
-    throw new Error(`fetchBounded: redirected off-allowlist to ${new URL(res.url).origin}`);
+    if (res.redirected && !ALLOWED_ORIGINS.has(new URL(res.url).origin)) {
+      try {
+        await res.body?.cancel();
+      } catch {
+        // already closed or absent
+      }
+      throw new Error(`fetchBounded: redirected off-allowlist to ${new URL(res.url).origin}`);
+    }
+    const text = await readCapped(res, maxBytes);
+    return { res, text };
   }
-  const text = await readCapped(res, maxBytes);
-  return { res, text };
+  throw new Error(`fetchBounded: exceeded ${MAX_REDIRECT_HOPS} redirect hops`);
 }
 
 const cache = new Map<string, { at: number; value: unknown }>();
