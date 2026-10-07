@@ -87,7 +87,7 @@ partial interface Element {
       <tr>
         <td><code>element.streamAppendHTML(...)</code></td>
         <td>Stream or options bag</td>
-        <td><strong>Unsettled:</strong> The <a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md#resulting-api" target="_blank" rel="noopener">WICG explainer WebIDL</a> specifies returning a <code>WritableStream</code> to pipe data into, whereas earlier WHATWG drafts specified taking a <code>ReadableStream</code> and returning a <code>Promise&lt;void&gt;</code>. Applications must treat this return contract as unsettled until the specification reaches consensus.</td>
+        <td><strong>Unsettled:</strong> The <a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md#resulting-api" target="_blank" rel="noopener">WICG explainer WebIDL</a> specifies returning a <code>WritableStream</code> to pipe data into, whereas the earlier WHATWG discussion (issue #2142) centered on piping a <code>ReadableStream</code> of decoded chunks into the insertion point. Applications must treat this return contract as unsettled until the specification reaches consensus.</td>
       </tr>
     </table>
     </div>
@@ -97,13 +97,13 @@ partial interface Element {
   <section>
     <h2 id="inputs-and-outputs">Inputs and outputs</h2>
     <p><strong>Inputs:</strong> The positional methods (<code>beforeHTML</code>, <code>afterHTML</code>, <code>prependHTML</code>, <code>appendHTML</code>, <code>replaceWithHTML</code>) take a mandatory <code>html</code> string (or <code>TrustedHTML</code> under Trusted Types enforcement) and an optional <code>SetHTMLOptions</code> dictionary containing sanitizer configurations. For <code>streamAppendHTML</code>, input parameter conventions remain unsettled between a stream source and an options bag.</p>
-    <p><strong>Outputs:</strong> Positional methods return <code>undefined</code> (WebIDL <code>void</code>) synchronously. For <code>streamAppendHTML</code>, the return type remains explicitly unsettled: the explainer WebIDL defines returning a <code>WritableStream</code>, while prior designs returned a <code>Promise&lt;void&gt;</code> that fulfilled when the stream concluded. Authors must avoid asserting either return shape.</p>
+    <p><strong>Outputs:</strong> Positional methods return <code>undefined</code> (WebIDL <code>void</code>) synchronously. For <code>streamAppendHTML</code>, the input/return contract remains explicitly unsettled: the explainer WebIDL defines returning a <code>WritableStream</code> you write chunks into, while the earlier WHATWG discussion (issue #2142) centered on a <code>ReadableStream</code> input. Authors must avoid asserting either return shape.</p>
     <span class="citation">Source: <a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md#resulting-api" target="_blank" rel="noopener">WICG explainer — Resulting API</a>; <a href="https://github.com/whatwg/html/issues/10122" target="_blank" rel="noopener">WHATWG HTML issue #10122</a>.</span>
   </section>
 
   <section>
     <h2 id="errors-and-lifecycle">Errors and lifecycle</h2>
-    <p><strong>Errors:</strong> The explainer does not define novel exception classes for the positional methods. As with <code>insertAdjacentHTML</code> and <code>innerHTML</code>, passing malformed HTML does not throw a parsing error; the HTML parser invokes resilient error-recovery steps to construct a DOM tree. However, calling positional methods that require a parent node (such as <code>beforeHTML</code>, <code>afterHTML</code>, or <code>replaceWithHTML</code>) on an element without a parent throws a <code>DOMException</code> with name <code>HierarchyRequestError</code> or <code>NotFoundError</code>. For streaming methods, stream abort or network errors propagate through the underlying stream error mechanisms.</p>
+    <p><strong>Errors:</strong> The explainer does not define novel exception classes for the positional methods. As with <code>insertAdjacentHTML</code> and <code>innerHTML</code>, passing malformed HTML does not throw a parsing error; the HTML parser invokes resilient error-recovery steps to construct a DOM tree. The explainer does not yet define which exceptions, if any, apply to the new methods (its WICG template question on error raising is open): whether parent-requiring methods reject detached elements, and how stream aborts surface, are open questions &mdash; verify against your build rather than assuming <code>insertAdjacentHTML</code> semantics carry over.</p>
     <p><strong>Lifecycle:</strong> Markup injected synchronously undergoes immediate DOM insertion and tree mutation events. For streaming insertion, parsed nodes are appended incrementally as chunks arrive from the stream, yielding execution to the browser between chunks to preserve user responsiveness.</p>
     <span class="citation">Source: <a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md" target="_blank" rel="noopener">WICG explainer</a>; <a href="https://issues.chromium.org/issues/491743369" target="_blank" rel="noopener">Chromium Issue 491743369</a>.</span>
   </section>
@@ -121,12 +121,11 @@ target.beforeHTML('&lt;div class="notice"&gt;Before notice&lt;/div&gt;');
 target.afterHTML('&lt;div class="notice"&gt;After notice&lt;/div&gt;');
 target.replaceWithHTML('&lt;div id="current-card" class="updated"&gt;New card content&lt;/div&gt;');
 
-// 2. Streaming insertion — unsettled return contract
-// Per the unsettled-return-contract discipline: do NOT await streamAppendHTML
-// and do not make promise or return-type assertions. Show call bare:
-const container = document.querySelector('#stream-target');
-const textStream = response.body.pipeThrough(new TextDecoderStream());
-container.streamAppendHTML(textStream);</code></pre>
+// 2. Streaming insertion (streamAppendHTML) is deliberately not shown as runnable code:
+// the explainer WebIDL returns a WritableStream you write HTML chunks into, while the
+// earlier WHATWG discussion (issue #2142) centered on piping a ReadableStream of decoded
+// chunks into the insertion point. The input/return contract is unsettled (see the syntax
+// table); do not code against either shape until the specification settles.</code></pre>
     <span class="citation">Source: <a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md#resulting-api" target="_blank" rel="noopener">WICG explainer — Resulting API</a>.</span>
   </section>
 

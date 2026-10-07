@@ -949,6 +949,17 @@ const PAGES = [
     ],
     dates: ["queried on 2026-10-07"],
   },
+  {
+    // B5 (gendn-7g6): the chromestatus milestone listing recorded "Enabled by default" in
+    // 153 (verified 2026-07-28), while the ChromeStatus API record queried 2026-10-07
+    // reports is_released:false with an active Origin Trial 148->153. Both sides carried
+    // in the banner and the browser-compatibility section; neither adjudicated.
+    page: "v153/declarative-shadow-dom-shadowrootadoptedstylesheets/index.html",
+    marker: "The Chrome 153 milestone listing previously categorized this feature under",
+    sideA: ["Enabled by default", "2026-07-28"],
+    sideB: ["is_released: false", "Origin Trial", "4790543041298432", "queried on 2026-10-07"],
+    dates: ["2026-07-28", "queried on 2026-10-07"],
+  },
 ];
 
 let failures = 0;
@@ -1043,6 +1054,7 @@ const DATED_PAGES = new Set([
   "v152/window-drag/index.html",
   "v153/renewed-html-insertion-streaming-methods/index.html",
   "v153/responsively-sized-iframe/index.html",
+  "v153/declarative-shadow-dom-shadowrootadoptedstylesheets/index.html",
 ]);
 const datedInTable = new Set(PAGES.filter((e) => e.dates.length > 0).map((e) => e.page));
 assert(
