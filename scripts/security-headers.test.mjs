@@ -359,7 +359,12 @@ try {
     });
     const probeCt = probeRes.headers.get("content-type") ?? "";
     const probeSniff = probeRes.headers.get("x-content-type-options") ?? "";
-    await probeRes.body?.cancel();
+    const probeBody = await probeRes.text();
+    assert(
+      "gt7: probe present and served (a 404 also carries text/plain + nosniff and would pass the MIME checks vacuously)",
+      probeRes.status === 200 && probeBody.includes("gendn-gt7"),
+      `status: ${probeRes.status}; body names the bead: ${probeBody.includes("gendn-gt7")}`,
+    );
     assert(
       "gt7: release-asset .js is served inert (text/plain), not a script MIME",
       probeCt.startsWith("text/plain"),
