@@ -55,7 +55,10 @@ try {
   assert("SPECULATION_RULES is enclosed in script[type=speculationrules]", match !== null);
 
   const json = JSON.parse(match[1]);
-  assert("speculation rules declares prefetch array", Array.isArray(json.prefetch) && json.prefetch.length === 1);
+  assert(
+    "speculation rules declares prefetch array",
+    Array.isArray(json.prefetch) && json.prefetch.length === 1,
+  );
   assert("prefetch source is 'document'", json.prefetch[0].source === "document");
   assert("prefetch href_matches is '/v*/**'", json.prefetch[0].where?.href_matches === "/v*/**");
   assert("prefetch eagerness is 'moderate'", json.prefetch[0].eagerness === "moderate");
@@ -95,7 +98,10 @@ try {
   const leafRes = await handleRequest(new Request("http://localhost/v147/autofill-event/"));
   assert("GET /v147/autofill-event/ returns 200", leafRes.status === 200);
   const leafHtml = await leafRes.text();
-  assert("GET /v147/autofill-event/ leaves static leaf unchurned", !leafHtml.includes("speculationrules"));
+  assert(
+    "GET /v147/autofill-event/ leaves static leaf unchurned",
+    !leafHtml.includes("speculationrules"),
+  );
 } finally {
   await stubServer.shutdown();
 }

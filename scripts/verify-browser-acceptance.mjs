@@ -256,7 +256,9 @@ try {
   })()`);
 
   if (featLink) {
-    console.log(`Located feature reference link: ${featLink.href} at (${featLink.x}, ${featLink.y})`);
+    console.log(
+      `Located feature reference link: ${featLink.href} at (${featLink.x}, ${featLink.y})`,
+    );
     await desktopPage.sendSession("Input.dispatchMouseEvent", {
       type: "mouseMoved",
       x: featLink.x,
