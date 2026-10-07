@@ -39,6 +39,9 @@ function extractCriticalFields(filePath, content) {
   if (filePath.endsWith(".json")) {
     try {
       const parsed = JSON.parse(content);
+      if (parsed === null || typeof parsed !== "object") {
+        return { __primitive: parsed };
+      }
       if (filePath.endsWith("conformance.json")) {
         // DEFAULT-COMPARE everything in conformance.json, EXCLUDING only fields
         // the gates genuinely tolerate. validate-artifacts (validate-artifacts.mjs:97)
@@ -54,7 +57,7 @@ function extractCriticalFields(filePath, content) {
       // zero fields are provably tolerated by the gates. Return the entire object.
       return parsed;
     } catch {
-      return null;
+      return { __unparseable: true, raw: content };
     }
   }
 

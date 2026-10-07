@@ -524,6 +524,62 @@ try {
       "0n5s validate-artifacts Case 12 (P0-3): reader reads staged index contract with completeness: partial",
       readContractP03.completeness === "partial",
     );
+
+    // Clean up reference-contract.json
+    await g("checkout", "-f", "HEAD");
+
+    // Case 13 (gendn-0n5s round 4): Staged malformed JSON in conformance.json with status decoy in worktree
+    // Truncated invalid JSON in index, valid JSON + status:"stub" decoy in worktree.
+    // The reader must not return null/skip comparison, but must detect index mutation and read from index.
+    await Deno.writeTextFile(
+      `${scratch}/${ALPHA}/conformance.json`,
+      '{ "schemaVersion": 1, "id": "truncated",\n',
+    );
+    await g("add", `${ALPHA}/conformance.json`);
+    await Deno.writeTextFile(
+      `${scratch}/${ALPHA}/conformance.json`,
+      JSON.stringify(statusDecoyFullSuite, null, 2),
+    );
+    const r4MalStatus = (await g("status", "--short")).trim();
+    assert(
+      "0n5s validate-artifacts Case 13: git status shows MM for staged malformed JSON with status decoy",
+      r4MalStatus.includes("MM") && r4MalStatus.includes(ALPHA),
+    );
+    invalidateJudgedCache();
+    let readMalformedThrew = false;
+    try {
+      await readJudgedJson(`${ALPHA}/conformance.json`, scratch);
+    } catch (err) {
+      readMalformedThrew = err instanceof SyntaxError;
+    }
+    assert(
+      "0n5s validate-artifacts Case 13: reader reads staged malformed JSON from index and throws SyntaxError",
+      readMalformedThrew,
+    );
+
+    // Clean up conformance.json
+    await g("checkout", "-f", "HEAD");
+
+    // Case 14 (gendn-0n5s round 4): Staged falsy primitive (null) in non-conformance JSON (reference-contract.json)
+    // Staging "null" in reference-contract.json, valid contract + whitespace decoy in worktree.
+    // The reader must not treat null as unjudged, but must read staged null from index.
+    await Deno.writeTextFile(`${scratch}/${ALPHA}/reference-contract.json`, "null\n");
+    await g("add", `${ALPHA}/reference-contract.json`);
+    await Deno.writeTextFile(
+      `${scratch}/${ALPHA}/reference-contract.json`,
+      JSON.stringify(sufficientContract, null, 2) + "\n   \n",
+    );
+    const r4FalsyStatus = (await g("status", "--short")).trim();
+    assert(
+      "0n5s validate-artifacts Case 14: git status shows MM for staged null JSON with decoy formatting",
+      r4FalsyStatus.includes("MM") && r4FalsyStatus.includes(ALPHA),
+    );
+    invalidateJudgedCache();
+    const readNullP04 = await readJudgedJson(`${ALPHA}/reference-contract.json`, scratch);
+    assert(
+      "0n5s validate-artifacts Case 14: reader reads staged null primitive from index",
+      readNullP04 === null,
+    );
   } finally {
     await Deno.remove(scratch, { recursive: true });
   }
