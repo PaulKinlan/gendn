@@ -30,6 +30,7 @@ import {
   validate,
 } from "./lib/artifacts.mjs";
 import { validateReferenceContractsInBrowser } from "./lib/reference-browser.mjs";
+import { readJudgedFile } from "./lib/judged-content.mjs";
 import { gitRefExists, runGit } from "./lib/bounded-git.mjs";
 import {
   collectReferenceContracts,
@@ -266,7 +267,7 @@ async function main() {
           // fleet-check, an 18/18 fixture suite and a three-way mutation matrix because those mutate the
           // DETECTOR and this is the CALLER: the library and its call sites fail independently, and
           // `check-conformance` is not part of `fleet-check` (rule 121).
-          const pageHtml = await Deno.readTextFile(`./${id}/index.html`).catch(() => null);
+          const pageHtml = await readJudgedFile(`./${id}/index.html`).catch(() => null);
           if (contract.completeness === "implementation-sufficient") {
             if (pageHtml) {
               structuralErrors.push(...validateDeclaredSurface(contract, pageHtml));
@@ -352,7 +353,7 @@ async function main() {
     const isPartial = contract?.id === id && contract.completeness === "partial" &&
       referenceErrorsById.get(id)?.length === 0;
     if (isSufficient || isPartial) continue;
-    const html = await Deno.readTextFile(`./${id}/index.html`).catch(() => null);
+    const html = await readJudgedFile(`./${id}/index.html`).catch(() => null);
     if (html && declaredSurfaceMembers(html).length === 0) noIdlSurface++;
   }
   console.log(`  critiques          : ${critiquePages.length}/${pageIds.size} published pages`);
