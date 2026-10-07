@@ -358,7 +358,8 @@ const PAGES = [
     // gendn-xpz: sibling LNA divergence on the service-worker page, disclosed LATE - the in-unit ruling had been
     // applied to the four BEADS rather than the four PAGES carrying disclosures, so this unit was missed until a
     // batch-wide consistency check caught that it alone had no disclosure paragraph.
-    page: "v147/local-network-access-restrictions-on-service-worker-windowclient-navigate/index.html",
+    page:
+      "v147/local-network-access-restrictions-on-service-worker-windowclient-navigate/index.html",
     marker: "Status and scope divergence, both sides reported rather than resolved",
     sideA: ["Enabled by default", "as shipped in Chrome 147"],
     sideB: ["5172375182245888", "Proposed", "Shipped/Shipping"],
