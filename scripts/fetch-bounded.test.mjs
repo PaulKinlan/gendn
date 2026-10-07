@@ -108,6 +108,19 @@ const server = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
       headers: { location: `${destBase}/dest` },
     });
   }
+  if (path === "/redirect-no-location") {
+    // gendn-lr61 review coverage: a redirect status with no Location header must throw,
+    // not fall through to the caller as a 3xx.
+    return new Response(null, { status: 302 });
+  }
+  if (path === "/redirect-loop") {
+    // gendn-lr61 review coverage: a redirect chain that never terminates must hit the hop
+    // cap, not loop forever.
+    return new Response(null, {
+      status: 302,
+      headers: { location: `${base}/redirect-loop` },
+    });
+  }
   if (path === "/liar") {
     // Streaming body that lies about its size (no content-length, chunked), so only the
     // streaming cap can stop it.
@@ -141,6 +154,14 @@ const destServer = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
     return new Response("off-allowlist destination reached", {
       headers: { "content-type": "text/plain" },
     });
+  }
+  if (path === "/redirect-relative") {
+    // gendn-lr61 review coverage: a RELATIVE Location must resolve against the current URL.
+    return new Response(null, { status: 302, headers: { location: "dest" } });
+  }
+  if (path === "/redirect-head") {
+    // gendn-lr61 review coverage: HEAD must stay HEAD through a hop.
+    return new Response(null, { status: 302, headers: { location: `${destBase}/dest` } });
   }
   return new Response("nope", { status: 404 });
 });
@@ -274,6 +295,24 @@ try {
     destHits === 0,
     `destHits: ${destHits}`,
   );
+  const noLoc = await timed(
+    "redirect-no-location",
+    () => fetchBounded(`${base}/redirect-no-location`, { timeoutMs: 5000 }),
+  );
+  assert(
+    "gendn-lr61: a redirect status without a Location header throws",
+    !noLoc.ok && /without a Location header/.test(String(noLoc.err?.message)),
+    `rejected: ${noLoc.err?.message}`,
+  );
+  const loop = await timed(
+    "redirect-loop",
+    () => fetchBounded(`${base}/redirect-loop`, { timeoutMs: 5000 }),
+  );
+  assert(
+    "gendn-lr61: a self-redirecting chain hits the hop cap",
+    !loop.ok && /exceeded 5 redirect hops/.test(String(loop.err?.message)),
+    `rejected: ${loop.err?.message}`,
+  );
 
   // 8b. positive path: when the destination origin is in ALLOWED_ORIGINS, following succeeds
   ALLOWED_ORIGINS.add(destOrigin);
@@ -291,6 +330,30 @@ try {
       "gendn-lr61: an allowlisted redirect IS followed (the destination was reached exactly once)",
       destHits === 1,
       `destHits: ${destHits}`,
+    );
+    const before = destHits;
+    const rel = await timed(
+      "redirect-relative",
+      () => fetchBounded(`${destBase}/redirect-relative`, { timeoutMs: 5000 }),
+    );
+    assert(
+      "gendn-lr61: a RELATIVE Location resolves against the current URL and is followed",
+      rel.ok && rel.value?.text === "off-allowlist destination reached",
+      `text=${rel.value?.text ?? rel.err?.message}`,
+    );
+    const head = await timed(
+      "redirect-head",
+      () => fetchBounded(`${destBase}/redirect-head`, { timeoutMs: 5000, method: "HEAD" }),
+    );
+    assert(
+      "gendn-lr61: HEAD stays HEAD through a hop (final status 200, empty body - not a 404 fallback)",
+      head.ok && head.value?.res?.status === 200,
+      `status=${head.value?.res?.status ?? head.err?.message}`,
+    );
+    assert(
+      "gendn-lr61 review: positive-path hops reached the destination exactly twice more",
+      destHits === before + 2,
+      `destHits delta: ${destHits - before}`,
     );
   } finally {
     ALLOWED_ORIGINS.delete(destOrigin);
