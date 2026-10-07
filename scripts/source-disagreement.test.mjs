@@ -366,6 +366,33 @@ const PAGES = [
     dates: ["fetched 2026-10-06"],
   },
   {
+    // gendn-g8o (B3, overscroll-gestures): the record the page cites names the feature differently and carries
+    // an open spec link where the page says none is stable. Both sides are named on the page; neither adjudicated.
+    page: "v149/overscroll-gestures/index.html",
+    marker: "Naming and specification disagreement, both sides reported rather than resolved",
+    sideA: ["Overscroll Gestures", "No stable spec URL yet"],
+    sideB: ["Overscroll Areas", "14532", "Proposed"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, android-ime-media-insertion): page records a stepped rollout on Android in 149; the cited
+    // record's summary status still reads Proposed, though its rollout stage does carry 149 and Android.
+    page: "v149/android-ime-media-insertion/index.html",
+    marker: "Rollout-status disagreement, both sides reported rather than resolved",
+    sideA: ["Chrome 149 (Stepped rollout)", "Android only"],
+    sideB: ["5484282563919872", "Proposed"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, gamepad-event-driven-input-api): the page's event name and timestamp source differ from the
+    // proposal explainer, and the cited record's summary status reads In development while its OT stage lists 149.
+    page: "v149/gamepad-event-driven-input-api/index.html",
+    marker: "Event-name and status disagreement, both sides reported rather than resolved",
+    sideA: ["rawgamepadinputchange", "event.timestamp"],
+    sideB: ["gamepadrawinputchanged", "axesChanged", "In development"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
     // gendn-g8o (B3 unit 1): the page's Safari cell and its summary status disagree with the ChromeStatus
     // record the page itself cites. The record's own stage data AGREES with the page (149 dev trial, 150
     // shipping), so only the Safari view and the summary status are in dispute; neither side is adjudicated.
@@ -437,6 +464,9 @@ const DATED_PAGES = new Set([
   "v147/local-network-access-restrictions-for-webtransport/index.html",
   "v147/x25519kyber768-key-encapsulation-for-tls/index.html",
   "v149/comma-separated-container-queries/index.html",
+  "v149/overscroll-gestures/index.html",
+  "v149/android-ime-media-insertion/index.html",
+  "v149/gamepad-event-driven-input-api/index.html",
 ]);
 const datedInTable = new Set(PAGES.filter((e) => e.dates.length > 0).map((e) => e.page));
 assert(
