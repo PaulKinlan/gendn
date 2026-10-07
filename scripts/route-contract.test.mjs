@@ -73,6 +73,32 @@ assert(
     `${showcase}/v153/other/demo ${showcase}/v153/foo/demo`,
   ).demo === `${showcase}/v153/foo/demo`,
 );
+// t7sr: a longer sibling slug is not the /v148/prompt-api/ feature. With no own link,
+// the documented fallback is the FIRST showcase URL, not a later prefix-colliding sibling.
+const promptPage = "v148/prompt-api/index.html";
+const unrelatedDemo = `${showcase}/v148/other-feature/`;
+const siblingDemo = `${showcase}/v148/prompt-api-sampling-parameters/`;
+const ownPromptDemo = `${showcase}/v148/prompt-api/`;
+const noOwnHtml = `${unrelatedDemo} ${siblingDemo}`;
+const noOwnDemo = pathToIdentityFields(promptPage, noOwnHtml).demo;
+const noOwnMetadataDemo = metadataFromHtml(promptPage, noOwnHtml).demo;
+assert(
+  "prefix-colliding sibling cannot override an earlier fallback in manifest OR suite metadata",
+  noOwnDemo === unrelatedDemo && noOwnMetadataDemo === unrelatedDemo,
+  `manifest: ${noOwnDemo}; metadata: ${noOwnMetadataDemo}; expected: ${unrelatedDemo}`,
+);
+const ownAfterSiblingHtml = `${siblingDemo} ${ownPromptDemo}`;
+const ownAfterSibling = pathToIdentityFields(promptPage, ownAfterSiblingHtml).demo;
+const ownMetadataAfterSibling = metadataFromHtml(promptPage, ownAfterSiblingHtml).demo;
+assert(
+  "real own demo wins after a colliding sibling in manifest AND suite metadata",
+  ownAfterSibling === ownPromptDemo && ownMetadataAfterSibling === ownPromptDemo,
+  `manifest: ${ownAfterSibling}; metadata: ${ownMetadataAfterSibling}; expected: ${ownPromptDemo}`,
+);
+assert(
+  "a lone sibling remains the first-showcase fallback, not an own-feature match",
+  pathToIdentityFields(promptPage, siblingDemo).demo === siblingDemo,
+);
 
 function entry(id, overrides = {}) {
   return {
