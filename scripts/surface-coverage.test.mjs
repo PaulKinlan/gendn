@@ -209,13 +209,27 @@ const root = Deno.cwd();
       ids.includes("v149/webmcp/entry-point"),
     ids.join(","),
   );
-  // the ratchet runs clean (vacuous) on an untouched tree
+  // The ratchet must run clean on the current tree, and its vacuous flag must MATCH the
+  // git state rather than assert one state (this fixture runs pre-commit AND post-commit:
+  // base==HEAD only before the branch has commits of its own).
   const r = await runRatchet(root);
-  assert("ratchet: runs without error on the current tree", !r.error, r.error ?? "");
   assert(
-    "ratchet: untouched tree is honestly vacuous, not silently green",
-    r.vacuous === true && r.failures.length === 0,
-    JSON.stringify({ vacuous: r.vacuous, f: r.failures.length }),
+    "ratchet: runs without error on the current tree, zero failures",
+    !r.error && r.failures.length === 0,
+    r.error ?? JSON.stringify(r.failures.slice(0, 2)),
+  );
+  const gitOut = async (args) => {
+    const c = new Deno.Command("git", { args, cwd: root, stdout: "piped", stderr: "null" });
+    const o = await c.output();
+    return o.success ? new TextDecoder().decode(o.stdout).trim() : null;
+  };
+  const mb = await gitOut(["merge-base", "origin/main", "HEAD"]);
+  const head = await gitOut(["rev-parse", "HEAD"]);
+  const expectedVacuous = mb !== null && head !== null && mb === head;
+  assert(
+    "ratchet: the vacuous flag matches the git state (base==HEAD iff vacuous) - honest in both the pre-commit and post-commit tree",
+    r.vacuous === expectedVacuous,
+    JSON.stringify({ vacuous: r.vacuous, expected: expectedVacuous, mb, head }),
   );
 }
 
