@@ -672,7 +672,7 @@ export function unreadableSyntaxBlocks(html) {
   return out;
 }
 
-function nameTokens(value) {
+export function nameTokens(value) {
   return String(value ?? "").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
 }
 
@@ -893,7 +893,7 @@ export function hasHref(html, url) {
   return false;
 }
 
-function fragmentAfterId(html, id) {
+export function fragmentAfterId(html, id) {
   html = cachedRenderedMarkup(html);
   const escaped = escapeRegExp(id);
   const match = new RegExp(`\\bid=["']${escaped}["']`, "i").exec(html);
@@ -903,7 +903,7 @@ function fragmentAfterId(html, id) {
   return nextHeading ? tail.slice(0, match[0].length + nextHeading.index) : tail.slice(0, 8000);
 }
 
-function stripMarkup(value) {
+export function stripMarkup(value) {
   return cachedRenderedMarkup(value)
     .replace(/<script\b[\s\S]*?<\/script>/gi, " ")
     .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
