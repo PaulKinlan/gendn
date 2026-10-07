@@ -465,6 +465,67 @@ export function scopedResultsReport({ existing = [], scanned = [], scoped = fals
   return { suites, agg, merged: scoped };
 }
 
+// Match the responsive selector against the same published-root catalogue used by the runner.
+// A child path or typo must not masquerade as a successful zero-page browser check.
+function editDistance(left, right) {
+  let previous = Array.from({ length: right.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= left.length; i++) {
+    const current = [i];
+    for (let j = 1; j <= right.length; j++) {
+      current[j] = Math.min(
+        current[j - 1] + 1,
+        previous[j] + 1,
+        previous[j - 1] + (left[i - 1] === right[j - 1] ? 0 : 1),
+      );
+    }
+    previous = current;
+  }
+  return previous[right.length];
+}
+
+export function selectResponsivePages(
+  pages,
+  { hasSelector = false, selector, limit = Infinity } = {},
+) {
+  const rootId = (path) => path.replace(/\/index\.html$/, "");
+  const roots = pages.map(rootId);
+  if (
+    hasSelector &&
+    (typeof selector !== "string" || !selector.trim() || selector.startsWith("--"))
+  ) {
+    return {
+      pages: [],
+      error: `--page ${
+        JSON.stringify(selector ?? "<missing>")
+      } requires a published root route ID (e.g. v152/window-shape-api); only published root routes are selectable, not child paths`,
+    };
+  }
+  const selected = hasSelector ? pages.filter((path) => rootId(path) === selector) : pages;
+  if (hasSelector && selected.length === 0) {
+    const nearest = roots.map((id) => ({ id, distance: editDistance(selector, id) }))
+      .sort((a, b) => a.distance - b.distance || a.id.localeCompare(b.id))
+      .slice(0, 3).map(({ id }) => id);
+    return {
+      pages: [],
+      error: `--page ${
+        JSON.stringify(selector)
+      } matched zero published root routes; only published root routes are selectable, not child paths. Nearest published roots: ${
+        nearest.join(", ")
+      }`,
+    };
+  }
+  const considered = Number.isFinite(limit) ? selected.slice(0, limit) : selected;
+  if (hasSelector && considered.length === 0) {
+    return {
+      pages: [],
+      error: `--page ${
+        JSON.stringify(selector)
+      } selected zero published root routes after --limit ${limit}; refusing a vacuous responsive pass`,
+    };
+  }
+  return { pages: considered, error: null };
+}
+
 async function main() {
   const args = Deno.args;
   const pageIdx = args.indexOf("--page");
@@ -474,6 +535,22 @@ async function main() {
   const responsive = args.includes("--responsive");
   const screenshots = args.includes("--screenshots");
   const updateSupport = args.includes("--update-support");
+
+  // Resolve the selector before any report writes, server spawn, or Chrome launch.
+  const pages = await collectPublishedPages(".");
+  const selection = responsive
+    ? selectResponsivePages(pages, { hasSelector: pageIdx >= 0, selector: only, limit })
+    : {
+      pages: pages.filter((p) => !only || p.replace(/\/index\.html$/, "") === only),
+      error: null,
+    };
+  if (selection.error) {
+    console.error(`ERROR: ${selection.error}`);
+    Deno.exitCode = 2;
+    return;
+  }
+  let considered = selection.pages;
+  if (!responsive && Number.isFinite(limit)) considered = considered.slice(0, limit);
 
   await Deno.mkdir(OUT_DIR, { recursive: true });
   const server = await startServer();
@@ -499,13 +576,6 @@ async function main() {
   }
 
   try {
-    const pages = await collectPublishedPages(".");
-    let considered = pages.filter((p) => {
-      const id = p.replace(/\/index\.html$/, "");
-      return !only || id === only;
-    });
-    if (Number.isFinite(limit)) considered = considered.slice(0, limit);
-
     if (responsive) {
       const support = await loadSupport(".");
       const rows = [];

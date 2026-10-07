@@ -9,9 +9,10 @@
 // A tracked generated file is a mutation target no assertion covered, which is why the fix pins the
 // DECISION (wholesale vs merge) rather than only the merge arithmetic.
 //
-// WHY A UNIT FIXTURE RATHER THAN A CLI RUN: the write site needs Chrome and the whole scan harness.
-// The decision and the merge are pure, so they are exported from scripts/conformance.mjs and driven
-// here directly - importing that module is side-effect-free (`if (import.meta.main) await main()`).
+// WHY UNIT TEST THE REPORT AND SELECTION: a successful CLI scan needs Chrome; the report and
+// selection decisions are pure and exported from scripts/conformance.mjs. Invalid CLI selectors
+// also get a real subprocess assertion because they fail before browser boot. Importing the runner
+// is side-effect-free (`if (import.meta.main) await main()`).
 //
 // Run: deno task test-conformance-report
 //
@@ -28,6 +29,7 @@ import {
   responsiveReportRows,
   runAllReportLine,
   scopedResultsReport,
+  selectResponsivePages,
 } from "./conformance.mjs";
 
 let failures = 0;
@@ -43,6 +45,74 @@ function assert(name, ok, detail = "") {
 }
 
 const row = (id, desktop = "ok", mobile = "ok") => ({ id, route: `/${id}/`, desktop, mobile });
+
+// ---------- responsive --page must select real published roots, never pass vacuously ----------
+// This is the exact decision used before the browser launches. CI has no Chrome, so only rejected
+// CLI selectors are subprocess-tested; the valid selector is pinned at the pure selection seam.
+const published = [
+  "v152/unframed-display-mode-for-isolated-web-apps/index.html",
+  "v152/window-shape-api/index.html",
+  "v152/window-drag/index.html",
+];
+const validSelector = selectResponsivePages(published, {
+  hasSelector: true,
+  selector: "v152/window-shape-api",
+});
+assert(
+  "valid published-root selector runs exactly its one page",
+  validSelector.error === null && validSelector.pages.length === 1 &&
+    validSelector.pages[0] === "v152/window-shape-api/index.html",
+);
+const unscopedSelection = selectResponsivePages(published);
+assert(
+  "normal full-matrix selection is unchanged",
+  unscopedSelection.error === null && unscopedSelection.pages.length === published.length &&
+    unscopedSelection.pages.every((path, i) => path === published[i]),
+);
+for (const selector of ["v152/window-shape-api/setshape", "v152/window-shape-apix"]) {
+  const miss = selectResponsivePages(published, { hasSelector: true, selector });
+  assert(
+    `zero-match --page ${selector} fails with the selector, root-only rule and nearest parent`,
+    miss.pages.length === 0 && miss.error?.includes(selector) &&
+      miss.error?.includes("only published root routes are selectable") &&
+      miss.error?.includes("v152/window-shape-api"),
+    miss.error ?? "unexpected match",
+  );
+  // An actual CLI exit check catches a future caller that ignores the pure decision. This is
+  // pre-boot: the child process has only --allow-read and cannot spawn Chrome or a server.
+  const output = await new Deno.Command("deno", {
+    args: ["run", "--allow-read", "scripts/conformance.mjs", "--responsive", "--page", selector],
+    stdout: "piped",
+    stderr: "piped",
+  }).output();
+  const stdout = new TextDecoder().decode(output.stdout);
+  const stderr = new TextDecoder().decode(output.stderr);
+  assert(
+    `zero-match CLI --page ${selector} exits nonzero before browser/report work`,
+    output.code === 2 && stderr.includes(selector) &&
+      stderr.includes("only published root routes are selectable") &&
+      stderr.includes("v152/window-shape-api") && !stdout.includes("verdict:") &&
+      !stdout.includes("responsive-check:"),
+    `code=${output.code} stdout=${stdout.trim()} stderr=${stderr.trim()}`,
+  );
+}
+for (const selector of [undefined, "", "--screenshots"]) {
+  const malformed = selectResponsivePages(published, { hasSelector: true, selector });
+  assert(
+    `missing/empty/option --page ${JSON.stringify(selector)} does not run the full matrix`,
+    malformed.pages.length === 0 && malformed.error?.includes("published root route ID"),
+    malformed.error ?? "unexpected match",
+  );
+}
+const limitedToZero = selectResponsivePages(published, {
+  hasSelector: true,
+  selector: "v152/window-shape-api",
+  limit: 0,
+});
+assert(
+  "a matching selector with --limit 0 still cannot report a green zero-page scan",
+  limitedToZero.pages.length === 0 && limitedToZero.error?.includes("zero published root routes"),
+);
 
 // ---------- a FULL run still regenerates wholesale -------------------------------------------
 // This is what carries catalogue additions and REMOVALS into the report, so it must not be turned
