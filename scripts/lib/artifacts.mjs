@@ -250,7 +250,7 @@ export function validateSupportRecord(route, record) {
   const errors = [];
   if (unsupported.length === 2) {
     errors.push(
-      `${route}: both classes are unsupported, but unsupportedClass can identify only one; record class-specific evidence before claiming both`,
+      `${route}: both classes are unsupported, but this schema models evidence for only one class; add per-class evidence to the schema before recording both`,
     );
   } else if (record.unsupportedClass !== unsupported[0]) {
     errors.push(
