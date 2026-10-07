@@ -23,16 +23,6 @@ import {
   renderSuite,
 } from "./lib/lifecycle.ts";
 
-const PORT = Number(
-  (() => {
-    try {
-      return Deno.env.get("PORT");
-    } catch {
-      return undefined;
-    }
-  })() ?? 3000,
-);
-
 // ----- Durable-demo route aliases (301 redirects) -----
 //
 // migrations.json is the single source of truth for the compatibility contract (see AGENTS.md /
@@ -1119,6 +1109,7 @@ export async function handleRequest(req: Request): Promise<Response> {
 }
 
 if (import.meta.main) {
+  const PORT = Number(Deno.env.get("PORT") ?? 3000);
   const server = Deno.serve({ port: PORT, automaticCompression: true }, async (req) => {
     try {
       return addSecurityHeaders(await withRevalidation(req, await handleRequest(req)));
