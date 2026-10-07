@@ -121,6 +121,49 @@ assert(
   `manifest: ${zswfManifest.identity}; metadata: ${zswfMetadata.identity}; expected: 5068277495758848`,
 );
 
+// gendn-hkv3: the two durable routes cover the SAME seven-class feature; the separate
+// :playing/:paused ChromeStatus entry is context only, not v150's canonical identity.
+const v150MediaId = "v150/media-element-pseudo-classes";
+const v152MediaId = "v152/media-element-pseudo-classes";
+const v150MediaHtml = await Deno.readTextFile(`${v150MediaId}/index.html`);
+const v152MediaHtml = await Deno.readTextFile(`${v152MediaId}/index.html`);
+const v150Media = pathToIdentityFields(`${v150MediaId}/index.html`, v150MediaHtml);
+const v152Media = pathToIdentityFields(`${v152MediaId}/index.html`, v152MediaHtml);
+assert(
+  "real v150 and v152 seven-class pages share the verified ChromeStatus identity without losing either route",
+  v150Media.identity === "5068277495758848" &&
+    v152Media.identity === v150Media.identity &&
+    v150Media.route === "/v150/media-element-pseudo-classes/" &&
+    v152Media.route === "/v152/media-element-pseudo-classes/" &&
+    metadataFromHtml(`${v150MediaId}/index.html`, v150MediaHtml).identity === v150Media.identity,
+  `v150: ${v150Media.identity}; v152: ${v152Media.identity}`,
+);
+assert(
+  "v150 labels the full seven-class subject and links the companion v152 route",
+  /<h1>Media element pseudo-classes<\/h1>/.test(v150MediaHtml) &&
+    /<code>:volume-locked<\/code>/.test(v150MediaHtml) &&
+    v150MediaHtml.includes('href="/v152/media-element-pseudo-classes/"') &&
+    !v150MediaHtml.includes('href="https://chromestatus.com/feature/6299876096737280"'),
+);
+assert(
+  "both pages distinguish dated listing history from the current proposed status, not a flat shipment",
+  v150MediaHtml.includes("archived milestone-150 listing captured 2026-05-30") &&
+    v152MediaHtml.includes("2026-07-28 review") &&
+    [v150MediaHtml, v152MediaHtml].every((html) =>
+      html.includes("live feature record checked 2026-10-07") &&
+      html.includes("Proposed") &&
+      !/Chrome (?:150|152) ships (?:these|the full set)/.test(html) &&
+      !/first Chromium-based release to ship the full set/.test(html)
+    ),
+);
+assert(
+  "v152 labels the older two-class ID as separate from BOTH seven-class routes",
+  v152MediaHtml.includes("6299876096737280") &&
+    v152MediaHtml.includes("earlier two-class subset") &&
+    v152MediaHtml.includes("not</strong> the identity of either this page") &&
+    v152MediaHtml.includes('href="/v150/media-element-pseudo-classes/"'),
+);
+
 // gendn-jt5r (b): marked related showcase link + no-own-demo disclaimer yields null demo; unmarked fallback preserved
 const cameraMicPage = "v153/capability-elements-camera-and-microphone/index.html";
 const markedRelatedHtml = `
