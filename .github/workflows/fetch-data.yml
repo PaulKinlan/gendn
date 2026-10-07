@@ -21,14 +21,19 @@ jobs:
       - name: Fetch channels
         run: |
           echo "Fetching channels..."
-          # Transfer bounds mirror lib/chromestatus.ts:
-          # UPSTREAM_TIMEOUT_MS = 15_000 (10s connect, 30s transfer ceiling in CI)
-          # UPSTREAM_MAX_BYTES = 8388608 (8 MiB response size ceiling)
+          # Transfer bounds are set for CI; they are NOT a copy of lib/chromestatus.ts.
+          # The in-process budget is UPSTREAM_TIMEOUT_MS = 15_000, but CI deliberately
+          # uses a LONGER ceiling (--connect-timeout 10 --max-time 30) so a degraded upstream
+          # response that arrives within 30s is judged by the payload checks below rather than
+          # being cut off early by a shorter timeout.
+          # Do NOT lower --max-time 30 to 15s to 'match' the library value.
+          # UPSTREAM_MAX_BYTES = 8388608 does mirror the 8 MiB response size ceiling exactly.
           HTTP=$(curl -s --fail --show-error --connect-timeout 10 --max-time 30 --max-filesize 8388608 -w '%{http_code}' -o /tmp/channels_raw.txt 'https://chromestatus.com/api/v0/channels' -H 'accept: application/json')
           echo "HTTP status: $HTTP"
           if [ "$HTTP" = "200" ]; then
-            tail -c +6 /tmp/channels_raw.txt > _data/channels.json
-            python3 -c "import json; d = json.load(open('_data/channels.json')); assert isinstance(d, dict) and 'stable' in d, 'Invalid channels payload'"
+            tail -c +6 /tmp/channels_raw.txt > /tmp/channels.json
+            python3 -c "import json; d = json.load(open('/tmp/channels.json')); assert isinstance(d, dict) and 'stable' in d, 'Invalid channels payload'"
+            mv /tmp/channels.json _data/channels.json
             echo "OK: $(wc -c < _data/channels.json) bytes"
           else
             cat /tmp/channels_raw.txt >&2
@@ -40,8 +45,9 @@ jobs:
         run: |
           HTTP=$(curl -s --fail --show-error --connect-timeout 10 --max-time 30 --max-filesize 8388608 -w '%{http_code}' -o /tmp/f147_raw.txt 'https://chromestatus.com/api/v0/features?milestone=147' -H 'accept: application/json')
           if [ "$HTTP" = "200" ]; then
-            tail -c +6 /tmp/f147_raw.txt > _data/features-147.json
-            python3 -c "import json; d = json.load(open('_data/features-147.json')); assert isinstance(d, dict) and 'features_by_type' in d, 'Invalid features payload'"
+            tail -c +6 /tmp/f147_raw.txt > /tmp/features-147.json
+            python3 -c "import json; d = json.load(open('/tmp/features-147.json')); assert isinstance(d, dict) and 'features_by_type' in d, 'Invalid features payload'"
+            mv /tmp/features-147.json _data/features-147.json
             echo "147: OK ($(wc -c < _data/features-147.json) bytes)"
           else
             echo "147: failed with HTTP $HTTP" >&2
@@ -52,8 +58,9 @@ jobs:
         run: |
           HTTP=$(curl -s --fail --show-error --connect-timeout 10 --max-time 30 --max-filesize 8388608 -w '%{http_code}' -o /tmp/f148_raw.txt 'https://chromestatus.com/api/v0/features?milestone=148' -H 'accept: application/json')
           if [ "$HTTP" = "200" ]; then
-            tail -c +6 /tmp/f148_raw.txt > _data/features-148.json
-            python3 -c "import json; d = json.load(open('_data/features-148.json')); assert isinstance(d, dict) and 'features_by_type' in d, 'Invalid features payload'"
+            tail -c +6 /tmp/f148_raw.txt > /tmp/features-148.json
+            python3 -c "import json; d = json.load(open('/tmp/features-148.json')); assert isinstance(d, dict) and 'features_by_type' in d, 'Invalid features payload'"
+            mv /tmp/features-148.json _data/features-148.json
             echo "148: OK ($(wc -c < _data/features-148.json) bytes)"
           else
             echo "148: failed with HTTP $HTTP" >&2
@@ -64,8 +71,9 @@ jobs:
         run: |
           HTTP=$(curl -s --fail --show-error --connect-timeout 10 --max-time 30 --max-filesize 8388608 -w '%{http_code}' -o /tmp/f149_raw.txt 'https://chromestatus.com/api/v0/features?milestone=149' -H 'accept: application/json')
           if [ "$HTTP" = "200" ]; then
-            tail -c +6 /tmp/f149_raw.txt > _data/features-149.json
-            python3 -c "import json; d = json.load(open('_data/features-149.json')); assert isinstance(d, dict) and 'features_by_type' in d, 'Invalid features payload'"
+            tail -c +6 /tmp/f149_raw.txt > /tmp/features-149.json
+            python3 -c "import json; d = json.load(open('/tmp/features-149.json')); assert isinstance(d, dict) and 'features_by_type' in d, 'Invalid features payload'"
+            mv /tmp/features-149.json _data/features-149.json
             echo "149: OK ($(wc -c < _data/features-149.json) bytes)"
           else
             echo "149: failed with HTTP $HTTP" >&2
@@ -76,8 +84,9 @@ jobs:
         run: |
           HTTP=$(curl -s --fail --show-error --connect-timeout 10 --max-time 30 --max-filesize 8388608 -w '%{http_code}' -o /tmp/f150_raw.txt 'https://chromestatus.com/api/v0/features?milestone=150' -H 'accept: application/json')
           if [ "$HTTP" = "200" ]; then
-            tail -c +6 /tmp/f150_raw.txt > _data/features-150.json
-            python3 -c "import json; d = json.load(open('_data/features-150.json')); assert isinstance(d, dict) and 'features_by_type' in d, 'Invalid features payload'"
+            tail -c +6 /tmp/f150_raw.txt > /tmp/features-150.json
+            python3 -c "import json; d = json.load(open('/tmp/features-150.json')); assert isinstance(d, dict) and 'features_by_type' in d, 'Invalid features payload'"
+            mv /tmp/features-150.json _data/features-150.json
             echo "150: OK ($(wc -c < _data/features-150.json) bytes)"
           else
             echo "150: failed with HTTP $HTTP" >&2
@@ -88,8 +97,9 @@ jobs:
         run: |
           HTTP=$(curl -s --fail --show-error --connect-timeout 10 --max-time 30 --max-filesize 8388608 -w '%{http_code}' -o /tmp/f151_raw.txt 'https://chromestatus.com/api/v0/features?milestone=151' -H 'accept: application/json')
           if [ "$HTTP" = "200" ]; then
-            tail -c +6 /tmp/f151_raw.txt > _data/features-151.json
-            python3 -c "import json; d = json.load(open('_data/features-151.json')); assert isinstance(d, dict) and 'features_by_type' in d, 'Invalid features payload'"
+            tail -c +6 /tmp/f151_raw.txt > /tmp/features-151.json
+            python3 -c "import json; d = json.load(open('/tmp/features-151.json')); assert isinstance(d, dict) and 'features_by_type' in d, 'Invalid features payload'"
+            mv /tmp/features-151.json _data/features-151.json
             echo "151: OK ($(wc -c < _data/features-151.json) bytes)"
           else
             echo "151: failed with HTTP $HTTP" >&2
