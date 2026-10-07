@@ -177,7 +177,9 @@ if (import.meta.main) {
   }
   for (const w of r.warnings) console.log(`WARNING: ${w}`);
   if (r.vacuous) {
-    console.log(`WARNING: baseline ${r.base} equals HEAD; the ratchet compared nothing (vacuous).`);
+    console.log(
+      `WARNING: baseline ${r.base} equals HEAD; no COMMITTED changes are gated - only untracked/uncommitted contracts were compared (vacuous).`,
+    );
   }
   if (r.failures.length > 0) {
     for (const f of r.failures) console.error(`FAIL ${f}`);

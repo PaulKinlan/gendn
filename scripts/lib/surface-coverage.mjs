@@ -173,18 +173,25 @@ export function surfaceMarkersFor(item) {
   if (declared.length > 0) return { markers: declared, declared: true };
   const out = new Set();
   const name = String(item?.name ?? "");
-  // camelCase / PascalCase identifiers
+  // camelCase / PascalCase identifiers - stopword-filtered like every other branch:
+  // a leaked generic token ("css", "api", "domstring") is a false-NEGATIVE engine (it
+  // makes wrong-surface slices pass); review demonstrated one on scroll-axis-lock.
   for (const m of name.matchAll(/\b[a-zA-Z][a-zA-Z0-9]*[A-Z][a-zA-Z0-9]*\b/g)) {
-    out.add(m[0].toLowerCase());
+    const t = m[0].toLowerCase();
+    if (!CLASSIFIER_STOPWORDS.has(t)) out.add(t);
   }
   // dotted member access (StorageEstimate.usage -> usage; navigator.cpuPerformance -> cpuperformance)
   for (
     const m of name.matchAll(
       /\b(?:[A-Za-z][A-Za-z0-9]*\.)*([A-Za-z][A-Za-z0-9]*)\.[a-z][A-Za-z0-9]*\b/g,
     )
-  ) out.add(m[1].toLowerCase());
+  ) {
+    const t = m[1].toLowerCase();
+    if (!CLASSIFIER_STOPWORDS.has(t)) out.add(t);
+  }
   for (const m of name.matchAll(/\b[A-Za-z][A-Za-z0-9]*\.([a-z][A-Za-z0-9]*)\b/g)) {
-    out.add(m[1].toLowerCase());
+    const t = m[1].toLowerCase();
+    if (!CLASSIFIER_STOPWORDS.has(t)) out.add(t);
   }
   // kebab-case names of 2+ segments (ruby-overhang, window-drag, scroll-state)
   for (const m of name.matchAll(/\b[a-z]+(?:-[a-z0-9]+)+\b/g)) {
