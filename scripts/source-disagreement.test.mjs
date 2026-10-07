@@ -402,6 +402,24 @@ const PAGES = [
     sideB: ["6196591858941952", "Support", "Proposed"],
     dates: ["fetched 2026-10-07"],
   },
+  {
+    // gendn-g8o (B3, css-text-box): the page's browser-support cells disagree with the record it cites on every
+    // browser it names, and on the milestone; the record is accurate as of 2025-02-14, which the note pins.
+    page: "v149/css-text-box/index.html",
+    marker: "Browser-support and milestone disagreement, both sides reported rather than resolved",
+    sideA: ["No signal yet", "149+"],
+    sideB: ["5174589850648576", "Positive", "In development", "133"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, css-text-box): the page's flat single-keyword syntax list vs the editor's draft two-value
+    // positional production. Neither side adjudicated; the page also had two stale #text-box fragments repaired.
+    page: "v149/css-text-box/index.html",
+    marker: "Specification-grammar disagreement, both sides reported rather than resolved",
+    sideA: ["text-box-edge"],
+    sideB: ["two-value", "'text-box-trim'"],
+    dates: ["fetched 2026-10-07"],
+  },
 ];
 
 let failures = 0;
@@ -467,6 +485,7 @@ const DATED_PAGES = new Set([
   "v149/overscroll-gestures/index.html",
   "v149/android-ime-media-insertion/index.html",
   "v149/gamepad-event-driven-input-api/index.html",
+  "v149/css-text-box/index.html",
 ]);
 const datedInTable = new Set(PAGES.filter((e) => e.dates.length > 0).map((e) => e.page));
 assert(
