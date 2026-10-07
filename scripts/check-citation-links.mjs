@@ -142,18 +142,24 @@ async function pageTreeHtml(root, id) {
 }
 
 async function baselineRef(root) {
+  // An independent fetched ref is mandatory: HEAD would hide committed citation changes.
+  if (!await git(["rev-parse", "--verify", "--quiet", "refs/remotes/origin/main^{commit}"], root)) {
+    return null;
+  }
   const mb = await git(["merge-base", "origin/main", "HEAD"], root);
-  if (mb?.trim()) return mb.trim();
-  if (await git(["rev-parse", "--verify", "origin/main"], root)) return "origin/main";
-  const head = await git(["rev-parse", "HEAD"], root);
-  if (head?.trim()) return head.trim();
-  return null;
+  return mb?.trim() || "origin/main";
 }
 
 /** The ratchet over one tree. Exported so the fixture can drive a scratch repo. */
 export async function runRatchet(root) {
   const base = await baselineRef(root);
-  if (!base) return { error: "no origin/main or HEAD baseline is available" };
+  if (!base) {
+    return {
+      error: "cannot verify committed citation-label changes: independent baseline " +
+        "refs/remotes/origin/main is unavailable or not a commit; fetch origin main " +
+        "before running this ratchet (no HEAD self-baseline)",
+    };
+  }
   // base -> WORKING TREE + INDEX (union --cached): the ratchet must also see uncommitted
   // edits to tracked pages (unstaged and staged), so a local run mid-work flags what a later
   // commit would carry. A staged-then-worktree-reverted edit (git status MM) escapes a
@@ -269,7 +275,7 @@ if (import.meta.main) {
   );
   if (r.vacuous) {
     console.log(
-      "  WARNING — base is HEAD itself (no origin/main ref): committed changes are not gated, only untracked/uncommitted files.",
+      "  NOTE — fetched baseline equals HEAD: no committed page changes are in scope; uncommitted files are still checked.",
     );
   }
   for (const f of failures) console.log("  FAIL", f);

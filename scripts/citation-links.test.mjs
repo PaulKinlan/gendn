@@ -266,11 +266,15 @@ ok(
   "4g truncated id in a member page detected by the recursive scan",
 );
 
-// case 4h: with no origin/main ref the baseline falls back to HEAD and the
-// ratchet reports itself vacuous instead of passing silently (round-2 P2)
+// case 4h: without an independent origin/main ref the ratchet must refuse, not compare HEAD
+// to itself. A warning on a successful exit would still hide committed violations.
 await g("update-ref", "-d", "refs/remotes/origin/main");
 r = await runRatchet(dir);
-ok(r.vacuous === true, "4h missing origin/main ref yields vacuous=true for the CLI to warn about");
+ok(
+  r.error?.includes("cannot verify committed citation-label changes") &&
+    r.error.includes("refs/remotes/origin/main"),
+  "4h missing origin/main ref explicitly refuses to verify citation changes",
+);
 
 await Deno.remove(dir, { recursive: true });
 
@@ -462,6 +466,45 @@ await g4j("add", TRACKED_PAGE);
 await g4j("commit", "-qm", "resolve citation");
 r4j = await runRatchet(dir4j);
 ok(r4j.failures.length === 0, "4j committed resolution passes");
+
+// CLI controls use a real committed bad page in this isolated repo. They pin the exit and
+// diagnostic, not only runRatchet's return shape; neither case needs Chrome or network.
+const runCitationGate = async () => {
+  const out = await new Deno.Command(Deno.execPath(), {
+    args: [
+      "run",
+      "--allow-read",
+      "--allow-run",
+      new URL("./check-citation-links.mjs", import.meta.url).pathname,
+    ],
+    cwd: dir4j,
+    stdout: "piped",
+    stderr: "piped",
+  }).output();
+  return {
+    code: out.code,
+    text: new TextDecoder().decode(out.stdout) + new TextDecoder().decode(out.stderr),
+  };
+};
+await Deno.writeTextFile(
+  `${dir4j}/${TRACKED_PAGE}`,
+  cleanDoc("focusgroup") + '\n<span class="citation">Source: Unlinked Test Citation 2026.</span>',
+);
+await g4j("add", TRACKED_PAGE);
+await g4j("commit", "-qm", "fixture-only committed unlinked citation");
+let cli4j = await runCitationGate();
+ok(
+  cli4j.code === 1 && cli4j.text.includes("unlinked citation label") &&
+    cli4j.text.includes("Source: Unlinked Test Citation 2026."),
+  "4j independent baseline detects committed unlinked citation (CLI rc1)",
+);
+await g4j("update-ref", "-d", "refs/remotes/origin/main");
+cli4j = await runCitationGate();
+ok(
+  cli4j.code === 1 && cli4j.text.includes("cannot verify committed citation-label changes") &&
+    cli4j.text.includes("refs/remotes/origin/main") && !cli4j.text.includes("PASS —"),
+  "4j missing independent baseline refuses CLI validation (rc1; no PASS)",
+);
 
 await Deno.remove(dir4j, { recursive: true });
 

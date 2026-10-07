@@ -359,6 +359,41 @@ const root = Deno.cwd();
       !r.vacuous && r.failures.length === 2 && r.pageOwners.join() === probe,
       JSON.stringify({ vacuous: r.vacuous, failures: r.failures }),
     );
+
+    // Exercise the actual CLI in both directions on the SAME committed wrong-surface tree.
+    // The scratch repo's origin/main is a local ref: no network or browser is involved.
+    const runSurfaceGate = async () => {
+      const out = await new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          "--allow-read",
+          "--allow-run",
+          new URL("./check-surface-coverage.mjs", import.meta.url).pathname,
+        ],
+        cwd: scratch,
+        stdout: "piped",
+        stderr: "piped",
+      }).output();
+      return {
+        code: out.code,
+        text: new TextDecoder().decode(out.stdout) + new TextDecoder().decode(out.stderr),
+      };
+    };
+    let cli = await runSurfaceGate();
+    assert(
+      "independent baseline detects committed wrong-surface page (CLI rc1)",
+      cli.code === 1 && cli.text.includes("surface-coverage violation(s)") &&
+        cli.text.includes("computequota-method.syntax"),
+      cli.text,
+    );
+    await g("update-ref", "-d", "refs/remotes/origin/main");
+    cli = await runSurfaceGate();
+    assert(
+      "missing independent baseline refuses surface CLI validation (rc1; no PASS)",
+      cli.code === 1 && cli.text.includes("cannot verify committed surface mappings") &&
+        cli.text.includes("refs/remotes/origin/main") && !cli.text.includes("PASS —"),
+      cli.text,
+    );
   } finally {
     await Deno.remove(scratch, { recursive: true });
   }

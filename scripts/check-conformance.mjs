@@ -86,16 +86,17 @@ async function main() {
     if (!pageIds.has(s.id)) failures.push(`orphan suite ${s.id} maps to no published page`);
   }
 
-  // 3. immutability vs the remote baseline, falling back to local HEAD when offline.
-  const baselineRef = await gitRefExists("origin/main")
+  // 3. Immutability needs an independent, locally fetched baseline. HEAD compares committed
+  // changes against themselves, so it must never stand in for the missing remote-tracking ref.
+  const baselineRef = await gitRefExists("refs/remotes/origin/main^{commit}")
     ? "origin/main"
-    : await gitRefExists("HEAD")
-    ? "HEAD"
     : null;
   let baselineChecked = 0;
   if (!baselineRef) {
     failures.push(
-      "no origin/main or HEAD baseline is available; cannot enforce immutable/touched contracts",
+      "cannot verify immutable assertion weakening or touched-page contracts: independent " +
+        "baseline refs/remotes/origin/main is unavailable or not a commit; fetch origin main " +
+        "before running this ratchet (no HEAD self-baseline)",
     );
   }
   if (baselineRef) {
