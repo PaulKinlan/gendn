@@ -12,6 +12,10 @@
     .doc-table tr:last-child td { border-bottom: none; }
     .doc-table code { background: transparent; border: none; padding: 0; }
     .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
+      /* B2 house table pattern (gendn-efu, per v152/reference-target-for-cross-root-aria +
+       goals.json:784): scroll wrapper instead of body{overflow-x:hidden} clipping */
+    .table-wrap { overflow-x: auto; }
+    .table-wrap .doc-table { min-width: 34rem; }
   </style>
 </head>
 <body>
@@ -25,27 +29,30 @@
   </header>
 
   <section>
-    <h2>at a glance</h2>
-    <table class="doc-table">
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+<table class="doc-table">
       <tr><th>Shipped in</th><td>Chrome 148 (desktop, Android, WebView)</td></tr>
       <tr><th>Status</th><td>Enabled by default</td></tr>
-      <tr><th>Spec</th><td><a href="https://w3c.github.io/webrtc-extensions/#always-negotiating-datachannels" target="_blank" rel="noopener">WebRTC Extensions — Always negotiating datachannels</a></td></tr>
-      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5113419982307328" target="_blank" rel="noopener">5113419982307328 — WebRTC Datachannel: Always negotiate data channels</a></td></tr>
+      <tr><th>Spec</th><td><a href="https://w3c.github.io/webrtc-extensions/#always-negotiating-datachannels" target="_blank" rel="noopener">WebRTC Extensions — Always negotiating datachannels</a> (<a href="https://www.w3.org/TR/webrtc/" target="_blank" rel="noopener">W3C WebRTC</a>)</td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5113419982307328" target="_blank" rel="noopener">5113419982307328 — WebRTC Datachannel: Always negotiate data channels</a> (<a href="https://chromestatus.com/api/v0/features/5113419982307328" target="_blank" rel="noopener">API record</a>)</td></tr>
     </table>
+</div>
   </section>
 
   <section>
-    <h2>background: the SDP data channel problem</h2>
+    <h2 id="why-it-exists">background: the SDP data channel problem</h2>
     <p>In WebRTC, data channels use SCTP over DTLS, negotiated via an application m-section in SDP. The problem: an application m-section only appears in the SDP offer if <code>createDataChannel()</code> has already been called on that connection. This creates a chicken-and-egg situation:</p>
     <ul>
       <li>If only one side calls <code>createDataChannel()</code> before the initial offer/answer, the other side can receive data channels via <code>ondatachannel</code>.</li>
       <li>If neither side calls <code>createDataChannel()</code> before the offer, no application m-section is negotiated. Adding a data channel later requires a full SDP renegotiation.</li>
     </ul>
     <p>For many applications — particularly those that conditionally open data channels based on user action — this means an extra round-trip of renegotiation just to establish a data channel.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/webrtc-extensions/#always-negotiating-datachannels" target="_blank" rel="noopener">WebRTC Extensions §always-negotiating-datachannels</a>; <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API/Using_data_channels" target="_blank" rel="noopener">MDN Using WebRTC data channels</a>.</span>
   </section>
 
   <section>
-    <h2>the new option: alwaysNegotiateDataChannels</h2>
+    <h2 id="syntax">the new option: alwaysNegotiateDataChannels</h2>
     <p>Setting <code>alwaysNegotiateDataChannels: true</code> in the <code>RTCPeerConnection</code> constructor makes Chrome include the application m-section in SDP offers from the start — even before any <code>createDataChannel()</code> call. This means:</p>
     <ul>
       <li>Either endpoint can call <code>createDataChannel()</code> any time after the connection is established, without renegotiation.</li>
@@ -69,11 +76,11 @@ pc.addEventListener('connectionstatechange', () => {
 remotePc.addEventListener('datachannel', ({ channel }) => {
   channel.addEventListener('message', (e) => console.log(e.data));
 });</code></pre>
-    <span class="citation">Source: <a href="https://w3c.github.io/webrtc-extensions/#always-negotiating-datachannels" target="_blank" rel="noopener">WebRTC Extensions specification</a>.</span>
+    <span class="citation">Source: <a href="https://w3c.github.io/webrtc-extensions/#always-negotiating-datachannels" target="_blank" rel="noopener">WebRTC Extensions specification</a>; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/WQZZETOMrlE/m/ayt6flM1AAAJ" target="_blank" rel="noopener">blink-dev Intent to Ship</a>; <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/webrtc-datachannel-always-negotiate-data-channels/" target="_blank" rel="noopener">Chrome Platform Showcase demo</a>.</span>
   </section>
 
   <section>
-    <h2>without alwaysNegotiateDataChannels</h2>
+    <h2 id="examples">without alwaysNegotiateDataChannels</h2>
     <p>Without the option, the typical workaround is to call <code>createDataChannel()</code> before creating the initial offer — usually creating a throw-away "placeholder" channel just to force the m-section into the SDP — and close or ignore it once the connection is established. The new option eliminates this workaround.</p>
 <pre><code>// Before Chrome 148: workaround — create a dummy channel to force m-section
 const pc = new RTCPeerConnection();
@@ -86,16 +93,19 @@ pc.addEventListener('connectionstatechange', () => {
     placeholder.close();
   }
 });</code></pre>
+    <span class="citation">Source: <a href="https://w3c.github.io/webrtc-extensions/#always-negotiating-datachannels" target="_blank" rel="noopener">WebRTC Extensions</a>; <a href="https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection" target="_blank" rel="noopener">MDN RTCPeerConnection</a>; <a href="https://developer.mozilla.org/en-US/docs/Web/API/RTCDataChannel" target="_blank" rel="noopener">MDN RTCDataChannel</a>.</span>
   </section>
 
   <section>
-    <h2>browser support</h2>
-    <table class="doc-table">
+    <h2 id="browser-compatibility">browser support</h2>
+    <div class="table-wrap">
+<table class="doc-table">
       <tr><th>Chrome / Edge</th><td>148 (all platforms)</td></tr>
       <tr><th>Firefox</th><td>No signal</td></tr>
       <tr><th>Safari</th><td>No signal</td></tr>
     </table>
-    <span class="citation">Source: chromestatus.com browser positions, May 2026.</span>
+</div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5113419982307328" target="_blank" rel="noopener">ChromeStatus API record</a>; <a href="https://chromestatus.com/api/v0/features?milestone=148" target="_blank" rel="noopener">ChromeStatus milestone=148 listing</a>; <a href="https://github.com/mozilla/standards-positions/issues/1335" target="_blank" rel="noopener">Mozilla standards-positions #1335</a>; <a href="https://github.com/WebKit/standards-positions/issues/599" target="_blank" rel="noopener">WebKit standards-positions #599</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/RTCPeerConnection.json" target="_blank" rel="noopener">BCD api/RTCPeerConnection.json</a>; <a href="https://issues.chromium.org/issues/433898678" target="_blank" rel="noopener">Chromium issue 433898678</a>.</span>
   </section>
 
   <section>

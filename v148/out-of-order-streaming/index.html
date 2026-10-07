@@ -20,6 +20,10 @@
       box-shadow: var(--thin-shadow);
     }
     .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+      /* B2 house table pattern (gendn-efu, per v152/reference-target-for-cross-root-aria +
+       goals.json:784): scroll wrapper instead of body{overflow-x:hidden} clipping */
+    .table-wrap { overflow-x: auto; }
+    .table-wrap .doc-table { min-width: 34rem; }
   </style>
 </head>
 <body>
@@ -33,28 +37,44 @@
   </header>
 
   <section>
-    <h2>at a glance</h2>
-    <table class="doc-table">
-      <tr><th>Shipped in</th><td>Chrome 148</td></tr>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+<table class="doc-table">
+      <tr><th>Shipped in</th><td>Chrome 148 (<a href="https://chromestatus.com/api/v0/features?milestone=148" target="_blank" rel="noopener">milestone 148 listing</a>)</td></tr>
       <tr><th>Status</th><td>Enabled by default</td></tr>
       <tr><th>Flag</th><td>None</td></tr>
-      <tr><th>Standards position</th><td>Safari: Support &nbsp;·&nbsp; Firefox: No signal</td></tr>
-      <tr><th>Spec</th><td><a href="https://github.com/whatwg/html/pull/11818" target="_blank" rel="noopener">whatwg/html PR #11818</a> (Working draft)</td></tr>
+      <tr><th>Standards position</th><td>Safari: Support (<a href="https://github.com/WebKit/standards-positions/issues/628" target="_blank" rel="noopener">WebKit/standards-positions#628</a>) &nbsp;·&nbsp; Firefox: Positive (<a href="https://github.com/mozilla/standards-positions/issues/1369" target="_blank" rel="noopener">mozilla/standards-positions#1369</a>)</td></tr>
+      <tr><th>Spec</th><td><a href="https://github.com/whatwg/html/pull/11818" target="_blank" rel="noopener">whatwg/html PR #11818</a> (Working draft); <a href="https://html.spec.whatwg.org/multipage/scripting.html" target="_blank" rel="noopener">HTML Standard — template element</a></td></tr>
+      <tr><th>Explainer</th><td><a href="https://github.com/WICG/declarative-partial-updates" target="_blank" rel="noopener">WICG declarative-partial-updates</a></td></tr>
       <tr><th>Blink component</th><td>Blink&gt;HTML</td></tr>
-      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5111042975465472" target="_blank" rel="noopener">5111042975465472 — Out of order streaming</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5111042975465472" target="_blank" rel="noopener">5111042975465472 — Out of order streaming</a> (<a href="https://chromestatus.com/api/v0/features/5111042975465472" target="_blank" rel="noopener">API record</a>)</td></tr>
     </table>
+</div>
   </section>
 
   <section>
-    <h2>why it exists</h2>
+    <h2 id="why">why it exists</h2>
     <p>Classic HTTP streaming delivers content top-to-bottom. If a slow database query powers a section at the top of the page, everything below waits. Today, fixing this requires either JavaScript (e.g. fetch + innerHTML) or multiple round-trips. Out of order streaming is a declarative, zero-JS solution: the server streams a placeholder, continues with fast content below, then later streams a <code>&lt;template for="id"&gt;</code> that the browser uses to replace the placeholder — no script involved.</p>
-    <span class="citation">Source: chromestatus summary + <a href="https://github.com/whatwg/html/pull/11818" target="_blank" rel="noopener">whatwg/html PR #11818</a>.</span>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5111042975465472" target="_blank" rel="noopener">chromestatus summary</a> and <a href="https://github.com/whatwg/html/pull/11818" target="_blank" rel="noopener">whatwg/html PR #11818</a>.</span>
   </section>
 
   <section>
-    <h2>how it works</h2>
+    <h2 id="syntax">key primitives</h2>
+    <div class="table-wrap">
+<table class="doc-table">
+      <tr><th><code>&lt;?start id?&gt;</code></th><td>Processing instruction that opens a named streaming region.</td></tr>
+      <tr><th><code>&lt;?end id?&gt;</code></th><td>Processing instruction that closes the named region.</td></tr>
+      <tr><th><code>&lt;template for="id"&gt;</code></th><td>HTML element whose content replaces the matched region when the parser sees it. The <code>for</code> attribute references the region id.</td></tr>
+    </table>
+</div>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/11818" target="_blank" rel="noopener">whatwg/html PR #11818</a> and <a href="https://github.com/WICG/declarative-partial-updates" target="_blank" rel="noopener">WICG declarative-partial-updates</a>. Syntax may change before the spec is merged.</span>
+  </section>
 
-    <h3>1. Mark a region with PI range markers</h3>
+  <section>
+    <h2 id="examples">how it works (examples)</h2>
+    <p>Declarative streaming replaces placeholder ranges in-place as subsequent HTML arrives across the connection:</p>
+
+    <h4>1. Mark a region with PI range markers</h4>
     <p>The server emits processing instructions to delimit the region that should be replaced later. These require the <a href="/v148/parse-processing-instructions-in-html/">Parse processing instructions in HTML</a> feature (also v148).</p>
 <pre><code>&lt;!-- Server streams this first --&gt;
 &lt;main&gt;
@@ -65,7 +85,7 @@
   &lt;p&gt;Fast content rendered immediately.&lt;/p&gt;
 &lt;/main&gt;</code></pre>
 
-    <h3>2. Stream a replacement template later</h3>
+    <h4>2. Stream a replacement template later</h4>
     <p>When the slow data is ready, the server writes a <code>&lt;template for="slow-section"&gt;</code>. The browser replaces the marked region's content with the template's content in-place — no layout disruption, no JS required.</p>
 <pre><code>&lt;!-- Server streams this after the slow query completes --&gt;
 &lt;template for="slow-section"&gt;
@@ -75,38 +95,32 @@
   &lt;/article&gt;
 &lt;/template&gt;</code></pre>
 
-    <h3>Result</h3>
+    <h4>Result</h4>
     <p>The user sees "Loading…" for the slow section, while fast content below renders immediately. When the template arrives, the placeholder is replaced without a repaint of unrelated content.</p>
   </section>
 
   <section>
-    <h2>key primitives</h2>
-    <table class="doc-table">
-      <tr><th><code>&lt;?start id?&gt;</code></th><td>Processing instruction that opens a named streaming region.</td></tr>
-      <tr><th><code>&lt;?end id?&gt;</code></th><td>Processing instruction that closes the named region.</td></tr>
-      <tr><th><code>&lt;template for="id"&gt;</code></th><td>HTML element whose content replaces the matched region when the parser sees it. The <code>for</code> attribute references the region id.</td></tr>
-    </table>
-    <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/11818" target="_blank" rel="noopener">whatwg/html PR #11818</a>. Syntax may change before the spec is merged.</span>
-  </section>
-
-  <section>
-    <h2>browser support</h2>
-    <table class="doc-table">
-      <tr><th>Chrome</th><td>148 (desktop)</td></tr>
+    <h2 id="browser-compatibility">browser support</h2>
+    <div class="table-wrap">
+<table class="doc-table">
+      <tr><th>Chrome</th><td>148 (desktop; see <a href="https://webstatus.dev/features/template" target="_blank" rel="noopener">webstatus.dev template</a> and <a href="https://github.com/mdn/browser-compat-data/blob/main/html/elements/template.json" target="_blank" rel="noopener">BCD template</a>)</td></tr>
       <tr><th>Edge</th><td>148 (Chromium)</td></tr>
-      <tr><th>Firefox</th><td>No signal</td></tr>
-      <tr><th>Safari</th><td>Support (date TBD)</td></tr>
+      <tr><th>Firefox</th><td>Positive (<a href="https://github.com/mozilla/standards-positions/issues/1369" target="_blank" rel="noopener">mozilla/standards-positions#1369</a>)</td></tr>
+      <tr><th>Safari</th><td>Support (<a href="https://github.com/WebKit/standards-positions/issues/628" target="_blank" rel="noopener">WebKit/standards-positions#628</a>)</td></tr>
     </table>
-    <span class="citation">Source: chromestatus browser views at time of generation.</span>
+</div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5111042975465472" target="_blank" rel="noopener">chromestatus browser views</a>, <a href="https://github.com/mozilla/standards-positions/issues/1369" target="_blank" rel="noopener">mozilla/standards-positions#1369</a>, <a href="https://github.com/WebKit/standards-positions/issues/628" target="_blank" rel="noopener">WebKit/standards-positions#628</a>.</span>
   </section>
 
   <section>
     <h2>see also</h2>
     <ul>
       <li><a href="https://github.com/whatwg/html/pull/11818" target="_blank" rel="noopener">whatwg/html PR #11818</a> — spec draft</li>
+      <li><a href="https://github.com/WICG/declarative-partial-updates" target="_blank" rel="noopener">WICG declarative-partial-updates repository</a></li>
       <li><a href="/v148/parse-processing-instructions-in-html/">Parse processing instructions in HTML</a> — prerequisite feature</li>
       <li><a href="/v148/renewed-html-insertion-streaming-methods/">Renewed HTML insertion &amp; streaming methods</a> — JS-based companion</li>
       <li><a href="https://chromestatus.com/feature/5111042975465472" target="_blank" rel="noopener">chromestatus: Out of order streaming</a></li>
+      <li><a href="https://issues.chromium.org/issues/431374376" target="_blank" rel="noopener">Chromium tracking issue 431374376</a></li>
       <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/out-of-order-streaming/" target="_blank" rel="noopener">chrome-platform-showcase: demos</a></li>
     </ul>
   </section>

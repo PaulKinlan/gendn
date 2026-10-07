@@ -20,6 +20,13 @@
       box-shadow: var(--thin-shadow);
     }
     .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+      /* B2 scoped clip fix (gendn-efu), house pattern per v152/reference-target-for-cross-root-aria
+       + goals.json:784: anywhere alone crushes columns - pair it with the first-column
+       min-width and the .table-wrap scroll wrapper. Site-wide hoist tracked in gendn-z5w. */
+    h1, code, .doc-table td, .doc-table th { overflow-wrap: anywhere; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .table-wrap { overflow-x: auto; }
+    .table-wrap .doc-table { min-width: 34rem; }
   </style>
 </head>
 <body>
@@ -38,28 +45,31 @@
   </div>
 
   <section>
-    <h2>at a glance</h2>
-    <table class="doc-table">
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+<table class="doc-table">
       <tr><th>Shipped in</th><td>Chrome 148</td></tr>
       <tr><th>Status</th><td>In developer trial / enabled by default</td></tr>
       <tr><th>Standards position</th><td>Spec-required change; other browsers already compliant</td></tr>
       <tr><th>Spec</th><td><a href="https://dom.spec.whatwg.org/#dom-document-createevent" target="_blank" rel="noopener">DOM Standard §document.createEvent()</a></td></tr>
       <tr><th>Blink component</th><td>Blink&gt;DOM</td></tr>
-      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5095987863486464" target="_blank" rel="noopener">5095987863486464 — Deprecate and remove: non-allowlisted Event interfaces</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5095987863486464" target="_blank" rel="noopener">5095987863486464 — Deprecate and remove: non-allowlisted Event interfaces</a> (<a href="https://chromestatus.com/api/v0/features/5095987863486464" target="_blank" rel="noopener">API record</a>)</td></tr>
     </table>
+</div>
   </section>
 
   <section>
-    <h2>why it exists</h2>
+    <h2 id="why">why it exists</h2>
     <p>The DOM Standard explicitly lists which event interface names <code>document.createEvent()</code> must accept and requires <code>NOT_SUPPORTED_ERR</code> for everything else. Chrome historically accepted many non-standard strings for legacy compat, silently constructing a <code>CustomEvent</code>. This removal closes that compat gap, matches the behavior of Firefox and Safari, and removes a footgun where code that passes wrong interface names silently "worked" in Chrome but would fail cross-browser.</p>
     <p>Interfaces with usage above 0.01% or those deemed difficult to remove immediately remain as deprecation-only (console warning) in this cycle.</p>
-    <span class="citation">Source: chromestatus summary + <a href="https://dom.spec.whatwg.org/#dom-document-createevent" target="_blank" rel="noopener">DOM Standard §3.6</a>.</span>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5095987863486464" target="_blank" rel="noopener">ChromeStatus feature 5095987863486464</a>; <a href="https://dom.spec.whatwg.org/#dom-document-createevent" target="_blank" rel="noopener">DOM Standard §3.6</a>; <a href="https://www.mail-archive.com/blink-dev@chromium.org/msg15894.html" target="_blank" rel="noopener">blink-dev Intent to Deprecate and Remove</a>, May 2026.</span>
   </section>
 
   <section>
-    <h2>the allowlist</h2>
+    <h2 id="syntax">the allowlist</h2>
     <p>The DOM Standard allows these event interface strings (case-insensitive):</p>
-    <table class="doc-table">
+    <div class="table-wrap">
+<table class="doc-table">
       <tr><th>Allowed string</th><th>Creates</th></tr>
       <tr><td><code>"Event"</code>, <code>"Events"</code>, <code>"HTMLEvents"</code></td><td><code>Event</code></td></tr>
       <tr><td><code>"CustomEvent"</code></td><td><code>CustomEvent</code></td></tr>
@@ -73,12 +83,13 @@
       <tr><td><code>"CompositionEvent"</code></td><td><code>CompositionEvent</code></td></tr>
       <tr><td><code>"MutationEvent"</code>, <code>"MutationEvents"</code></td><td><code>MutationEvent</code> (deprecated)</td></tr>
     </table>
+</div>
     <p>All other strings now throw <code>DOMException: NOT_SUPPORTED_ERR</code>.</p>
-    <span class="citation">Source: <a href="https://dom.spec.whatwg.org/#dom-document-createevent" target="_blank" rel="noopener">DOM Standard §document.createEvent()</a>.</span>
+    <span class="citation">Source: <a href="https://dom.spec.whatwg.org/#dom-document-createevent" target="_blank" rel="noopener">DOM Standard §document.createEvent()</a>; <a href="https://wpt.fyi/results/dom/nodes/Document-createEvent.https.html" target="_blank" rel="noopener">WPT Document-createEvent</a>.</span>
   </section>
 
   <section>
-    <h2>migration</h2>
+    <h2 id="examples">migration</h2>
     <p>The modern pattern uses constructors directly and doesn't need <code>createEvent</code> at all:</p>
 <pre><code>// Old — may throw in Chrome 148+
 const evt = document.createEvent("SomeInterface");
@@ -97,21 +108,26 @@ el.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
   </section>
 
   <section>
-    <h2>browser support</h2>
-    <table class="doc-table">
+    <h2 id="browser-compatibility">browser support</h2>
+    <div class="table-wrap">
+<table class="doc-table">
       <tr><th>Chrome</th><td>148 — throws for non-allowlisted strings</td></tr>
       <tr><th>Firefox</th><td>Already spec-compliant</td></tr>
       <tr><th>Safari</th><td>Already spec-compliant</td></tr>
     </table>
-    <span class="citation">Source: chromestatus browser views + DOM Standard conformance notes.</span>
+</div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5095987863486464" target="_blank" rel="noopener">ChromeStatus browser views</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Document.json" target="_blank" rel="noopener">BCD api/Document.json</a>; <a href="https://wpt.fyi/results/dom/nodes/Document-createEvent.https.html" target="_blank" rel="noopener">WPT results</a>.</span>
   </section>
 
   <section>
     <h2>see also</h2>
     <ul>
       <li><a href="https://dom.spec.whatwg.org/#dom-document-createevent" target="_blank" rel="noopener">DOM Standard — document.createEvent()</a></li>
+      <li><a href="https://dom.spec.whatwg.org/#interface-document" target="_blank" rel="noopener">DOM Standard — Document interface</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Document/createEvent" target="_blank" rel="noopener">MDN — Document.createEvent()</a></li>
       <li><a href="https://issues.chromium.org/issues/41228793" target="_blank" rel="noopener">Chromium bug tracker: issue 41228793</a></li>
       <li><a href="https://chromestatus.com/feature/5095987863486464" target="_blank" rel="noopener">chromestatus: Deprecate and remove non-allowlisted Event interfaces</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/deprecate-and-remove-non-allowlisted-event-interfaces-from-document-createevent/" target="_blank" rel="noopener">chrome-platform-showcase — live demo</a></li>
     </ul>
   </section>
 
