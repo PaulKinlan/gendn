@@ -166,6 +166,55 @@ assert(
       `${showcase}/v153/capability-elements-camera-and-microphone/live-demo/`,
 );
 
+// gendn-3lir/d490: pin the real page selections and colocated suites, not only synthetic markup.
+for (
+  const { id, demo, identity } of [
+    { id: "v147/web-neural-network-api-webnn", demo: null, identity: "5738583487938560" },
+    {
+      id: "v153/expose-cssstylevalue-hierarchy-to-worker-contexts",
+      demo: `${showcase}/v154/expose-cssstylevalue-hierarchy-to-worker-contexts/`,
+      identity: "5114591051907072",
+    },
+  ]
+) {
+  const pagePath = `${id}/index.html`;
+  const pageHtml = await Deno.readTextFile(new URL(`../${pagePath}`, import.meta.url));
+  const suite = JSON.parse(
+    await Deno.readTextFile(new URL(`../${id}/conformance.json`, import.meta.url)),
+  );
+  const manifestFields = pathToIdentityFields(pagePath, pageHtml);
+  const metadataFields = metadataFromHtml(pagePath, pageHtml);
+  assert(
+    `${id}: both extractors and colocated suite agree on selected demo and identity`,
+    manifestFields.demo === demo && metadataFields.demo === demo && suite.demo === demo &&
+      manifestFields.identity === identity && metadataFields.identity === identity &&
+      suite.identity === identity,
+    JSON.stringify({
+      manifestDemo: manifestFields.demo,
+      metadataDemo: metadataFields.demo,
+      suiteDemo: suite.demo,
+    }),
+  );
+}
+const webnnPageHtml = await Deno.readTextFile(
+  new URL("../v147/web-neural-network-api-webnn/index.html", import.meta.url),
+);
+assert(
+  "WebNN keeps a different-feature link marked related instead of the dead live-demo URL",
+  /data-demo-rel="related"/.test(webnnPageHtml) &&
+    webnnPageHtml.includes(`${showcase}/v147/webnn/`) &&
+    !webnnPageHtml.includes(`${showcase}/v147/web-neural-network-api-webnn/`) &&
+    webnnPageHtml.includes("different ChromeStatus feature (5176273954144256)"),
+);
+const workerPageHtml = await Deno.readTextFile(
+  new URL("../v153/expose-cssstylevalue-hierarchy-to-worker-contexts/index.html", import.meta.url),
+);
+assert(
+  "CSSStyleValue reference links the same-feature v154 demo, never the dead v153 route",
+  workerPageHtml.includes(`${showcase}/v154/expose-cssstylevalue-hierarchy-to-worker-contexts/`) &&
+    !workerPageHtml.includes(`${showcase}/v153/expose-cssstylevalue-hierarchy-to-worker-contexts/`),
+);
+
 function entry(id, overrides = {}) {
   return {
     id,
