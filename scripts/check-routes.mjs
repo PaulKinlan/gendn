@@ -16,10 +16,12 @@
 //   2. a baseline "built" route no longer resolves (its `v<N>/<slug>/index.html` page file is gone);
 //   3. a baseline id's IDENTITY changed or became null (its chromestatus feature id now differs or
 //      was removed — slug repurposed or identity lost), and not covered by an identity-change migration;
-//   4. a baseline "stub" id (gendn's analogue of an honestly-recorded `blocked` entry — an
+//   4. a baseline id's DEMO identity changed or became null (its showcase demo link now differs or
+//      was removed — demo repointed or lost), and not covered by a demo-change migration;
+//   5. a baseline "stub" id (gendn's analogue of an honestly-recorded `blocked` entry — an
 //      MDN-covered redirect) was DELETED (stubs must stay recorded);
-//   5. a stable member/protocol route declared by a baseline reference contract disappeared;
-//   6. the published count DROPPED vs baseline and the difference is not covered by migrations.
+//   6. a stable member/protocol route declared by a baseline reference contract disappeared;
+//   7. the published count DROPPED vs baseline and the difference is not covered by migrations.
 //
 // PASS for: additive new ids, honest new stubs, in-place fixes that keep the same id + identity +
 // live route, and any change explicitly listed in migrations.json.
@@ -237,6 +239,33 @@ export async function evaluateRouteContract(
       }
     }
 
+    // Condition 4: demo link changed (repointed to a different showcase route) or removed.
+    if (b.demo && !c.demo) {
+      if (
+        migrationCovers(migrations, b.id, "demo-change") ||
+        migrationCovers(migrations, b.id, "identity-change")
+      ) {
+        migrated.push(`${b.id} (demo link change via migration: ${b.demo} -> null)`);
+      } else {
+        failures.push(
+          `missing demo link for published route ${b.id}: showcase demo ${b.demo} was removed` +
+            `${where}${driftNote}`,
+        );
+      }
+    } else if (b.demo && c.demo && b.demo !== c.demo) {
+      if (
+        migrationCovers(migrations, b.id, "demo-change") ||
+        migrationCovers(migrations, b.id, "identity-change")
+      ) {
+        migrated.push(`${b.id} (demo link change via migration: ${b.demo} -> ${c.demo})`);
+      } else {
+        failures.push(
+          `demo link changed for ${b.id}: showcase demo ${b.demo} -> ${c.demo} (repointed)` +
+            `${where}${driftNote}`,
+        );
+      }
+    }
+
     // Condition 5: stable child reference routes are append-only once published.
     const currentReferenceRoutes = new Set(c.referenceRoutes ?? []);
     for (const route of b.referenceRoutes ?? []) {
@@ -376,7 +405,7 @@ async function main() {
     for (const f of failures) console.error(`  - ${f}`);
     console.error(
       "\nAdditive changes, honest stubs, and same-id in-place fixes are allowed. Any removal, " +
-        "rename, route move, or identity change needs a reviewed record in migrations.json.",
+        "rename, route move, identity change, or demo link change needs a reviewed record in migrations.json.",
     );
     Deno.exit(1);
   }
