@@ -14,8 +14,8 @@
 //   1. a baseline published id is MISSING from current (deleted or renamed), and not covered by a
 //      migration record;
 //   2. a baseline "built" route no longer resolves (its `v<N>/<slug>/index.html` page file is gone);
-//   3. a baseline id's IDENTITY changed (its chromestatus feature id now differs — the slug was
-//      repurposed to a different feature), and not covered by an identity-change migration;
+//   3. a baseline id's IDENTITY changed or became null (its chromestatus feature id now differs or
+//      was removed — slug repurposed or identity lost), and not covered by an identity-change migration;
 //   4. a baseline "stub" id (gendn's analogue of an honestly-recorded `blocked` entry — an
 //      MDN-covered redirect) was DELETED (stubs must stay recorded);
 //   5. a stable member/protocol route declared by a baseline reference contract disappeared;
@@ -216,8 +216,17 @@ export async function evaluateRouteContract(
       }
     }
 
-    // Condition 3: identity changed (slug repurposed to a different feature).
-    if (b.identity && c.identity && b.identity !== c.identity) {
+    // Condition 3: identity changed (slug repurposed to a different feature) or removed.
+    if (b.identity && !c.identity) {
+      if (migrationCovers(migrations, b.id, "identity-change")) {
+        migrated.push(`${b.id} (identity change via migration: ${b.identity} -> null)`);
+      } else {
+        failures.push(
+          `missing identity for published route ${b.id}: feature ${b.identity} was removed` +
+            `${where}${driftNote}`,
+        );
+      }
+    } else if (b.identity && c.identity && b.identity !== c.identity) {
       if (migrationCovers(migrations, b.id, "identity-change")) {
         migrated.push(`${b.id} (identity change via migration: ${b.identity} -> ${c.identity})`);
       } else {
