@@ -79,6 +79,7 @@ durable identity is:
   as a related, sibling, or context link without having an own demo, mark the link with
   `data-demo-rel="related"` (or `rel="related"`): marked related links are excluded from own-demo
   selection so the page's manifest demo remains honestly `null` rather than inheriting a sibling URL.
+- **v148 CPS lineage:** four settled same-feature suites (WebRTC DataChannel, `createEvent`, Summarizer preference, table-border; gendn-c5zp) retain historical ChromeStatus IDs distinct from the current pages; verify scope, but do not re-file an ID-only mismatch.
 
 ## Route manifest + regression gate
 
@@ -268,6 +269,15 @@ contract (`cpsFeature`) rather than forking it.
 - `v<N>/<slug>/conformance.json` — immutable suite (`suiteHash` = sha256 of normalized assertions).
   Never delete/weaken an assertion to go green — FIX THE PAGE; add assertions freely. Weakening
   needs an `assertion-migrate` record in `migrations.json`.
+- `cpsFeature.conformanceRoute` is **not** `<selected demo URL>/conformance` when the demo is
+  a concept sub-path. For a new suite, verify the live selected CPS page's explicit parent-feature
+  breadcrumb (or the selected page itself if it is the feature root), then verify that parent's
+  conformance HTML and JSON resolve and its declared `release`, `featureSlug`, and `chromestatusId`
+  match the candidate feature route and this page's identity. Never guess the root by truncating
+  path segments. If the breadcrumb is absent or the parent suite does not match, record `null`
+  and render no conformance link; do not substitute another feature's suite. Existing authored
+  root pointers, including a working trailing-slash form, must not be normalized by regeneration.
+  A pointer-only correction changes metadata, not frozen assertions or `suiteHash`.
 - `v<N>/<slug>/_questions.json` — mutable critique with reference-site rubric + `guidanceConsulted`
   (empty on a frontend critique = INCOMPLETE) + `followUpGoals`.
 - `v<N>/<slug>/reference-contract.json` — source-derived surface inventory and exact mapping to
