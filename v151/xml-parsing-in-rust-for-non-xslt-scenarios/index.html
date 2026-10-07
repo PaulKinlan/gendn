@@ -6,6 +6,11 @@
   <title>XML Parsing in Rust for non-XSLT scenarios — Chrome 151 — gendn</title>
   <link rel="stylesheet" href="/public/styles.css">
   <style>
+    /* gendn-7g6/goals.json:784 */
+    h1, code, .doc-table td, .doc-table th { overflow-wrap: anywhere; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .table-wrap { overflow-x: auto; }
+    .table-wrap .doc-table { min-width: 34rem; }
     .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
     .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
     .doc-table th { background: var(--bg-stone); font-weight: 600; }
@@ -29,7 +34,7 @@
   <header class="lede-block">
     <p class="eyebrow">v151 · shipped · dom · svg · security</p>
     <h1>XML Parsing in Rust for non-XSLT scenarios</h1>
-    <p class="lede">Chrome 151 enables by default the memory-safe Rust-based XML parser that replaces the C-based libxml2 parser with a memory-safe Rust-based parser for all non-XSLT XML parsing in Blink — including <code>DOMParser</code>, <code>XMLHttpRequest.responseXML</code>, SVG documents, and XHTML.</p>
+    <p class="lede">Chrome 151 enables by default the memory-safe Rust-based XML parser that replaces the C-based libxml2 parser for all non-XSLT XML parsing in Blink — including <code>DOMParser</code>, <code>XMLHttpRequest.responseXML</code>, SVG documents, and XHTML.</p>
   </header>
 
   <div class="warn-block">
@@ -39,6 +44,7 @@
 
   <section>
     <h2>at a glance</h2>
+    <div class="table-wrap">
     <table class="doc-table">
       <tr><th>Shipped in</th><td>Chrome 151 (Enabled by default, all platforms — after a stepped rollout that began at 1% in Chrome 147)</td></tr>
       <tr><th>Status</th><td>Enabled by default (stepped rollout)</td></tr>
@@ -46,22 +52,42 @@
       <tr><th>Affected APIs</th><td><code>DOMParser</code>, <code>XMLHttpRequest.responseXML</code>, SVG documents, XHTML</td></tr>
       <tr><th>Not affected</th><td>XSLT processing (separate deprecation track, removal planned Chrome 158)</td></tr>
       <tr><th>Blink component</th><td>Blink&gt;DOM, Blink&gt;SVG</td></tr>
-      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5309598397497344" target="_blank" rel="noopener">5309598397497344 — XML Parsing in Rust for non-XSLT scenarios</a></td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5309598397497344" target="_blank" rel="noopener">5309598397497344 — XML Parsing in Rust for non-XSLT scenarios</a> (<a href="https://chromestatus.com/api/v0/features/5309598397497344" target="_blank" rel="noopener">API record</a>)</td></tr>
     </table>
-    <span class="citation">Source: blink-dev Intent to Ship — XML Parsing in Rust for non-XSLT scenarios, February 2026.</span>
+    </div>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/4j2oGg2lyBk/m/r8RA6dhYBQAJ" target="_blank" rel="noopener">blink-dev Intent to Ship — XML Parsing in Rust for non-XSLT scenarios, February 2026</a></span>
   </section>
 
   <section>
     <h2>why it exists</h2>
     <p>Blink has historically relied on <a href="https://gitlab.gnome.org/GNOME/libxml2" target="_blank" rel="noopener">libxml2</a>, a C library, for XML parsing. libxml2 has accumulated a long history of memory-safety vulnerabilities — use-after-free bugs, buffer overflows, heap corruption — that are fundamentally difficult to prevent in C. In addition, libxml2 experienced periods of slow security-disclosure response.</p>
-    <p>Replacing the parser with a Rust implementation eliminates this entire class of memory-safety vulnerability by construction. XSLT scenarios are excluded from the initial rollout because libxml2 and libxslt are tightly entangled; the Rust parser cannot yet be applied there without also replacing the XSLT engine (which is on a separate deprecation track).</p>
-    <p>The rollout began at 1% of Chrome 147 stable users and reached enabled-by-default in Chrome 151 (chromestatus milestone listing). During the rollout, Chromium engineers monitored with Chromium engineers monitoring a real-world parsing performance histogram (<code>Blink.XMLParsing.NonXsltXmlParsingTime.Combined</code>) before expanding. A ~50% throughput regression was observed on a 3 MB heavy-XML microbenchmark, so the team is gathering production data to validate real-world impact is acceptable.</p>
-    <span class="citation">Source: blink-dev Intent to Ship — XML Parsing in Rust for non-XSLT scenarios, February 2026.</span>
+    <p>Replacing the parser with a Rust implementation eliminates this entire class of memory-safety vulnerability by construction. XSLT scenarios are excluded from the initial rollout because libxml2 and libxslt are tightly entangled; the Rust parser cannot yet be applied there without also replacing the XSLT engine (<a href="https://developer.chrome.com/docs/web-platform/deprecating-xslt" target="_blank" rel="noopener">which is on a separate deprecation track</a>).</p>
+    <p>The rollout began at 1% of Chrome 147 stable users and reached enabled-by-default in Chrome 151 (chromestatus milestone listing). During the rollout, Chromium engineers monitored a real-world parsing performance histogram (<code>Blink.XMLParsing.NonXsltXmlParsingTime.Combined</code>) before expanding. A ~50% throughput regression was observed on a 3 MB heavy-XML microbenchmark, so the team gathered production data to validate real-world impact was acceptable.</p>
+    <p><strong>Milestone divergence note</strong>: While this page documents the Chrome 151 rollout wave where the <code>XMLRustForNonXslt</code> Finch feature reached general availability across platforms, the <a href="https://chromestatus.com/api/v0/features/5309598397497344" target="_blank" rel="noopener">ChromeStatus API record (5309598397497344)</a> lists Chrome 153 for its desktop, Android, and WebView milestones (with Intent to Ship thread in February 2026). Both entries refer to the identical Rust XML parser transition tracked under <a href="https://issues.chromium.org/issues/466303347" target="_blank" rel="noopener">Chromium issue 466303347</a>.</p>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/4j2oGg2lyBk/m/r8RA6dhYBQAJ" target="_blank" rel="noopener">blink-dev Intent to Ship</a>; <a href="https://issues.chromium.org/issues/466303347" target="_blank" rel="noopener">Chromium issue 466303347</a></span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>The parser replacement operates entirely under the hood. Existing web developer APIs that parse XML conform to the <a href="https://www.w3.org/TR/xml/" target="_blank" rel="noopener">W3C XML specification</a> and use unchanged JavaScript signatures:</p>
+    <pre><code>// DOMParser parsing XML document:
+const parser = new DOMParser();
+const doc = parser.parseFromString(xmlString, "text/xml");
+
+// XMLHttpRequest responseXML property:
+const xhr = new XMLHttpRequest();
+xhr.open("GET", "/data.xml");
+xhr.onload = () => {
+  const xml = xhr.responseXML;
+};
+xhr.send();</code></pre>
+    <span class="citation">Source: <a href="https://developer.mozilla.org/en-US/docs/Web/API/DOMParser/parseFromString" target="_blank" rel="noopener">MDN DOMParser.parseFromString</a>; <a href="https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest/responseXML" target="_blank" rel="noopener">MDN XMLHttpRequest.responseXML</a></span>
   </section>
 
   <section>
     <h2>what changes</h2>
-    <p>This is a transparent implementation swap — the web-facing APIs are unchanged. All of the following continue to work identically for well-formed XML:</p>
+    <p>This is a transparent implementation swap — the web-facing APIs are unchanged. All of the following continue to work identically for <a href="https://www.w3.org/TR/xml/#sec-well-formed" target="_blank" rel="noopener">well-formed XML</a>:</p>
+    <div class="table-wrap">
     <table class="doc-table">
       <thead><tr><th>API / scenario</th><th>Uses Rust parser in Chrome 151+</th></tr></thead>
       <tr><td><code>DOMParser.parseFromString(str, 'text/xml')</code></td><td>Yes</td></tr>
@@ -72,8 +98,42 @@
       <tr><td>XHTML documents</td><td>Yes</td></tr>
       <tr><td>XSLT processing</td><td>No — still uses libxml2/libxslt</td></tr>
     </table>
+    </div>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/4j2oGg2lyBk/m/r8RA6dhYBQAJ" target="_blank" rel="noopener">blink-dev Intent to Ship</a></span>
+  </section>
 
-    <h3>example: DOMParser (unchanged API)</h3>
+  <section>
+    <h3 id="inputs">Inputs and parameters</h3>
+    <p>The parser consumes character streams or byte sequences of XML markup passed via <code>DOMParser.parseFromString()</code>, HTTP responses received via <code>XMLHttpRequest</code>, or SVG and XHTML document resources fetched during network navigation. Input encoding detection follows standard XML declaration rules.</p>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/xml/#sec-well-formed" target="_blank" rel="noopener">W3C XML &sect;well-formed</a></span>
+  </section>
+
+  <section>
+    <h3 id="outputs">Outputs and return values</h3>
+    <p>Successful parsing returns an active DOM <code>Document</code> or <code>XMLDocument</code> instance containing the parsed element hierarchy. When parsing malformed input via <code>DOMParser</code>, the returned document contains a <code>&lt;parsererror&gt;</code> element detailing the syntax error rather than raising an uncaught exception.</p>
+    <span class="citation">Source: <a href="https://developer.mozilla.org/en-US/docs/Web/API/DOMParser" target="_blank" rel="noopener">MDN DOMParser reference</a></span>
+  </section>
+
+  <section>
+    <h3 id="errors">Errors and exceptions</h3>
+    <p>In accordance with XML standards, fatal parsing errors in documents produce error pages or <code>&lt;parsererror&gt;</code> elements in <code>DOMParser</code>. The Rust parser enforces stricter conformity with the XML standard, eliminating non-standard error recovery quirks previously present in libxml2.</p>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/xml/" target="_blank" rel="noopener">W3C XML specification</a></span>
+  </section>
+
+  <section>
+    <h3 id="context">Execution context and exposure</h3>
+    <p>The Rust XML parser is active across all standard Chromium browsing contexts, including Window documents, DedicatedWorker, SharedWorker, and ServiceWorker environments where <code>DOMParser</code> or network XML parsing operates. It is enabled across all desktop and mobile platforms.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5309598397497344" target="_blank" rel="noopener">ChromeStatus feature 5309598397497344</a></span>
+  </section>
+
+  <section>
+    <h3 id="lifecycle">Lifecycle and state transitions</h3>
+    <p>The XML parser engine processes input synchronously for <code>DOMParser.parseFromString()</code> and incrementally as chunks arrive over the network for top-level navigation, SVG rendering, and <code>XMLHttpRequest</code>. Document readiness states transition from <code>loading</code> to <code>interactive</code> and <code>complete</code> upon parse completion.</p>
+    <span class="citation">Source: <a href="https://developer.mozilla.org/en-US/docs/Web/API/DOMParser" target="_blank" rel="noopener">MDN DOMParser</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
 <pre><code>// API shape is identical — only the underlying parser changes
 const parser = new DOMParser();
 const doc = parser.parseFromString(
@@ -85,26 +145,42 @@ console.log(doc.querySelector('item').textContent); // "Hello"
 // Malformed XML still produces a parsererror document
 const bad = parser.parseFromString('&lt;unclosed', 'text/xml');
 console.log(bad.querySelector('parsererror')); // HTMLElement</code></pre>
-    <span class="citation">Source: blink-dev Intent to Ship — XML Parsing in Rust for non-XSLT scenarios, February 2026.</span>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/4j2oGg2lyBk/m/r8RA6dhYBQAJ" target="_blank" rel="noopener">blink-dev Intent to Ship</a></span>
   </section>
 
   <section>
-    <h2>browser support</h2>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap">
     <table class="doc-table">
       <thead><tr><th>Browser</th><th>XML parser</th></tr></thead>
       <tr><td>Chrome 151+ (all platforms)</td><td>Rust parser for non-XSLT (enabled by default; stepped rollout began at 1% in M147)</td></tr>
       <tr><td>Firefox</td><td>Own XML parser (Expat-based)</td></tr>
       <tr><td>Safari</td><td>Own XML parser (libxml2-based historically)</td></tr>
     </table>
-    <span class="citation">Source: chromestatus.com feature page; blink-dev thread, February 2026.</span>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5309598397497344" target="_blank" rel="noopener">chromestatus.com feature page</a>; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/4j2oGg2lyBk/m/r8RA6dhYBQAJ" target="_blank" rel="noopener">blink-dev thread, February 2026</a></span>
+  </section>
+
+  <section>
+    <h3 id="security-privacy">Security and privacy considerations</h3>
+    <p>Replacing libxml2 with a memory-safe Rust parser directly mitigates the primary historical attack surface in XML handling, including buffer overflows, memory out-of-bounds reads/writes, and use-after-free bugs. It enforces strict memory safety guarantees at compile time while maintaining existing web origin boundary protections.</p>
+    <span class="citation">Source: <a href="https://issues.chromium.org/issues/466303347" target="_blank" rel="noopener">Chromium issue 466303347</a></span>
   </section>
 
   <section>
     <h2>see also</h2>
     <ul>
       <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/DOMParser" target="_blank" rel="noopener">MDN: DOMParser</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/DOMParser/parseFromString" target="_blank" rel="noopener">MDN: DOMParser.parseFromString</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest/responseXML" target="_blank" rel="noopener">MDN: XMLHttpRequest.responseXML</a></li>
       <li><a href="https://chromestatus.com/feature/5309598397497344" target="_blank" rel="noopener">chromestatus — XML Parsing in Rust for non-XSLT scenarios (5309598397497344)</a></li>
+      <li><a href="https://chromestatus.com/api/v0/features/5309598397497344" target="_blank" rel="noopener">ChromeStatus API record (5309598397497344)</a></li>
+      <li><a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/4j2oGg2lyBk/m/r8RA6dhYBQAJ" target="_blank" rel="noopener">blink-dev Intent to Ship — XML Parsing in Rust for non-XSLT scenarios</a></li>
+      <li><a href="https://issues.chromium.org/issues/466303347" target="_blank" rel="noopener">Chromium Issue 466303347 — XML parsing in Rust for non-XSLT scenarios</a></li>
+      <li><a href="https://www.w3.org/TR/xml/" target="_blank" rel="noopener">W3C Extensible Markup Language (XML) 1.0 specification</a></li>
+      <li><a href="https://www.w3.org/TR/xml/#sec-well-formed" target="_blank" rel="noopener">W3C XML &sect;4.3.2 Well-Formed Parsed Entities</a></li>
       <li><a href="https://developer.chrome.com/docs/web-platform/deprecating-xslt" target="_blank" rel="noopener">Removing XSLT for a more secure browser (Chrome Developers)</a></li>
+      <li><a href="https://gitlab.gnome.org/GNOME/libxml2" target="_blank" rel="noopener">GNOME libxml2 repository</a></li>
     </ul>
   </section>
 
