@@ -156,7 +156,14 @@ Audits **must not** flag the following as vulnerabilities:
    scheme-injection sink (fixed by `lib/external-url.ts`); `sha`/`date` are escaped.
 3. **Repo-authored page HTML served same-origin.** A `<script>` or injected attribute in a
    `v<N>/<slug>/index.html` executes on gendn's origin. CSP `script-src 'self' 'sha256-…'`
-   blocks inline scripts and off-origin scripts; `'self'` still permits same-origin script URLs.
+   blocks inline scripts and off-origin scripts. The historical `'self'` gap — authored
+   same-origin script URLs — is CLOSED for release trees (gendn-gt7, measured in a real
+   browser 2026-10-07: an authored `.js` under `v<N>/` executed under the old mapping;
+   after the fix it is refused): `readReleaseAsset` serves `.js`/`.mjs`/`.cjs` as
+   `text/plain` and every response carries `X-Content-Type-Options: nosniff`, so no
+   browser will execute routine-authored JavaScript as a script regardless of CSP.
+   Pinned by the security-headers fixture (`v150/focusgroup/inert-probe.js`). Inline
+   authored scripts remain blocked by the hashed `script-src` (no authored hash exists).
 4. **Lifecycle JSON artifacts → SSR.** `conformance.json`, `_questions.json`, `results.json` are
    runner/agent-written but are parsed and rendered; a corrupt/hostile verdict previously
    reached a CSS class attribute (fixed by whitelisting, invariant #9).
