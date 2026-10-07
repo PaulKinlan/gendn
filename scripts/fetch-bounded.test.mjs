@@ -131,6 +131,14 @@ const server = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
       }),
     );
   }
+  if (path === "/redirect-to-echo") {
+    // gendn-lr61 review coverage: CROSS-ORIGIN hop into the header-echo endpoint (the
+    // credential-strip case; run with BOTH loopback origins allowlisted).
+    return new Response(null, {
+      status: 302,
+      headers: { location: `${destBase}/echo-headers` },
+    });
+  }
   return new Response("nope", { status: 404 });
 });
 // Stand-in for an off-allowlist destination origin (distinct port on loopback).
@@ -162,6 +170,52 @@ const destServer = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
     return new Response(null, {
       status: 302,
       headers: { location: `${destBase}/redirect-loop` },
+    });
+  }
+  if (path === "/echo-headers") {
+    // gendn-lr61 review coverage: reports whether credential-bearing headers arrived.
+    return new Response(
+      JSON.stringify({
+        authorization: req.headers.get("authorization"),
+        cookie: req.headers.get("cookie"),
+        accept: req.headers.get("accept"),
+      }),
+      { headers: { "content-type": "application/json" } },
+    );
+  }
+  if (path === "/redirect-echo-same") {
+    // gendn-lr61 review coverage: SAME-ORIGIN control hop into the echo endpoint.
+    return new Response(null, {
+      status: 302,
+      headers: { location: `${destBase}/echo-headers` },
+    });
+  }
+  if (path === "/redirect-304") {
+    // gendn-lr61 review coverage: 304 is NOT a redirect status here - it must fall through
+    // to the caller, Location header or not.
+    return new Response(null, {
+      status: 304,
+      headers: { location: `${destBase}/dest` },
+    });
+  }
+  if (path === "/slow-redirect-1" || path === "/slow-redirect-2") {
+    // gendn-lr61 review coverage: two ~350ms hops under a 500ms budget - the whole CHAIN
+    // shares one timeout, so this must abort; a per-hop budget would complete (~700ms).
+    return new Promise((resolve) => {
+      setTimeout(
+        () =>
+          resolve(
+            new Response(null, {
+              status: 302,
+              headers: {
+                location: path === "/slow-redirect-1"
+                  ? `${destBase}/slow-redirect-2`
+                  : `${destBase}/dest`,
+              },
+            }),
+          ),
+        350,
+      );
     });
   }
   return new Response("nope", { status: 404 });
@@ -308,6 +362,8 @@ try {
 
   // 8b. positive path: when the destination origin is in ALLOWED_ORIGINS, following succeeds
   ALLOWED_ORIGINS.add(destOrigin);
+  const sourceOrigin = new URL(base).origin;
+  ALLOWED_ORIGINS.add(sourceOrigin); // for the cross-origin credential case only
   try {
     const allowedRedir = await timed(
       "redirect-allowlist-positive",
@@ -338,9 +394,11 @@ try {
       () => fetchBounded(`${destBase}/redirect-head`, { timeoutMs: 5000, method: "HEAD" }),
     );
     assert(
-      "gendn-lr61: HEAD stays HEAD through a hop (final status 200, empty body - not a 404 fallback)",
-      head.ok && head.value?.res?.status === 200,
-      `status=${head.value?.res?.status ?? head.err?.message}`,
+      "gendn-lr61: HEAD stays HEAD through a hop (final status 200 AND empty body - a silently-downgraded GET would return the body)",
+      head.ok && head.value?.res?.status === 200 && head.value?.text === "",
+      `status=${head.value?.res?.status}; text=${
+        JSON.stringify(head.value?.text ?? head.err?.message)
+      }`,
     );
     assert(
       "gendn-lr61 review: positive-path hops reached the destination exactly twice more",
@@ -356,8 +414,61 @@ try {
       !loop.ok && /exceeded 5 redirect hops/.test(String(loop.err?.message)),
       `rejected: ${loop.err?.message}`,
     );
+
+    // ---- gendn-lr61 review round-2 coverage: fixes 1-3 get their own fixtures ----
+    // (a) 304 + Location falls through to the caller (NOT followed - not in the spec set)
+    const destHitsBefore304 = destHits;
+    const notMod = await timed(
+      "redirect-304",
+      () => fetchBounded(`${destBase}/redirect-304`, { timeoutMs: 5000 }),
+    );
+    assert(
+      "gendn-lr61: a 304 with a Location header is returned to the caller, never followed",
+      notMod.ok && notMod.value?.res?.status === 304 && destHits === destHitsBefore304,
+      `status=${notMod.value?.res?.status}; destHits delta ${destHits - destHitsBefore304}`,
+    );
+    // (b) the timeout budget is per CHAIN: two ~350ms hops under a 500ms budget abort; a
+    // per-hop budget would complete at ~700ms
+    const slowChain = await timed(
+      "slow-redirect-chain",
+      () => fetchBounded(`${destBase}/slow-redirect-1`, { timeoutMs: 500 }),
+    );
+    assert(
+      "gendn-lr61: the timeout budget spans the whole chain (aborted mid-hop-2, not per-hop)",
+      !slowChain.ok && /aborted|timed? ?out/i.test(String(slowChain.err?.message)),
+      `rejected after ${slowChain.ms}ms: ${slowChain.err?.message}`,
+    );
+    // (c) credential strip: CROSS-ORIGIN hop drops authorization/cookie; SAME-ORIGIN keeps
+    const credHeaders = {
+      authorization: "Bearer sekrit",
+      cookie: "session=1",
+      accept: "application/json",
+    };
+    const crossEcho = await timed(
+      "echo-cross-origin",
+      () => fetchBounded(`${base}/redirect-to-echo`, { timeoutMs: 5000, headers: credHeaders }),
+    );
+    const cross = crossEcho.ok ? JSON.parse(crossEcho.value.text) : {};
+    assert(
+      "gendn-lr61: a CROSS-ORIGIN hop strips authorization and cookie (auto-follow parity)",
+      crossEcho.ok && cross.authorization === null && cross.cookie === null,
+      `authorization=${cross.authorization}; cookie=${cross.cookie}`,
+    );
+    const sameEcho = await timed(
+      "echo-same-origin",
+      () =>
+        fetchBounded(`${destBase}/redirect-echo-same`, { timeoutMs: 5000, headers: credHeaders }),
+    );
+    const same = sameEcho.ok ? JSON.parse(sameEcho.value.text) : {};
+    assert(
+      "gendn-lr61: a SAME-ORIGIN hop preserves authorization and cookie, and accept survives both",
+      sameEcho.ok && same.authorization === "Bearer sekrit" && same.cookie === "session=1" &&
+        cross.accept === "application/json",
+      `authorization=${same.authorization}; accept(cross)=${cross.accept}`,
+    );
   } finally {
     ALLOWED_ORIGINS.delete(destOrigin);
+    ALLOWED_ORIGINS.delete(sourceOrigin);
   }
 
   // 8c. ALLOWED_ORIGINS contains all canonical caller origins across the repo
