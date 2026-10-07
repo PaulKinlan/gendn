@@ -13,10 +13,11 @@
 //     that lie about / omit content-length
 //   - a non-ok status is returned to the caller (fetchBounded does not throw on status; the
 //     caller decides, and server.ts's error handling is the single place that shapes responses)
+//   - a 3xx redirect destination is bounded against an explicit allowlist (gendn-lkj)
 //
 // Run: deno task test-fetch-bounded  (or: deno run scripts/fetch-bounded.test.mjs)
 
-import { fetchBounded, readCapped } from "../lib/chromestatus.ts";
+import { ALLOWED_ORIGINS, fetchBounded, readCapped } from "../lib/chromestatus.ts";
 
 let failures = 0;
 let passed = 0;
@@ -99,6 +100,12 @@ const server = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
     // Declared size above the cap (content-length path).
     return new Response(new Uint8Array(BIG), { headers: { "content-length": String(BIG) } });
   }
+  if (path === "/redirect-other-origin") {
+    return new Response(null, {
+      status: 302,
+      headers: { location: `${destBase}/dest` },
+    });
+  }
   if (path === "/liar") {
     // Streaming body that lies about its size (no content-length, chunked), so only the
     // streaming cap can stop it.
@@ -119,6 +126,19 @@ const server = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
   }
   return new Response("nope", { status: 404 });
 });
+// Stand-in for an off-allowlist destination origin (distinct port on loopback).
+const destServer = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
+  const path = new URL(req.url).pathname;
+  if (path === "/dest") {
+    return new Response("off-allowlist destination reached", {
+      headers: { "content-type": "text/plain" },
+    });
+  }
+  return new Response("nope", { status: 404 });
+});
+const destBase = `http://127.0.0.1:${destServer.addr.port}`;
+const destOrigin = new URL(destBase).origin;
+
 const base = `http://127.0.0.1:${server.addr.port}`;
 
 const timed = async (label, fn) => {
@@ -229,6 +249,93 @@ try {
   // 7. readCapped works standalone too (server.ts uses fetchBounded; this pins the primitive)
   const direct = await timed("readCapped", () => readCapped(new Response("abc"), 1024));
   assert("readCapped returns the body under the cap", direct.ok && direct.value === "abc");
+
+  // 8. redirect destination is bounded: following a 3xx to an off-allowlist origin is refused
+  // (gendn-lkj; THREAT_MODEL.md invariant #7).
+  const redir = await timed(
+    "redirect-off-allowlist",
+    () => fetchBounded(`${base}/redirect-other-origin`, { timeoutMs: 5000 }),
+  );
+  assert(
+    "redirect to off-allowlist origin is refused",
+    !redir.ok && /fetchBounded: redirected off-allowlist to/.test(String(redir.err?.message)),
+    `rejected: ${redir.err?.message}`,
+  );
+
+  // 8b. positive path: when the destination origin is in ALLOWED_ORIGINS, following succeeds
+  ALLOWED_ORIGINS.add(destOrigin);
+  try {
+    const allowedRedir = await timed(
+      "redirect-allowlist-positive",
+      () => fetchBounded(`${base}/redirect-other-origin`, { timeoutMs: 5000 }),
+    );
+    assert(
+      "redirect to allowlisted origin succeeds and returns body",
+      allowedRedir.ok && allowedRedir.value?.text === "off-allowlist destination reached",
+      `status=${allowedRedir.value?.res?.status}`,
+    );
+  } finally {
+    ALLOWED_ORIGINS.delete(destOrigin);
+  }
+
+  // 8c. ALLOWED_ORIGINS contains all canonical caller origins across the repo
+  assert(
+    "ALLOWED_ORIGINS includes the vendor-fonts caller origin https://fonts.googleapis.com",
+    ALLOWED_ORIGINS.has("https://fonts.googleapis.com"),
+  );
+  assert(
+    "ALLOWED_ORIGINS contains exactly chromestatus, github, mdn, and google fonts",
+    ALLOWED_ORIGINS.has("https://chromestatus.com") &&
+      ALLOWED_ORIGINS.has("https://api.github.com") &&
+      ALLOWED_ORIGINS.has("https://developer.mozilla.org") &&
+      ALLOWED_ORIGINS.has("https://fonts.googleapis.com") &&
+      ALLOWED_ORIGINS.size === 4,
+    `size=${ALLOWED_ORIGINS.size}`,
+  );
+
+  // 8d. a redirect to each allowlisted origin (including fonts.googleapis.com) is allowed (passes),
+  // while an off-allowlist redirect still throws.
+  const origFetch = globalThis.fetch;
+  try {
+    for (const origin of ALLOWED_ORIGINS) {
+      globalThis.fetch = async () => {
+        const resp = new Response(`content from ${origin}`, { status: 200 });
+        Object.defineProperty(resp, "redirected", { value: true });
+        Object.defineProperty(resp, "url", { value: `${origin}/endpoint` });
+        return resp;
+      };
+      const allowed = await timed(
+        `redirect-to-${origin}`,
+        () => fetchBounded("http://127.0.0.1:0/mock-redirect", { timeoutMs: 1000 }),
+      );
+      assert(
+        `redirect to allowlisted origin ${origin} is allowed (passes)`,
+        allowed.ok && allowed.value?.text === `content from ${origin}`,
+        `${allowed.err?.message}`,
+      );
+    }
+
+    globalThis.fetch = async () => {
+      const resp = new Response("evil", { status: 200 });
+      Object.defineProperty(resp, "redirected", { value: true });
+      Object.defineProperty(resp, "url", { value: "https://evil.example.com/exploit" });
+      return resp;
+    };
+    const offMock = await timed(
+      "redirect-mock-off-allowlist",
+      () => fetchBounded("http://127.0.0.1:0/mock-redirect", { timeoutMs: 1000 }),
+    );
+    assert(
+      "redirect to off-allowlist origin throws (simulated)",
+      !offMock.ok &&
+        /fetchBounded: redirected off-allowlist to https:\/\/evil\.example\.com/.test(
+          String(offMock.err?.message),
+        ),
+      `rejected: ${offMock.err?.message}`,
+    );
+  } finally {
+    globalThis.fetch = origFetch;
+  }
 } finally {
   // Drain every cleanup, each wrapped so one failure cannot skip the rest.
   for (const cleanup of hangCleanups) {
@@ -240,6 +347,11 @@ try {
   }
   try {
     await server.shutdown();
+  } catch {
+    // ignore
+  }
+  try {
+    await destServer.shutdown();
   } catch {
     // ignore
   }
