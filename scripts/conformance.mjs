@@ -485,8 +485,25 @@ function editDistance(left, right) {
 
 export function selectPublishedRootPages(
   pages,
-  { hasSelector = false, selector, limit = Infinity } = {},
+  { hasSelector = false, selector, limit = Infinity, hasLimit = false, rawLimit } = {},
 ) {
+  // A limit is a count of pages. Reject invalid explicit values before spawning a browser or
+  // writing reports; NaN/Infinity used to silently select every page and zero selected none.
+  if (hasLimit || Number.isFinite(limit)) {
+    const value = hasLimit ? Number(rawLimit) : limit;
+    if (
+      (hasLimit && (typeof rawLimit !== "string" || !rawLimit.trim() ||
+        rawLimit.startsWith("--"))) || !Number.isSafeInteger(value) || value < 1
+    ) {
+      return {
+        pages: [],
+        error: `--limit ${
+          JSON.stringify(hasLimit ? rawLimit ?? "<missing>" : limit)
+        } must be a positive integer (at least 1); zero or invalid limits cannot produce a trustworthy run`,
+      };
+    }
+    limit = value;
+  }
   const rootId = (path) => path.replace(/\/index\.html$/, "");
   const roots = pages.map(rootId);
   if (
@@ -515,12 +532,12 @@ export function selectPublishedRootPages(
     };
   }
   const considered = Number.isFinite(limit) ? selected.slice(0, limit) : selected;
-  if (hasSelector && considered.length === 0) {
+  if (considered.length === 0) {
     return {
       pages: [],
-      error: `--page ${
-        JSON.stringify(selector)
-      } selected zero published root routes after --limit ${limit}; refusing a vacuous responsive pass`,
+      error: `No published root routes selected${
+        hasSelector ? ` for --page ${JSON.stringify(selector)}` : ""
+      }; refusing a zero-work run`,
     };
   }
   return { pages: considered, error: null };
@@ -531,7 +548,8 @@ async function main() {
   const pageIdx = args.indexOf("--page");
   const only = pageIdx >= 0 ? args[pageIdx + 1] : null;
   const limitIdx = args.indexOf("--limit");
-  const limit = limitIdx >= 0 ? Number(args[limitIdx + 1]) : Infinity;
+  const rawLimit = limitIdx >= 0 ? args[limitIdx + 1] : undefined;
+  const limit = limitIdx >= 0 ? Number(rawLimit) : Infinity;
   const responsive = args.includes("--responsive");
   const screenshots = args.includes("--screenshots");
   const updateSupport = args.includes("--update-support");
@@ -541,7 +559,8 @@ async function main() {
   const selection = selectPublishedRootPages(pages, {
     hasSelector: pageIdx >= 0,
     selector: only,
-    limit,
+    hasLimit: limitIdx >= 0,
+    rawLimit,
   });
   if (selection.error) {
     console.error(`ERROR: ${selection.error}`);
