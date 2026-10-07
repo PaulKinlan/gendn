@@ -755,6 +755,43 @@ const PAGES = [
       "unverified against any surviving public source",
     ],
     sideB: ["Writing Assistance APIs draft", "preference", "capability"],
+    // gendn-yaa (B4, opaque-origin-for-data-urls): verified against the cited source on 2026-10-07.
+    page: "v150/opaque-origin-for-data-urls/index.html",
+    marker: "localStorage reach disagreement, both sides reported rather than resolved",
+    sideA: ["localStorage"],
+    sideB: ["WindowLocalStorage", "Window includes WindowLocalStorage"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-yaa (B4, indexeddb-sqlite-backend): verified against the cited source on 2026-10-07.
+    page: "v150/indexeddb-sqlite-backend/index.html",
+    marker: "Release status disagreement, both sides reported rather than resolved",
+    sideA: ["Chrome 150", "Enabled by default"],
+    sideB: ["156", "Proposed", "is_released: false"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-yaa (B4, email-verification-protocol): verified against the cited source on 2026-10-07.
+    page: "v150/email-verification-protocol/index.html",
+    marker: "API shape disagreement, both sides reported rather than resolved",
+    sideA: ["navigator.emailVerification.verify", "'user@example.com'"],
+    sideB: ["input.addEventListener('emailverified', e => {", "e.presentationToken", "nonce"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-yaa (B4, pwa-origin-migration): verified against the cited source on 2026-10-07.
+    page: "v150/pwa-origin-migration/index.html",
+    marker: "Manifest field and constraint disagreement, both sides reported rather than resolved",
+    sideA: [
+      "The old origin's manifest must declare the new origin as the migration target",
+      "migration_targets",
+    ],
+    sideB: [
+      "migrate_from",
+      ".well-known/web-app-origin-association",
+      "allow_migration",
+      "migrate_to",
+    ],
     dates: ["fetched 2026-10-07"],
   },
 ];
@@ -838,6 +875,10 @@ const DATED_PAGES = new Set([
   "v149/user-action-pseudo-class-top-layer-boundary/index.html",
   "v149/web-app-scope-system-accent-color/index.html",
   "v148/summarizer-api-performance-preference/index.html",
+  "v150/opaque-origin-for-data-urls/index.html",
+  "v150/indexeddb-sqlite-backend/index.html",
+  "v150/email-verification-protocol/index.html",
+  "v150/pwa-origin-migration/index.html",
 ]);
 const datedInTable = new Set(PAGES.filter((e) => e.dates.length > 0).map((e) => e.page));
 assert(
