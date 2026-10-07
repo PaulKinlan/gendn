@@ -21,9 +21,8 @@
 import {
   collectCritiques,
   collectPublishedPages,
-  collectSuites,
-  isMdnStubHtml,
   loadSchema,
+  pageMetadata,
   readJson,
   suiteHash,
   validate,
@@ -51,14 +50,44 @@ async function main() {
   const pageIds = new Set(pages.map((p) => p.replace(/\/index\.html$/, "")));
 
   // ---- conformance suites ----
-  const suites = await collectSuites(".");
+  // Iterate the PHYSICAL page/suite pairs. Looking up a page by s.id alone lets a suite
+  // inside one page tree claim the ID (and matching metadata) of another published page.
+  const pageMeta = new Map();
+  const metadataNotes = { status: [], demo: [], cpsFeatureRoute: [] };
   let suiteCount = 0;
-  for (const s of suites) {
+  for (const pagePath of pages) {
+    const ownerId = pagePath.replace(/\/index\.html$/, "");
+    const meta = await pageMetadata(pagePath);
+    pageMeta.set(ownerId, meta);
+    const s = await readJson(`./${ownerId}/conformance.json`);
+    if (!s) continue;
     suiteCount++;
-    const tag = `conformance ${s.id}`;
+    const tag = `conformance ${ownerId}/conformance.json`;
     const schemaErrs = validate(confSchema, s);
     for (const e of schemaErrs) errors.push(`${tag}: schema: ${e}`);
     if (!pageIds.has(s.id)) errors.push(`${tag}: id maps to no published page (orphan suite)`);
+    // suiteHash covers assertions, not these top-level identity claims. Bind the zero-drift
+    // fields to the colocated page even on a suite-only edit. No broad migration exemption:
+    // a legitimate moved page needs a consistent suite at its destination.
+    if (!meta.identity) errors.push(`${tag}: ${pagePath} has no ChromeStatus feature identity`);
+    for (const field of ["id", "route", "identity", "milestone"]) {
+      if (s[field] !== meta[field]) {
+        errors.push(
+          `${tag}: ${field} ${JSON.stringify(s[field])} differs from colocated page ${pagePath} (${
+            JSON.stringify(meta[field])
+          })`,
+        );
+      }
+    }
+    // Historical suites were frozen before later status/demo changes. Measured on main:
+    // 1 status, 20 demo, 21 CPS-route differences on main 15377ff. Reported, not a green claim
+    // about those fields; reconciliation is separate from the identity-binding fix.
+    if (s.status !== meta.status) metadataNotes.status.push(ownerId);
+    if (s.demo !== meta.demo) metadataNotes.demo.push(ownerId);
+    const pageDemoRoute = meta.demo ? new URL(meta.demo).pathname : null;
+    if ((s.cpsFeature?.route ?? null) !== pageDemoRoute) {
+      metadataNotes.cpsFeatureRoute.push(ownerId);
+    }
     if (Array.isArray(s.assertions)) {
       const ids = s.assertions.map((a) => a.id);
       const dupes = ids.filter((id, i) => ids.indexOf(id) !== i);
@@ -96,12 +125,6 @@ async function main() {
   }
 
   // ---- implementation-sufficiency reference contracts ----
-  const pageMeta = new Map();
-  for (const pagePath of pages) {
-    const id = pagePath.replace(/\/index\.html$/, "");
-    const html = await Deno.readTextFile(pagePath);
-    pageMeta.set(id, { status: isMdnStubHtml(html) ? "stub" : "built" });
-  }
   const builtIds = [...pageMeta.entries()].filter(([, meta]) => meta.status === "built").map((
     [id],
   ) => id);
@@ -158,6 +181,9 @@ async function main() {
   }
   console.log("validate-artifacts");
   console.log(`  conformance suites : ${suiteCount} validated`);
+  console.log(
+    `  metadata notes     : ${metadataNotes.status.length} status / ${metadataNotes.demo.length} demo / ${metadataNotes.cpsFeatureRoute.length} CPS demo-route difference(s) (report-only)`,
+  );
   console.log(`  critiques          : ${critiqueCount} validated`);
   console.log(
     `  implementation refs: ${sufficientOwners.size} sufficient / ${partialOwners.size} partial / ${
