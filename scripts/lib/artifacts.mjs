@@ -20,9 +20,49 @@ import {
 export const SHOWCASE_HOST = "chrome-platform-showcase.paulkinlan-ea.deno.net";
 
 const PAGE_RE = /^v\d+\/[^/]+\/index\.html$/;
-const FEATURE_ID_RE = /chromestatus\.com\/feature\/(\d+)/;
+export const FEATURE_ID_RE = /chromestatus\.com\/feature\/(\d+)/;
+export const DECLARED_FEATURE_ID_RE =
+  /<tr\b[^>]*>(?:(?!<\/tr>)[\s\S])*?<th\b[^>]*>\s*ChromeStatus\s*<\/th>(?:(?!<\/tr>)[\s\S])*?chromestatus\.com\/feature\/(\d+)/i;
 const EXPERIMENTAL_RE =
   /origin[ -]?trial|dev(?:eloper)? trial|behind a flag|experimental|chrome:\/\/flags|--enable-blink-features/i;
+
+export function extractFeatureIdentity(html) {
+  const declaredMatch = html.match(DECLARED_FEATURE_ID_RE);
+  if (declaredMatch) return declaredMatch[1];
+  const fallbackMatch = html.match(FEATURE_ID_RE);
+  return fallbackMatch ? fallbackMatch[1] : null;
+}
+
+export function extractDemoUrl(html, release, slug) {
+  let demo = null;
+  const showcaseRe = new RegExp(
+    `${SHOWCASE_HOST.replace(/\./g, "\\.")}(/v\\d+/[a-z0-9-]+/?[a-z0-9-]*/?)`,
+    "g",
+  );
+  const ownPrefix = `/${release}/${slug}`;
+  let m;
+  while ((m = showcaseRe.exec(html)) !== null) {
+    const routePath = m[1];
+    const tagStart = html.lastIndexOf("<", m.index);
+    if (tagStart !== -1) {
+      const tagEnd = html.indexOf(">", tagStart);
+      if (tagEnd !== -1 && tagEnd > m.index) {
+        const tagText = html.slice(tagStart, tagEnd + 1);
+        const isRelated = /\b(?:data-demo-rel|data-demo)\s*=\s*["']?related\b/i.test(tagText) ||
+          /\brel\s*=\s*["'][^"']*\brelated\b[^"']*["']/i.test(tagText) ||
+          /\bdata-related-demo\b/i.test(tagText);
+        if (isRelated) continue;
+      }
+    }
+    // A sibling with a longer slug is not this feature; require the path-segment boundary.
+    if (routePath === ownPrefix || routePath.startsWith(`${ownPrefix}/`)) {
+      demo = `https://${SHOWCASE_HOST}${routePath}`;
+      break;
+    }
+    if (demo === null) demo = `https://${SHOWCASE_HOST}${routePath}`;
+  }
+  return demo;
+}
 
 // ---------- page discovery ----------
 
@@ -93,8 +133,7 @@ export function metadataFromHtml(pagePath, html) {
   const route = `/${release}/${slug}/`;
   const milestone = Number(release.slice(1));
 
-  const idMatch = html.match(FEATURE_ID_RE);
-  const identity = idMatch ? idMatch[1] : null;
+  const identity = extractFeatureIdentity(html);
   const status = isMdnStubHtml(html) ? "stub" : "built";
   // gendn-aewp: the page's own eyebrow is the authoritative status claim. A shipped /
   // enabled-by-default eyebrow overrides experimental-sounding PROSE: historical flag
@@ -147,22 +186,7 @@ export function metadataFromHtml(pagePath, html) {
   const hasStylesheet = /href="\/public\/styles\.css"/.test(html);
 
   // The embedded-demo identity: the showcase route this page links for its OWN feature.
-  let demo = null;
-  const showcaseRe = new RegExp(
-    `${SHOWCASE_HOST.replace(/\./g, "\\.")}(/v\\d+/[a-z0-9-]+/?[a-z0-9-]*/?)`,
-    "g",
-  );
-  const ownPrefix = `/${release}/${slug}`;
-  let m;
-  while ((m = showcaseRe.exec(html)) !== null) {
-    const routePath = m[1];
-    // A sibling with a longer slug is not this feature; require the path-segment boundary.
-    if (routePath === ownPrefix || routePath.startsWith(`${ownPrefix}/`)) {
-      demo = `https://${SHOWCASE_HOST}${routePath}`;
-      break;
-    }
-    if (demo === null) demo = `https://${SHOWCASE_HOST}${routePath}`;
-  }
+  const demo = extractDemoUrl(html, release, slug);
 
   return {
     id,
