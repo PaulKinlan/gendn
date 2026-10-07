@@ -18,6 +18,7 @@ import {
   emittedVerdictLines,
   expectedVerdictLines,
 } from "./check-verdict-emission.mjs";
+import { runAllReportLine } from "./conformance.mjs";
 
 const CHECKER = new URL("./check-verdict-emission.mjs", import.meta.url).pathname;
 let failures = 0;
@@ -58,7 +59,18 @@ const SUITE_LINE = (id, tested, pass, fail, blocked) =>
 
 const RUN_ALL_SUMMARY =
   "run-all: 201 suites · assertions 3769 pass / 18 fail / 1048 blocked (of 4835)";
-const SINGLE_SUITE_SUMMARY = "run-all: 1 suites · assertions 19 pass / 0 fail / 5 blocked (of 24)";
+// The actual --page/--limit producer form, not the full-run form with a count of 1.
+const SINGLE_SUITE_SUMMARY = runAllReportLine({
+  scannedSuites: 1,
+  totalSuites: 201,
+  scoped: true,
+  agg: { pass: 19, fail: 0, blocked: 5, total: 24 },
+});
+assert(
+  "producer: scoped run-all reports both the scan count and the merged report size",
+  SINGLE_SUITE_SUMMARY ===
+    "run-all: 1 suite(s) scanned (merged into reports/conformance/results.json; report now 201 suites)",
+);
 const RESPONSIVE_SUMMARY =
   "responsive-check: 201 pages scanned → reports/conformance/responsive.json";
 const RUN_ALL_NOT_GREEN =
@@ -161,8 +173,13 @@ assert(
 );
 r = await checkLog(LOGS.singleSuite);
 assert(
-  "completed single-suite --page log is a run-all phase log owing 1, and passes",
+  "producer-shaped scoped --page log is a run-all phase owing 1, and passes",
   r.code === 0 && r.out.includes("phase    : run-all") && r.out.includes("expected : 1"),
+);
+r = await checkLog(`${HARNESS_BANNER}\n${LOGS.singleSuite}`, ["--phase", "run-all"]);
+assert(
+  "a scoped log with a real harness banner also passes the explicit run-all cross-check",
+  r.code === 0 && r.out.includes("phase    : run-all") && r.out.includes("emitted  : 1"),
 );
 r = await checkLog(LOGS.responsiveReview);
 assert(
@@ -318,7 +335,7 @@ r = await checkLog(LOGS.crashedRunAll, ["--phase", "run-all"]);
 assert(
   "[BLOCKER] FAILS (exit 1, no PASS) on the same crashed/truncated run-all log WITH --phase run-all",
   r.code === 1 && !r.out.includes("PASS") &&
-    r.err.includes("no `run-all: <n> suites` completion") &&
+    r.err.includes("no `run-all: <n> suites · assertions") &&
     r.err.includes("was never verified"),
 );
 r = await checkLog(LOGS.crashedRunAll.replace(HARNESS_BANNER, ""));
@@ -370,9 +387,31 @@ assert(
 );
 r = await checkLog(LOGS.singleSuite.replace(RUN_ALL_GREEN, ""));
 assert(
-  "FAILS (exit 1) when a completed single-suite run is missing its verdict line",
+  "FAILS (exit 1) when a completed scoped run is missing its verdict line",
   r.code === 1 && r.err.includes("MISSING"),
 );
+// Both summary forms must be complete. A merely similar or truncated scoped line, even with
+// a banner and a verdict, is not evidence that the producer reached its terminal block.
+for (
+  const [name, summary] of [
+    ["scoped missing merged-report suffix", SINGLE_SUITE_SUMMARY.split(" (merged into")[0]],
+    [
+      "scoped wrong report count",
+      SINGLE_SUITE_SUMMARY.replace("report now 201", "report now many"),
+    ],
+    ["scoped extra text", `${SINGLE_SUITE_SUMMARY} trailing text`],
+    ["full missing assertion totals", "run-all: 201 suites"],
+  ]
+) {
+  const bad = await checkLog(`${HARNESS_BANNER}\n${summary}\n${RUN_ALL_GREEN}`, [
+    "--phase",
+    "run-all",
+  ]);
+  assert(
+    `FAILS (exit 1) on malformed completion summary: ${name}`,
+    bad.code === 1 && bad.err.includes("was never verified") && !bad.out.includes("PASS"),
+  );
+}
 r = await checkLog(`${LOGS.killProbe}\n${RUN_ALL_GREEN}`, ["--phase", "behavioural"]);
 assert(
   "FAILS (exit 1) when the kill probe emits a verdict line (phase owes 0)",
