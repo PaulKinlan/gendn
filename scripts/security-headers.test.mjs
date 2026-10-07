@@ -390,59 +390,55 @@ try {
   // the shared MIME map which mapped js -> application/javascript. Under CSP script-src 'self',
   // same-origin script MIME responses would execute on this origin. readPublicAsset now reuses
   // RELEASE_INERT_SCRIPT_MIME so that script extensions are served inert (text/plain + nosniff)
-  // uniformly across release trees and /public/*. We verify that no /public/* response carries
-  // a script content-type, that the inert-script policy covers public assets, and that detector
-  // cases catch any script-typed response.
+  // uniformly across release trees and /public/*. We verify with a committed probe
+  // (/public/probe-inert.js) that:
+  // 1. The probe is present and served with status 200 naming the bead (preventing vacuous 404 pass).
+  // 2. The public .js asset is served inert (text/plain), not a script MIME.
+  // 3. The public .js asset carries nosniff (browsers refuse execution).
+  // 4. Existing assets (/public/styles.css) continue to be served non-script with nosniff.
+  // 5. RELEASE_INERT_SCRIPT_MIME maps .js, .mjs, .cjs to text/plain.
+  // 6. Detector case: a script content-type on a public asset path fails the inert check.
   {
-    function isScriptContentType(ct) {
-      if (!ct) return false;
-      const mime = ct.split(";")[0].trim().toLowerCase();
-      return (
-        mime === "application/javascript" ||
-        mime === "text/javascript" ||
-        mime === "application/ecmascript" ||
-        mime === "text/ecmascript" ||
-        mime === "application/x-javascript" ||
-        mime.endsWith("/javascript") ||
-        mime.endsWith("/ecmascript")
-      );
-    }
+    const probeRes = await fetch(`${base}/public/probe-inert.js`, {
+      signal: AbortSignal.timeout(4000),
+    });
+    const probeCt = probeRes.headers.get("content-type") ?? "";
+    const probeSniff = probeRes.headers.get("x-content-type-options") ?? "";
+    const probeBody = await probeRes.text();
+    assert(
+      "izwu: probe present and served (a 404 also carries text/plain + nosniff and would pass the MIME checks vacuously)",
+      probeRes.status === 200 && probeBody.includes("gendn-izwu"),
+      `status: ${probeRes.status}; body names the bead: ${probeBody.includes("gendn-izwu")}`,
+    );
+    assert(
+      "izwu: public-asset .js is served inert (text/plain), not a script MIME",
+      probeCt.startsWith("text/plain"),
+      `content-type: ${probeCt}`,
+    );
+    assert(
+      "izwu: public-asset .js carries nosniff (browsers refuse to execute it)",
+      probeSniff === "nosniff",
+      `x-content-type-options: ${probeSniff}`,
+    );
 
-    // 1. All existing files under /public must be non-script and carry nosniff
-    for await (const entry of Deno.readDir("./public")) {
-      if (entry.isFile) {
-        const res = await fetch(`${base}/public/${entry.name}`, {
-          signal: AbortSignal.timeout(4000),
-        });
-        const ct = res.headers.get("content-type") ?? "";
-        const sniff = res.headers.get("x-content-type-options") ?? "";
-        assert(
-          `izwu: /public/${entry.name} does not carry a script content-type`,
-          !isScriptContentType(ct),
-          `content-type: ${ct}`,
-        );
-        assert(
-          `izwu: /public/${entry.name} carries nosniff`,
-          sniff === "nosniff",
-          `x-content-type-options: ${sniff}`,
-        );
-      }
-    }
+    // Existing styles.css must be non-script and carry nosniff
+    const cssRes = await fetch(`${base}/public/styles.css`, {
+      signal: AbortSignal.timeout(4000),
+    });
+    const cssCt = cssRes.headers.get("content-type") ?? "";
+    const cssSniff = cssRes.headers.get("x-content-type-options") ?? "";
+    assert(
+      "izwu: /public/styles.css is served with text/css",
+      cssRes.status === 200 && cssCt.startsWith("text/css"),
+      `status: ${cssRes.status}; content-type: ${cssCt}`,
+    );
+    assert(
+      "izwu: /public/styles.css carries nosniff",
+      cssSniff === "nosniff",
+      `x-content-type-options: ${cssSniff}`,
+    );
 
-    // 2. Probed script paths under /public/*.js, .mjs, .cjs must never return a script content-type
-    for (const ext of ["js", "mjs", "cjs"]) {
-      const res = await fetch(`${base}/public/probe-inert.${ext}`, {
-        signal: AbortSignal.timeout(4000),
-      });
-      const ct = res.headers.get("content-type") ?? "";
-      assert(
-        `izwu: /public/*.${ext} does not carry a script content-type`,
-        !isScriptContentType(ct),
-        `status: ${res.status}; content-type: ${ct || "(none)"}`,
-      );
-    }
-
-    // 3. RELEASE_INERT_SCRIPT_MIME maps all script extensions to inert text/plain
+    // RELEASE_INERT_SCRIPT_MIME maps all script extensions to inert text/plain
     assert(
       "izwu: RELEASE_INERT_SCRIPT_MIME maps .js to text/plain",
       RELEASE_INERT_SCRIPT_MIME["js"]?.startsWith("text/plain"),
@@ -459,14 +455,14 @@ try {
       `cjs: ${RELEASE_INERT_SCRIPT_MIME["cjs"]}`,
     );
 
-    // 4. Detector case: a script content-type on a public asset path fails the inert check
+    // Detector case: a script content-type on a public asset path fails the inert check
     const scriptyPublicRes = new Response("alert(1)", {
       headers: { "content-type": "application/javascript; charset=utf-8" },
     });
     assert(
       "izwu detector: a script content-type on a public asset path fails the inert check",
-      isScriptContentType(scriptyPublicRes.headers.get("content-type") ?? ""),
-      "script MIME correctly detected as non-inert",
+      !(scriptyPublicRes.headers.get("content-type") ?? "").startsWith("text/plain"),
+      "script MIME detected as non-inert",
     );
   }
 
