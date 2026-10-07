@@ -107,6 +107,28 @@ const credential = await navigator.credentials.get({
     }]
   }
 });</code></pre>
+
+    <p>When an autonomous browsing agent encounters a false-positive account signal or anomalous session context during embedder-initiated login, the graceful degradation mechanism halts agent execution and surfaces a manual user login prompt:</p>
+    <pre><code>// Graceful degradation: agent halts autonomous action and falls back to manual user login
+async function runAgenticLoginWithFallback(embedderLoginFn) {
+  try {
+    const credential = await embedderLoginFn();
+    // Page-local pseudo-code: detectAnomalousContext stands for the engine's
+    // false-positive / anomalous-context detection described in the mechanism section.
+    if (!credential || detectAnomalousContext(credential)) {
+      // Detected false positive or anomalous context: stop autonomous agent action
+      stopAgentAndPromptManualLogin({ reason: 'anomalous_context' });
+      return null;
+    }
+    return credential;
+  } catch (error) {
+    // Graceful degradation: halt autonomous agent action and prompt user for manual login
+    console.warn('Embedder-initiated login failed; halting agent for manual user login:', error);
+    stopAgentAndPromptManualLogin({ reason: 'login_failed' });
+    return null;
+  }
+}</code></pre>
+    <span class="citation">Source: <a href="https://www.mail-archive.com/blink-dev@chromium.org/msg16158.html" target="_blank" rel="noopener">blink-dev Intent to Experiment: Agentic Federated Login</a> (Security and graceful degradation mechanism).</span>
   </section>
 
   <section>
