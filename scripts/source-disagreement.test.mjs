@@ -365,6 +365,16 @@ const PAGES = [
     sideB: ["5172375182245888", "Proposed", "Shipped/Shipping"],
     dates: ["fetched 2026-10-06"],
   },
+  {
+    // gendn-g8o (B3 unit 1): the page's Safari cell and its summary status disagree with the ChromeStatus
+    // record the page itself cites. The record's own stage data AGREES with the page (149 dev trial, 150
+    // shipping), so only the Safari view and the summary status are in dispute; neither side is adjudicated.
+    page: "v149/comma-separated-container-queries/index.html",
+    marker: "Safari and release-status disagreement, both sides reported rather than resolved",
+    sideA: ["No signal", "Chrome 150"],
+    sideB: ["6196591858941952", "Support", "Proposed"],
+    dates: ["fetched 2026-10-07"],
+  },
 ];
 
 let failures = 0;
@@ -426,6 +436,7 @@ const DATED_PAGES = new Set([
   "v147/local-network-access-restrictions/index.html",
   "v147/local-network-access-restrictions-for-webtransport/index.html",
   "v147/x25519kyber768-key-encapsulation-for-tls/index.html",
+  "v149/comma-separated-container-queries/index.html",
 ]);
 const datedInTable = new Set(PAGES.filter((e) => e.dates.length > 0).map((e) => e.page));
 assert(
