@@ -363,6 +363,36 @@ try {
       r.code === 0,
       r.text,
     );
+
+    // Case 7 (gendn-0n5s Scenario A): Staged identity mutation in index.html disguised by unrelated unstaged decoy edit
+    // Worktree index.html restored to ALPHA_ID + decoy comment; conformance.json has ALPHA_ID.
+    // Index has BETA_ID. Validator must read staged index.html and fail on identity mismatch.
+    await Deno.writeTextFile(`${scratch}/${ALPHA}/index.html`, html(BETA_ID));
+    await g("add", `${ALPHA}/index.html`);
+    await Deno.writeTextFile(
+      `${scratch}/${ALPHA}/index.html`,
+      html(ALPHA_ID, "<!-- decoy edit -->"),
+    );
+    const decoyStatus = (await g("status", "--short")).trim();
+    assert(
+      "0n5s validate-artifacts Case 7: git status shows MM for staged mutation with decoy comment",
+      decoyStatus.includes("MM") && decoyStatus.includes(ALPHA),
+    );
+    r = await runValidator();
+    assert(
+      "0n5s validate-artifacts Case 7 (decoy): validator reads staged index.html content and fails (escape closed)",
+      r.code === 1 && r.text.includes("identity"),
+      r.text,
+    );
+
+    // Case 8 (gendn-0n5s non-regression): Unrelated unstaged edit ALONE (no staged mutation) must pass validator
+    await g("reset", "-q", "HEAD", `${ALPHA}/index.html`);
+    r = await runValidator();
+    assert(
+      "0n5s validate-artifacts Case 8: unrelated unstaged edit ALONE passes validator",
+      r.code === 0,
+      r.text,
+    );
   } finally {
     await Deno.remove(scratch, { recursive: true });
   }

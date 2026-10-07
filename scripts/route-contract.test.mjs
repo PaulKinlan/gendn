@@ -460,9 +460,9 @@ try {
 {
   const scratch = await Deno.makeTempDir({ prefix: "ip0z-route-manifest-" });
   const probe = "v900/probe";
-  const probePage = (featureId) =>
+  const probePage = (featureId, extra = "") =>
     `<!doctype html><html><head></head><body><h1>Probe</h1>` +
-    `<a href="https://chromestatus.com/feature/${featureId}">ChromeStatus</a></body></html>`;
+    `<a href="https://chromestatus.com/feature/${featureId}">ChromeStatus</a>${extra}</body></html>`;
   const baseFeature = "1234567890";
   const mutatedFeature = "9999999999";
 
@@ -565,6 +565,51 @@ try {
     current = await buildManifest({ root: scratch });
     evaluated = await evaluate(baselineManifest, current);
     assert("ip0z Case 6 (resolved): resolved route passes gate", evaluated.failures.length === 0);
+
+    // Case 7 (gendn-0n5s Scenario A): Staged identity mutation disguised by unrelated unstaged decoy edit
+    // Worktree identity reverted to base, but carries an unrelated comment (git status MM with worktree != base).
+    // The reader must still read the staged index content and fail the gate.
+    invalidateJudgedCache();
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, probePage(mutatedFeature));
+    await g("add", `${probe}/index.html`);
+    await Deno.writeTextFile(
+      `${scratch}/${probe}/index.html`,
+      probePage(baseFeature, "<!-- unrelated decoy edit -->"),
+    );
+    const decoyStatus = (await g("status", "--short")).trim();
+    assert(
+      "0n5s Case 7 (decoy): git status shows MM for staged mutation with unstaged decoy edit",
+      decoyStatus.includes("MM") && decoyStatus.includes(probe),
+    );
+    current = await buildManifest({ root: scratch });
+    assert(
+      "0n5s Case 7 (decoy): manifest reads staged index content (not worktree with decoy edit)",
+      current[0].identity === mutatedFeature,
+    );
+    evaluated = await evaluate(baselineManifest, current);
+    assert(
+      "0n5s Case 7 (decoy): disguised staged mutation fails gate (escape closed)",
+      evaluated.failures.length === 1 && mentions(evaluated, "identity changed"),
+    );
+
+    // Case 8 (gendn-0n5s non-regression): Unrelated unstaged edit ALONE (no staged mutation) must pass gate
+    invalidateJudgedCache();
+    await g("reset", "-q", "HEAD", `${probe}/index.html`);
+    const cleanStagedStatus = (await g("status", "--short")).trim();
+    assert(
+      "0n5s Case 8: git status shows plain uncommitted edit (M ) for decoy edit alone",
+      cleanStagedStatus.startsWith("M") && !cleanStagedStatus.startsWith("MM"),
+    );
+    current = await buildManifest({ root: scratch });
+    assert(
+      "0n5s Case 8: manifest reflects base identity with decoy edit",
+      current[0].identity === baseFeature,
+    );
+    evaluated = await evaluate(baselineManifest, current);
+    assert(
+      "0n5s Case 8: unrelated unstaged edit ALONE passes gate",
+      evaluated.failures.length === 0,
+    );
   } finally {
     await Deno.remove(scratch, { recursive: true });
   }

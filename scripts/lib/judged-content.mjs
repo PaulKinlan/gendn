@@ -8,7 +8,9 @@
 //
 // OPTION CHOSEN: Option (a) — for each judged path, read the INDEX version (`git show :<path>`)
 // when the staged content differs from the worktree and the worktree does not differ from base
-// (the staged-then-reverted escape), falling back to the working tree file otherwise.
+// (the staged-then-reverted escape), or when the staged index mutates identity/demo-critical
+// fields while the worktree reverted those critical fields back to baseline (the decoy-edit escape
+// closed in gendn-0n5s), falling back to the working tree file otherwise.
 // Lanes legitimately run gates mid-edit with a dirty worktree, so uncommitted edits and
 // standard git diff <base> cases keep judging the working tree exactly as before.
 
@@ -29,6 +31,54 @@ export function invalidateJudgedCache() {
 export async function stagedRevertedPaths(root = ".", { fresh = false } = {}) {
   const state = await getRepoState(root, { fresh });
   return state?.stagedPaths ?? new Set();
+}
+
+function extractCriticalFields(filePath, content) {
+  if (typeof content !== "string") return null;
+
+  if (filePath.endsWith(".html")) {
+    const featureIds = [...content.matchAll(/chromestatus\.com\/feature\/(\d+)/g)].map((m) => m[1]);
+    const demos = [
+      ...content.matchAll(/chrome-platform-showcase\.paulkinlan-ea\.deno\.net\/[^\s"'<>]+/g),
+    ].map((m) => m[0]);
+    const mdnStub = /<p\b[^>]*class=["'][^"']*\beyebrow\b[^"']*["'][^>]*>[\s\S]*?covered on mdn/i
+      .test(
+        content,
+      );
+    return { featureIds, demos, mdnStub };
+  }
+
+  if (filePath.endsWith(".json")) {
+    try {
+      const parsed = JSON.parse(content);
+      if (filePath.endsWith("conformance.json")) {
+        return {
+          id: parsed.id ?? null,
+          route: parsed.route ?? null,
+          milestone: parsed.milestone ?? null,
+          identity: parsed.identity ?? null,
+          status: parsed.status ?? null,
+          demo: parsed.demo ?? null,
+          cpsFeatureRoute: parsed.cpsFeature?.route ?? null,
+        };
+      }
+      if (filePath.endsWith("reference-contract.json")) {
+        const routes = (parsed.documentation ?? []).map((d) => String(d.href ?? "")).sort();
+        return { routes };
+      }
+      if (filePath.endsWith("responsive-support.json")) {
+        return { routes: parsed.routes ?? {} };
+      }
+      if (filePath.endsWith("migrations.json")) {
+        return { migrations: parsed };
+      }
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
 }
 
 async function getRepoState(root = ".", { fresh = false } = {}) {
@@ -133,6 +183,67 @@ async function getRepoState(root = ".", { fresh = false } = {}) {
       const revertedVsBase = stagedVsBase && stagedVsBase.has(p) && !worktreeVsBase.has(p);
       if (revertedVsHead || revertedVsBase) {
         stagedPaths.add(p);
+        continue;
+      }
+
+      // Check if staged index mutated critical fields while worktree reverted them (Scenario A decoy)
+      if (stagedVsHead.has(p) || (stagedVsBase && stagedVsBase.has(p))) {
+        let worktreeContent = null;
+        try {
+          worktreeContent = await Deno.readTextFile(resolve(topLevel, p));
+        } catch {
+          // file not on disk
+        }
+        if (worktreeContent === null) continue;
+
+        const showIndexRes = await runGit(["show", `:${p}`], { stdout: "piped", cwd: topLevel });
+        if (showIndexRes.code !== 0) continue;
+        const indexContent = showIndexRes.stdout;
+
+        const indexCrit = extractCriticalFields(p, indexContent);
+        const worktreeCrit = extractCriticalFields(p, worktreeContent);
+        if (!indexCrit || !worktreeCrit) continue;
+
+        const indexWorktreeSame = JSON.stringify(indexCrit) === JSON.stringify(worktreeCrit);
+        if (indexWorktreeSame) continue;
+
+        // Compare against HEAD
+        if (stagedVsHead.has(p)) {
+          const showHeadRes = await runGit(["show", `HEAD:${p}`], {
+            stdout: "piped",
+            cwd: topLevel,
+          });
+          if (showHeadRes.code === 0) {
+            const headCrit = extractCriticalFields(p, showHeadRes.stdout);
+            if (headCrit) {
+              const indexDiffHead = JSON.stringify(indexCrit) !== JSON.stringify(headCrit);
+              const worktreeMatchHead = JSON.stringify(worktreeCrit) === JSON.stringify(headCrit);
+              if (indexDiffHead && worktreeMatchHead) {
+                stagedPaths.add(p);
+                continue;
+              }
+            }
+          }
+        }
+
+        // Compare against origin/main (base)
+        if (stagedVsBase && stagedVsBase.has(p)) {
+          const showBaseRes = await runGit(["show", `origin/main:${p}`], {
+            stdout: "piped",
+            cwd: topLevel,
+          });
+          if (showBaseRes.code === 0) {
+            const baseCrit = extractCriticalFields(p, showBaseRes.stdout);
+            if (baseCrit) {
+              const indexDiffBase = JSON.stringify(indexCrit) !== JSON.stringify(baseCrit);
+              const worktreeMatchBase = JSON.stringify(worktreeCrit) === JSON.stringify(baseCrit);
+              if (indexDiffBase && worktreeMatchBase) {
+                stagedPaths.add(p);
+                continue;
+              }
+            }
+          }
+        }
       }
     }
 
