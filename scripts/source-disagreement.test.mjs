@@ -510,6 +510,104 @@ const PAGES = [
     sideB: ["idb-sqlite-backing-store"],
     dates: ["fetched 2026-10-07"],
   },
+  {
+    // gendn-g8o (B3, css-gap-decorations): page says enabled by default and shipped in 149; the cited
+    // record reports In development (desktop + Android 149). Neither side is adjudicated.
+    page: "v149/css-gap-decorations/index.html",
+    marker: "Status disagreement, both sides reported rather than resolved",
+    sideA: ["Enabled by default", "Chrome 149 (desktop + Android)"],
+    sideB: ["In development"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, css-scroll-state-container-queries): page lists both as a scrollable value; the spec
+    // defines scrollable without both (both is a snapped value only). Neither side is adjudicated.
+    page: "v149/css-scroll-state-container-queries/index.html",
+    marker: "Scrollable-value disagreement, both sides reported rather than resolved",
+    sideA: ["both"],
+    sideB: ["snapped"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, css-scroll-state-container-queries): page documents three features (stuck, snapped,
+    // scrollable); the spec additionally defines a fourth feature scrolled. Neither side is adjudicated.
+    page: "v149/css-scroll-state-container-queries/index.html",
+    marker: "Feature-list disagreement, both sides reported rather than resolved",
+    sideA: ["stuck", "snapped", "scrollable"],
+    sideB: ["scrolled"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, css-scroll-state-container-queries): page says the feature shipped in Chrome 149; the
+    // cited record reports milestone 133. Neither side is adjudicated.
+    page: "v149/css-scroll-state-container-queries/index.html",
+    marker: "Milestone disagreement, both sides reported rather than resolved",
+    sideA: ["Chrome 149 (desktop + Android)"],
+    sideB: ["133"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, disconnect-websockets-on-bfcache-entry): page documents Chrome 149 closing sockets on
+    // BFCache entry; MDN still documents the older rule (may not add to bfcache / close when done).
+    // Neither side is adjudicated.
+    page: "v149/disconnect-websockets-on-bfcache-entry/index.html",
+    marker: "BFCache WebSocket handling divergence, both sides reported rather than resolved",
+    sideA: ["closes open WebSocket connections", "check MDN BFCache docs"],
+    sideB: ["MDN WebSockets API", "good practice to close the connection"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, disconnect-websockets-on-bfcache-entry): page reports Safari/Firefox as "may differ";
+    // the cited record lists Safari Shipped/Shipping and Firefox Positive. Neither side is adjudicated.
+    page: "v149/disconnect-websockets-on-bfcache-entry/index.html",
+    marker: "Browser-support view disagreement, both sides reported rather than resolved",
+    sideA: ["check WebKit release notes", "check MDN BFCache docs"],
+    sideB: ["5068439115923456", "Shipped/Shipping", "Positive"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, popover-hint-behavior-changes): page says the change is behind the generic
+    // experimental-web-platform-features flag; the cited record reports no flag and a Finch rollout name
+    // PopoverHintNewBehavior. Neither side is adjudicated.
+    page: "v149/popover-hint-behavior-changes/index.html",
+    marker: "Gating and enablement disagreement, both sides reported rather than resolved",
+    sideA: ["chrome://flags/#enable-experimental-web-platform-features"],
+    sideB: ["6282804208992256", "PopoverHintNewBehavior"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, respect-autocorrect-off-for-windows-touch-keyboard-in-tsf): page says the change
+    // shipped and is enabled by default; the cited record reports status Proposed with desktop 149.
+    // Neither side is adjudicated.
+    page: "v149/respect-autocorrect-off-for-windows-touch-keyboard-in-tsf/index.html",
+    marker: "Shipped-versus-proposed disagreement, both sides reported rather than resolved",
+    sideA: ["Chrome 149 (Windows desktop, touch keyboard path)", "Enabled by default"],
+    sideB: ["5196629995028480", "Proposed", "desktop 149"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, webmcp): page documents the earlier script-tools surface (navigator.modelContext,
+    // provideTools, toolinvoke); the explainer reports document.modelContext with registerTool() and an
+    // execute callback. Neither side is adjudicated.
+    page: "v149/webmcp/index.html",
+    marker: "API shape disagreement, both sides reported rather than resolved",
+    sideA: [
+      "navigator.modelContext",
+      "provideTools(toolset)",
+      'addEventListener("toolinvoke", handler)',
+    ],
+    sideB: ["document.modelContext", "registerTool()"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, webmcp): page says origin trial in 149 and shipping target 157; the cited record
+    // reports status Proposed with no shipping milestone. Neither side is adjudicated.
+    page: "v149/webmcp/index.html",
+    marker: "Milestone disagreement, both sides reported rather than resolved",
+    sideA: ["Origin trial in 149; shipping target 157"],
+    sideB: ["Proposed"],
+    dates: ["fetched 2026-10-07"],
+  },
 ];
 
 let failures = 0;
@@ -579,6 +677,12 @@ const DATED_PAGES = new Set([
   "v149/inline-script-cache/index.html",
   "v149/platform-provided-behaviors-for-custom-elements/index.html",
   "v149/indexeddb-sqlite-backend/index.html",
+  "v149/css-gap-decorations/index.html",
+  "v149/css-scroll-state-container-queries/index.html",
+  "v149/disconnect-websockets-on-bfcache-entry/index.html",
+  "v149/popover-hint-behavior-changes/index.html",
+  "v149/respect-autocorrect-off-for-windows-touch-keyboard-in-tsf/index.html",
+  "v149/webmcp/index.html",
 ]);
 const datedInTable = new Set(PAGES.filter((e) => e.dates.length > 0).map((e) => e.page));
 assert(
