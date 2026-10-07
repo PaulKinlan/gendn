@@ -241,6 +241,49 @@ main {
   padding: var(--space-7) var(--space-5) var(--space-8);
 }
 
+/* Horizontal-overflow guard (gendn-z5w, same defect as gendn-uce). Two measured sources of
+   overflow at narrow widths: long unbreakable tokens (API names, identifiers) and wide data
+   tables. `min-inline-size: 0` lets flex and grid children shrink rather than forcing the page
+   wide; the wrap rule keeps inline code and cell text from setting the page's width - the
+   harness measured that td/th/links inside cells, not just code inside them, were the actual
+   overflow on two real pages.
+   HOW THE TABLE RULE ACTUALLY WORKS, stated precisely because an earlier version of this
+   comment claimed otherwise: most existing tables are `<table class="doc-table">` with NO
+   `.table-wrap` around them, so for those pages it is `td, th { overflow-wrap: anywhere }` -
+   not a scroller - that stops the table forcing the viewport wide. `.table-wrap` is the
+   scroll container for the tables that DO have one, and this rule gives it the behaviour those
+   wrappers previously got from per-page inline styles.
+   The trade-off is deliberate and worth naming: `overflow-wrap: anywhere` can break a long word
+   mid-token inside a narrow table cell (an identifier or a ChromeStatus id), which is poorer
+   typography than a scrollbar. It is still the right default here because the alternative on an
+   unwrapped table is text clipped invisibly by `body { overflow-x: hidden }` - a reader can see
+   a broken word, but cannot see a missing column. `table-layout: fixed` and `hyphens: auto` are
+   NOT used corpus-wide, since both would silently change existing line breaking and text flow.
+   The 158 page-scoped inline copies of a narrower version of this fix are now redundant rather
+   than wrong; consolidating them is a separate change so it cannot confound this one's
+   re-validation. */
+main {
+  min-inline-size: 0;
+}
+h1,
+.lede {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+p code,
+li code,
+td,
+th,
+td a,
+th a {
+  overflow-wrap: anywhere;
+}
+.table-wrap {
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-gutter: stable;
+}
+
 /* ----- Type ----- */
 
 h1, h2, h3, h4, h5, h6 {
