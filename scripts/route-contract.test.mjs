@@ -108,10 +108,48 @@ assert(
   (await evaluate([base], [{ ...base, demo: `${showcase}/v153/foo/demo` }])).failures.length ===
     0,
 );
-const lostDemo = await evaluate([{ ...base, demo: `${showcase}/v153/foo/demo` }], [base]);
+// gendn-sai3: losing or repointing a showcase demo link fails the route gate unless migrated.
+const withDemo = entry("v153/foo", { demo: `${showcase}/v153/foo/demo` });
+const lostDemo = await evaluate([withDemo], [base]);
 assert(
-  "losing a demo warns but does not fail the gate",
-  lostDemo.failures.length === 0 && lostDemo.demoDropped.length === 1,
+  "removing showcase demo link from a published page fails",
+  mentions(lostDemo, "missing demo link for published route v153/foo"),
+);
+assert(
+  "demo-change migration authorizes deliberate demo removal",
+  (await evaluate([withDemo], [base], [{
+    id: "v153/foo",
+    action: "demo-change",
+  }])).failures.length === 0,
+);
+const repointedDemo = await evaluate([withDemo], [
+  entry("v153/foo", { demo: `${showcase}/v150/out-of-order-streaming/` }),
+]);
+assert(
+  "repointing showcase demo link to another demo fails",
+  mentions(repointedDemo, "demo link changed for v153/foo"),
+);
+assert(
+  "demo-change migration authorizes deliberate demo repointing",
+  (await evaluate([withDemo], [
+    entry("v153/foo", { demo: `${showcase}/v150/out-of-order-streaming/` }),
+  ], [{
+    id: "v153/foo",
+    action: "demo-change",
+  }])).failures.length === 0,
+);
+assert(
+  "identity-change migration also authorizes deliberate demo repointing",
+  (await evaluate([withDemo], [
+    entry("v153/foo", { demo: `${showcase}/v150/out-of-order-streaming/` }),
+  ], [{
+    id: "v153/foo",
+    action: "identity-change",
+  }])).failures.length === 0,
+);
+assert(
+  "route that never had a demo staying null passes",
+  (await evaluate([base], [base])).failures.length === 0,
 );
 assert(
   "adding a once-missing feature id does not repurpose the page",
