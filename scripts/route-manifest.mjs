@@ -57,7 +57,9 @@ export function pathToIdentityFields(pagePath, html) {
   let m;
   while ((m = showcaseRe.exec(html)) !== null) {
     const routePath = m[1];
-    if (routePath.startsWith(ownPrefix)) {
+    // Require the feature path segment boundary: prompt-api-sampling-parameters is a sibling,
+    // not a concept of prompt-api, despite sharing its text prefix.
+    if (routePath === ownPrefix || routePath.startsWith(`${ownPrefix}/`)) {
       demo = `https://${SHOWCASE_HOST}${routePath}`;
       break;
     }

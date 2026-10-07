@@ -156,7 +156,8 @@ export function metadataFromHtml(pagePath, html) {
   let m;
   while ((m = showcaseRe.exec(html)) !== null) {
     const routePath = m[1];
-    if (routePath.startsWith(ownPrefix)) {
+    // A sibling with a longer slug is not this feature; require the path-segment boundary.
+    if (routePath === ownPrefix || routePath.startsWith(`${ownPrefix}/`)) {
       demo = `https://${SHOWCASE_HOST}${routePath}`;
       break;
     }
