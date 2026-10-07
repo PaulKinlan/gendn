@@ -6,6 +6,11 @@
   <title>WebAudio: Configurable render quantum — Chrome 153 — gendn</title>
   <link rel="stylesheet" href="/public/styles.css">
   <style>
+    /* Table wrap pattern per gendn-7g6/goals.json:784 */
+    h1, code, .doc-table td, .doc-table th { overflow-wrap: anywhere; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .table-wrap { overflow-x: auto; }
+    .table-wrap .doc-table { min-width: 34rem; }
     .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
     .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
     .doc-table th { background: var(--bg-stone); font-weight: 600; }
@@ -25,83 +30,141 @@
   </header>
 
   <section>
-    <h2>at a glance</h2>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
     <table class="doc-table">
       <tr><th>Shipped in</th><td>Chrome 153 (Enabled by default)</td></tr>
-      <tr><th>Status</th><td>Enabled by default</td></tr>
-      <tr><th>Spec</th><td><a href="https://webaudio.github.io/web-audio-api/#dom-baseaudiocontext-renderquantumsize" target="_blank" rel="noopener">Web Audio API §renderQuantumSize</a></td></tr>
-      <tr><th>Standards position (Firefox)</th><td>No signal</td></tr>
-      <tr><th>Standards position (Safari)</th><td>No signal</td></tr>
+      <tr><th>Status</th><td>Enabled by default (desktop, Android, WebView)</td></tr>
+      <tr><th>Specification</th><td><a href="https://webaudio.github.io/web-audio-api/#dom-baseaudiocontext-renderquantumsize" target="_blank" rel="noopener">Web Audio API §renderQuantumSize</a> · <a href="https://webaudio.github.io/web-audio-api/#dictionary-audiocontextoptions-members" target="_blank" rel="noopener">§renderSizeHint</a></td></tr>
+      <tr><th>Standards issues &amp; PR</th><td><a href="https://github.com/WebAudio/web-audio-api/pull/2469" target="_blank" rel="noopener">WebAudio PR #2469</a> · <a href="https://github.com/WebAudio/web-audio-api/issues/1503" target="_blank" rel="noopener">WebAudio issue #1503</a></td></tr>
+      <tr><th>Standards positions</th><td><a href="https://github.com/mozilla/standards-positions/issues/1407" target="_blank" rel="noopener">Mozilla #1407</a> · <a href="https://github.com/WebKit/standards-positions/issues/662" target="_blank" rel="noopener">WebKit #662</a></td></tr>
+      <tr><th>Blink intents &amp; Bug</th><td><a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/n4PifuLlrwc/m/qlcaoavEAAAJ" target="_blank" rel="noopener">Intent to Prototype</a> · <a href="https://www.mail-archive.com/blink-dev@chromium.org/msg16317.html" target="_blank" rel="noopener">Intent to Extend Experiment</a> · <a href="https://issues.chromium.org/issues/40637820" target="_blank" rel="noopener">Chromium Issue 40637820</a></td></tr>
       <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5078190552907776" target="_blank" rel="noopener">5078190552907776 — WebAudio: Configurable render quantum</a></td></tr>
     </table>
-    <span class="citation">Source: <a href="https://chromestatus.com/feature/5078190552907776" target="_blank" rel="noopener">chromestatus.com/feature/5078190552907776</a></span>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5078190552907776" target="_blank" rel="noopener">chromestatus.com/feature/5078190552907776</a>; <a href="https://chromestatus.com/api/v0/features/5078190552907776" target="_blank" rel="noopener">ChromeStatus API record 5078190552907776</a>.</span>
   </section>
 
   <section>
-    <h2>why it exists</h2>
+    <h2 id="why">why it exists</h2>
     <p>The Web Audio API has always rendered audio in fixed 128-frame chunks (the <em>render quantum</em>). This gives a latency of about 2.9 ms at 44.1 kHz. While 128 frames is fine for most applications, it creates tensions at both ends of the spectrum:</p>
     <ul>
       <li><strong>Low-latency instruments</strong> (synthesisers, live effects) would benefit from a smaller quantum (e.g. 32 frames) to cut round-trip latency, even at the cost of more CPU interrupts.</li>
       <li><strong>Batch or background processing</strong> (audio fingerprinting, format conversion) runs more efficiently with a larger quantum (e.g. 1024 frames) to amortise callback overhead.</li>
     </ul>
     <p>The <code>renderSizeHint</code> option lets the developer express a preference; the browser uses it as a hint, rounding to a supported size if necessary.</p>
-    <span class="citation">Source: <a href="https://chromestatus.com/feature/5078190552907776" target="_blank" rel="noopener">chromestatus feature summary</a>; <a href="https://webaudio.github.io/web-audio-api/#dom-baseaudiocontext-renderquantumsize" target="_blank" rel="noopener">Web Audio API spec</a></span>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5078190552907776" target="_blank" rel="noopener">chromestatus feature summary</a>; <a href="https://webaudio.github.io/web-audio-api/#dom-baseaudiocontext-renderquantumsize" target="_blank" rel="noopener">Web Audio API spec §renderQuantumSize</a>.</span>
   </section>
 
   <section>
-    <h2>shape of the API</h2>
+    <h2 id="syntax">Syntax and WebIDL</h2>
+    <pre><code>// WebIDL definitions from the W3C Web Audio API specification:
+enum AudioContextRenderSizeCategory {
+  "default",
+  "hardware"
+};
+
+dictionary AudioContextOptions {
+  // Existing options omitted...
+  (AudioContextRenderSizeCategory or unsigned long) renderSizeHint = "default";
+};
+
+dictionary OfflineAudioContextOptions {
+  // Existing options omitted...
+  (AudioContextRenderSizeCategory or unsigned long) renderSizeHint = "default";
+};
+
+partial interface BaseAudioContext {
+  readonly attribute unsigned long renderQuantumSize;
+};
+
+partial interface AudioWorkletGlobalScope {
+  readonly attribute unsigned long renderQuantumSize;
+};</code></pre>
+
+    <div class="table-wrap">
     <table class="doc-table">
-      <tr><th>Option</th><th>Context</th><th>Type</th><th>Values</th></tr>
-      <tr><td><code>renderSizeHint</code></td><td><code>AudioContextOptions</code>, <code>OfflineAudioContextOptions</code></td><td><code>number | "default" | "hardware"</code></td><td>
+      <thead><tr><th>Option / Member</th><th>Context</th><th>Type</th><th>Values</th></tr></thead>
+      <tr><td><code>renderSizeHint</code></td><td><code>AudioContextOptions</code>, <code>OfflineAudioContextOptions</code></td><td><code>(AudioContextRenderSizeCategory or unsigned long)</code></td><td>
         integer → request that many frames per quantum<br>
-        <code>"default"</code> → use 128 (same as before)<br>
-        <code>"hardware"</code> → let the UA pick the optimal size
+        <code>"default"</code> → use 128 frames (default baseline)<br>
+        <code>"hardware"</code> → let the User-Agent select optimal hardware quantum
       </td></tr>
+      <tr><td><code>renderQuantumSize</code></td><td><code>BaseAudioContext</code>, <code>AudioWorkletGlobalScope</code></td><td><code>unsigned long</code></td><td>The actual quantum size (in sample frames) selected by the browser for this context</td></tr>
     </table>
-    <table class="doc-table" style="margin-top:1rem">
-      <tr><th>Read-only property</th><th>Context</th><th>Description</th></tr>
-      <tr><td><code>BaseAudioContext.renderQuantumSize</code></td><td><code>AudioContext</code>, <code>OfflineAudioContext</code></td><td>The actual quantum size the browser selected</td></tr>
-    </table>
-    <span class="citation">Source: <a href="https://webaudio.github.io/web-audio-api/#dom-baseaudiocontext-renderquantumsize" target="_blank" rel="noopener">Web Audio API §renderQuantumSize</a></span>
+    </div>
+    <span class="citation">Source: <a href="https://webaudio.github.io/web-audio-api/#dom-baseaudiocontext-renderquantumsize" target="_blank" rel="noopener">Web Audio API §renderQuantumSize</a>; <a href="https://webaudio.github.io/web-audio-api/#dictionary-audiocontextoptions-members" target="_blank" rel="noopener">Web Audio API §renderSizeHint</a>; <a href="https://github.com/WebAudio/web-audio-api/pull/2469" target="_blank" rel="noopener">Web Audio PR #2469</a>.</span>
   </section>
 
   <section>
-    <h2>example</h2>
-<pre><code>// Low-latency synth: request small quantum (lower latency, more CPU)
-const ctx = new AudioContext({ renderSizeHint: 32 });
-console.log(ctx.renderQuantumSize); // e.g. 32 or the next supported size
+    <h2 id="inputs-and-outputs">Inputs and outputs</h2>
+    <p><strong>Inputs:</strong> The <code>renderSizeHint</code> dictionary member accepts an unsigned integer (typically powers of two such as 32, 64, 128, 256, 512, 1024) or the string enum values <code>"default"</code> and <code>"hardware"</code>. Passed during context construction via <code>new AudioContext({ renderSizeHint })</code> or <code>new OfflineAudioContext({ ..., renderSizeHint })</code>.</p>
+    <p><strong>Outputs:</strong> The <code>renderQuantumSize</code> attribute returns an unsigned integer reflecting the active render quantum size for the audio context. Inside an <code>AudioWorkletProcessor</code>, the worklet global scope exposes the identical <code>renderQuantumSize</code> value, determining the length of channel arrays in the <code>process(inputs, outputs, parameters)</code> callback.</p>
+    <span class="citation">Source: <a href="https://webaudio.github.io/web-audio-api/#dom-baseaudiocontext-renderquantumsize" target="_blank" rel="noopener">Web Audio API §renderQuantumSize</a>; <a href="https://developer.mozilla.org/en-US/docs/Web/API/AudioContext" target="_blank" rel="noopener">MDN AudioContext</a>.</span>
+  </section>
 
-// Batch processor: request large quantum (less CPU, higher latency)
+  <section>
+    <h2 id="errors-and-lifecycle">Errors and lifecycle</h2>
+    <p><strong>Errors:</strong> Per the Web Audio API specification, passing an integer render-quantum size outside the supported range throws a <code>NotSupportedError</code>: &sect;2.5 requires it for values outside the permitted range (1 up to 6&times; the sample rate). The <code>renderSizeHint</code> categories are advisory and map onto a supported size. If a value of the wrong type is provided, standard WebIDL type conversion throws a <code>TypeError</code>.</p>
+    <p><strong>Lifecycle:</strong> The render quantum size is fixed at context instantiation time and remains immutable for the lifetime of that <code>AudioContext</code> or <code>OfflineAudioContext</code>. Graph nodes and AudioWorklet processors instantiated within the context operate synchronously on blocks of <code>renderQuantumSize</code> frames throughout execution.</p>
+    <span class="citation">Source: <a href="https://webaudio.github.io/web-audio-api/#dom-baseaudiocontext-renderquantumsize" target="_blank" rel="noopener">Web Audio API §renderQuantumSize</a>; <a href="https://github.com/WebAudio/web-audio-api/issues/1503" target="_blank" rel="noopener">WebAudio Issue #1503</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+    <p>The following example demonstrates configuring low-latency synthesis, batch offline rendering, and accessing <code>renderQuantumSize</code> in main thread and worklet scopes:</p>
+<pre><code>// 1. Low-latency interactive synthesiser: request small quantum (lower latency, more CPU)
+const ctx = new AudioContext({ renderSizeHint: 32 });
+console.log(`Configured render quantum: ${ctx.renderQuantumSize} frames`);
+
+// 2. Batch processor: request large quantum (less CPU callback overhead)
 const offCtx = new OfflineAudioContext({
   numberOfChannels: 2,
   length: 44100 * 10,  // 10 seconds
   sampleRate: 44100,
   renderSizeHint: 1024,
 });
-console.log(offCtx.renderQuantumSize); // e.g. 1024
+console.log(`Offline render quantum: ${offCtx.renderQuantumSize} frames`);
 
-// Let the UA decide the optimal size
+// 3. Requesting hardware-preferred quantum
 const hwCtx = new AudioContext({ renderSizeHint: 'hardware' });
 
-// AudioWorklet: renderQuantumSize is exposed in the worklet processor
-class MyProcessor extends AudioWorkletProcessor {
+// 4. AudioWorkletProcessor handling variable render quantum sizes:
+class DynamicQuantumProcessor extends AudioWorkletProcessor {
   process(inputs, outputs) {
-    // this.context.renderQuantumSize tells you how many frames you get
+    // globalThis.renderQuantumSize specifies frame buffer length per channel
+    const output = outputs[0];
+    const channelData = output[0];
+    for (let i = 0; i &lt; channelData.length; i++) {
+      channelData[i] = 0.0;
+    }
     return true;
   }
 }</code></pre>
-    <span class="citation">Source: <a href="https://webaudio.github.io/web-audio-api/#dom-baseaudiocontext-renderquantumsize" target="_blank" rel="noopener">Web Audio API spec</a></span>
+    <span class="citation">Source: <a href="https://webaudio.github.io/web-audio-api/#dom-baseaudiocontext-renderquantumsize" target="_blank" rel="noopener">Web Audio API §renderQuantumSize</a>; <a href="https://github.com/WebAudio/web-audio-api/pull/2469" target="_blank" rel="noopener">Web Audio PR #2469</a>.</span>
   </section>
 
   <section>
-    <h2>browser support</h2>
+    <h2 id="browser-compatibility">browser compatibility</h2>
+    <p>Configurable render quantum is supported enabled by default in Chrome 153 and Chromium derivatives across desktop, Android, and WebView platforms. Other engine positions remain in progress as tracked by W3C Web Audio standards issues:</p>
+    <div class="table-wrap">
     <table class="doc-table">
-      <tr><th>Browser</th><th>Support</th><th>Notes</th></tr>
-      <tr><td>Chrome 153+</td><td>Enabled by default</td><td>All platforms</td></tr>
-      <tr><td>Firefox</td><td>No signal</td><td>—</td></tr>
-      <tr><td>Safari</td><td>No signal</td><td>—</td></tr>
+      <thead><tr><th>Browser / Engine</th><th>Support</th><th>Notes &amp; Evidence</th></tr></thead>
+      <tr><td>Chrome (Chromium) 153+</td><td>Enabled by default</td><td>Desktop, Android, WebView (<a href="https://chromestatus.com/feature/5078190552907776" target="_blank" rel="noopener">ChromeStatus 5078190552907776</a>)</td></tr>
+      <tr><td>Firefox (Gecko)</td><td>No formal signal</td><td>Spec change authored by Gecko engineer (<a href="https://github.com/mozilla/standards-positions/issues/1407" target="_blank" rel="noopener">Mozilla standards-positions #1407</a>)</td></tr>
+      <tr><td>Safari (WebKit)</td><td>No formal signal</td><td>Issue open (<a href="https://github.com/WebKit/standards-positions/issues/662" target="_blank" rel="noopener">WebKit standards-positions #662</a>)</td></tr>
     </table>
-    <span class="citation">Source: <a href="https://chromestatus.com/feature/5078190552907776" target="_blank" rel="noopener">chromestatus.com/feature/5078190552907776</a></span>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5078190552907776" target="_blank" rel="noopener">ChromeStatus API record 5078190552907776</a>; <a href="https://github.com/mozilla/standards-positions/issues/1407" target="_blank" rel="noopener">Mozilla standards-positions #1407</a>; <a href="https://github.com/WebKit/standards-positions/issues/662" target="_blank" rel="noopener">WebKit standards-positions #662</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <ul>
+      <li><strong>Timing resolution and fingerprinting:</strong> Audio render quantum sizes provide precise sub-millisecond hardware callback timing. To prevent cross-origin timing attacks and high-resolution fingerprinting, user agents may limit the minimum quantum size or restrict hardware buffer exposure to secure contexts.</li>
+      <li><strong>Resource consumption:</strong> Very small render quantum sizes (e.g. &lt; 32 frames) increase thread interrupt frequency and CPU load. Implementations enforce lower bounds to prevent audio thread starvation and denial of service.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://webaudio.github.io/web-audio-api/#dom-baseaudiocontext-renderquantumsize" target="_blank" rel="noopener">Web Audio API specification</a>; <a href="https://issues.chromium.org/issues/40637820" target="_blank" rel="noopener">Chromium Issue 40637820</a>.</span>
   </section>
 
   <section>
@@ -109,6 +172,8 @@ class MyProcessor extends AudioWorkletProcessor {
     <ul>
       <li><a href="https://chromestatus.com/feature/5078190552907776" target="_blank" rel="noopener">Chrome Platform Status — WebAudio: Configurable render quantum</a></li>
       <li><a href="https://webaudio.github.io/web-audio-api/#dom-baseaudiocontext-renderquantumsize" target="_blank" rel="noopener">Web Audio API — renderQuantumSize</a></li>
+      <li><a href="https://webaudio.github.io/web-audio-api/#dictionary-audiocontextoptions-members" target="_blank" rel="noopener">Web Audio API — AudioContextOptions renderSizeHint</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/AudioContext" target="_blank" rel="noopener">MDN: AudioContext</a></li>
     </ul>
   </section>
 

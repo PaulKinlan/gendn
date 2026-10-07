@@ -6,6 +6,11 @@
   <title>Permission Policy Merger: direct-sockets-private with local-network and loopback-network — Chrome 151 — gendn</title>
   <link rel="stylesheet" href="/public/styles.css">
   <style>
+    /* gendn-7g6/goals.json:784: table responsiveness and wrapping */
+    h1, code, .doc-table td, .doc-table th { overflow-wrap: anywhere; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .table-wrap { overflow-x: auto; }
+    .table-wrap .doc-table { min-width: 34rem; }
     .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
     .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
     .doc-table th { background: var(--bg-stone); font-weight: 600; }
@@ -25,70 +30,83 @@
   </header>
 
   <section>
-    <h2>at a glance</h2>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
     <table class="doc-table">
-      <tr><th>Shipped in</th><td>Chrome 151 (Enabled by default)</td></tr>
-      <tr><th>Status</th><td>Enabled by default</td></tr>
+      <tr><th>Shipped in</th><td>Chrome 151 (Desktop; enabled by default)</td></tr>
+      <tr><th>Status</th><td>Enabled by default (stage 160 <code>desktop_first: 151</code>)</td></tr>
       <tr><th>Scope</th><td>Isolated Web Apps (IWAs) only</td></tr>
+      <tr><th>Spec</th><td><a href="https://wicg.github.io/direct-sockets/#permissions-policy-pna" target="_blank" rel="noopener">WICG Direct Sockets §permissions-policy-pna</a></td></tr>
       <tr><th>Standards position (Firefox)</th><td>No signal</td></tr>
       <tr><th>Standards position (Safari)</th><td>No signal</td></tr>
       <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/6046077976444928" target="_blank" rel="noopener">6046077976444928 — Permission Policy Merger: direct-sockets-private with local-network and loopback-network</a></td></tr>
     </table>
-    <span class="citation">Source: <a href="https://chromestatus.com/feature/6046077976444928" target="_blank" rel="noopener">chromestatus.com/feature/6046077976444928</a></span>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6046077976444928" target="_blank" rel="noopener">chromestatus.com/feature/6046077976444928</a>; <a href="https://chromestatus.com/api/v0/features/6046077976444928" target="_blank" rel="noopener">ChromeStatus API record</a>; <a href="https://chromestatus.com/api/v0/features?milestone=151" target="_blank" rel="noopener">milestone 151 features</a></span>
+
+    <p>Implementation-status divergence, both sides reported rather than resolved (fetched 2026-10-07): this page records the granular policies shipping in Chrome 151 for Isolated Web Apps, while the <a href="https://chromestatus.com/api/v0/features/6046077976444928" target="_blank" rel="noopener">ChromeStatus API record</a> top-level status string still reads &ldquo;Proposed&rdquo; (accurate_as_of 2026-06-22) even though stage 160 explicitly sets <code>desktop_first: 151</code>.</p>
   </section>
 
   <section>
-    <h2>background: Direct Sockets in Isolated Web Apps</h2>
-    <p>The Direct Sockets API gives Isolated Web Apps raw TCP/UDP socket access. Previously, accessing private network addresses (LAN + loopback) required declaring a single <code>direct-sockets-private</code> permission policy in the IWA manifest. This all-or-nothing approach made it impossible to grant an IWA LAN access without also granting loopback access (or vice versa).</p>
-    <span class="citation">Source: <a href="https://chromestatus.com/feature/6046077976444928" target="_blank" rel="noopener">chromestatus feature summary</a></span>
+    <h2 id="why-it-exists">why it exists</h2>
+    <p>The <a href="https://wicg.github.io/direct-sockets/" target="_blank" rel="noopener">Direct Sockets API</a> gives <a href="https://github.com/WICG/isolated-web-apps" target="_blank" rel="noopener">Isolated Web Apps</a> raw TCP/UDP socket access. Previously, accessing private network addresses (LAN and loopback) required declaring a single coarse <code>direct-sockets-private</code> permission policy in the IWA manifest. This all-or-nothing approach made it impossible to grant an IWA LAN access without also granting loopback access (or vice versa).</p>
+    <p>In accordance with the principle of least privilege and Private Network Access specifications (<a href="https://wicg.github.io/private-network-access/" target="_blank" rel="noopener">WICG PNA</a>), separating these scopes ensures that an app intended to communicate with LAN hardware (like printers or IoT devices) cannot inadvertently or maliciously access sensitive local machine daemons listening on <code>127.0.0.1</code>.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6046077976444928" target="_blank" rel="noopener">chromestatus feature summary</a>; <a href="https://github.com/WICG/direct-sockets/blob/main/docs/explainer.md" target="_blank" rel="noopener">Direct Sockets explainer</a>; <a href="https://github.com/WICG/private-network-access" target="_blank" rel="noopener">WICG PNA repository</a></span>
   </section>
 
   <section>
-    <h2>what changes</h2>
+    <h2 id="syntax">permissions policy syntax and manifest fields</h2>
+    <p>Per the <a href="https://w3c.github.io/webappsec-permissions-policy/#permissions-policy-header" target="_blank" rel="noopener">W3C Permissions Policy specification</a> and <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Permissions-Policy" target="_blank" rel="noopener">MDN Permissions Policy reference</a>, policies are declared in the Web App Manifest <code>permissions_policy</code> field for IWAs:</p>
+<pre><code>"permissions_policy": {
+  "local-network": ["self"],
+  "loopback-network": ["self"]
+}</code></pre>
+    <div class="table-wrap">
     <table class="doc-table">
-      <tr><th>Policy</th><th>Covers</th><th>Chrome 150 and earlier</th><th>Chrome 151+</th></tr>
-      <tr><td><code>direct-sockets-private</code></td><td>LAN + loopback addresses</td><td>Used for both</td><td>Replaced (deprecated)</td></tr>
-      <tr><td><code>local-network</code></td><td>Local area network addresses (RFC 1918, etc.)</td><td>Not available</td><td>Required for LAN Direct Socket connections</td></tr>
-      <tr><td><code>loopback-network</code></td><td>Loopback addresses (127.x.x.x, ::1)</td><td>Not available</td><td>Required for loopback Direct Socket connections</td></tr>
+      <tr><th>Policy directive</th><th>Network scope</th><th>Chrome 150 behaviour</th><th>Chrome 151+ behaviour</th></tr>
+      <tr><td><code>direct-sockets-private</code></td><td>LAN + loopback addresses</td><td>Granted both scopes</td><td>Deprecated; replaced by granular policies</td></tr>
+      <tr><td><code>local-network</code></td><td>Private LAN IP ranges (RFC 1918: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)</td><td>Not available</td><td>Required for LAN Direct Sockets connections</td></tr>
+      <tr><td><code>loopback-network</code></td><td>Loopback interfaces (127.0.0.0/8, ::1)</td><td>Not available</td><td>Required for localhost Direct Sockets connections</td></tr>
     </table>
-    <p>IWA manifests should be updated to declare the specific policy (or both) that their app requires. This gives developers more granular control and makes network requirements more transparent.</p>
-    <span class="citation">Source: <a href="https://chromestatus.com/feature/6046077976444928" target="_blank" rel="noopener">chromestatus feature summary</a></span>
+    </div>
+    <p>Attempting to open a <code>TCPSocket</code> or <code>UDPSocket</code> to a destination address without the necessary policy declared in the manifest causes the connection promise to reject with a <code>DOMException</code> (e.g. <code>SecurityError</code> or <code>NetworkError</code>).</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/direct-sockets/#permissions-policy-pna" target="_blank" rel="noopener">WICG Direct Sockets §permissions-policy-pna</a>; <a href="https://chromestatus.com/feature/6046077976444928" target="_blank" rel="noopener">chromestatus.com/feature/6046077976444928</a></span>
   </section>
 
   <section>
-    <h2>example</h2>
-<pre><code>// IWA Web App Manifest (before Chrome 151)
+    <h2 id="examples">examples</h2>
+    <p>In Chrome 151+, Isolated Web Apps must declare the exact network scope in their manifest file:</p>
+<pre><code>// IWA Web App Manifest (Chrome 151+ — granular control)
 {
-  "permissions_policy": {
-    "direct-sockets-private": ["self"]
-  }
-}
-
-// IWA Web App Manifest (Chrome 151+ — granular control)
-{
+  "name": "Local Network Device Manager",
+  "start_url": "/",
+  "display": "standalone",
   "permissions_policy": {
     "local-network": ["self"],      // allow LAN connections
     "loopback-network": ["self"]    // allow loopback connections
   }
 }
 
-// Or just one, if the app only needs LAN access:
+// Or just local-network, if the app only connects to LAN devices:
 {
+  "name": "LAN Printer Controller",
   "permissions_policy": {
     "local-network": ["self"]
   }
 }</code></pre>
-    <span class="citation">Source: <a href="https://chromestatus.com/feature/6046077976444928" target="_blank" rel="noopener">chromestatus feature summary</a></span>
   </section>
 
   <section>
-    <h2>browser support</h2>
+    <h2 id="browser-compatibility">browser support</h2>
+    <div class="table-wrap">
     <table class="doc-table">
-      <tr><th>Browser</th><th>Support</th><th>Notes</th></tr>
-      <tr><td>Chrome 151+</td><td>Enabled by default</td><td>IWAs only</td></tr>
-      <tr><td>Firefox</td><td>No signal</td><td>—</td></tr>
-      <tr><td>Safari</td><td>No signal</td><td>—</td></tr>
+      <thead><tr><th>Browser</th><th>Support</th><th>Notes</th></tr></thead>
+      <tr><td>Chrome 151+</td><td>Enabled by default</td><td>Desktop Isolated Web Apps (IWAs) only</td></tr>
+      <tr><td>Edge 151+</td><td>Enabled by default</td><td>Chromium mirror</td></tr>
+      <tr><td>Firefox</td><td>No signal</td><td>Direct Sockets and IWAs unsupported</td></tr>
+      <tr><td>Safari</td><td>No signal</td><td>Direct Sockets and IWAs unsupported</td></tr>
     </table>
+    </div>
     <span class="citation">Source: <a href="https://chromestatus.com/feature/6046077976444928" target="_blank" rel="noopener">chromestatus.com/feature/6046077976444928</a></span>
   </section>
 
@@ -96,6 +114,16 @@
     <h2>see also</h2>
     <ul>
       <li><a href="https://chromestatus.com/feature/6046077976444928" target="_blank" rel="noopener">Chrome Platform Status — Permission Policy Merger: direct-sockets-private</a></li>
+      <li><a href="https://chromestatus.com/api/v0/features/6046077976444928" target="_blank" rel="noopener">ChromeStatus API record (6046077976444928)</a></li>
+      <li><a href="https://chromestatus.com/api/v0/features?milestone=151" target="_blank" rel="noopener">ChromeStatus milestone 151 features query</a></li>
+      <li><a href="https://wicg.github.io/direct-sockets/#permissions-policy-pna" target="_blank" rel="noopener">WICG Direct Sockets specification — Permissions Policy PNA</a></li>
+      <li><a href="https://wicg.github.io/direct-sockets/" target="_blank" rel="noopener">WICG Direct Sockets specification</a></li>
+      <li><a href="https://github.com/WICG/direct-sockets/blob/main/docs/explainer.md" target="_blank" rel="noopener">Direct Sockets explainer</a></li>
+      <li><a href="https://github.com/WICG/isolated-web-apps" target="_blank" rel="noopener">WICG Isolated Web Apps repository</a></li>
+      <li><a href="https://w3c.github.io/webappsec-permissions-policy/#permissions-policy-header" target="_blank" rel="noopener">W3C Permissions Policy specification</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Permissions-Policy" target="_blank" rel="noopener">MDN: Permissions-Policy HTTP header</a></li>
+      <li><a href="https://wicg.github.io/private-network-access/" target="_blank" rel="noopener">WICG Private Network Access specification</a></li>
+      <li><a href="https://github.com/WICG/private-network-access" target="_blank" rel="noopener">WICG Private Network Access repository</a></li>
     </ul>
   </section>
 

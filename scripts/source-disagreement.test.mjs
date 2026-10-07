@@ -862,6 +862,104 @@ const PAGES = [
     sideB: ["start end"],
     dates: ["fetched 2026-10-07"],
   },
+  {
+    // B5 (gendn-7g6): MDN BCD lists keyword none as version_added:false for Chrome, while
+    // ChromeStatus and the CSSWG resolution in issue #5912 record none as an accepted alias
+    // for spaces. Both sides carried in the page's divergence note (fetched 2026-10-07).
+    page: "v151/css-ruby-overhang-property/index.html",
+    marker: "lists keyword <code>none</code> as unsupported in Chrome (version_added: false)",
+    sideA: ["MDN BCD", "ruby-overhang.json", "version_added: false"],
+    sideB: [
+      "ChromeStatus and CSSWG resolution",
+      "CSSWG issue #5912",
+      "is accepted as an alias for <code>spaces</code>",
+    ],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // B5 (gendn-7g6): the page documents the Chrome 151 Finch rollout wave (XMLRustForNonXslt
+    // general availability), while the ChromeStatus API record lists milestone 153 on desktop,
+    // Android and WebView with the Intent to Ship thread in February 2026; both refer to the
+    // identical Rust XML parser transition (Chromium issue 466303347). The note carries no
+    // as-of/fetch date, so dates is empty (the fixture's non-vacuity guard requires the array;
+    // an empty one keeps this entry out of DATED_PAGES by construction).
+    page: "v151/xml-parsing-in-rust-for-non-xslt-scenarios/index.html",
+    marker: "While this page documents the Chrome 151 rollout wave",
+    sideA: ["Chrome 151 rollout wave", "XMLRustForNonXslt", "general availability"],
+    sideB: [
+      "ChromeStatus API record (5309598397497344)",
+      "lists Chrome 153",
+      "Intent to Ship thread in February 2026",
+    ],
+    dates: [],
+  },
+  {
+    // B5 (gendn-7g6): an earlier proposal draft used the comma-separated alpha() form, while
+    // the normative CSS Color Level 5 draft (fetched 2026-10-07) and Chromium CL 7666488
+    // (2026-03-20) specify the slash-separated form. Page carries both under #syntax.
+    page: "v152/relative-alpha-colors-css-color-5-alpha-function/index.html",
+    marker: "Syntax divergence note: The normative CSS Color Level 5 editor's draft",
+    sideA: [
+      "An earlier proposal draft used a comma-separated form",
+      "alpha(from &lt;color&gt;, &lt;alpha-value&gt;)",
+    ],
+    sideB: ["CSS Color Level 5 editor's draft", "slash-separated form", "CL 7666488"],
+    dates: ["fetched 2026-10-07", "2026-03-20"],
+  },
+  {
+    // B5 (gendn-7g6): an earlier unstandardized property (app-region/-webkit-app-region) used
+    // drag/no-drag with an auto default, while CSS UI 4 (fetched 2026-10-07) and Chromium CL
+    // 7858427 define none|move; Chromium keeps the legacy keywords as compatibility surrogates.
+    // The page's syntax table carries the legacy side and the note the standard side.
+    page: "v152/window-drag/index.html",
+    marker: "Syntax divergence note: The normative CSS Basic User Interface Level 4 specification",
+    sideA: ["An earlier unstandardized property", "app-region", "drag</code> and <code>no-drag"],
+    sideB: ["CSS Basic User Interface Level 4", "none | move", "CL 7858427"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // B5 (gendn-7g6): the page previously listed the feature as shipped-by-default in Chrome
+    // 153, while the ChromeStatus API record queried 2026-10-07 reports is_released:false,
+    // status "Proposed", desktop target milestone 157. Both sides carried in the browser-
+    // compatibility section and the at-a-glance table.
+    page: "v153/renewed-html-insertion-streaming-methods/index.html",
+    marker: "The page previously listed this feature as shipped enabled by default in Chrome 153",
+    sideA: ["shipped enabled by default in Chrome 153"],
+    sideB: [
+      "ChromeStatus API record",
+      "is_released: false",
+      "desktop target milestone 157",
+      "5054329641893888",
+    ],
+    dates: ["queried on 2026-10-07"],
+  },
+  {
+    // B5 (gendn-7g6): the page previously asserted shipment in Chrome 153 (150 in earlier
+    // tables), while the ChromeStatus API record queried 2026-10-07 lists Proposed with
+    // target desktop milestone 154 under Intent to Ship. Both sides carried in the browser-
+    // compatibility section.
+    page: "v153/responsively-sized-iframe/index.html",
+    marker: "The page previously asserted this feature shipped in Chrome 153",
+    sideA: ["shipped in Chrome 153", "noted 150 in earlier tables"],
+    sideB: [
+      "ChromeStatus API record",
+      "lists status as Proposed",
+      "target desktop milestone 154",
+      "5108373464547328",
+    ],
+    dates: ["queried on 2026-10-07"],
+  },
+  {
+    // B5 (gendn-7g6): the chromestatus milestone listing recorded "Enabled by default" in
+    // 153 (verified 2026-07-28), while the ChromeStatus API record queried 2026-10-07
+    // reports is_released:false with an active Origin Trial 148->153. Both sides carried
+    // in the banner and the browser-compatibility section; neither adjudicated.
+    page: "v153/declarative-shadow-dom-shadowrootadoptedstylesheets/index.html",
+    marker: "The Chrome 153 milestone listing previously categorized this feature under",
+    sideA: ["Enabled by default", "2026-07-28"],
+    sideB: ["is_released: false", "Origin Trial", "4790543041298432", "queried on 2026-10-07"],
+    dates: ["2026-07-28", "queried on 2026-10-07"],
+  },
 ];
 
 let failures = 0;
@@ -951,6 +1049,12 @@ const DATED_PAGES = new Set([
   "v150/mediastreamtrackprocessor-frame-counters/index.html",
   "v150/programmatic-scroll-promises/index.html",
   "v150/css4-text-decoration-skip-spaces/index.html",
+  "v151/css-ruby-overhang-property/index.html",
+  "v152/relative-alpha-colors-css-color-5-alpha-function/index.html",
+  "v152/window-drag/index.html",
+  "v153/renewed-html-insertion-streaming-methods/index.html",
+  "v153/responsively-sized-iframe/index.html",
+  "v153/declarative-shadow-dom-shadowrootadoptedstylesheets/index.html",
 ]);
 const datedInTable = new Set(PAGES.filter((e) => e.dates.length > 0).map((e) => e.page));
 assert(
