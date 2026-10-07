@@ -174,6 +174,30 @@ assert(
     action: "identity-change",
   }])).failures.length === 0,
 );
+// gendn-p9ko: removing all feature links leaves identity null, which must fail the route gate
+// rather than bypassing the comparison.
+const removedIdentityBuilt = await evaluate([base], [entry("v153/foo", { identity: null })]);
+assert(
+  "removing feature identity from a published built page fails",
+  mentions(removedIdentityBuilt, "missing identity for published route v153/foo"),
+);
+
+const stubBase = entry("v153/stub", { status: "stub" });
+const removedIdentityStub = await evaluate([stubBase], [
+  entry("v153/stub", { status: "stub", identity: null }),
+]);
+assert(
+  "removing feature identity from a published stub fails",
+  mentions(removedIdentityStub, "missing identity for published route v153/stub"),
+);
+
+assert(
+  "identity-change migration authorizes deliberate identity removal",
+  (await evaluate([base], [entry("v153/foo", { identity: null })], [{
+    id: "v153/foo",
+    action: "identity-change",
+  }])).failures.length === 0,
+);
 assert(
   "built route resolution check is reachable when the page disappears",
   mentions(
