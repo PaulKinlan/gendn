@@ -256,17 +256,22 @@ async function responsiveCheck(pageId, meta, ctx, { screenshots }) {
   for (const [cls, page] of [["desktop", desktop], ["mobile", mobile]]) {
     await page.goto(`${base}${route}`);
     const noOverflow = coerce(await page.evaluate(OVERFLOW)).ok;
-    // No interactive control positioned off the viewport horizontally.
-    // No interactive control positioned off the viewport horizontally.
-    // NOTE (gendn-1ml): this still compares against window.innerWidth, which under CDP mobile
-    // emulation tracks the CONTENT width, so it is permissive on any page whose content
-    // overflows - the same pitfall the OVERFLOW check above was fixed for. Re-calibrating it is
-    // deliberately NOT part of gendn-z5w, whose scope is the overflow fix and its assertion
-    // only; coord filed it as gendn-1ml, where the measurement is recorded. Left exactly as it
-    // was so this change's re-validation is not confounded by a second behaviour change.
+    // No interactive control positioned off the viewport horizontally (gendn-1ml).
+    //
+    // The old expression compared control rects against window.innerWidth, which under CDP mobile
+    // emulation tracks the CONTENT width (the OVERFLOW check above was recalibrated off it for the
+    // same reason). Once z5w removed the pages' real overflow the viewport was honestly 360, and
+    // routes whose links sit inside horizontal .table-wrap scrollers were flagged. Measured on the
+    // failing set (gendn-1ml): 54 of 54 offending elements were <a> links inside a .table-wrap
+    // (0 outside a scroller), no route had document-level overflow, and scrolling each wrapper to
+    // its end (scrollLeft 0 to 232) brought every flagged link back inside the viewport (right
+    // edges 168.6-317.1 against 360). A control is therefore in-view when it is within
+    // documentElement.clientWidth, OR when it has an ancestor (parentElement walk up to
+    // documentElement) whose computed overflowX is auto|scroll and which is itself within the
+    // viewport - i.e. it is reachable by scrolling rather than clipped.
     const controlsInView = coerce(
       await page.evaluate(
-        "[...document.querySelectorAll('a,button,input,select,summary,[tabindex]')].every(el => { const r = el.getBoundingClientRect(); return r.width === 0 || (r.left >= -1 && r.right <= window.innerWidth + 1); })",
+        "[...document.querySelectorAll('a,button,input,select,summary,[tabindex]')].every(el => { const r = el.getBoundingClientRect(); if (r.width === 0) return true; const vw = document.documentElement.clientWidth; if (r.left >= -1 && r.right <= vw + 1) return true; for (let n = el.parentElement; n && n !== document.documentElement; n = n.parentElement) { const ox = getComputedStyle(n).overflowX; if (ox === 'auto' || ox === 'scroll') { const nr = n.getBoundingClientRect(); return nr.left >= -1 && nr.right <= vw + 1; } } return false; })",
       ),
     ).ok;
     const consoleClean = page.diagnostics().consoleErrors.length === 0;
