@@ -797,6 +797,71 @@ const PAGES = [
     ],
     dates: ["fetched 2026-10-07"],
   },
+  {
+    // gendn-yaa (B4 round-2 divergence, webgpu-immediates): verified against the cited source on 2026-10-07.
+    page: "v150/webgpu-immediates/index.html",
+    marker: "API name disagreement, both sides reported rather than resolved",
+    sideA: ["setImmediateData()", "setImmediateData(offset, data)"],
+    sideB: ["setImmediates"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-yaa (B4 round-2 divergence, webgpu-immediates): verified against the cited source on 2026-10-07.
+    page: "v150/webgpu-immediates/index.html",
+    marker: "Dictionary member name disagreement, both sides reported rather than resolved",
+    sideA: ["immediateDataRangeByteSize"],
+    sideB: ["immediateSize"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-yaa (B4 round-2 divergence, webgpu-immediates): verified against the cited source on 2026-10-07.
+    page: "v150/webgpu-immediates/index.html",
+    marker: "Device limit name and value disagreement, both sides reported rather than resolved",
+    sideA: ["maxImmediateDataRangeByteSize", "at least 128 bytes"],
+    sideB: ["maxImmediateSize", "64"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-yaa (B4 round-2 divergence, mediastreamtrackprocessor-frame-counters): verified against the cited source on 2026-10-07.
+    page: "v150/mediastreamtrackprocessor-frame-counters/index.html",
+    marker:
+      "Standards position and support status disagreement, both sides reported rather than resolved",
+    sideA: ["Positive", "Not yet shipped"],
+    sideB: ["No signal"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-yaa (B4 round-2 divergence, programmatic-scroll-promises): verified against the cited source on 2026-10-07.
+    page: "v150/programmatic-scroll-promises/index.html",
+    marker: "API contract disagreement, both sides reported rather than resolved",
+    sideA: ["The two-argument forms", "continue to return"],
+    sideB: ["all scroll functions", "Promise"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-yaa (B4 round-2 divergence, programmatic-scroll-promises): verified against the cited source on 2026-10-07.
+    page: "v150/programmatic-scroll-promises/index.html",
+    marker: "Support table status disagreement, both sides reported rather than resolved",
+    sideA: ["Shipped/Shipping"],
+    sideB: ["Support"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-yaa (B4 round-2 divergence, css4-text-decoration-skip-spaces): verified against the cited source on 2026-10-07.
+    page: "v150/css4-text-decoration-skip-spaces/index.html",
+    marker: "Value keyword disagreement, both sides reported rather than resolved",
+    sideA: ["leading", "trailing"],
+    sideB: ["start", "end"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-yaa (B4 round-2 divergence, css4-text-decoration-skip-spaces): verified against the cited source on 2026-10-07.
+    page: "v150/css4-text-decoration-skip-spaces/index.html",
+    marker: "Initial value disagreement, both sides reported rather than resolved",
+    sideA: ["Determined by UA stylesheet"],
+    sideB: ["start end"],
+    dates: ["fetched 2026-10-07"],
+  },
 ];
 
 let failures = 0;
@@ -882,6 +947,10 @@ const DATED_PAGES = new Set([
   "v150/indexeddb-sqlite-backend/index.html",
   "v150/email-verification-protocol/index.html",
   "v150/pwa-origin-migration/index.html",
+  "v150/webgpu-immediates/index.html",
+  "v150/mediastreamtrackprocessor-frame-counters/index.html",
+  "v150/programmatic-scroll-promises/index.html",
+  "v150/css4-text-decoration-skip-spaces/index.html",
 ]);
 const datedInTable = new Set(PAGES.filter((e) => e.dates.length > 0).map((e) => e.page));
 assert(
