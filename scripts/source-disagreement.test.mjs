@@ -367,9 +367,10 @@ const PAGES = [
   },
   {
     // gendn-g8o (B3, overscroll-gestures): the record the page cites names the feature differently and carries
-    // an open spec link where the page says none is stable. Both sides are named on the page; neither adjudicated.
+    // status and naming where the page says no spec is stable yet. An open draft is not a stable spec URL, so
+    // that pairing is NOT recorded as a disagreement. Both sides are named on the page; neither adjudicated.
     page: "v149/overscroll-gestures/index.html",
-    marker: "Naming and specification disagreement, both sides reported rather than resolved",
+    marker: "Naming and status disagreement, both sides reported rather than resolved",
     sideA: ["Overscroll Gestures", "No stable spec URL yet"],
     sideB: ["Overscroll Areas", "14532", "Proposed"],
     dates: ["fetched 2026-10-07"],
