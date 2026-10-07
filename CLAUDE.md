@@ -160,13 +160,21 @@ durable identity is:
 - **status** — `built` (full reference) or `stub` (honest "covered on MDN" redirect). Both are
   PUBLISHED, live routes under contract; a `stub` is gendn's analogue of a `blocked` record and must
   never be silently deleted. A feature with no folder yet is `pending` — not published, not covered.
-- **embedded-demo identity** — the chrome-platform-showcase route a page embeds/links for its OWN
-  feature. The contract covers this inbound demo link too: don't repoint it to a different feature.
+- **selected demo URL** — the full chrome-platform-showcase URL recorded in the manifest's `demo`
+  field, including any concept sub-path. The extractor selects the first own-feature showcase link
+  in source order (or the first showcase link if none belongs to this page); this does not independently
+  prove that an iframe stayed unchanged. Changing the selected URL **even within the same feature**,
+  or removing it, requires a reviewed `demo-change` migration (or `identity-change` if the feature
+  itself changes). Sibling concept links are additive only if the selected URL stays stable; inspect
+  the manifest after reordering links.
 
 Tooling: `deno task manifest` emits the normalized manifest
-(`{ id, route, identity, status, demo, aliases }`) from the catalogue; `deno task check-routes` is
-the regression gate (baseline = the manifest at `origin/main`, fallback
-`.route-manifest.baseline.json`). Exceptional removals/moves are recorded in `migrations.json`.
+(`{ id, route, identity, status, demo, referenceRoutes, aliases, support }`) from the catalogue;
+`deno task check-routes` is the regression gate (baseline = the manifest at `origin/main`, fallback
+`.route-manifest.baseline.json`). Exceptional removals/moves/demo changes are recorded in
+`migrations.json`. For demo changes the gate matches only `id` + `action`, not `from`/`to`: a green
+result proves a `demo-change` record exists for that route, NOT that this specific URL repoint was
+authorized. Review the recorded old/new URLs, reason and evidence against the page change.
 Legitimate slug/milestone corrections that preserve a still-listed feature id under the correct
 route are fixes, not contract breaks; record the move as an `alias`/`move` migration so the old
 route stays honest.

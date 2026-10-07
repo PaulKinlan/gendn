@@ -48,9 +48,10 @@ controls, its use-case intent, and all inbound links.** Routine and agent waves 
 
 **Gate before every push:** run the route regression gate (`deno task check-routes`). It compares
 the previously published manifest against the working tree and fails on any missing published ID,
-deleted route, renamed/repurposed slug, changed published identity, or unexplained concept-count
-reduction — while allowing additive entries, honest `blocked` records, and in-place fixes.
-Exceptional removals/moves must be listed in the migration record with reason + evidence.
+deleted route, renamed/repurposed slug, changed published identity, changed/removed selected
+showcase demo URL, or unexplained concept-count reduction — while allowing additive entries, honest
+`blocked` records, and in-place fixes. Exceptional removals/moves/demo changes require a reviewed
+migration record with reason + evidence.
 
 ## How the contract maps to gendn
 
@@ -64,22 +65,31 @@ durable identity is:
 - **status** — `built` (full reference) or `stub` (honest "covered on MDN" redirect). Both are
   PUBLISHED, live routes under contract; a `stub` is gendn's analogue of a `blocked` record and must
   never be silently deleted. A feature with no folder yet is `pending` — not published, not covered.
-- **embedded-demo identity** — the chrome-platform-showcase route a page embeds/links for its OWN
-  feature. The contract covers this inbound demo link too: don't repoint it to a different feature.
+- **selected demo URL** — the full chrome-platform-showcase URL recorded in the manifest's `demo`
+  field, including any concept sub-path. The extractor selects the first own-feature showcase link
+  in source order (or the first showcase link if none belongs to this page); this is not independent
+  proof that an iframe stayed unchanged. Once published, a change to this selected URL **even within
+  the same feature**, or its removal, requires a reviewed `demo-change` migration (or an
+  `identity-change` migration when the feature itself changes). Adding sibling concept links while
+  preserving the selected URL is additive; reordering links can change selection, so inspect the
+  manifest before treating such a change as harmless.
 
 ## Route manifest + regression gate
 
 - `deno task manifest` — emit the normalized manifest
-  `{ id, route, identity, status, demo, aliases, support }` from the catalogue (the `support` record
+  `{ id, route, identity, status, demo, referenceRoutes, aliases, support }` from the catalogue (the `support` record
   is merged from `responsive-support.json`). `--ref origin/main` emits it for a git ref; `--pretty`
   indents.
 - `deno task check-routes` — the regression gate. Baseline = the manifest at `origin/main`
   (fallback: committed `.route-manifest.baseline.json`); current = the working tree. Fails on a
-  missing published id, a deleted `built` route, a changed published identity, a deleted `stub`
-  record, or an uncovered published-count drop. Passes additive ids, honest stubs, and same-id
-  in-place fixes.
-- `migrations.json` — array of `{ id, action, from, to, reason, evidence, date }` records that
-  authorize exceptional removals/moves/identity-changes and keep moved routes alive via aliases.
+  missing published id, a deleted `built` route, a changed published identity, a changed/removed
+  selected demo URL, a deleted `stub` record, or an uncovered published-count drop. Passes additive
+  ids, honest stubs, and same-id in-place fixes that preserve their selected demo URL.
+- `migrations.json` — array of `{ id, action, from, to, reason, evidence, date }` records for
+  exceptional removals/moves/identity-changes/demo-changes and aliases for moved routes. For a
+  demo change, the gate currently matches only `id` + `action`, **not** `from`/`to`: a green gate
+  proves a `demo-change` record exists for that route, NOT that the specific old/new URL pair was
+  authorized. A reviewer must compare both URLs, reason and evidence to the actual edit.
 
 Legitimate slug/milestone corrections that preserve a still-listed feature id under the correct
 route are fixes, not contract breaks — record the move as an `alias`/`move` migration so the old

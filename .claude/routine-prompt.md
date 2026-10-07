@@ -104,11 +104,17 @@ The **catalogue is the filesystem convention** `v<N>/<slug>/index.html`. A page'
 its **id/route** (`v<N>/<slug>` → `/v<N>/<slug>/`, append-only), its **identity** (the
 `chromestatus.com/feature/<id>` link it carries — never repoint a slug to a different feature id),
 its **status** (`built` full reference or `stub` "covered on MDN" redirect — both published; a stub
-is the `blocked` analogue and must never be silently deleted), and its **embedded-demo identity**
-(the chrome-platform-showcase route it links/embeds for its own feature — don't repoint it either).
+is the `blocked` analogue and must never be silently deleted), and its **selected demo URL**
+(the full chrome-platform-showcase URL in the manifest, including the concept path). The extractor
+selects the first own-feature showcase link in document order (else the first showcase link); this
+is NOT proof the primary iframe stayed unchanged. Changing or removing the selected URL — even for
+another concept of the SAME feature — requires a reviewed `demo-change` migration; sibling links
+are additive only when the selected URL stays stable. The gate matches migration `id` + `action`,
+not `from`/`to`: green proves a record exists for this route, NOT that this exact repoint was
+authorized. Review old/new URLs, reason and evidence against the edit.
 A feature with no folder yet is `pending` — not published, not under contract. Emit the manifest
-with `deno task manifest`; gate with `deno task check-routes`; record exceptional moves in
-`migrations.json`. A legitimate slug/milestone correction that keeps a still-listed feature id live
+with `deno task manifest`; gate with `deno task check-routes`; record exceptional moves/demo changes
+in `migrations.json`. A legitimate slug/milestone correction that keeps a still-listed feature id live
 under the corrected route is a fix, not a break — record it as an `alias`/`move` migration so the
 old route stays honest and the gate stays green.
 
