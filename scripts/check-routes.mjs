@@ -16,15 +16,16 @@
 //   2. a baseline "built" route no longer resolves (its `v<N>/<slug>/index.html` page file is gone);
 //   3. a baseline id's IDENTITY changed or became null (its chromestatus feature id now differs or
 //      was removed — slug repurposed or identity lost), and not covered by an identity-change migration;
-//   4. a baseline id's DEMO identity changed or became null (its showcase demo link now differs or
-//      was removed — demo repointed or lost), and not covered by a demo-change migration;
+//   4. a baseline id's selected full DEMO URL changed, including a same-feature concept swap, or
+//      was removed, and not covered by a reviewed demo-change migration;
 //   5. a baseline "stub" id (gendn's analogue of an honestly-recorded `blocked` entry — an
 //      MDN-covered redirect) was DELETED (stubs must stay recorded);
 //   6. a stable member/protocol route declared by a baseline reference contract disappeared;
-//   7. the published count DROPPED vs baseline and the difference is not covered by migrations.
+//   7. mobile/desktop support regressed from ok or claims broken on a current page;
+//   8. the published count DROPPED vs baseline and the difference is not covered by migrations.
 //
-// PASS for: additive new ids, honest new stubs, in-place fixes that keep the same id + identity +
-// live route, and any change explicitly listed in migrations.json.
+// PASS for: additive new ids, honest new stubs, in-place fixes that preserve the same id + identity +
+// previously selected demo URL + live route, and any change explicitly listed in migrations.json.
 //
 // Usage: deno run --allow-read --allow-run scripts/check-routes.mjs [--baseline <ref>]
 //
@@ -182,7 +183,7 @@ export async function evaluateRouteContract(
     }
   }
 
-  // Conditions 1-4, per baseline entry.
+  // Conditions 1-6, per baseline entry.
   for (const b of baseline) {
     const c = currById.get(b.id);
 
@@ -193,7 +194,7 @@ export async function evaluateRouteContract(
         migrated.push(`${b.id} (removed/moved via migration)`);
         continue;
       }
-      // Condition 1 + 4: a missing id. Stubs (blocked analogue) get their own explicit message.
+      // Conditions 1 + 5: a missing id. Stubs (blocked analogue) get their own explicit message.
       if (b.status === "stub") {
         failures.push(
           `deleted stub route ${b.route} (id ${b.id}) — MDN-covered stubs must stay recorded`,
@@ -235,7 +236,7 @@ export async function evaluateRouteContract(
       }
     }
 
-    // Condition 4: demo link changed (repointed to a different showcase route) or removed.
+    // Condition 4: selected full demo URL changed (even within one feature) or was removed.
     if (b.demo && !c.demo) {
       if (
         migrationCovers(migrations, b.id, "demo-change") ||
@@ -244,8 +245,8 @@ export async function evaluateRouteContract(
         migrated.push(`${b.id} (demo link change via migration: ${b.demo} -> null)`);
       } else {
         failures.push(
-          `missing demo link for published route ${b.id}: showcase demo ${b.demo} was removed` +
-            `${where}${driftNote}`,
+          `missing demo link for published route ${b.id}: showcase demo ${b.demo} was removed ` +
+            `(requires a reviewed demo-change migration)${where}${driftNote}`,
         );
       }
     } else if (b.demo && c.demo && b.demo !== c.demo) {
@@ -256,13 +257,13 @@ export async function evaluateRouteContract(
         migrated.push(`${b.id} (demo link change via migration: ${b.demo} -> ${c.demo})`);
       } else {
         failures.push(
-          `demo link changed for ${b.id}: showcase demo ${b.demo} -> ${c.demo} (repointed)` +
-            `${where}${driftNote}`,
+          `demo link changed for ${b.id}: showcase demo ${b.demo} -> ${c.demo} ` +
+            `(repointed; requires a reviewed demo-change migration)${where}${driftNote}`,
         );
       }
     }
 
-    // Condition 5: stable child reference routes are append-only once published.
+    // Condition 6: stable child reference routes are append-only once published.
     const currentReferenceRoutes = new Set(c.referenceRoutes ?? []);
     for (const route of b.referenceRoutes ?? []) {
       if (!currentReferenceRoutes.has(route)) {
@@ -308,7 +309,7 @@ export async function evaluateRouteContract(
     }
   }
 
-  // Condition 5: published-count drop not covered by migrations.
+  // Condition 8: published-count drop not covered by migrations.
   const removedCount = baseline.filter((b) => !currById.has(b.id)).length;
   const migratedRemovals = baseline.filter((b) =>
     !currById.has(b.id) &&
@@ -322,19 +323,15 @@ export async function evaluateRouteContract(
     );
   }
 
-  // Informational: additive ids, in-place fixes, and demo (embedded-showcase) inbound-link changes.
+  // Informational: additive ids and in-place fixes. Demo removals are already either hard
+  // failures or migration entries above, so never report the same change a second time.
   const added = current.filter((c) => !baseById.has(c.id));
   const fixedInPlace = current.filter((c) => {
     const b = baseById.get(c.id);
     return b && b.identity === c.identity && b.route === c.route;
   });
-  const demoDropped = [];
-  for (const b of baseline) {
-    const c = currById.get(b.id);
-    if (c && b.demo && !c.demo) demoDropped.push(`${b.id} lost its showcase demo link (${b.demo})`);
-  }
 
-  return { failures, migrated, added, fixedInPlace, demoDropped };
+  return { failures, migrated, added, fixedInPlace };
 }
 
 function parseBaselineArg(argv) {
@@ -354,7 +351,7 @@ async function main() {
   // null = cannot determine; only `false` (definitely not contained) justifies the note.
   const drift = await headContainsBaseline(commit);
   const baselineLabel = commit ? `${source} @ ${commit.slice(0, 7)}` : source;
-  const { failures, migrated, added, fixedInPlace, demoDropped } = await evaluateRouteContract({
+  const { failures, migrated, added, fixedInPlace } = await evaluateRouteContract({
     baseline,
     current,
     migrations,
@@ -391,11 +388,6 @@ async function main() {
   console.log(`  + added          : ${added.length}`);
   console.log(`  ~ fixed-in-place : ${fixedInPlace.length}`);
   console.log(`  migrations       : ${migrated.length ? migrated.join("; ") : "none"}`);
-  if (demoDropped.length) {
-    console.log(`  ! demo warnings  : ${demoDropped.length}`);
-    for (const w of demoDropped) console.log(`      - ${w}`);
-  }
-
   if (failures.length) {
     console.error(`\nFAIL — ${failures.length} contract violation(s):`);
     for (const f of failures) console.error(`  - ${f}`);

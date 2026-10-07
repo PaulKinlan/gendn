@@ -117,6 +117,10 @@ assert(
   mentions(lostDemo, "missing demo link for published route v153/foo"),
 );
 assert(
+  "demo removal is one hard failure, not a second informational warning",
+  lostDemo.failures.length === 1 && !Object.hasOwn(lostDemo, "demoDropped"),
+);
+assert(
   "demo-change migration authorizes deliberate demo removal",
   (await evaluate([withDemo], [base], [{
     id: "v153/foo",
@@ -129,6 +133,39 @@ const repointedDemo = await evaluate([withDemo], [
 assert(
   "repointing showcase demo link to another demo fails",
   mentions(repointedDemo, "demo link changed for v153/foo"),
+);
+// The durable unit is the FULL selected URL, not just the feature prefix. These two real
+// autofill concepts belong to the same feature but demonstrate different behavior.
+const autofill = entry("v147/autofill-event", {
+  identity: "5137581018841088",
+  demo: `${showcase}/v147/autofill-event/refill-flow/`,
+});
+const autofillLog = { ...autofill, demo: `${showcase}/v147/autofill-event/autofill-log/` };
+const sameFeatureSwap = await evaluate([autofill], [autofillLog]);
+assert(
+  "same-feature concept swap FAILS without migration and names the demo-change escape hatch",
+  sameFeatureSwap.failures.length === 1 &&
+    mentions(sameFeatureSwap, "refill-flow/") &&
+    mentions(sameFeatureSwap, "autofill-log/") &&
+    mentions(sameFeatureSwap, "demo-change"),
+  JSON.stringify(sameFeatureSwap.failures),
+);
+const authorizedSameFeatureSwap = await evaluate([autofill], [autofillLog], [{
+  id: autofill.id,
+  action: "demo-change",
+  from: autofill.demo,
+  to: autofillLog.demo,
+  reason: "Deliberately switch the primary concept after review",
+  evidence: "Reviewed demo and critique evidence for this behavior change",
+  date: "2026-10-07",
+}]);
+assert(
+  "same-feature concept swap PASSES with reviewed demo-change migration",
+  authorizedSameFeatureSwap.failures.length === 0 &&
+    authorizedSameFeatureSwap.migrated.some((line) =>
+      line.includes("demo link change via migration")
+    ),
+  JSON.stringify(authorizedSameFeatureSwap),
 );
 assert(
   "demo-change migration authorizes deliberate demo repointing",
