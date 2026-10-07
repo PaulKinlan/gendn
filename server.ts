@@ -175,7 +175,23 @@ function formatCommitLine(c: CommitInfo | null): string {
   })</span> &middot; commit ${renderCommitAnchor(c.htmlUrl, c.shortSha)}</p>`;
 }
 
-async function readPublicAsset(path: string): Promise<Response> {
+// gendn-gt7, gendn-izwu: Routine-authored release trees (v<N>/) and developer-curated public
+// assets (/public/) must never serve executable first-party script MIME types. Under the global
+// CSP (script-src 'self' + inline hashes), any same-origin script served with a script MIME
+// would be 'self'-eligible and EXECUTE on this origin (measured in a real browser 2026-10-07 for
+// gt7; measured 2026-10-07 for izwu on /public/*.js). Static asset trees ship no first-party
+// executable scripts (verified: zero .js files under v*/, only styles.css under public/), so
+// script MIME types are served INERT across both readReleaseAsset and readPublicAsset:
+// text/plain + the global X-Content-Type-Options: nosniff makes browsers refuse to execute the
+// response as a script. If executable first-party JS is ever legitimately needed, that is a
+// deliberate, reviewed decision (change this map and THREAT_MODEL §4.3 together).
+export const RELEASE_INERT_SCRIPT_MIME: Record<string, string> = {
+  js: "text/plain; charset=utf-8",
+  mjs: "text/plain; charset=utf-8",
+  cjs: "text/plain; charset=utf-8",
+};
+
+export async function readPublicAsset(path: string): Promise<Response> {
   // DEFENSE IN DEPTH ONLY (gendn-d7a): symmetric with readReleaseAsset's guard below. The
   // nightly vuln-discovery and vuln-verify stations both judged directory traversal SAFE
   // here because the URL is normalised before use — this guard adds no behaviour change
@@ -185,29 +201,15 @@ async function readPublicAsset(path: string): Promise<Response> {
     const file = await Deno.readFile("." + path);
     const ext = path.split(".").pop() ?? "";
     return new Response(file, {
-      headers: { "content-type": MIME[ext] ?? "application/octet-stream" },
+      headers: {
+        "content-type": RELEASE_INERT_SCRIPT_MIME[ext] ?? MIME[ext] ??
+          "application/octet-stream",
+      },
     });
   } catch {
     return new Response("Not found", { status: 404 });
   }
 }
-
-// gendn-gt7: the v<N>/ trees are ROUTINE-AUTHORED (THREAT_MODEL §2/§4.3), and the
-// global CSP is script-src 'self' + inline hashes — so any authored .js/.mjs served
-// with a script MIME is 'self'-eligible and EXECUTES on this origin (measured in a
-// real browser, 2026-10-07: a window marker fired under the pre-fix mapping). Release
-// trees ship no first-party scripts (verified: zero .js files under v*/, no script
-// src references in any served HTML), so script MIME types are served INERT here:
-// text/plain + the global X-Content-Type-Options: nosniff makes browsers refuse to
-// execute the response as a script. If a release page ever legitimately needs local
-// JS, that is a deliberate, reviewed decision (change this map + THREAT_MODEL §4.3
-// together). readPublicAsset keeps the shared MIME map: /public is developer-curated
-// (styles.css today), not agent-authored.
-const RELEASE_INERT_SCRIPT_MIME: Record<string, string> = {
-  js: "text/plain; charset=utf-8",
-  mjs: "text/plain; charset=utf-8",
-  cjs: "text/plain; charset=utf-8",
-};
 
 async function readReleaseAsset(release: string, sub: string): Promise<Response | null> {
   if (sub.includes("..")) return null;
