@@ -354,6 +354,16 @@ const PAGES = [
     sideB: ["5179328935624704", "is_released false", "UI Events"],
     dates: ["fetched 2026-10-06"],
   },
+  {
+    // gendn-xpz: sibling LNA divergence on the service-worker page, disclosed LATE - the in-unit ruling had been
+    // applied to the four BEADS rather than the four PAGES carrying disclosures, so this unit was missed until a
+    // batch-wide consistency check caught that it alone had no disclosure paragraph.
+    page: "v147/local-network-access-restrictions-on-service-worker-windowclient-navigate/index.html",
+    marker: "Status and scope divergence, both sides reported rather than resolved",
+    sideA: ["Enabled by default", "as shipped in Chrome 147"],
+    sideB: ["5172375182245888", "Proposed", "Shipped/Shipping"],
+    dates: ["fetched 2026-10-06"],
+  },
 ];
 
 let failures = 0;
@@ -401,6 +411,7 @@ const DATED_PAGES = new Set([
   "v151/no-auto-rewind-for-animationtrigger-play-methods/index.html",
   "v147/autofill-event/index.html",
   "v152/deprecate-and-remove-xslt/xsltprocessor/index.html",
+  "v147/local-network-access-restrictions-on-service-worker-windowclient-navigate/index.html",
   "v147/webxr-plane-detection/index.html",
   "v147/webnn/index.html",
   "v147/web-neural-network-api-webnn/index.html",
