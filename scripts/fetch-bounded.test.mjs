@@ -113,14 +113,6 @@ const server = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
     // not fall through to the caller as a 3xx.
     return new Response(null, { status: 302 });
   }
-  if (path === "/redirect-loop") {
-    // gendn-lr61 review coverage: a redirect chain that never terminates must hit the hop
-    // cap, not loop forever.
-    return new Response(null, {
-      status: 302,
-      headers: { location: `${base}/redirect-loop` },
-    });
-  }
   if (path === "/liar") {
     // Streaming body that lies about its size (no content-length, chunked), so only the
     // streaming cap can stop it.
@@ -162,6 +154,15 @@ const destServer = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
   if (path === "/redirect-head") {
     // gendn-lr61 review coverage: HEAD must stay HEAD through a hop.
     return new Response(null, { status: 302, headers: { location: `${destBase}/dest` } });
+  }
+  if (path === "/redirect-loop") {
+    // gendn-lr61 review coverage: a redirect chain that never terminates must hit the hop
+    // cap, not loop forever. On THIS server (allowlisted for the positive-path block) so
+    // the origin check passes and only the cap can stop it.
+    return new Response(null, {
+      status: 302,
+      headers: { location: `${destBase}/redirect-loop` },
+    });
   }
   return new Response("nope", { status: 404 });
 });
@@ -304,15 +305,6 @@ try {
     !noLoc.ok && /without a Location header/.test(String(noLoc.err?.message)),
     `rejected: ${noLoc.err?.message}`,
   );
-  const loop = await timed(
-    "redirect-loop",
-    () => fetchBounded(`${base}/redirect-loop`, { timeoutMs: 5000 }),
-  );
-  assert(
-    "gendn-lr61: a self-redirecting chain hits the hop cap",
-    !loop.ok && /exceeded 5 redirect hops/.test(String(loop.err?.message)),
-    `rejected: ${loop.err?.message}`,
-  );
 
   // 8b. positive path: when the destination origin is in ALLOWED_ORIGINS, following succeeds
   ALLOWED_ORIGINS.add(destOrigin);
@@ -354,6 +346,15 @@ try {
       "gendn-lr61 review: positive-path hops reached the destination exactly twice more",
       destHits === before + 2,
       `destHits delta: ${destHits - before}`,
+    );
+    const loop = await timed(
+      "redirect-loop",
+      () => fetchBounded(`${destBase}/redirect-loop`, { timeoutMs: 5000 }),
+    );
+    assert(
+      "gendn-lr61: an allowlisted self-redirecting chain hits the hop cap",
+      !loop.ok && /exceeded 5 redirect hops/.test(String(loop.err?.message)),
+      `rejected: ${loop.err?.message}`,
     );
   } finally {
     ALLOWED_ORIGINS.delete(destOrigin);
