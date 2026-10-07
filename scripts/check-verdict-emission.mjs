@@ -56,7 +56,7 @@
 //     it: the evidence cannot be produced by a run that merely died.
 //
 // A COMPLETED single-suite run (`deno task conformance --page <id>`, the landing gate's behavioural
-// accumulation runs) takes the run-all arm and prints `run-all: 1 suites …`, so it is a run-all
+// accumulation runs) takes the run-all arm and prints `run-all: 1 suite(s) scanned (merged into …)`, so it is a run-all
 // phase log and owes exactly 1 (measured in the gendn-jeq landing logs). Only the SIGKILLed probe
 // log has no summary and owes 0.
 //
