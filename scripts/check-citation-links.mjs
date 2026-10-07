@@ -3,7 +3,7 @@
 // AGENTS.md:91 requires every visible source/citation label to link directly to the
 // original public artifact; AGENTS.md:103 requires resolving a page's unlinked
 // citations when you touch it. Nothing enforced either, so the corpus drifted
-// (measured 2026-10-07: 212 unlinked citation spans corpus-wide, all pre-existing).
+// (measured 2026-10-07: 220 unlinked citation spans across 297 page files incl. member routes, all pre-existing).
 //
 // Coord's non-negotiable constraint: do NOT red the tree on pre-existing labels in
 // UNTOUCHED pages before a corpus-wide fix exists. This check is therefore a RATCHET,
@@ -17,7 +17,7 @@
 // chromestatus.com/feature/<id> href must carry a full-length id (>= 15 digits).
 // During B1 an id was silently truncated to 12 digits; every derived link would have
 // 404'd and validate-artifacts, the pin fixture, check-routes and the page-suite
-// rollup all passed. Zero pre-existing truncations measured 2026-10-07 (788 ids), so
+// rollup all passed. Zero pre-existing truncations measured 2026-10-07 (788+ ids across all depths), so
 // this assertion is safe corpus-wide. A URL-existence check is deliberately NOT done
 // here (network, flakiness) — shape is the offline substitute.
 //
@@ -28,7 +28,8 @@
 //     RFC n, Intent) and no immediate <a href. Plain prose uses of the word
 //     "Source:" without a source-like token are not flagged.
 
-const PAGE_RE = /^(v\d+\/[^/]+)\/index\.html$/;
+const PAGE_RE = /^(v\d+\/[^/]+)\//; // any file in the page tree: member routes included,
+// matching check-conformance.mjs touched-page mapping (a member-only diff must not bypass the gate)
 const CS_ID_MIN_LEN = 15;
 
 async function runGit(args, cwd = ".") {
@@ -50,17 +51,17 @@ async function git(args, cwd = ".") {
 /** Unlinked citation labels in one page's HTML. Pure; exported for the fixture. */
 export function detectUnlinkedLabels(html) {
   const out = [];
-  for (const m of html.matchAll(/<span class="citation"[^>]*>([\s\S]*?)<\/span>/g)) {
-    if (!/<a\s+href/i.test(m[1])) {
+  for (const m of html.matchAll(/<(\w+) class="citation"[^>]*>([\s\S]*?)<\/\1>/g)) {
+    if (!/<a\s+href/i.test(m[2])) {
       out.push({
         kind: "citation-span",
-        label: m[1].replace(/\s+/g, " ").trim().slice(0, 100),
+        label: m[2].replace(/\s+/g, " ").trim().slice(0, 100),
       });
     }
   }
   // prose pass: citation spans, pre and code blocks are removed first
   const stripped = html
-    .replace(/<span class="citation"[^>]*>[\s\S]*?<\/span>/g, " ")
+    .replace(/<\w+ class="citation"[^>]*>[\s\S]*?<\/\w+>/g, " ")
     .replace(/<pre[\s\S]*?<\/pre>/g, " ")
     .replace(/<code[\s\S]*?<\/code>/g, " ");
   for (const m of stripped.matchAll(/Source\s*:\s*(<a\s+href|[^<\n]{0,120})/gi)) {
@@ -95,6 +96,26 @@ export function changedPageIds(names) {
   return [...ids];
 }
 
+/** Every index.html in one page tree (parent + member routes), any depth. */
+async function pageTreeHtml(root, id) {
+  const out = [];
+  const walk = async (dir) => {
+    for await (const e of Deno.readDir(dir)) {
+      if (e.isDirectory) await walk(`${dir}/${e.name}`);
+      else if (e.name === "index.html") {
+        try {
+          out.push({
+            path: `${dir}/index.html`,
+            html: await Deno.readTextFile(`${dir}/index.html`),
+          });
+        } catch { /* unreadable: skip */ }
+      }
+    }
+  };
+  await walk(`${root}/${id}`);
+  return out;
+}
+
 async function baselineRef(root) {
   const mb = await git(["merge-base", "origin/main", "HEAD"], root);
   if (mb?.trim()) return mb.trim();
@@ -109,44 +130,60 @@ export async function runRatchet(root) {
   if (!base) return { error: "no origin/main or HEAD baseline is available" };
   const diff = await git(["diff", "--name-only", base, "HEAD"], root);
   if (diff === null) return { error: `git diff against ${base} failed` };
-  const ids = changedPageIds(diff.split("\n").map((s) => s.trim()).filter(Boolean));
+  const others = await git(["ls-files", "--others", "--exclude-standard"], root);
+  const head = await git(["rev-parse", "HEAD"], root);
+  const names = [
+    ...diff.split("\n").map((s) => s.trim()).filter(Boolean),
+    ...(others ?? "").split("\n").map((s) => s.trim()).filter(Boolean),
+  ];
+  const vacuous = base === (head ?? "").trim();
+  const ids = changedPageIds(names);
   const failures = [];
   for (const id of ids) {
-    let html;
+    let tree;
     try {
-      html = await Deno.readTextFile(`${root}/${id}/index.html`);
+      tree = await pageTreeHtml(root, id);
     } catch {
       continue; // page deleted in the diff; nothing to ratchet
     }
-    for (const v of detectUnlinkedLabels(html)) {
-      failures.push(
-        `${id}: unlinked citation label (${v.kind}): "${v.label}" — AGENTS.md:91/103: link it or resolve it when touching the page`,
-      );
+    for (const f of tree) {
+      for (const v of detectUnlinkedLabels(f.html)) {
+        failures.push(
+          `${
+            f.path.slice(root.length + 1)
+          }: unlinked citation label (${v.kind}): "${v.label}" — AGENTS.md:91/103: link it or resolve it when touching the page`,
+        );
+      }
     }
   }
-  return { base, changed: ids, failures };
+  return { base, changed: ids, failures, vacuous };
 }
 
 /** Corpus-wide id-shape scan (both modes). */
-export async function scanIdShapes(root) {
-  const failures = [];
-  let scanned = 0;
+/** Every index.html under every vN/slug tree, any depth. */
+async function allPageHtml(root) {
+  const out = [];
   for await (const rel of Deno.readDir(root)) {
     if (!(rel.isDirectory && /^v\d+$/.test(rel.name))) continue;
     for await (const slug of Deno.readDir(`${root}/${rel.name}`)) {
       if (!slug.isDirectory) continue;
-      let html;
-      try {
-        html = await Deno.readTextFile(`${root}/${rel.name}/${slug.name}/index.html`);
-      } catch {
-        continue;
-      }
-      scanned++;
-      for (const v of detectCsIdShapes(html)) {
-        failures.push(
-          `${rel.name}/${slug.name}: truncated chromestatus id ${v.id} (${v.len} digits < ${CS_ID_MIN_LEN}) — every derived link would 404`,
-        );
-      }
+      for (const f of await pageTreeHtml(root, `${rel.name}/${slug.name}`)) out.push(f);
+    }
+  }
+  return out;
+}
+
+export async function scanIdShapes(root) {
+  const failures = [];
+  let scanned = 0;
+  for await (const f of await allPageHtml(root)) {
+    scanned++;
+    for (const v of detectCsIdShapes(f.html)) {
+      failures.push(
+        `${
+          f.path.slice(root.length + 1)
+        }: truncated chromestatus id ${v.id} (${v.len} digits < ${CS_ID_MIN_LEN}) — every derived link would 404`,
+      );
     }
   }
   return { scanned, failures };
@@ -155,21 +192,11 @@ export async function scanIdShapes(root) {
 /** Report-only corpus count of unlinked labels (cleanup tracking). Never fails. */
 export async function countAll(root) {
   let spans = 0, prose = 0, pages = 0;
-  for await (const rel of Deno.readDir(root)) {
-    if (!(rel.isDirectory && /^v\d+$/.test(rel.name))) continue;
-    for await (const slug of Deno.readDir(`${root}/${rel.name}`)) {
-      if (!slug.isDirectory) continue;
-      let html;
-      try {
-        html = await Deno.readTextFile(`${root}/${rel.name}/${slug.name}/index.html`);
-      } catch {
-        continue;
-      }
-      pages++;
-      for (const v of detectUnlinkedLabels(html)) {
-        if (v.kind === "citation-span") spans++;
-        else prose++;
-      }
+  for await (const f of await allPageHtml(root)) {
+    pages++;
+    for (const v of detectUnlinkedLabels(f.html)) {
+      if (v.kind === "citation-span") spans++;
+      else prose++;
     }
   }
   return { pages, spans, prose };

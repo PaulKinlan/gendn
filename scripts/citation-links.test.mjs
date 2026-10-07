@@ -22,6 +22,7 @@ import {
   detectCsIdShapes,
   detectUnlinkedLabels,
   runRatchet,
+  scanIdShapes,
 } from "./check-citation-links.mjs";
 
 let n = 0;
@@ -65,6 +66,9 @@ ok(
   "span label not double-counted by prose pass",
 );
 
+const pTag = `<p class="citation">Source: example.org/x (corpus has non-span citation tags)</p>`;
+ok(detectUnlinkedLabels(pTag).length === 1, "non-span citation tag (p.citation) flagged too");
+
 // --- 2. id-shape companion --------------------------------------------------
 ok(
   detectCsIdShapes(`<a href="https://chromestatus.com/feature/5109852273377280">x</a>`).length ===
@@ -80,13 +84,14 @@ ok(
     changedPageIds([
       "v147/foo/index.html",
       "v147/foo/conformance.json",
+      "v147/foo/member/index.html",
       "server.ts",
       "deno.json",
       "v148/bar/other.html",
-    ]),
+    ]).sort(),
   ) ===
-    JSON.stringify(["v147/foo"]),
-  "changedPageIds keeps only page index.html paths",
+    JSON.stringify(["v147/foo", "v148/bar"]),
+  "changedPageIds maps any file in a page tree (members included) to the page id, ignores non-page files",
 );
 
 // --- 4. ratchet end-to-end in a scratch repo --------------------------------
@@ -148,6 +153,55 @@ await g("add", ".");
 await g("commit", "-qm", "resolve A label");
 r = await runRatchet(dir);
 ok(r.failures.length === 0, "4c linked label on touched page passes");
+
+// case 4d: member routes are gated too (the round-1 P1 bypass)
+const MEMBER = "v147/legacy-page/member/index.html";
+await Deno.mkdir(`${dir}/v147/legacy-page/member`, { recursive: true });
+await Deno.writeTextFile(`${dir}/${MEMBER}`, unlinkedPage("m"));
+await g("add", ".");
+await g("commit", "-qm", "add member with unlinked label");
+r = await runRatchet(dir);
+ok(
+  r.failures.length === 1 && r.failures[0].includes("member"),
+  "4d member page with unlinked label fails when its own file is in the diff",
+);
+
+// case 4e: touching ONLY a member file also inspects the whole page tree (no bypass
+// by splitting a touch across the tree); parent is clean here so still one failure
+await Deno.writeTextFile(`${dir}/${MEMBER}`, unlinkedPage("m").replace("body", "body v2"));
+await g("add", ".");
+await g("commit", "-qm", "touch member only");
+r = await runRatchet(dir);
+ok(
+  r.changed.includes("v147/legacy-page") && r.changed.includes("v148/touched-page"),
+  "4e member-only commit maps to the page id (branch diff base..HEAD, both touched pages listed)",
+);
+ok(
+  r.failures.length === 1 && r.failures[0].includes("member"),
+  "4e member-only touch still gated (parent clean, member unlinked)",
+);
+
+// case 4f: untracked new pages count as changed (ls-files --others)
+await Deno.mkdir(`${dir}/v149/fresh-page`, { recursive: true });
+await Deno.writeTextFile(`${dir}/v149/fresh-page/index.html`, unlinkedPage("f"));
+r = await runRatchet(dir);
+ok(
+  r.changed.includes("v149/fresh-page") && r.failures.some((f) => f.includes("v149/fresh-page")),
+  "4f untracked new page with unlinked label fails",
+);
+await Deno.remove(`${dir}/v149`, { recursive: true });
+
+// case 4g: id-shape scan is recursive into member trees
+await Deno.writeTextFile(
+  `${dir}/${MEMBER}`,
+  unlinkedPage("m").replace("Example Org report, 2026.", '<a href="https://example.org/r">r</a>') +
+    '<a href="https://chromestatus.com/feature/510985227337">t</a>',
+);
+const shapes = await scanIdShapes(dir);
+ok(
+  shapes.failures.length === 1 && shapes.failures[0].includes("member"),
+  "4g truncated id in a member page detected by the recursive scan",
+);
 
 await Deno.remove(dir, { recursive: true });
 console.log(`citation-links fixture: all ${n} assertions passed`);
