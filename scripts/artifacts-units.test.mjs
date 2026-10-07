@@ -88,6 +88,38 @@ assert(
 );
 assert("status built when no MDN eyebrow", meta.status === "built");
 assert("experimental = built AND experimental marker in the html", meta.experimental === true);
+// gendn-aewp: the eyebrow is the authoritative shipped claim. Historical experimental
+// prose (a removed flag's URL) must not mark a shipped page experimental, while an
+// experimental word in the eyebrow itself still wins over 'enabled by default' status
+// rows (mixed pages stay experimental). Five shipped suites were wrongly generated with
+// warn-block-experimental; retired via migrations.json + this pin.
+const shippedHist = metadataFromHtml(
+  "v901/shipped-with-history/index.html",
+  `<html><body><p class="eyebrow">v901 · html · shipped</p>
+   <h1>Thing</h1>
+   <p>Flag: None (was <code>chrome://flags/#experimental-web-platform-features</code>)</p>
+   <a href="https://chromestatus.com/feature/1">x</a></body></html>`,
+);
+assert(
+  "aewp: shipped eyebrow overrides historical experimental/flag prose",
+  shippedHist.experimental === false,
+);
+const mixedEyebrow = metadataFromHtml(
+  "v902/mixed/index.html",
+  `<html><body><p class="eyebrow">v902 · shipped · web api · experimental</p>
+   <h1>Thing</h1><table><tr><th>Status</th><td>Origin trial / Enabled by default</td></tr></table>
+   <a href="https://chromestatus.com/feature/2">x</a></body></html>`,
+);
+assert(
+  "aewp: an experimental eyebrow stays experimental even with an enabled-by-default status row",
+  mixedEyebrow.experimental === true,
+);
+const trialEyebrow = metadataFromHtml(
+  "v903/trial/index.html",
+  `<html><body><p class="eyebrow">v903 · origin trial · webrtc</p><h1>Thing</h1>
+   <a href="https://chromestatus.com/feature/3">x</a></body></html>`,
+);
+assert("aewp: origin-trial eyebrow still derives experimental", trialEyebrow.experimental === true);
 assert(
   "sections are extracted from the RAW html — comments, script strings and closed <details> h2s ARE counted (actual contract, pinned as-is). CORRECTED RATIONALE (gendn-n2k; the dd7-era text claimed re-deriving 'would move gate verdicts' — FALSE): sections/h1 are DEAD FIELDS — a repo-wide grep (dd7 review, re-verified locally) finds no gate, generator or serializer reading meta.sections or meta.h1; the min-sections/single-h1 checks are browser js-eval strings (gen-conformance.mjs:207), not derived from these fields. Pinned as documented behaviour only. The asymmetry that DOES feed a verdict (isRemoval) now derives from renderedMarkup and is pinned below.",
   JSON.stringify(meta.sections) ===

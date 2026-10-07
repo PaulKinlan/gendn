@@ -80,7 +80,18 @@ export function metadataFromHtml(pagePath, html) {
   const idMatch = html.match(FEATURE_ID_RE);
   const identity = idMatch ? idMatch[1] : null;
   const status = isMdnStubHtml(html) ? "stub" : "built";
-  const experimental = status === "built" && EXPERIMENTAL_RE.test(html);
+  // gendn-aewp: the page's own eyebrow is the authoritative status claim. A shipped /
+  // enabled-by-default eyebrow overrides experimental-sounding PROSE: historical flag
+  // mentions ("Flag: None (was chrome://flags/#experimental-web-platform-features)")
+  // must not mark a shipped page experimental. An eyebrow that itself carries an
+  // experimental word (origin trial / developer trial / experimental) wins over the
+  // shipped word, so mixed pages stay experimental.
+  const eyebrow = renderedMarkup(html).match(
+    /<p\b[^>]*class=["'][^"']*\beyebrow\b[^"']*["'][^>]*>([\s\S]*?)<\/p>/i,
+  )?.[1]?.replace(/<[^>]+>/g, " ") ?? "";
+  const shippedClaim = /\b(?:shipped|enabled by default)\b/i.test(eyebrow) &&
+    !EXPERIMENTAL_RE.test(eyebrow);
+  const experimental = status === "built" && EXPERIMENTAL_RE.test(html) && !shippedClaim;
   // Removal / deprecation references don't ship an interactive example or a cross-browser support
   // table — the example/support assertions don't apply to them.
   //
