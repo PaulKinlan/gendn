@@ -675,6 +675,46 @@ try {
       "0n5s Case 10: staged rename with reviewed move migration passes gate",
       migrated.failures.length === 0,
     );
+
+    // Clean up probe2 for Case 11
+    await g("checkout", "-f", "HEAD");
+    await g("clean", "-fd");
+
+    // Case 11 (gendn-0n5s P0-1): Staged plain deletion with file left/restored on disk
+    // git rm deletes probe/index.html from index, but file is re-created on disk (status D + ??).
+    // The reader must read the index deletion, omit the route from current manifest, and fail gate.
+    await g("rm", "-q", `${probe}/index.html`);
+    await Deno.mkdir(`${scratch}/${probe}`, { recursive: true });
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, probePage(baseFeature));
+    const deleteStatus = (await g("status", "--short")).trim();
+    assert(
+      "0n5s Case 11: git status shows staged deletion (D ) and untracked file on disk (??)",
+      deleteStatus.includes("D ") && deleteStatus.includes("??"),
+    );
+    invalidateJudgedCache();
+    current = await buildManifest({ root: scratch });
+    assert(
+      "0n5s Case 11: manifest omits route for file staged-deleted in index but on disk",
+      !current.some((e) => e.id === probe),
+    );
+    evaluated = await evaluate(baselineManifest, current);
+    assert(
+      "0n5s Case 11: staged deletion with file on disk fails route gate",
+      evaluated.failures.length > 0 && mentions(evaluated, `missing published id ${probe}`),
+    );
+    let errorNamedDeletion = false;
+    try {
+      const { readJudgedFile } = await import("./lib/judged-content.mjs");
+      await readJudgedFile(`${probe}/index.html`, scratch);
+    } catch (err) {
+      errorNamedDeletion = /deleted from the git index but is still present on disk/.test(
+        err.message,
+      );
+    }
+    assert(
+      "0n5s Case 11: readJudgedFile throws explicit message naming index deletion with file on disk",
+      errorNamedDeletion,
+    );
   } finally {
     await Deno.remove(scratch, { recursive: true });
   }

@@ -446,6 +446,84 @@ try {
       r.code === 1 && r.text.includes("identity"),
       r.text,
     );
+
+    // Clean up index.html
+    await g("checkout", "-f", "HEAD");
+
+    // Case 11 (gendn-0n5s P0-2): Staged assertion deletion in conformance.json with status decoy
+    // Deleting an assertion in index, while restoring worktree assertions + setting status:"stub".
+    // The reader must compare the entire parsed suite (assertions included) and read from index.
+    const emptyAssertionsSuite = { ...baseSuite, assertions: [], suiteHash: await suiteHash([]) };
+    await Deno.writeTextFile(
+      `${scratch}/${ALPHA}/conformance.json`,
+      JSON.stringify(emptyAssertionsSuite, null, 2),
+    );
+    await g("add", `${ALPHA}/conformance.json`);
+    const statusDecoyFullSuite = { ...baseSuite, status: "stub" };
+    await Deno.writeTextFile(
+      `${scratch}/${ALPHA}/conformance.json`,
+      JSON.stringify(statusDecoyFullSuite, null, 2),
+    );
+    const p02Status = (await g("status", "--short")).trim();
+    assert(
+      "0n5s validate-artifacts Case 11: git status shows MM for staged assertion deletion with status decoy",
+      p02Status.includes("MM") && p02Status.includes(ALPHA),
+    );
+    const { invalidateJudgedCache, readJudgedJson } = await import("./lib/judged-content.mjs");
+    invalidateJudgedCache();
+    const readSuiteP02 = await readJudgedJson(`${ALPHA}/conformance.json`, scratch);
+    assert(
+      "0n5s validate-artifacts Case 11 (P0-2): reader reads staged index suite with deleted assertions",
+      readSuiteP02.assertions.length === 0,
+    );
+
+    // Clean up conformance.json
+    await g("checkout", "-f", "HEAD");
+
+    // Case 12 (gendn-0n5s P0-3): Staged completeness change in reference-contract.json with formatting decoy
+    // Baseline has implementation-sufficient contract. Setting completeness: "partial" in index,
+    // while restoring worktree to "implementation-sufficient" + trailing space decoy.
+    // The reader must compare the entire parsed reference contract and read from index.
+    const sufficientContract = {
+      formatVersion: 1,
+      completeness: "implementation-sufficient",
+      inventory: [],
+      documentation: [],
+    };
+    await Deno.writeTextFile(
+      `${scratch}/${ALPHA}/reference-contract.json`,
+      JSON.stringify(sufficientContract, null, 2),
+    );
+    await g("add", `${ALPHA}/reference-contract.json`);
+    await g("commit", "-qm", "baseline reference contract");
+
+    const partialContract = {
+      formatVersion: 1,
+      completeness: "partial",
+      inventory: [],
+      documentation: [],
+    };
+    await Deno.writeTextFile(
+      `${scratch}/${ALPHA}/reference-contract.json`,
+      JSON.stringify(partialContract, null, 2),
+    );
+    await g("add", `${ALPHA}/reference-contract.json`);
+
+    await Deno.writeTextFile(
+      `${scratch}/${ALPHA}/reference-contract.json`,
+      JSON.stringify(sufficientContract, null, 2) + "\n  \n",
+    );
+    const p03Status = (await g("status", "--short")).trim();
+    assert(
+      "0n5s validate-artifacts Case 12: git status shows MM for staged contract completeness with decoy formatting",
+      p03Status.includes("MM") && p03Status.includes(ALPHA),
+    );
+    invalidateJudgedCache();
+    const readContractP03 = await readJudgedJson(`${ALPHA}/reference-contract.json`, scratch);
+    assert(
+      "0n5s validate-artifacts Case 12 (P0-3): reader reads staged index contract with completeness: partial",
+      readContractP03.completeness === "partial",
+    );
   } finally {
     await Deno.remove(scratch, { recursive: true });
   }

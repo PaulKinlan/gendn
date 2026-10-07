@@ -36,47 +36,43 @@ export async function stagedRevertedPaths(root = ".", { fresh = false } = {}) {
 function extractCriticalFields(filePath, content) {
   if (typeof content !== "string") return null;
 
-  if (filePath.endsWith(".html")) {
-    const featureIds = [...content.matchAll(/chromestatus\.com\/feature\/(\d+)/g)].map((m) => m[1]);
-    const demos = [
-      ...content.matchAll(/chrome-platform-showcase\.paulkinlan-ea\.deno\.net\/[^\s"'<>]+/g),
-    ].map((m) => m[0]);
-    // NOTE: Status/eyebrow (e.g. "Covered on MDN") is deliberately excluded here because
-    // the gates tolerate status drift between built and stub (report-only in validate-artifacts,
-    // allowed in check-routes). Only gate-binding fields are compared so that a decoy status
-    // drift in the worktree cannot defeat the comparison and let a staged mutation escape.
-    return { featureIds, demos };
-  }
-
   if (filePath.endsWith(".json")) {
     try {
       const parsed = JSON.parse(content);
       if (filePath.endsWith("conformance.json")) {
-        // Exclude status: validate-artifacts explicitly treats status drift as report-only,
-        // so a status change must not mask a staged identity/demo mutation.
-        return {
-          id: parsed.id ?? null,
-          route: parsed.route ?? null,
-          milestone: parsed.milestone ?? null,
-          identity: parsed.identity ?? null,
-          demo: parsed.demo ?? null,
-          cpsFeatureRoute: parsed.cpsFeature?.route ?? null,
-        };
+        // DEFAULT-COMPARE everything in conformance.json, EXCLUDING only fields
+        // the gates genuinely tolerate. validate-artifacts (validate-artifacts.mjs:97)
+        // explicitly treats suite-vs-page status differences as report-only,
+        // so status must be removed to prevent a decoy status edit in the worktree
+        // from masking staged mutations to assertions, suiteHash, identity, or demo.
+        const obj = { ...parsed };
+        delete obj.status;
+        return obj;
       }
-      if (filePath.endsWith("reference-contract.json")) {
-        const routes = (parsed.documentation ?? []).map((d) => String(d.href ?? "")).sort();
-        return { routes };
-      }
-      if (filePath.endsWith("responsive-support.json")) {
-        return { routes: parsed.routes ?? {} };
-      }
-      if (filePath.endsWith("migrations.json")) {
-        return { migrations: parsed };
-      }
+      // For all other JSON artefacts (reference-contract.json, responsive-support.json,
+      // migrations.json, goals.json, _questions.json), every field is binding and
+      // zero fields are provably tolerated by the gates. Return the entire object.
       return parsed;
     } catch {
       return null;
     }
+  }
+
+  if (filePath.endsWith(".html")) {
+    // For HTML, the gates (route-manifest.mjs pathToIdentityFields and artifacts.mjs metadataFromHtml)
+    // derive published identity and contract properties exclusively from:
+    // 1. Feature identity links: chromestatus.com/feature/<id> (CLAUDE.md invariant #3)
+    // 2. Embedded showcase demo links: chrome-platform-showcase.paulkinlan-ea.deno.net/...
+    // 3. Status eyebrow: <p class="eyebrow">Covered on MDN</p>
+    // All other prose, markup, styles, scripts, and comments are non-binding.
+    // Of the three derived properties, status drift (built <-> stub) is provably tolerated
+    // by check-routes and validate-artifacts (report-only), while feature identity and demo links
+    // are strictly binding. Thus, excluding status leaves featureIds and demos.
+    const featureIds = [...content.matchAll(/chromestatus\.com\/feature\/(\d+)/g)].map((m) => m[1]);
+    const demos = [
+      ...content.matchAll(/chrome-platform-showcase\.paulkinlan-ea\.deno\.net\/[^\s"'<>]+/g),
+    ].map((m) => m[0]);
+    return { featureIds, demos };
   }
 
   return null;
@@ -84,7 +80,7 @@ function extractCriticalFields(filePath, content) {
 
 function parseNameStatus(stdout) {
   const allStaged = new Set();
-  const renamedOld = new Set();
+  const deletedOld = new Set();
   for (const line of stdout.split("\n")) {
     const trimmed = line.trim();
     if (!trimmed) continue;
@@ -94,15 +90,20 @@ function parseNameStatus(stdout) {
       if (parts[1]) {
         allStaged.add(parts[1]);
         if (status.startsWith("R")) {
-          renamedOld.add(parts[1]);
+          deletedOld.add(parts[1]);
         }
       }
       if (parts[2]) allStaged.add(parts[2]);
+    } else if (status.startsWith("D")) {
+      if (parts[1]) {
+        allStaged.add(parts[1]);
+        deletedOld.add(parts[1]);
+      }
     } else {
       if (parts[1]) allStaged.add(parts[1]);
     }
   }
-  return { allStaged, renamedOld };
+  return { allStaged, deletedOld };
 }
 
 async function getRepoState(root = ".", { fresh = false } = {}) {
@@ -134,14 +135,14 @@ async function getRepoState(root = ".", { fresh = false } = {}) {
       stdout: "piped",
       cwd: topLevel,
     });
-    const { allStaged: stagedVsHead, renamedOld: renamedOldVsHead } = parseNameStatus(
+    const { allStaged: stagedVsHead, deletedOld: deletedOldVsHead } = parseNameStatus(
       stagedVsHeadRes.code === 0 ? stagedVsHeadRes.stdout : "",
     );
 
     // Optional: check against origin/main if it exists as a baseline
     let stagedVsBase = null;
     let worktreeVsBase = null;
-    let renamedOldVsBase = new Set();
+    let deletedOldVsBase = new Set();
     const baseCheck = await runGit(["rev-parse", "--verify", "--quiet", "origin/main"], {
       cwd: topLevel,
     });
@@ -157,7 +158,7 @@ async function getRepoState(root = ".", { fresh = false } = {}) {
       if (sRes.code === 0 && wRes.code === 0) {
         const parsedBase = parseNameStatus(sRes.stdout);
         stagedVsBase = parsedBase.allStaged;
-        renamedOldVsBase = parsedBase.renamedOld;
+        deletedOldVsBase = parsedBase.deletedOld;
         worktreeVsBase = new Set(wRes.stdout.split("\n").map((s) => s.trim()).filter(Boolean));
       }
     }
@@ -203,10 +204,12 @@ async function getRepoState(root = ".", { fresh = false } = {}) {
 
     const candidates = new Set([...worktreeVsIndex, ...untracked]);
     const stagedPaths = new Set();
+    const stagedDeleted = new Set([...deletedOldVsHead, ...deletedOldVsBase]);
+
     for (const p of candidates) {
-      // If the path was renamed away in the index but restored/retained on disk,
-      // it is a staged-deleted path: read from index (which reports it deleted).
-      if (renamedOldVsHead.has(p) || renamedOldVsBase.has(p)) {
+      // If the path was deleted or renamed away in the index but is present on disk,
+      // it is a staged deletion: read from index (which reports it deleted / throws NotFound).
+      if (stagedDeleted.has(p)) {
         stagedPaths.add(p);
         continue;
       }
@@ -307,7 +310,9 @@ export async function readJudgedFile(path, root = ".", options = {}) {
       if (showRes.code === 0) {
         return showRes.stdout;
       }
-      throw new Deno.errors.NotFound(`File ${rel} not found in git index: ${showRes.stderr}`);
+      throw new Deno.errors.NotFound(
+        `File ${rel} was deleted from the git index but is still present on disk - re-add it or commit the deletion: ${showRes.stderr}`,
+      );
     }
   }
 
