@@ -346,6 +346,45 @@ try {
     assert(`CSP font-src permits font origin ${origin}`, fontSrc.includes(origin));
   }
 
+  // --- 5b. gendn-gt7: release-asset script MIME seam is closed ---
+  // v<N>/ trees are routine-authored; a script MIME there is 'self'-eligible under the
+  // global CSP and would EXECUTE on this origin (measured 2026-10-07 in a real browser:
+  // pre-fix mapping executed an authored probe; post-fix it was refused). The server
+  // must serve authored .js as text/plain (+ the global nosniff) so no browser runs it.
+  // The detector half: a response with a script content-type on a release asset path
+  // must FAIL this check, proving the pin is a detector, not decoration.
+  {
+    const probeRes = await fetch(`${base}/v150/focusgroup/inert-probe.js`, {
+      signal: AbortSignal.timeout(4000),
+    });
+    const probeCt = probeRes.headers.get("content-type") ?? "";
+    const probeSniff = probeRes.headers.get("x-content-type-options") ?? "";
+    const probeBody = await probeRes.text();
+    assert(
+      "gt7: probe present and served (a 404 also carries text/plain + nosniff and would pass the MIME checks vacuously)",
+      probeRes.status === 200 && probeBody.includes("gendn-gt7"),
+      `status: ${probeRes.status}; body names the bead: ${probeBody.includes("gendn-gt7")}`,
+    );
+    assert(
+      "gt7: release-asset .js is served inert (text/plain), not a script MIME",
+      probeCt.startsWith("text/plain"),
+      `content-type: ${probeCt}`,
+    );
+    assert(
+      "gt7: release-asset .js carries nosniff (browsers refuse to execute it)",
+      probeSniff === "nosniff",
+      `x-content-type-options: ${probeSniff}`,
+    );
+    const scriptyRes = new Response("alert(1)", {
+      headers: { "content-type": "application/javascript; charset=utf-8" },
+    });
+    assert(
+      "gt7 detector: a script content-type on a release asset path fails the inert check",
+      !(scriptyRes.headers.get("content-type") ?? "").startsWith("text/plain"),
+      "script MIME detected as non-inert",
+    );
+  }
+
   // --- 6. DETECTOR CASES (verifying that missing or broken headers fail verification) ---
   {
     // A bare response without security headers MUST fail validation

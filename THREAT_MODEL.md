@@ -154,9 +154,16 @@ Audits **must not** flag the following as vulnerabilities:
    non-canonical identity. The current tree carries no un-narrowed sink of this class.
 2. **`api.github.com` commit JSON → "last updated" line.** `html_url` is the historic
    scheme-injection sink (fixed by `lib/external-url.ts`); `sha`/`date` are escaped.
-3. **Repo-authored page HTML served same-origin.** A `<script>` or injected attribute in a
-   `v<N>/<slug>/index.html` executes on gendn's origin. CSP `script-src 'self' 'sha256-…'`
-   blocks inline scripts and off-origin scripts; `'self'` still permits same-origin script URLs.
+3. **Repo-authored page HTML served same-origin.** Authored markup can well-formed-link or
+   carry script-shaped constructs; authored `<script>`/attribute execution is constrained
+   by CSP `script-src` and (for script URLs) the release MIME policy below. The historical `'self'` gap — authored
+   same-origin script URLs — is CLOSED for release trees (gendn-gt7, measured in a real
+   browser 2026-10-07: an authored `.js` under `v<N>/` executed under the old mapping;
+   after the fix it is refused): `readReleaseAsset` serves `.js`/`.mjs`/`.cjs` as
+   `text/plain` and every response carries `X-Content-Type-Options: nosniff`, so no
+   browser will execute routine-authored JavaScript as a script regardless of CSP.
+   Pinned by the security-headers fixture (`v150/focusgroup/inert-probe.js`). Inline
+   authored scripts remain blocked by the hashed `script-src` (no authored hash exists).
 4. **Lifecycle JSON artifacts → SSR.** `conformance.json`, `_questions.json`, `results.json` are
    runner/agent-written but are parsed and rendered; a corrupt/hostile verdict previously
    reached a CSS class attribute (fixed by whitelisting, invariant #9).
