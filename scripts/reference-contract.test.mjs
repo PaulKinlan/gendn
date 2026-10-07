@@ -736,18 +736,29 @@ dictionary D {
   // (the noExample case above). The not-applicable branch independently enforces the
   // sourced rationale + rendered-fragment rigor, so the trio rule only accepts it for
   // syntax.
+  // a genuinely grammar-free section: no <code>, no <pre>, no call/declaration form -
+  // only prose explaining that the change ships nothing declarable
+  const grammarFreeSection =
+    `<section><h2 id="no-grammar">No grammar</h2><p>This change ships no declaration grammar: it is a transport-level switch with no new property, no API and no policy surface, so an author declares nothing and there is no syntax surface to document.</p><p><a href="${source}">Normative source</a></p></section>`;
+  const page = await Deno.readTextFile(`${root}/${id}/thing/do-work/index.html`);
+  await Deno.writeTextFile(
+    `${root}/${id}/thing/do-work/index.html`,
+    page.replace("</main>", `${grammarFreeSection}</main>`),
+  );
   const noGrammar = structuredClone(contract);
   noGrammar.documentation[0].dimensions.syntax = {
     status: "not-applicable",
-    selector: "#syntax",
+    selector: "#no-grammar",
     rationale:
       "This change adds no declaration grammar: nothing new is declared or constructed, so there is no syntax surface to document (the fragment explains what changed instead).",
     sourceRefs: ["spec"],
   };
   const noGrammarErrors = await validateReferenceContract(noGrammar, root);
   assert(
-    !noGrammarErrors.some((error) => error.includes("syntax must be documented")),
-    "gendn-20m: implementation-sufficient contract rejected an honest not-applicable syntax",
+    noGrammarErrors.length === 0,
+    `gendn-20m: honest not-applicable syntax on a grammar-free page still failed:\n${
+      noGrammarErrors.join("\n")
+    }`,
   );
   const lazySyntax = structuredClone(noGrammar);
   delete lazySyntax.documentation[0].dimensions.syntax.rationale;
