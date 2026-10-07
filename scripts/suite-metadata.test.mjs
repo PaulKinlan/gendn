@@ -144,25 +144,62 @@ try {
   r = await gate();
   assert("page-only nonidentity prose edit stays green", r.code === 0, r.text.slice(-200));
 
-  // Frozen suites legitimately predate later page status/demo changes. Report, never mask the
-  // identity binding or red-line the existing 1 status / 20 demo differences on main.
+  // A page-only added demo was previously just a report-only note. Its suite now must be
+  // updated too, without rehashing or weakening any frozen assertions.
+  const demo = "https://chrome-platform-showcase.paulkinlan-ea.deno.net/v900/alpha/";
   await Deno.writeTextFile(
     `${tmp}/${ALPHA}/index.html`,
-    html(
-      ALPHA_ID,
-      '<a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v900/alpha/">Demo</a>',
-    ),
+    html(ALPHA_ID, `<a href="${demo}">Demo</a>`),
   );
   await putSuite(ALPHA, { ...original, status: "stub" });
   r = await gate();
   assert(
-    "legacy-shaped status/demo/CPS drift is reported but does not fail identity validation",
-    r.code === 0 && r.text.includes("1 status / 1 demo / 1 CPS demo-route"),
+    "page-only new showcase demo fails the suite demo binding (status drift remains report-only)",
+    r.code === 1 && r.text.includes("conformance.json: demo") &&
+      r.text.includes("cpsFeature.route"),
     r.text.slice(-460),
+  );
+  await putSuite(ALPHA, { ...original, status: "stub", demo });
+  r = await gate();
+  assert(
+    "demo metadata alone is insufficient when the CPS route still claims no reference",
+    r.code === 1 && r.text.includes("cpsFeature.route"),
+    r.text.slice(-360),
+  );
+  const reconciled = {
+    ...original,
+    status: "stub",
+    demo,
+    cpsFeature: {
+      host: "chrome-platform-showcase.paulkinlan-ea.deno.net",
+      route: "/v900/alpha/",
+      conformanceRoute: "/v900/alpha/conformance",
+      note: "The feature-level CPS suite governs only its listed assertions.",
+    },
+  };
+  await putSuite(ALPHA, reconciled);
+  r = await gate();
+  assert(
+    "reconciled demo/CPS metadata passes; historical stub->built status stays report-only",
+    r.code === 0 &&
+      r.text.includes("1 historical status difference(s) (report-only) / 0 demo mismatch(es)"),
+    r.text.slice(-460),
+  );
+  await putSuite(ALPHA, {
+    ...reconciled,
+    demo: `https://chrome-platform-showcase.paulkinlan-ea.deno.net/v901/beta/`,
+  });
+  r = await gate();
+  assert(
+    "suite-only demo repoint to another feature fails even when assertions/hash remain unchanged",
+    r.code === 1 && r.text.includes("conformance.json: demo"),
+    r.text.slice(-360),
   );
 
   // A moved page/suite pair is consistent at the destination. Alias validity is checked by
   // check-routes, not this metadata binding.
+  await Deno.writeTextFile(`${tmp}/${ALPHA}/index.html`, html(ALPHA_ID));
+  await putSuite(ALPHA, original);
   await Deno.rename(`${tmp}/${ALPHA}`, `${tmp}/v900/gamma`);
   const moved = "v900/gamma";
   await putSuite(moved, { ...original, id: moved, route: `/${moved}/` });
@@ -171,6 +208,45 @@ try {
     "a consistent moved page/suite pair passes without blanket migration exemptions",
     r.code === 0,
     r.text.slice(-220),
+  );
+
+  const exceptionId = "v150/disable-svg-filters-on-plugins-and-iframes";
+  const exceptionDemo =
+    `https://chrome-platform-showcase.paulkinlan-ea.deno.net/${exceptionId}/filter-comparison/`;
+  await Deno.mkdir(`${tmp}/${exceptionId}`, { recursive: true });
+  await Deno.writeTextFile(
+    `${tmp}/${exceptionId}/index.html`,
+    html(ALPHA_ID, `<a href="${exceptionDemo}">Concept demo</a>`),
+  );
+  const exceptionSuite = {
+    ...await suite(exceptionId, ALPHA_ID),
+    demo: exceptionDemo,
+    cpsFeature: {
+      host: "chrome-platform-showcase.paulkinlan-ea.deno.net",
+      route: `/${exceptionId}/`,
+      conformanceRoute: `/${exceptionId}/conformance`,
+      note: "Feature-level conformance differs from the concept demo.",
+    },
+  };
+  await putSuite(exceptionId, exceptionSuite);
+  r = await gate();
+  assert(
+    "the exact documented CPS feature-root vs concept-demo exception stays green",
+    r.code === 0 && r.text.includes("1 pinned CPS route exception(s)"),
+    r.text.slice(-360),
+  );
+  await putSuite(exceptionId, {
+    ...exceptionSuite,
+    cpsFeature: {
+      ...exceptionSuite.cpsFeature,
+      conformanceRoute: `/${exceptionId}/wrong-contract`,
+    },
+  });
+  r = await gate();
+  assert(
+    "changing the exception's conformance target fails instead of broad-whitelisting its ID",
+    r.code === 1 && r.text.includes("without a documented exception"),
+    r.text.slice(-360),
   );
 } finally {
   await Deno.remove(tmp, { recursive: true });

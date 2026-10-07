@@ -449,8 +449,13 @@ assert(
 );
 assert(
   "cpsFeature block renders only when present",
-  R.suiteEvil.includes("chrome-platform-showcase") &&
-    !R.suiteOk.includes("chrome-platform-showcase"),
+  R.suiteEvil.includes("showcase.test") &&
+    !R.suiteOk.includes("showcase.test"),
+);
+assert(
+  "CPS contract copy does not claim every linked demo is embedded",
+  R.suiteEvil.includes("Chrome-platform-showcase conformance (listed assertions only):") &&
+    !R.suiteEvil.includes("Embedded demo behavior governed"),
 );
 
 await Deno.remove(tmp, { recursive: true }).catch(() => {});

@@ -177,7 +177,7 @@ export async function renderSuite(release: string, slug: string): Promise<string
   }).join("");
 
   const cps = suite.cpsFeature
-    ? `<p class="meta">Embedded demo behavior governed by chrome-platform-showcase: <a href="https://${
+    ? `<p class="meta">Chrome-platform-showcase conformance (listed assertions only): <a href="https://${
       esc(suite.cpsFeature.host)
     }${esc(suite.cpsFeature.conformanceRoute)}" target="_blank" rel="noopener">${
       esc(suite.cpsFeature.conformanceRoute)

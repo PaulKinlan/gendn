@@ -37,6 +37,16 @@ import {
 
 const FRONTEND_DIMENSIONS = new Set(["responsive-ux", "accessibility", "examples"]);
 
+// This CPS suite deliberately references feature-level conformance while the page links a
+// concept-level demo. Pin the entire pair: a different demo or contract is not this exception.
+const CPS_DEMO_ROUTE_EXCEPTION = {
+  id: "v150/disable-svg-filters-on-plugins-and-iframes",
+  demo:
+    "https://chrome-platform-showcase.paulkinlan-ea.deno.net/v150/disable-svg-filters-on-plugins-and-iframes/filter-comparison/",
+  route: "/v150/disable-svg-filters-on-plugins-and-iframes/",
+  conformanceRoute: "/v150/disable-svg-filters-on-plugins-and-iframes/conformance",
+};
+
 async function main() {
   const errors = [];
   const [confSchema, qSchema, goalsSchema, supportSchema, referenceSchema] = await Promise.all([
@@ -80,14 +90,35 @@ async function main() {
         );
       }
     }
-    // Historical suites were frozen before later status/demo changes. Measured on main:
-    // 1 status, 20 demo, 21 CPS-route differences on main 15377ff. Reported, not a green claim
-    // about those fields; reconciliation is separate from the identity-binding fix.
+    // Suites predate some later page edits. Status has one known stub->built historical drift;
+    // demo metadata has now been reconciled and must track the actual published page link.
+    // The route gate separately governs whether a page's own demo link was repointed.
     if (s.status !== meta.status) metadataNotes.status.push(ownerId);
-    if (s.demo !== meta.demo) metadataNotes.demo.push(ownerId);
+    if (s.demo !== meta.demo) {
+      metadataNotes.demo.push(ownerId);
+      errors.push(
+        `${tag}: demo ${JSON.stringify(s.demo)} differs from colocated page ${pagePath} (${
+          JSON.stringify(meta.demo)
+        }); update suite metadata alongside a legitimate page demo change`,
+      );
+    }
     const pageDemoRoute = meta.demo ? new URL(meta.demo).pathname : null;
     if ((s.cpsFeature?.route ?? null) !== pageDemoRoute) {
-      metadataNotes.cpsFeatureRoute.push(ownerId);
+      const documentedException = ownerId === CPS_DEMO_ROUTE_EXCEPTION.id &&
+        s.demo === CPS_DEMO_ROUTE_EXCEPTION.demo &&
+        meta.demo === CPS_DEMO_ROUTE_EXCEPTION.demo &&
+        s.cpsFeature?.route === CPS_DEMO_ROUTE_EXCEPTION.route &&
+        s.cpsFeature?.conformanceRoute === CPS_DEMO_ROUTE_EXCEPTION.conformanceRoute;
+      if (documentedException) metadataNotes.cpsFeatureRoute.push(ownerId);
+      else {
+        errors.push(
+          `${tag}: cpsFeature.route ${
+            JSON.stringify(s.cpsFeature?.route ?? null)
+          } differs from page demo route ${
+            JSON.stringify(pageDemoRoute)
+          } without a documented exception`,
+        );
+      }
     }
     if (Array.isArray(s.assertions)) {
       const ids = s.assertions.map((a) => a.id);
@@ -187,7 +218,7 @@ async function main() {
   console.log("validate-artifacts");
   console.log(`  conformance suites : ${suiteCount} validated`);
   console.log(
-    `  metadata notes     : ${metadataNotes.status.length} status / ${metadataNotes.demo.length} demo / ${metadataNotes.cpsFeatureRoute.length} CPS demo-route difference(s) (report-only)`,
+    `  metadata notes     : ${metadataNotes.status.length} historical status difference(s) (report-only) / ${metadataNotes.demo.length} demo mismatch(es) / ${metadataNotes.cpsFeatureRoute.length} pinned CPS route exception(s)`,
   );
   console.log(`  critiques          : ${critiqueCount} validated`);
   console.log(
