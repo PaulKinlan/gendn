@@ -68,12 +68,12 @@ async function* contractIdsUnder(root, id) {
 }
 
 async function baselineRef(root) {
+  // A locally fetched independent ref is mandatory: HEAD would erase committed changes.
+  if (!await git(["rev-parse", "--verify", "--quiet", "refs/remotes/origin/main^{commit}"], root)) {
+    return null;
+  }
   const mb = await git(["merge-base", "origin/main", "HEAD"], root);
-  if (mb?.trim()) return mb.trim();
-  if (await git(["rev-parse", "--verify", "origin/main"], root)) return "origin/main";
-  const head = await git(["rev-parse", "HEAD"], root);
-  if (head?.trim()) return head.trim();
-  return null;
+  return mb?.trim() || "origin/main";
 }
 
 async function readHtml(path) {
@@ -95,7 +95,13 @@ async function loadContract(root, id) {
 /** Ratchet changed contracts and contracts owning changed pages. Exported for scratch fixtures. */
 export async function runRatchet(root) {
   const base = await baselineRef(root);
-  if (!base) return { error: "no origin/main or HEAD baseline is available" };
+  if (!base) {
+    return {
+      error: "cannot verify committed surface mappings: independent baseline " +
+        "refs/remotes/origin/main is unavailable or not a commit; run git fetch origin main " +
+        "before this ratchet (no HEAD self-baseline)",
+    };
+  }
   // base -> WORKING TREE + INDEX (union --cached): the ratchet must also see uncommitted
   // edits to tracked contracts/pages (unstaged and staged), so a local run mid-work flags what
   // a later commit would carry. A staged-then-worktree-reverted edit (git status MM) escapes a
@@ -197,13 +203,20 @@ if (import.meta.main) {
   }
   const r = await runRatchet(root);
   if (r.error) {
-    console.error(`FAIL — surface-coverage ratchet could not run: ${r.error}`);
-    Deno.exit(1);
+    // No independent baseline is a precondition failure (landing-preflight's rc6), not a
+    // wrong-surface finding (rc1). Both stay nonzero, with no successful ratchet verdict.
+    console.error(
+      `FAIL — PRECONDITION (exit 6): surface-coverage ratchet could not verify: ${r.error}`,
+    );
+    Deno.exit(6);
   }
   for (const w of r.warnings) console.log(`WARNING: ${w}`);
+  const unchangedNote = r.vacuous
+    ? " [UNCHANGED: fetched baseline == HEAD - committed changes not in scope; uncommitted edits still checked]"
+    : "";
   if (r.vacuous) {
     console.log(
-      `WARNING: baseline ${r.base} equals HEAD; no COMMITTED changes are gated - only untracked/uncommitted contracts and pages were compared (vacuous).`,
+      `surface-coverage ratchet: base ${r.base}; checked contracts ${r.changed.length}; page owners ${r.pageOwners.length}${unchangedNote}`,
     );
   }
   if (r.failures.length > 0) {
@@ -214,8 +227,6 @@ if (import.meta.main) {
     Deno.exit(1);
   }
   console.log(
-    `PASS — no wrong-surface mappings on touched contracts/pages (base ${r.base}; checked contracts ${r.changed.length}; page owners ${r.pageOwners.length}; warnings ${r.warnings.length})${
-      r.vacuous ? " [VACUOUS: base == HEAD]" : ""
-    }.`,
+    `PASS — no wrong-surface mappings on touched contracts/pages (base ${r.base}; checked contracts ${r.changed.length}; page owners ${r.pageOwners.length}; warnings ${r.warnings.length})${unchangedNote}.`,
   );
 }

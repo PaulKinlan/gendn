@@ -4,6 +4,10 @@
 // check-conformance.mjs must read the staged index content via readJudgedFile rather than disk
 // with Deno.readTextFile, closing the escape window for declared-surface checks (line 269) and
 // the noIdlSurface denominator check (line 355).
+// Also pin the independent origin/main baseline: committed assertion removal must be detected
+// with the ref and explicitly refused without it, never checked against HEAD itself.
+
+import { suiteHash } from "./lib/artifacts.mjs";
 
 const REPO = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
 const CHECK_CONFORMANCE = `${REPO}/scripts/check-conformance.mjs`;
@@ -51,6 +55,9 @@ try {
 </body></html>`,
   );
 
+  const legacyAssertions = [
+    JSON.parse(await Deno.readTextFile(`${scratch}/${FEATURE}/conformance.json`)).assertions[0],
+  ];
   await Deno.writeTextFile(
     `${scratch}/${LEGACY}/conformance.json`,
     JSON.stringify(
@@ -64,10 +71,10 @@ try {
         demo: null,
         cpsFeature: null,
         immutable: true,
-        suiteHash: "mock",
+        suiteHash: await suiteHash(legacyAssertions),
         generatedAt: "2026-10-08T00:00:00Z",
         author: "rtvp fixture",
-        assertions: [],
+        assertions: legacyAssertions,
       },
       null,
       2,
@@ -133,6 +140,16 @@ try {
   assert(
     "rtvp check-conformance Case 1 (clean denominator): 1 page without IDL surface recorded",
     r.text.includes("1 have no IDL surface"),
+    r.text,
+  );
+  const unchangedNote =
+    "[UNCHANGED: fetched baseline == HEAD - committed changes not in scope; uncommitted edits still checked]";
+  assert(
+    "rtvp check-conformance Case 1: equal fetched baseline qualifies BOTH the suite count and PASS line",
+    r.text.split("\n").some((line) =>
+      line.includes("baseline suites") && line.includes(unchangedNote)
+    ) &&
+      r.text.split("\n").some((line) => line.startsWith("PASS —") && line.includes(unchangedNote)),
     r.text,
   );
 
@@ -211,6 +228,35 @@ try {
   assert(
     "rtvp check-conformance Case 6 (resolved): restored clean tree passes gate",
     r.code === 0 && r.text.includes("PASS"),
+    r.text,
+  );
+
+  // A real committed weakening with a recomputed suiteHash (so hash validation cannot mask the
+  // baseline defect). A ref-less ratchet must REFUSE, not report 201 self-compared suites checked.
+  // The legacy page has no implementation-sufficient reference contract. Its assertion-only
+  // mutation exercises the immutability gate without scheduling a browser visibility check.
+  const suitePath = `${scratch}/${LEGACY}/conformance.json`;
+  const weakened = JSON.parse(await Deno.readTextFile(suitePath));
+  const removedId = weakened.assertions.shift().id;
+  weakened.suiteHash = await suiteHash(weakened.assertions);
+  await Deno.writeTextFile(suitePath, JSON.stringify(weakened, null, 2) + "\n");
+  await g("add", `${LEGACY}/conformance.json`);
+  await g("commit", "-qm", "fixture-only committed assertion removal");
+  r = await runGate();
+  assert(
+    "rtvp check-conformance Case 7: independent baseline detects committed assertion removal",
+    r.code === 1 && r.text.includes(`assertion "${removedId}" was REMOVED`) &&
+      !r.text.includes(unchangedNote),
+    r.text,
+  );
+  await g("update-ref", "-d", "refs/remotes/origin/main");
+  r = await runGate();
+  assert(
+    "rtvp check-conformance Case 8: missing baseline is PRECONDITION rc6, never weakening rc1 or PASS",
+    r.code === 6 && r.text.includes("cannot verify immutable assertion weakening") &&
+      r.text.includes("refs/remotes/origin/main") &&
+      r.text.includes("run git fetch origin main") && !r.text.includes("PASS —") &&
+      !r.text.includes("baseline suites"),
     r.text,
   );
 } finally {

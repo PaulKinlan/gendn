@@ -86,18 +86,31 @@ async function main() {
     if (!pageIds.has(s.id)) failures.push(`orphan suite ${s.id} maps to no published page`);
   }
 
-  // 3. immutability vs the remote baseline, falling back to local HEAD when offline.
-  const baselineRef = await gitRefExists("origin/main")
+  // 3. Immutability needs an independent, locally fetched baseline. HEAD compares committed
+  // changes against themselves, so it must never stand in for the missing remote-tracking ref.
+  const baselineRef = await gitRefExists("refs/remotes/origin/main^{commit}")
     ? "origin/main"
-    : await gitRefExists("HEAD")
-    ? "HEAD"
     : null;
   let baselineChecked = 0;
   if (!baselineRef) {
-    failures.push(
-      "no origin/main or HEAD baseline is available; cannot enforce immutable/touched contracts",
+    // Same precondition exit as landing-preflight.sh: inability to CHECK is not a genuine
+    // weakening violation (rc1), and neither condition may claim a successful ratchet.
+    console.error(
+      "FAIL — PRECONDITION (exit 6): cannot verify immutable assertion weakening or " +
+        "touched-page contracts: independent baseline refs/remotes/origin/main is unavailable " +
+        "or not a commit; run git fetch origin main before this ratchet (no HEAD self-baseline)",
     );
+    Deno.exit(6);
   }
+  // The fetched ref can be independent yet equal to HEAD (a run on main). In that case
+  // no committed change was compared; qualify BOTH the count and success verdict.
+  const headCommit = (await git(["rev-parse", "--verify", "HEAD^{commit}"]))?.trim();
+  const baselineCommit = (await git(["rev-parse", "--verify", "refs/remotes/origin/main^{commit}"]))
+    ?.trim();
+  const vacuous = !!headCommit && headCommit === baselineCommit;
+  const unchangedNote = vacuous
+    ? " [UNCHANGED: fetched baseline == HEAD - committed changes not in scope; uncommitted edits still checked]"
+    : "";
   if (baselineRef) {
     for (const s of suites) {
       const baseRaw = await git(["show", `${baselineRef}:${s.id}/conformance.json`]);
@@ -364,7 +377,7 @@ async function main() {
   );
   console.log(`  desktop matrix ok  : ${okCls("desktop")}/${pageIds.size}`);
   console.log(`  mobile matrix ok   : ${okCls("mobile")}/${pageIds.size}`);
-  console.log(`  baseline suites    : ${baselineChecked} checked for weakening`);
+  console.log(`  baseline suites    : ${baselineChecked} checked for weakening${unchangedNote}`);
   if (surfaceNotes.length) {
     console.log(
       `  declared surfaces  : ${
@@ -391,7 +404,7 @@ async function main() {
     );
     Deno.exit(1);
   }
-  console.log("\nPASS — full conformance coverage, no weakened assertions.");
+  console.log(`\nPASS — full conformance coverage, no weakened assertions.${unchangedNote}`);
 }
 
 if (import.meta.main) {
