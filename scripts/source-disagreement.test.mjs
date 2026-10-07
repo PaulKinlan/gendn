@@ -420,6 +420,96 @@ const PAGES = [
     sideB: ["two-value", "'text-box-trim'"],
     dates: ["fetched 2026-10-07"],
   },
+  {
+    // gendn-g8o (B3, inline-script-cache): the page keys the inline cache on the script source alone and stores
+    // it with the document's cache entry, while the cited ChromeStatus record keys it on SHA256(source +
+    // network isolation key) and reuses it across pages/sessions. Neither side adjudicated.
+    page: "v149/inline-script-cache/index.html",
+    marker: "Cache-keying disagreement, both sides reported rather than resolved",
+    sideA: [
+      "keying the cache on a hash of the script source",
+      "alongside the HTML document's cache entry",
+    ],
+    sideB: ["network isolation key", "across different pages and sessions"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, inline-script-cache): the page's at-a-glance Blink component disagrees with the record's
+    // blink_components. Neither side adjudicated.
+    page: "v149/inline-script-cache/index.html",
+    marker: "Blink-component disagreement, both sides reported rather than resolved",
+    sideA: ["Blink&gt;JavaScript&gt;Compiler"],
+    sideB: ["Blink&gt;HTML&gt;Script"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, inline-script-cache): the page reports a developer trial behind the generic experimental
+    // flag; the record's summary status is Proposed and it names a dedicated flag. Neither side adjudicated.
+    page: "v149/inline-script-cache/index.html",
+    marker: "Status-and-flag disagreement, both sides reported rather than resolved",
+    sideA: [
+      "In developer trial (behind a flag)",
+      "chrome://flags/#enable-experimental-web-platform-features",
+    ],
+    sideB: ["Proposed", "inline-script-cache"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, platform-provided-behaviors-for-custom-elements): the page documents argument-passing
+    // attachInternals({ behaviors: [...] }) while the cited record describes a static class property plus an
+    // argument-less attachInternals() access route. Neither side adjudicated.
+    page: "v149/platform-provided-behaviors-for-custom-elements/index.html",
+    marker: "API-shape disagreement, both sides reported rather than resolved",
+    sideA: ["attachInternals({ behaviors: [...] })", "ElementInternals.behaviors"],
+    sideB: ["behaviors static class property", "attachInternals()"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, platform-provided-behaviors-for-custom-elements): the page names "listbox"/"checkbox"/
+    // "textfield" while the explainer names HTML*Behavior classes. Neither side adjudicated.
+    page: "v149/platform-provided-behaviors-for-custom-elements/index.html",
+    marker: "Behavior-identifier disagreement, both sides reported rather than resolved",
+    sideA: ['"listbox"', '"checkbox"', '"textfield"'],
+    sideB: ["HTMLButtonBehavior", "HTMLCheckboxBehavior"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, platform-provided-behaviors-for-custom-elements): the page's at-a-glance Blink component
+    // disagrees with the record's blink_components. Neither side adjudicated.
+    page: "v149/platform-provided-behaviors-for-custom-elements/index.html",
+    marker: "Blink-component disagreement, both sides reported rather than resolved",
+    sideA: ["Blink&gt;HTML&gt;CustomElements"],
+    sideB: ["Blink&gt;DOM"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, indexeddb-sqlite-backend): the page says Chrome migrates existing IDB data on first run of
+    // 149, while the record says the step applies to new data stores for now and existing LevelDB data is
+    // unimpacted. Neither side adjudicated.
+    page: "v149/indexeddb-sqlite-backend/index.html",
+    marker: "Migration-scope disagreement, both sides reported rather than resolved",
+    sideA: ["Chrome migrates existing IDB data automatically on first run of 149"],
+    sideB: ["new data stores", "existing data stored in LevelDB is unimpacted"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, indexeddb-sqlite-backend): the page says ships by default in Chrome 150, while the record's
+    // ship stage carries milestone 156. Neither side adjudicated.
+    page: "v149/indexeddb-sqlite-backend/index.html",
+    marker: "Ship-milestone disagreement, both sides reported rather than resolved",
+    sideA: ["Chrome 150"],
+    sideB: ["156", "WebView"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, indexeddb-sqlite-backend): the page names the generic experimental flag while the record
+    // names a dedicated flag. Neither side adjudicated.
+    page: "v149/indexeddb-sqlite-backend/index.html",
+    marker: "Flag disagreement, both sides reported rather than resolved",
+    sideA: ["chrome://flags/#enable-experimental-web-platform-features"],
+    sideB: ["idb-sqlite-backing-store"],
+    dates: ["fetched 2026-10-07"],
+  },
 ];
 
 let failures = 0;
@@ -486,6 +576,9 @@ const DATED_PAGES = new Set([
   "v149/android-ime-media-insertion/index.html",
   "v149/gamepad-event-driven-input-api/index.html",
   "v149/css-text-box/index.html",
+  "v149/inline-script-cache/index.html",
+  "v149/platform-provided-behaviors-for-custom-elements/index.html",
+  "v149/indexeddb-sqlite-backend/index.html",
 ]);
 const datedInTable = new Set(PAGES.filter((e) => e.dates.length > 0).map((e) => e.page));
 assert(
