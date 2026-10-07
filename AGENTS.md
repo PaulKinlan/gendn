@@ -61,7 +61,10 @@ durable identity is:
 
 - **id / route** — id `v<N>/<slug>` (append-only), served at `/v<N>/<slug>/`.
 - **identity** — the `chromestatus.com/feature/<id>` link every page carries. This is the stable
-  feature/spec descriptor; a slug must NEVER be repointed to a different feature id.
+  feature/spec descriptor; a slug must NEVER be repointed to a different feature id. When a page
+  carries a structured quick-reference doc-table row labelled ChromeStatus, that declared link defines
+  the identity over an earlier incidental link, falling back to the first `chromestatus.com/feature/<id>`
+  link only when no declared row exists.
 - **status** — `built` (full reference) or `stub` (honest "covered on MDN" redirect). Both are
   PUBLISHED, live routes under contract; a `stub` is gendn's analogue of a `blocked` record and must
   never be silently deleted. A feature with no folder yet is `pending` — not published, not covered.
