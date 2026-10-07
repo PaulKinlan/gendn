@@ -148,8 +148,15 @@ async function main() {
   const browserCheckRecords = [];
   if (baselineRef) {
     const diff = (await git(["diff", "--name-only", baselineRef, "--", "v*"])) ?? "";
+    const cached = (await git(["diff", "--cached", "--name-only", baselineRef, "--", "v*"])) ?? "";
     const untracked = (await git(["ls-files", "--others", "--exclude-standard", "--", "v*"])) ?? "";
-    const changedPaths = `${diff}\n${untracked}`.split("\n").filter(Boolean);
+    const changedPaths = [
+      ...new Set([
+        ...diff.split("\n").map((s) => s.trim()).filter(Boolean),
+        ...cached.split("\n").map((s) => s.trim()).filter(Boolean),
+        ...untracked.split("\n").map((s) => s.trim()).filter(Boolean),
+      ]),
+    ];
     const pathsById = new Map();
     for (const path of changedPaths) {
       const id = path.match(/^(v\d+\/[^/]+)\//)?.[1];

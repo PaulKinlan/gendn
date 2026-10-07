@@ -364,6 +364,119 @@ const root = Deno.cwd();
   }
 }
 
+// ---- 8. gendn-waa3: staged-then-reverted edit (git status MM) must not escape ----
+{
+  const scratch = await Deno.makeTempDir({ prefix: "waa3-surface-" });
+  const probe = "v147/probe";
+  const page = (text) =>
+    `<html><body><h2 id="syntax">syntax</h2><p>${text}</p><h2 id="next">next</h2></body></html>`;
+  const named = "Call computeQuota(hints) to calculate the estimate. Substantive.";
+  const neutral = "Generic placeholder without the named surface.";
+  const inventory = [{ id: "computequota-method", name: "computeQuota method", kind: "method" }];
+  const doc = {
+    inventoryId: "computequota-method",
+    href: "#syntax",
+    dimensions: { syntax: { status: "documented", selector: "#syntax" } },
+  };
+  const g = async (...args) => {
+    const c = new Deno.Command("git", { args, cwd: scratch, stdout: "piped", stderr: "piped" });
+    const o = await c.output();
+    if (!o.success) {
+      throw new Error(`git ${args.join(" ")} failed: ${new TextDecoder().decode(o.stderr)}`);
+    }
+  };
+  try {
+    await Deno.mkdir(`${scratch}/${probe}`, { recursive: true });
+    await Deno.writeTextFile(
+      `${scratch}/${probe}/reference-contract.json`,
+      JSON.stringify({ id: probe, inventory, documentation: [doc] }),
+    );
+    // Baseline starts with neutral placeholder: pre-existing debt on origin/main
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, page(neutral));
+    await g("init", "-q", "-b", "main");
+    await g("config", "user.email", "waa3@example.test");
+    await g("config", "user.name", "waa3");
+    await g("add", ".");
+    await g("commit", "-qm", "baseline with debt");
+    await g("update-ref", "refs/remotes/origin/main", "HEAD");
+
+    // Case 1: Clean baseline — untouched pre-existing debt is not gated
+    let r = await runRatchet(scratch);
+    assert(
+      "clean baseline: untouched pre-existing debt is not gated (0 changed, 0 failures)",
+      r.changed.length === 0 && r.failures.length === 0,
+      JSON.stringify({ changed: r.changed, failures: r.failures }),
+    );
+
+    // Case 2: Uncommitted edit to page with debt fails before commit
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, page(neutral) + "<!-- touch -->");
+    r = await runRatchet(scratch);
+    assert(
+      "uncommitted touch to page with debt FAILS before commit (resolve-on-touch)",
+      r.changed.includes(probe) && r.failures.length === 1,
+      JSON.stringify({ changed: r.changed, failures: r.failures }),
+    );
+
+    // Case 3: Staged edit fails before commit
+    await g("add", `${probe}/index.html`);
+    r = await runRatchet(scratch);
+    assert(
+      "staged edit to page with debt FAILS before commit",
+      r.changed.includes(probe) && r.failures.length === 1,
+      JSON.stringify({ changed: r.changed, failures: r.failures }),
+    );
+
+    // Case 4: Staged-then-worktree-reverted (git status shows MM)
+    // Working file restored to base content: base -> working tree diff is empty,
+    // but the index holds the change, so union of git diff --cached keeps owner in the key.
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, page(neutral));
+    const statusCmd = new Deno.Command("git", {
+      args: ["status", "--short"],
+      cwd: scratch,
+      stdout: "piped",
+    });
+    const statusOut = new TextDecoder().decode((await statusCmd.output()).stdout).trim();
+    assert(
+      "staged-then-reverted file shows MM in git status --short",
+      statusOut.includes("MM") && statusOut.includes(probe),
+      statusOut,
+    );
+    r = await runRatchet(scratch);
+    assert(
+      "staged-then-reverted touch is included in changed pages via cached diff (gendn-waa3)",
+      r.changed.includes(probe),
+      JSON.stringify(r.changed),
+    );
+    assert(
+      "staged-then-reverted touch FAILS the ratchet on retained pre-existing debt (escape closed)",
+      r.failures.length === 1 && r.failures[0].includes("computequota-method.syntax"),
+      JSON.stringify(r.failures),
+    );
+
+    // Case 5: Committed edit still fails
+    await g("commit", "-qm", "committed touch");
+    r = await runRatchet(scratch);
+    assert(
+      "committed touch to page with debt FAILS the ratchet",
+      !r.vacuous && r.failures.length === 1,
+      JSON.stringify({ vacuous: r.vacuous, failures: r.failures }),
+    );
+
+    // Case 6: Resolved — updating to named surface clears the failure
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, page(named));
+    await g("add", `${probe}/index.html`);
+    await g("commit", "-qm", "resolve surface");
+    r = await runRatchet(scratch);
+    assert(
+      "resolved surface mapping PASSES the ratchet",
+      r.failures.length === 0,
+      JSON.stringify(r.failures),
+    );
+  } finally {
+    await Deno.remove(scratch, { recursive: true });
+  }
+}
+
 if (failures > 0) {
   console.error(`surface-coverage fixture: ${failures} assertion(s) FAILED`);
   Deno.exit(1);

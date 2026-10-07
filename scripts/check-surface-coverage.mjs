@@ -96,16 +96,22 @@ async function loadContract(root, id) {
 export async function runRatchet(root) {
   const base = await baselineRef(root);
   if (!base) return { error: "no origin/main or HEAD baseline is available" };
-  // base -> WORKING TREE (not base..HEAD): the ratchet must also see uncommitted edits to
-  // tracked contracts, so a local run mid-work flags what a later commit would carry. The
-  // committed-only view is a subset whenever the worktree mirrors HEAD.
+  // base -> WORKING TREE + INDEX (union --cached): the ratchet must also see uncommitted
+  // edits to tracked contracts/pages (unstaged and staged), so a local run mid-work flags what
+  // a later commit would carry. A staged-then-worktree-reverted edit (git status MM) escapes a
+  // worktree-only diff, so union the cached diff against base (gendn-waa3).
   const diff = await git(["diff", "--name-only", base], root);
   if (diff === null) return { error: `git diff against ${base} failed` };
+  const cached = await git(["diff", "--cached", "--name-only", base], root);
+  if (cached === null) return { error: `git diff --cached against ${base} failed` };
   const others = await git(["ls-files", "--others", "--exclude-standard"], root);
   const head = await git(["rev-parse", "HEAD"], root);
   const names = [
-    ...diff.split("\n").map((s) => s.trim()).filter(Boolean),
-    ...(others ?? "").split("\n").map((s) => s.trim()).filter(Boolean),
+    ...new Set([
+      ...diff.split("\n").map((s) => s.trim()).filter(Boolean),
+      ...cached.split("\n").map((s) => s.trim()).filter(Boolean),
+      ...(others ?? "").split("\n").map((s) => s.trim()).filter(Boolean),
+    ]),
   ];
   const vacuous = base === (head ?? "").trim();
   const pageOwners = changedPageOwners(names);
