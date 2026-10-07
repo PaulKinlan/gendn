@@ -240,6 +240,131 @@ const PAGES = [
     sideB: ["WindowOrWorkerGlobalScope", "worker usability is unknown"],
     dates: [],
   },
+  {
+    // gendn-c26, applied in-unit per coord's 22:30Z ruling (a divergence found in a page already open in a B1 unit is fixed in that unit). The page records the Chrome 147 developer trial while its own cited ChromeStatus record reads Proposed; the record's stages array states the reconciliation itself (DevTrial stage at 147, active ship stage at 149), so both sides are carried and neither is chosen.
+    page: "v147/clip-text-overflow-on-user-interaction/index.html",
+    marker: "Status disagreement, both sides reported rather than resolved",
+    sideA: ["Chrome 147 developer trial"],
+    sideB: ["5146265241387008", "Proposed", "ship-target-149"],
+    dates: ["fetched 2026-10-06"],
+  },
+  {
+    // gendn-idm: the page's rollout milestone disagreed with its own cited ChromeStatus record, and a second feature id the page cited no longer resolves. The dead link was removed and the milestone divergence is now disclosed on the page.
+    page: "v147/local-network-access-restrictions/index.html",
+    marker: "Rollout disagreement, both sides reported rather than resolved",
+    sideA: ["started in Chrome 123"],
+    sideB: ["5152728072060928", "In development", "desktop 142"],
+    dates: ["fetched 2026-10-06"],
+  },
+  {
+    // gendn-1v5: the page recorded the feature as shipped while its cited ChromeStatus record still reads Proposed with accurate_as_of 2026-03-24.
+    page: "v147/local-network-access-restrictions-for-webtransport/index.html",
+    marker: "Shipped-versus-proposed disagreement, both sides reported rather than resolved",
+    sideA: ["records the feature as shipped"],
+    sideB: ["5126430912544768", "Proposed", "accurate_as_of"],
+    dates: ["fetched 2026-10-06"],
+  },
+  {
+    // gendn-aji: the cited draft has since been published as RFC 10024, which declares the X25519Kyber768Draft00 registry entry obsolete while the page still presents both groups as things to support.
+    page: "v147/x25519kyber768-key-encapsulation-for-tls/index.html",
+    marker: "Group-status disagreement, both sides reported rather than resolved",
+    sideA: ["X25519Kyber768Draft00"],
+    sideB: ["RFC 10024", "obsolete", "draft-tls-westerbaan-xyber768d00-02"],
+    dates: ["fetched 2026-10-06"],
+  },
+  {
+    // Sibling case of gendn-1v5 on the WebSockets page, found by the IMPLEMENTER re-fetching the source after the
+    // worker reported "no source disagreements found": same class as the two sibling LNA pages (page says shipped,
+    // the cited record still reads Proposed with is_released false). Disclosed in-unit per coord's 22:30Z ruling.
+    page: "v147/local-network-access-restrictions-for-websockets/index.html",
+    marker: "Shipped-versus-recorded-status disagreement, both sides reported rather than resolved",
+    sideA: ["the feature as shipped in Chrome 147"],
+    sideB: ["5197681148428288", "is_released false", "accurate_as_of"],
+    dates: ["fetched 2026-10-06"],
+  },
+  {
+    // gendn-xpz wave-2a: the page documented migration_target/migration_source while the merged WICG PR #136
+    // defines migrate_to/migrate_from. Verified by the implementer against the PR's own diff (the page's names
+    // appear zero times there) and disclosed in-unit per coord's 22:30Z ruling.
+    page: "v147/pwa-origin-migration/index.html",
+    marker: "Specification divergence, both sides reported rather than resolved",
+    sideA: ["migration_target", "migration_source"],
+    sideB: ["migrate_to", "migrate_from", "web-app-origin-association", "allow_migration"],
+    dates: ["fetched 2026-10-06"],
+  },
+  {
+    // gendn-xpz wave-2a: the page attributed rawgamepadinputchange to the W3C Gamepad spec, which contains the
+    // name ZERO times, and described a developer trial the ChromeStatus record does not show. Verified by the
+    // implementer by fetching both, disclosed in-unit per coord's 22:30Z ruling.
+    page: "v147/gamepad-event-driven-input-api/index.html",
+    marker: "Evidence divergence, both sides reported rather than resolved",
+    sideA: ["rawgamepadinputchange"],
+    sideB: ["gamepad-raw-input-change-event", "Start incubating", "5989275208253440"],
+    dates: ["fetched 2026-10-06"],
+  },
+  {
+    // gendn-xpz wave-2a: page said the removal shipped in 147 across all platforms while the cited record reads
+    // Proposed with no iOS milestone, and every 147-specific claim rests on that record alone. Verified by the
+    // implementer; disclosed in-unit per coord's 22:30Z ruling.
+    page: "v147/remove-inline-xslt-for-production-of-svg/index.html",
+    marker: "Removal-status divergence, both sides reported rather than resolved",
+    sideA: ["Chrome 147 removes support"],
+    sideB: ["5143784390262784", "no iOS milestone at all", "5777/5778"],
+    dates: ["fetched 2026-10-06"],
+  },
+  {
+    // gendn-xpz wave-2a: page presented a flag-gated Developer trial; the record says Proposed with no milestone
+    // and "remaining gated by Document Policy", and the cited spec really does define js-profiling-mode /
+    // NotAllowedError. Verified by the implementer; disclosed in-unit per coord's 22:30Z ruling.
+    page: "v147/js-profiling-in-dedicated-workers/index.html",
+    marker: "Gating and status divergence, both sides reported rather than resolved",
+    sideA: ["Developer trial"],
+    sideB: ["5159559872249856", "remaining gated by Document Policy", "js-profiling-mode"],
+    dates: ["fetched 2026-10-06"],
+  },
+  {
+    // gendn-xpz wave-2b: verified by the implementer by re-fetching, disclosed in-unit per coord's 22:30Z ruling.
+    page: "v147/webxr-plane-detection/index.html",
+    marker: "Shipped-versus-origin-trial divergence, both sides reported rather than resolved",
+    sideA: ["v147 \u00b7 web api \u00b7 shipped"],
+    sideB: ["5732397976911872", "Origin trial", "Android milestone of 77"],
+    dates: ["fetched 2026-10-06"],
+  },
+  {
+    // gendn-xpz wave-2b: verified by the implementer by re-fetching, disclosed in-unit per coord's 22:30Z ruling.
+    page: "v147/webnn/index.html",
+    marker: "Snapshot divergence, both sides reported rather than resolved",
+    sideA: ["matMul"],
+    sideB: ["matmul", "dispatch"],
+    dates: ["fetched 2026-10-06"],
+  },
+  {
+    // gendn-xpz wave-2b: verified by the implementer by re-fetching, disclosed in-unit per coord's 22:30Z ruling.
+    page: "v147/web-neural-network-api-webnn/index.html",
+    marker: "Standards-status divergence, both sides reported rather than resolved",
+    sideA: ["W3C Candidate Recommendation"],
+    sideB: ["Candidate Recommendation Draft"],
+    dates: ["fetched 2026-10-06"],
+  },
+  {
+    // gendn-xpz wave-2b: verified by the implementer by re-fetching, disclosed in-unit per coord's 22:30Z ruling.
+    page: "v147/pseudo-target-on-events/index.html",
+    marker: "Status and specification divergence, both sides reported rather than resolved",
+    sideA: ["Enabled by default"],
+    sideB: ["5179328935624704", "is_released false", "UI Events"],
+    dates: ["fetched 2026-10-06"],
+  },
+  {
+    // gendn-xpz: sibling LNA divergence on the service-worker page, disclosed LATE - the in-unit ruling had been
+    // applied to the four BEADS rather than the four PAGES carrying disclosures, so this unit was missed until a
+    // batch-wide consistency check caught that it alone had no disclosure paragraph.
+    page:
+      "v147/local-network-access-restrictions-on-service-worker-windowclient-navigate/index.html",
+    marker: "Status and scope divergence, both sides reported rather than resolved",
+    sideA: ["Enabled by default", "as shipped in Chrome 147"],
+    sideB: ["5172375182245888", "Proposed", "Shipped/Shipping"],
+    dates: ["fetched 2026-10-06"],
+  },
 ];
 
 let failures = 0;
@@ -287,6 +412,20 @@ const DATED_PAGES = new Set([
   "v151/no-auto-rewind-for-animationtrigger-play-methods/index.html",
   "v147/autofill-event/index.html",
   "v152/deprecate-and-remove-xslt/xsltprocessor/index.html",
+  "v147/local-network-access-restrictions-on-service-worker-windowclient-navigate/index.html",
+  "v147/webxr-plane-detection/index.html",
+  "v147/webnn/index.html",
+  "v147/web-neural-network-api-webnn/index.html",
+  "v147/pseudo-target-on-events/index.html",
+  "v147/js-profiling-in-dedicated-workers/index.html",
+  "v147/remove-inline-xslt-for-production-of-svg/index.html",
+  "v147/gamepad-event-driven-input-api/index.html",
+  "v147/pwa-origin-migration/index.html",
+  "v147/local-network-access-restrictions-for-websockets/index.html",
+  "v147/clip-text-overflow-on-user-interaction/index.html",
+  "v147/local-network-access-restrictions/index.html",
+  "v147/local-network-access-restrictions-for-webtransport/index.html",
+  "v147/x25519kyber768-key-encapsulation-for-tls/index.html",
 ]);
 const datedInTable = new Set(PAGES.filter((e) => e.dates.length > 0).map((e) => e.page));
 assert(
