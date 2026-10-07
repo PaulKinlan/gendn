@@ -363,6 +363,223 @@ try {
       r.code === 0,
       r.text,
     );
+
+    // Case 7 (gendn-0n5s Scenario A): Staged identity mutation in index.html disguised by unrelated unstaged decoy edit
+    // Worktree index.html restored to ALPHA_ID + decoy comment; conformance.json has ALPHA_ID.
+    // Index has BETA_ID. Validator must read staged index.html and fail on identity mismatch.
+    await Deno.writeTextFile(`${scratch}/${ALPHA}/index.html`, html(BETA_ID));
+    await g("add", `${ALPHA}/index.html`);
+    await Deno.writeTextFile(
+      `${scratch}/${ALPHA}/index.html`,
+      html(ALPHA_ID, "<!-- decoy edit -->"),
+    );
+    const decoyStatus = (await g("status", "--short")).trim();
+    assert(
+      "0n5s validate-artifacts Case 7: git status shows MM for staged mutation with decoy comment",
+      decoyStatus.includes("MM") && decoyStatus.includes(ALPHA),
+    );
+    r = await runValidator();
+    assert(
+      "0n5s validate-artifacts Case 7 (decoy): validator reads staged index.html content and fails (escape closed)",
+      r.code === 1 && r.text.includes("identity"),
+      r.text,
+    );
+
+    // Case 8 (gendn-0n5s non-regression): Unrelated unstaged edit ALONE (no staged mutation) must pass validator
+    await g("reset", "-q", "HEAD", `${ALPHA}/index.html`);
+    r = await runValidator();
+    assert(
+      "0n5s validate-artifacts Case 8: unrelated unstaged edit ALONE passes validator",
+      r.code === 0,
+      r.text,
+    );
+
+    // Case 9 (gendn-0n5s P1-A ADV1): Staged identity mutation in conformance.json with tolerated status decoy
+    // Staged conformance.json has BETA_ID. Worktree conformance.json has ALPHA_ID + status:"stub".
+    // Validator treats status drift as report-only, so this decoy must not disguise the staged identity mutation.
+    const mutatedSuiteBeta = { ...baseSuite, identity: BETA_ID };
+    await Deno.writeTextFile(
+      `${scratch}/${ALPHA}/conformance.json`,
+      JSON.stringify(mutatedSuiteBeta, null, 2),
+    );
+    await g("add", `${ALPHA}/conformance.json`);
+    const statusDecoySuite = { ...baseSuite, status: "stub" };
+    await Deno.writeTextFile(
+      `${scratch}/${ALPHA}/conformance.json`,
+      JSON.stringify(statusDecoySuite, null, 2),
+    );
+    const adv1Status = (await g("status", "--short")).trim();
+    assert(
+      "0n5s validate-artifacts Case 9: git status shows MM for staged suite mutation with status decoy",
+      adv1Status.includes("MM") && adv1Status.includes(ALPHA),
+    );
+    r = await runValidator();
+    assert(
+      "0n5s validate-artifacts Case 9 (ADV1): validator reads staged conformance.json content and fails (escape closed)",
+      r.code === 1 && r.text.includes("identity"),
+      r.text,
+    );
+
+    // Clean up conformance.json
+    await Deno.writeTextFile(
+      `${scratch}/${ALPHA}/conformance.json`,
+      JSON.stringify(baseSuite, null, 2),
+    );
+    await g("add", `${ALPHA}/conformance.json`);
+
+    // Case 10 (gendn-0n5s P1-A ADV2): Staged identity mutation in index.html with tolerated status decoy
+    // Staged index.html has BETA_ID. Worktree index.html has ALPHA_ID + MDN stub eyebrow.
+    // Conformance has ALPHA_ID. Validator must read staged index.html and fail on identity mismatch.
+    await Deno.writeTextFile(`${scratch}/${ALPHA}/index.html`, html(BETA_ID));
+    await g("add", `${ALPHA}/index.html`);
+    const mdnStubHtml =
+      `<html><body><p class="eyebrow">Covered on MDN</p><h1>Reference</h1><a href="https://chromestatus.com/feature/${ALPHA_ID}">ChromeStatus</a></body></html>`;
+    await Deno.writeTextFile(`${scratch}/${ALPHA}/index.html`, mdnStubHtml);
+    const adv2Status = (await g("status", "--short")).trim();
+    assert(
+      "0n5s validate-artifacts Case 10: git status shows MM for staged page mutation with status decoy",
+      adv2Status.includes("MM") && adv2Status.includes(ALPHA),
+    );
+    r = await runValidator();
+    assert(
+      "0n5s validate-artifacts Case 10 (ADV2): validator reads staged index.html content and fails (escape closed)",
+      r.code === 1 && r.text.includes("identity"),
+      r.text,
+    );
+
+    // Clean up index.html
+    await g("checkout", "-f", "HEAD");
+
+    // Case 11 (gendn-0n5s P0-2): Staged assertion deletion in conformance.json with status decoy
+    // Deleting an assertion in index, while restoring worktree assertions + setting status:"stub".
+    // The reader must compare the entire parsed suite (assertions included) and read from index.
+    const emptyAssertionsSuite = { ...baseSuite, assertions: [], suiteHash: await suiteHash([]) };
+    await Deno.writeTextFile(
+      `${scratch}/${ALPHA}/conformance.json`,
+      JSON.stringify(emptyAssertionsSuite, null, 2),
+    );
+    await g("add", `${ALPHA}/conformance.json`);
+    const statusDecoyFullSuite = { ...baseSuite, status: "stub" };
+    await Deno.writeTextFile(
+      `${scratch}/${ALPHA}/conformance.json`,
+      JSON.stringify(statusDecoyFullSuite, null, 2),
+    );
+    const p02Status = (await g("status", "--short")).trim();
+    assert(
+      "0n5s validate-artifacts Case 11: git status shows MM for staged assertion deletion with status decoy",
+      p02Status.includes("MM") && p02Status.includes(ALPHA),
+    );
+    const { invalidateJudgedCache, readJudgedJson } = await import("./lib/judged-content.mjs");
+    invalidateJudgedCache();
+    const readSuiteP02 = await readJudgedJson(`${ALPHA}/conformance.json`, scratch);
+    assert(
+      "0n5s validate-artifacts Case 11 (P0-2): reader reads staged index suite with deleted assertions",
+      readSuiteP02.assertions.length === 0,
+    );
+
+    // Clean up conformance.json
+    await g("checkout", "-f", "HEAD");
+
+    // Case 12 (gendn-0n5s P0-3): Staged completeness change in reference-contract.json with formatting decoy
+    // Baseline has implementation-sufficient contract. Setting completeness: "partial" in index,
+    // while restoring worktree to "implementation-sufficient" + trailing space decoy.
+    // The reader must compare the entire parsed reference contract and read from index.
+    const sufficientContract = {
+      formatVersion: 1,
+      completeness: "implementation-sufficient",
+      inventory: [],
+      documentation: [],
+    };
+    await Deno.writeTextFile(
+      `${scratch}/${ALPHA}/reference-contract.json`,
+      JSON.stringify(sufficientContract, null, 2),
+    );
+    await g("add", `${ALPHA}/reference-contract.json`);
+    await g("commit", "-qm", "baseline reference contract");
+
+    const partialContract = {
+      formatVersion: 1,
+      completeness: "partial",
+      inventory: [],
+      documentation: [],
+    };
+    await Deno.writeTextFile(
+      `${scratch}/${ALPHA}/reference-contract.json`,
+      JSON.stringify(partialContract, null, 2),
+    );
+    await g("add", `${ALPHA}/reference-contract.json`);
+
+    await Deno.writeTextFile(
+      `${scratch}/${ALPHA}/reference-contract.json`,
+      JSON.stringify(sufficientContract, null, 2) + "\n  \n",
+    );
+    const p03Status = (await g("status", "--short")).trim();
+    assert(
+      "0n5s validate-artifacts Case 12: git status shows MM for staged contract completeness with decoy formatting",
+      p03Status.includes("MM") && p03Status.includes(ALPHA),
+    );
+    invalidateJudgedCache();
+    const readContractP03 = await readJudgedJson(`${ALPHA}/reference-contract.json`, scratch);
+    assert(
+      "0n5s validate-artifacts Case 12 (P0-3): reader reads staged index contract with completeness: partial",
+      readContractP03.completeness === "partial",
+    );
+
+    // Clean up reference-contract.json
+    await g("checkout", "-f", "HEAD");
+
+    // Case 13 (gendn-0n5s round 4): Staged malformed JSON in conformance.json with status decoy in worktree
+    // Truncated invalid JSON in index, valid JSON + status:"stub" decoy in worktree.
+    // The reader must not return null/skip comparison, but must detect index mutation and read from index.
+    await Deno.writeTextFile(
+      `${scratch}/${ALPHA}/conformance.json`,
+      '{ "schemaVersion": 1, "id": "truncated",\n',
+    );
+    await g("add", `${ALPHA}/conformance.json`);
+    await Deno.writeTextFile(
+      `${scratch}/${ALPHA}/conformance.json`,
+      JSON.stringify(statusDecoyFullSuite, null, 2),
+    );
+    const r4MalStatus = (await g("status", "--short")).trim();
+    assert(
+      "0n5s validate-artifacts Case 13: git status shows MM for staged malformed JSON with status decoy",
+      r4MalStatus.includes("MM") && r4MalStatus.includes(ALPHA),
+    );
+    invalidateJudgedCache();
+    let readMalformedThrew = false;
+    try {
+      await readJudgedJson(`${ALPHA}/conformance.json`, scratch);
+    } catch (err) {
+      readMalformedThrew = err instanceof SyntaxError;
+    }
+    assert(
+      "0n5s validate-artifacts Case 13: reader reads staged malformed JSON from index and throws SyntaxError",
+      readMalformedThrew,
+    );
+
+    // Clean up conformance.json
+    await g("checkout", "-f", "HEAD");
+
+    // Case 14 (gendn-0n5s round 4): Staged falsy primitive (null) in non-conformance JSON (reference-contract.json)
+    // Staging "null" in reference-contract.json, valid contract + whitespace decoy in worktree.
+    // The reader must not treat null as unjudged, but must read staged null from index.
+    await Deno.writeTextFile(`${scratch}/${ALPHA}/reference-contract.json`, "null\n");
+    await g("add", `${ALPHA}/reference-contract.json`);
+    await Deno.writeTextFile(
+      `${scratch}/${ALPHA}/reference-contract.json`,
+      JSON.stringify(sufficientContract, null, 2) + "\n   \n",
+    );
+    const r4FalsyStatus = (await g("status", "--short")).trim();
+    assert(
+      "0n5s validate-artifacts Case 14: git status shows MM for staged null JSON with decoy formatting",
+      r4FalsyStatus.includes("MM") && r4FalsyStatus.includes(ALPHA),
+    );
+    invalidateJudgedCache();
+    const readNullP04 = await readJudgedJson(`${ALPHA}/reference-contract.json`, scratch);
+    assert(
+      "0n5s validate-artifacts Case 14: reader reads staged null primitive from index",
+      readNullP04 === null,
+    );
   } finally {
     await Deno.remove(scratch, { recursive: true });
   }

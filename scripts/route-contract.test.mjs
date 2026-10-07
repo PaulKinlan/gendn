@@ -497,9 +497,9 @@ try {
 {
   const scratch = await Deno.makeTempDir({ prefix: "ip0z-route-manifest-" });
   const probe = "v900/probe";
-  const probePage = (featureId) =>
+  const probePage = (featureId, extra = "") =>
     `<!doctype html><html><head></head><body><h1>Probe</h1>` +
-    `<a href="https://chromestatus.com/feature/${featureId}">ChromeStatus</a></body></html>`;
+    `<a href="https://chromestatus.com/feature/${featureId}">ChromeStatus</a>${extra}</body></html>`;
   const baseFeature = "1234567890";
   const mutatedFeature = "9999999999";
 
@@ -602,6 +602,156 @@ try {
     current = await buildManifest({ root: scratch });
     evaluated = await evaluate(baselineManifest, current);
     assert("ip0z Case 6 (resolved): resolved route passes gate", evaluated.failures.length === 0);
+
+    // Case 7 (gendn-0n5s Scenario A): Staged identity mutation disguised by unrelated unstaged decoy edit
+    // Worktree identity reverted to base, but carries an unrelated comment (git status MM with worktree != base).
+    // The reader must still read the staged index content and fail the gate.
+    invalidateJudgedCache();
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, probePage(mutatedFeature));
+    await g("add", `${probe}/index.html`);
+    await Deno.writeTextFile(
+      `${scratch}/${probe}/index.html`,
+      probePage(baseFeature, "<!-- unrelated decoy edit -->"),
+    );
+    const decoyStatus = (await g("status", "--short")).trim();
+    assert(
+      "0n5s Case 7 (decoy): git status shows MM for staged mutation with unstaged decoy edit",
+      decoyStatus.includes("MM") && decoyStatus.includes(probe),
+    );
+    current = await buildManifest({ root: scratch });
+    assert(
+      "0n5s Case 7 (decoy): manifest reads staged index content (not worktree with decoy edit)",
+      current[0].identity === mutatedFeature,
+    );
+    evaluated = await evaluate(baselineManifest, current);
+    assert(
+      "0n5s Case 7 (decoy): disguised staged mutation fails gate (escape closed)",
+      evaluated.failures.length === 1 && mentions(evaluated, "identity changed"),
+    );
+
+    // Case 8 (gendn-0n5s non-regression): Unrelated unstaged edit ALONE (no staged mutation) must pass gate
+    invalidateJudgedCache();
+    await g("reset", "-q", "HEAD", `${probe}/index.html`);
+    const cleanStagedStatus = (await g("status", "--short")).trim();
+    assert(
+      "0n5s Case 8: git status shows plain uncommitted edit (M ) for decoy edit alone",
+      cleanStagedStatus.startsWith("M") && !cleanStagedStatus.startsWith("MM"),
+    );
+    current = await buildManifest({ root: scratch });
+    assert(
+      "0n5s Case 8: manifest reflects base identity with decoy edit",
+      current[0].identity === baseFeature,
+    );
+    evaluated = await evaluate(baselineManifest, current);
+    assert(
+      "0n5s Case 8: unrelated unstaged edit ALONE passes gate",
+      evaluated.failures.length === 0,
+    );
+
+    // Case 9 (gendn-0n5s P1-A ADV2): Staged identity mutation with tolerated status decoy
+    // Worktree reverts identity to base, but eyebrow becomes "Covered on MDN" (tolerated status drift).
+    // The reader must still read the staged index content and fail the gate.
+    invalidateJudgedCache();
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, probePage(mutatedFeature));
+    await g("add", `${probe}/index.html`);
+    const mdnStubPage =
+      `<!doctype html><html><head></head><body><p class="eyebrow">Covered on MDN</p><h1>Probe</h1>` +
+      `<a href="https://chromestatus.com/feature/${baseFeature}">ChromeStatus</a></body></html>`;
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, mdnStubPage);
+    const adv2Status = (await g("status", "--short")).trim();
+    assert(
+      "0n5s Case 9 (ADV2): git status shows MM for staged mutation with tolerated status decoy",
+      adv2Status.includes("MM") && adv2Status.includes(probe),
+    );
+    current = await buildManifest({ root: scratch });
+    assert(
+      "0n5s Case 9 (ADV2): manifest reads staged index content (not worktree with status decoy)",
+      current[0].identity === mutatedFeature,
+    );
+    evaluated = await evaluate(baselineManifest, current);
+    assert(
+      "0n5s Case 9 (ADV2): identity change with status decoy fails gate (escape closed)",
+      evaluated.failures.length === 1 && mentions(evaluated, "identity changed"),
+    );
+
+    // Clean up probe for Case 10
+    await g("checkout", "-f", "HEAD");
+
+    // Case 10 (gendn-0n5s P1-B): Staged rename with old path restored on disk
+    // git mv moves probe -> probe2 in index; old probe/index.html is restored on disk as untracked.
+    // The reader must read the index deletion for the old route, failing gate without migration,
+    // and passing gate with a reviewed move migration.
+    const probe2 = `${probe}2`;
+    await g("mv", probe, probe2);
+    await Deno.mkdir(`${scratch}/${probe}`, { recursive: true });
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, probePage(baseFeature));
+    const renameStatus = (await g("status", "--short")).trim();
+    assert(
+      "0n5s Case 10: git status shows staged rename (R ) and untracked restored old dir (??)",
+      renameStatus.includes("R") && renameStatus.includes(probe2) &&
+        renameStatus.includes(`?? ${probe}/`),
+    );
+    invalidateJudgedCache();
+    current = await buildManifest({ root: scratch });
+    assert(
+      "0n5s Case 10: current manifest does NOT contain old route (index deletion detected)",
+      !current.some((e) => e.id === probe),
+    );
+    evaluated = await evaluate(baselineManifest, current);
+    assert(
+      "0n5s Case 10: unmigrated staged rename with restored worktree fails gate",
+      evaluated.failures.length === 1 && mentions(evaluated, `missing published id ${probe}`),
+    );
+    const migrated = await evaluate(baselineManifest, current, [{
+      id: probe,
+      action: "move",
+      from: `/${probe}/`,
+      to: `/${probe2}/`,
+    }]);
+    assert(
+      "0n5s Case 10: staged rename with reviewed move migration passes gate",
+      migrated.failures.length === 0,
+    );
+
+    // Clean up probe2 for Case 11
+    await g("checkout", "-f", "HEAD");
+    await g("clean", "-fd");
+
+    // Case 11 (gendn-0n5s P0-1): Staged plain deletion with file left/restored on disk
+    // git rm deletes probe/index.html from index, but file is re-created on disk (status D + ??).
+    // The reader must read the index deletion, omit the route from current manifest, and fail gate.
+    await g("rm", "-q", `${probe}/index.html`);
+    await Deno.mkdir(`${scratch}/${probe}`, { recursive: true });
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, probePage(baseFeature));
+    const deleteStatus = (await g("status", "--short")).trim();
+    assert(
+      "0n5s Case 11: git status shows staged deletion (D ) and untracked file on disk (??)",
+      deleteStatus.includes("D ") && deleteStatus.includes("??"),
+    );
+    invalidateJudgedCache();
+    current = await buildManifest({ root: scratch });
+    assert(
+      "0n5s Case 11: manifest omits route for file staged-deleted in index but on disk",
+      !current.some((e) => e.id === probe),
+    );
+    evaluated = await evaluate(baselineManifest, current);
+    assert(
+      "0n5s Case 11: staged deletion with file on disk fails route gate",
+      evaluated.failures.length > 0 && mentions(evaluated, `missing published id ${probe}`),
+    );
+    let errorNamedDeletion = false;
+    try {
+      const { readJudgedFile } = await import("./lib/judged-content.mjs");
+      await readJudgedFile(`${probe}/index.html`, scratch);
+    } catch (err) {
+      errorNamedDeletion = /deleted from the git index but is still present on disk/.test(
+        err.message,
+      );
+    }
+    assert(
+      "0n5s Case 11: readJudgedFile throws explicit message naming index deletion with file on disk",
+      errorNamedDeletion,
+    );
   } finally {
     await Deno.remove(scratch, { recursive: true });
   }

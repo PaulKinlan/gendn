@@ -8,7 +8,9 @@
 //
 // OPTION CHOSEN: Option (a) — for each judged path, read the INDEX version (`git show :<path>`)
 // when the staged content differs from the worktree and the worktree does not differ from base
-// (the staged-then-reverted escape), falling back to the working tree file otherwise.
+// (the staged-then-reverted escape), or when the staged index mutates identity/demo-critical
+// fields while the worktree reverted those critical fields back to baseline (the decoy-edit escape
+// closed in gendn-0n5s), falling back to the working tree file otherwise.
 // Lanes legitimately run gates mid-edit with a dirty worktree, so uncommitted edits and
 // standard git diff <base> cases keep judging the working tree exactly as before.
 
@@ -29,6 +31,82 @@ export function invalidateJudgedCache() {
 export async function stagedRevertedPaths(root = ".", { fresh = false } = {}) {
   const state = await getRepoState(root, { fresh });
   return state?.stagedPaths ?? new Set();
+}
+
+function extractCriticalFields(filePath, content) {
+  if (typeof content !== "string") return null;
+
+  if (filePath.endsWith(".json")) {
+    try {
+      const parsed = JSON.parse(content);
+      if (parsed === null || typeof parsed !== "object") {
+        return { __primitive: parsed };
+      }
+      if (filePath.endsWith("conformance.json")) {
+        // DEFAULT-COMPARE everything in conformance.json, EXCLUDING only fields
+        // the gates genuinely tolerate. validate-artifacts (validate-artifacts.mjs:97)
+        // explicitly treats suite-vs-page status differences as report-only,
+        // so status must be removed to prevent a decoy status edit in the worktree
+        // from masking staged mutations to assertions, suiteHash, identity, or demo.
+        const obj = { ...parsed };
+        delete obj.status;
+        return obj;
+      }
+      // For all other JSON artefacts (reference-contract.json, responsive-support.json,
+      // migrations.json, goals.json, _questions.json), every field is binding and
+      // zero fields are provably tolerated by the gates. Return the entire object.
+      return parsed;
+    } catch {
+      return { __unparseable: true, raw: content };
+    }
+  }
+
+  if (filePath.endsWith(".html")) {
+    // For HTML, the gates (route-manifest.mjs pathToIdentityFields and artifacts.mjs metadataFromHtml)
+    // derive published identity and contract properties exclusively from:
+    // 1. Feature identity links: chromestatus.com/feature/<id> (CLAUDE.md invariant #3)
+    // 2. Embedded showcase demo links: chrome-platform-showcase.paulkinlan-ea.deno.net/...
+    // 3. Status eyebrow: <p class="eyebrow">Covered on MDN</p>
+    // All other prose, markup, styles, scripts, and comments are non-binding.
+    // Of the three derived properties, status drift (built <-> stub) is provably tolerated
+    // by check-routes and validate-artifacts (report-only), while feature identity and demo links
+    // are strictly binding. Thus, excluding status leaves featureIds and demos.
+    const featureIds = [...content.matchAll(/chromestatus\.com\/feature\/(\d+)/g)].map((m) => m[1]);
+    const demos = [
+      ...content.matchAll(/chrome-platform-showcase\.paulkinlan-ea\.deno\.net\/[^\s"'<>]+/g),
+    ].map((m) => m[0]);
+    return { featureIds, demos };
+  }
+
+  return null;
+}
+
+function parseNameStatus(stdout) {
+  const allStaged = new Set();
+  const deletedOld = new Set();
+  for (const line of stdout.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const parts = trimmed.split("\t");
+    const status = parts[0];
+    if (status.startsWith("R") || status.startsWith("C")) {
+      if (parts[1]) {
+        allStaged.add(parts[1]);
+        if (status.startsWith("R")) {
+          deletedOld.add(parts[1]);
+        }
+      }
+      if (parts[2]) allStaged.add(parts[2]);
+    } else if (status.startsWith("D")) {
+      if (parts[1]) {
+        allStaged.add(parts[1]);
+        deletedOld.add(parts[1]);
+      }
+    } else {
+      if (parts[1]) allStaged.add(parts[1]);
+    }
+  }
+  return { allStaged, deletedOld };
 }
 
 async function getRepoState(root = ".", { fresh = false } = {}) {
@@ -56,24 +134,23 @@ async function getRepoState(root = ".", { fresh = false } = {}) {
     }
 
     // 1. Files where index differs from HEAD (staged changes vs HEAD)
-    const stagedVsHeadRes = await runGit(["diff", "--cached", "--name-only"], {
+    const stagedVsHeadRes = await runGit(["diff", "--cached", "--name-status"], {
       stdout: "piped",
       cwd: topLevel,
     });
-    const stagedVsHead = new Set(
-      stagedVsHeadRes.code === 0
-        ? stagedVsHeadRes.stdout.split("\n").map((s) => s.trim()).filter(Boolean)
-        : [],
+    const { allStaged: stagedVsHead, deletedOld: deletedOldVsHead } = parseNameStatus(
+      stagedVsHeadRes.code === 0 ? stagedVsHeadRes.stdout : "",
     );
 
     // Optional: check against origin/main if it exists as a baseline
     let stagedVsBase = null;
     let worktreeVsBase = null;
+    let deletedOldVsBase = new Set();
     const baseCheck = await runGit(["rev-parse", "--verify", "--quiet", "origin/main"], {
       cwd: topLevel,
     });
     if (baseCheck.code === 0) {
-      const sRes = await runGit(["diff", "--cached", "--name-only", "origin/main"], {
+      const sRes = await runGit(["diff", "--cached", "--name-status", "origin/main"], {
         stdout: "piped",
         cwd: topLevel,
       });
@@ -82,7 +159,9 @@ async function getRepoState(root = ".", { fresh = false } = {}) {
         cwd: topLevel,
       });
       if (sRes.code === 0 && wRes.code === 0) {
-        stagedVsBase = new Set(sRes.stdout.split("\n").map((s) => s.trim()).filter(Boolean));
+        const parsedBase = parseNameStatus(sRes.stdout);
+        stagedVsBase = parsedBase.allStaged;
+        deletedOldVsBase = parsedBase.deletedOld;
         worktreeVsBase = new Set(wRes.stdout.split("\n").map((s) => s.trim()).filter(Boolean));
       }
     }
@@ -128,11 +207,81 @@ async function getRepoState(root = ".", { fresh = false } = {}) {
 
     const candidates = new Set([...worktreeVsIndex, ...untracked]);
     const stagedPaths = new Set();
+    const stagedDeleted = new Set([...deletedOldVsHead, ...deletedOldVsBase]);
+
     for (const p of candidates) {
+      // If the path was deleted or renamed away in the index but is present on disk,
+      // it is a staged deletion: read from index (which reports it deleted / throws NotFound).
+      if (stagedDeleted.has(p)) {
+        stagedPaths.add(p);
+        continue;
+      }
+
       const revertedVsHead = stagedVsHead.has(p) && !worktreeVsHead.has(p);
       const revertedVsBase = stagedVsBase && stagedVsBase.has(p) && !worktreeVsBase.has(p);
       if (revertedVsHead || revertedVsBase) {
         stagedPaths.add(p);
+        continue;
+      }
+
+      // Check if staged index mutated critical fields while worktree reverted them (Scenario A decoy)
+      if (stagedVsHead.has(p) || (stagedVsBase && stagedVsBase.has(p))) {
+        let worktreeContent = null;
+        try {
+          worktreeContent = await Deno.readTextFile(resolve(topLevel, p));
+        } catch {
+          // file not on disk
+        }
+        if (worktreeContent === null) continue;
+
+        const showIndexRes = await runGit(["show", `:${p}`], { stdout: "piped", cwd: topLevel });
+        if (showIndexRes.code !== 0) continue;
+        const indexContent = showIndexRes.stdout;
+
+        const indexCrit = extractCriticalFields(p, indexContent);
+        const worktreeCrit = extractCriticalFields(p, worktreeContent);
+        if (!indexCrit || !worktreeCrit) continue;
+
+        const indexWorktreeSame = JSON.stringify(indexCrit) === JSON.stringify(worktreeCrit);
+        if (indexWorktreeSame) continue;
+
+        // Compare against HEAD
+        if (stagedVsHead.has(p)) {
+          const showHeadRes = await runGit(["show", `HEAD:${p}`], {
+            stdout: "piped",
+            cwd: topLevel,
+          });
+          if (showHeadRes.code === 0) {
+            const headCrit = extractCriticalFields(p, showHeadRes.stdout);
+            if (headCrit) {
+              const indexDiffHead = JSON.stringify(indexCrit) !== JSON.stringify(headCrit);
+              const worktreeMatchHead = JSON.stringify(worktreeCrit) === JSON.stringify(headCrit);
+              if (indexDiffHead && worktreeMatchHead) {
+                stagedPaths.add(p);
+                continue;
+              }
+            }
+          }
+        }
+
+        // Compare against origin/main (base)
+        if (stagedVsBase && stagedVsBase.has(p)) {
+          const showBaseRes = await runGit(["show", `origin/main:${p}`], {
+            stdout: "piped",
+            cwd: topLevel,
+          });
+          if (showBaseRes.code === 0) {
+            const baseCrit = extractCriticalFields(p, showBaseRes.stdout);
+            if (baseCrit) {
+              const indexDiffBase = JSON.stringify(indexCrit) !== JSON.stringify(baseCrit);
+              const worktreeMatchBase = JSON.stringify(worktreeCrit) === JSON.stringify(baseCrit);
+              if (indexDiffBase && worktreeMatchBase) {
+                stagedPaths.add(p);
+                continue;
+              }
+            }
+          }
+        }
       }
     }
 
@@ -164,7 +313,9 @@ export async function readJudgedFile(path, root = ".", options = {}) {
       if (showRes.code === 0) {
         return showRes.stdout;
       }
-      throw new Deno.errors.NotFound(`File ${rel} not found in git index: ${showRes.stderr}`);
+      throw new Deno.errors.NotFound(
+        `File ${rel} was deleted from the git index but is still present on disk - re-add it or commit the deletion: ${showRes.stderr}`,
+      );
     }
   }
 
