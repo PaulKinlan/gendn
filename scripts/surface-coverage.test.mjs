@@ -17,7 +17,12 @@ import {
   surfaceCoverageFindings,
   surfaceMarkersFor,
 } from "./lib/surface-coverage.mjs";
-import { changedContractIds, runRatchet } from "./check-surface-coverage.mjs";
+import {
+  changedContractIds,
+  changedPageOwners,
+  runRatchet,
+  scanCorpus,
+} from "./check-surface-coverage.mjs";
 
 let failures = 0;
 function assert(name, ok, detail = "") {
@@ -231,6 +236,132 @@ const root = Deno.cwd();
     r.vacuous === expectedVacuous,
     JSON.stringify({ vacuous: r.vacuous, expected: expectedVacuous, mb, head }),
   );
+}
+
+// ---- 7. gendn-j9vz: a PAGE-only edit must gate its owner contracts ----
+{
+  const owners = changedPageOwners([
+    "v147/probe/index.html",
+    "v147/probe/child/index.html",
+    "v147/probe/child/deeper/index.html",
+    "v147/probe/reference-contract.json",
+    "v147/probe/child/other.html",
+    "scripts/check-surface-coverage.mjs",
+  ]);
+  assert(
+    "page paths: root and nested index.html dedupe to one feature owner; non-pages ignored",
+    owners.length === 1 && owners[0] === "v147/probe",
+    owners.join(","),
+  );
+
+  const scratch = await Deno.makeTempDir({ prefix: "j9vz-surface-" });
+  const probe = "v147/probe";
+  const child = `${probe}/child`;
+  const page = (text) =>
+    `<html><body><h2 id="syntax">syntax</h2><p>${text}</p><h2 id="next">next</h2></body></html>`;
+  const named =
+    "Call computeQuota(hints) to calculate the estimate. This is substantive documentation of the named method.";
+  const neutral =
+    "This generic placeholder describes an unrelated storage policy, with no named API call or member surface.";
+  const inventory = [{ id: "computequota-method", name: "computeQuota method", kind: "method" }];
+  const doc = (href) => ({
+    inventoryId: "computequota-method",
+    href,
+    dimensions: { syntax: { status: "documented", selector: "#syntax" } },
+  });
+  const g = async (...args) => {
+    const c = new Deno.Command("git", { args, cwd: scratch, stdout: "piped", stderr: "piped" });
+    const o = await c.output();
+    if (!o.success) {
+      throw new Error(`git ${args.join(" ")} failed: ${new TextDecoder().decode(o.stderr)}`);
+    }
+  };
+  try {
+    await Deno.mkdir(`${scratch}/${child}`, { recursive: true });
+    await Deno.writeTextFile(
+      `${scratch}/${probe}/reference-contract.json`,
+      JSON.stringify({
+        id: probe,
+        inventory,
+        documentation: [doc("#syntax"), doc("child/#syntax")],
+      }),
+    );
+    await Deno.writeTextFile(
+      `${scratch}/${child}/reference-contract.json`,
+      JSON.stringify({
+        id: child,
+        inventory,
+        documentation: [doc("#syntax")],
+      }),
+    );
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, page(named));
+    await Deno.writeTextFile(`${scratch}/${child}/index.html`, page(named));
+    await g("init", "-q", "-b", "main");
+    await g("config", "user.email", "fixture@example.test");
+    await g("config", "user.name", "fixture");
+    await g("add", ".");
+    await g("commit", "-qm", "clean baseline");
+    await g("update-ref", "refs/remotes/origin/main", "HEAD");
+    const baseline = await scanCorpus(scratch);
+    assert(
+      "scratch corpus starts clean with root + nested contracts",
+      baseline.contracts === 2 && Object.keys(baseline.byClass).length === 0,
+      JSON.stringify({ contracts: baseline.contracts, byClass: baseline.byClass }),
+    );
+
+    // Only the overview PAGE changes; both contracts are conservatively checked, but the
+    // wrong-surface finding belongs to the overview slice. The old ratchet checked ZERO.
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, page(neutral));
+    let r = await runRatchet(scratch);
+    assert(
+      "page-only mutation: contract JSON unchanged but owner and nested contracts are gated",
+      r.changed.length === 2 && r.changed.includes(probe) && r.changed.includes(child) &&
+        r.pageOwners.join() === probe &&
+        changedContractIds([`${probe}/index.html`]).length === 0,
+      JSON.stringify({ changed: r.changed, pageOwners: r.pageOwners }),
+    );
+    assert(
+      "page-only wrong-surface edit FAILS the ratchet before commit",
+      r.failures.length === 1 && r.failures[0].includes("computequota-method.syntax"),
+      JSON.stringify(r.failures),
+    );
+    const report = await scanCorpus(scratch);
+    assert(
+      "--all corpus scan still sees the finding (report mode remains separate)",
+      report.byClass["wrong-surface"]?.length === 1,
+      JSON.stringify(report.byClass),
+    );
+
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, page(`${named} Updated prose.`));
+    r = await runRatchet(scratch);
+    assert(
+      "page-only edit retaining the named surface remains green",
+      r.changed.includes(probe) && r.failures.length === 0,
+      JSON.stringify(r.failures),
+    );
+
+    // A nested child PAGE can be documented by its ancestor AND its local contract. Gate both.
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, page(named));
+    await Deno.writeTextFile(`${scratch}/${child}/index.html`, page(neutral));
+    r = await runRatchet(scratch);
+    assert(
+      "nested page-only edit gates both ancestor and member contract, finding both wrong slices",
+      r.changed.length === 2 && r.failures.length === 2 &&
+        r.failures.some((f) => f.startsWith(`${probe}:`)) &&
+        r.failures.some((f) => f.startsWith(`${child}:`)),
+      JSON.stringify({ changed: r.changed, failures: r.failures }),
+    );
+    await g("add", ".");
+    await g("commit", "-qm", "page-only regression");
+    r = await runRatchet(scratch);
+    assert(
+      "committed page-only regression still fails; baseline warning is not vacuous",
+      !r.vacuous && r.failures.length === 2 && r.pageOwners.join() === probe,
+      JSON.stringify({ vacuous: r.vacuous, failures: r.failures }),
+    );
+  } finally {
+    await Deno.remove(scratch, { recursive: true });
+  }
 }
 
 if (failures > 0) {

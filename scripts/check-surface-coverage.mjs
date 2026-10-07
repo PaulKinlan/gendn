@@ -1,9 +1,9 @@
 // gendn-m7e — SURFACE-COVERAGE RATCHET (the citation-ratchet pattern, gendn-t7h).
 //
-// Gate mode (default): contracts CHANGED in the diff vs the merge-base with origin/main
-// must have ZERO wrong-surface/summary-table findings in the strict tier. A changed
-// contract that retains a pre-existing wrong mapping FAILS — touch time is fix time
-// (AGENTS.md's touch rule, made mechanical). Untracked contracts count as changed.
+// Gate mode (default): contracts CHANGED in the diff vs the merge-base with origin/main,
+// OR owning a changed page, must have ZERO wrong-surface/summary-table findings in the
+// strict tier. A touched contract/page that retains a wrong mapping FAILS — touch time
+// is fix time (AGENTS.md's touch rule, made mechanical). Untracked files count as changed.
 //
 // --all: corpus-wide REPORT mode. Never exits non-zero. Prints counts grouped by class
 // with representatives, per the acceptance criterion that a large count for non-defect
@@ -16,6 +16,7 @@
 import { surfaceCoverageFindings } from "./lib/surface-coverage.mjs";
 
 const CONTRACT_RE = /^(v\d+\/[^/]+(?:\/[^/]+)*)\/reference-contract\.json$/;
+const PAGE_RE = /^(v\d+\/[^/]+)(?:\/[^/]+)*\/index\.html$/;
 
 async function git(args, root) {
   try {
@@ -43,6 +44,29 @@ export function changedContractIds(names) {
   return [...ids];
 }
 
+/** vN/slug owners of changed overview or nested member pages; pure for the fixture. */
+export function changedPageOwners(names) {
+  const owners = new Set();
+  for (const n of names) {
+    const m = n.match(PAGE_RE);
+    if (m) owners.add(m[1]);
+  }
+  return [...owners];
+}
+
+// One contract walk for both the corpus report and changed-page ownership. A member page can
+// be documented by an overview contract or a nested contract, so gate the whole slug subtree.
+async function* contractIdsUnder(root, id) {
+  try {
+    for await (const entry of Deno.readDir(`${root}/${id}`)) {
+      if (entry.isFile && entry.name === "reference-contract.json") yield id;
+      if (entry.isDirectory) yield* contractIdsUnder(root, `${id}/${entry.name}`);
+    }
+  } catch (err) {
+    if (!(err instanceof Deno.errors.NotFound)) throw err; // deleted page/owner
+  }
+}
+
 async function baselineRef(root) {
   const mb = await git(["merge-base", "origin/main", "HEAD"], root);
   if (mb?.trim()) return mb.trim();
@@ -68,7 +92,7 @@ async function loadContract(root, id) {
   }
 }
 
-/** The ratchet over changed contracts. Exported so the fixture can drive a scratch repo. */
+/** Ratchet changed contracts and contracts owning changed pages. Exported for scratch fixtures. */
 export async function runRatchet(root) {
   const base = await baselineRef(root);
   if (!base) return { error: "no origin/main or HEAD baseline is available" };
@@ -84,7 +108,11 @@ export async function runRatchet(root) {
     ...(others ?? "").split("\n").map((s) => s.trim()).filter(Boolean),
   ];
   const vacuous = base === (head ?? "").trim();
-  const ids = changedContractIds(names);
+  const pageOwners = changedPageOwners(names);
+  const ids = new Set(changedContractIds(names));
+  for (const owner of pageOwners) {
+    for await (const id of contractIdsUnder(root, owner)) ids.add(id);
+  }
   const failures = [];
   const warnings = [];
   for (const id of ids) {
@@ -102,7 +130,7 @@ export async function runRatchet(root) {
       } else failures.push(line);
     }
   }
-  return { base, changed: ids, failures, warnings, vacuous };
+  return { base, changed: [...ids], pageOwners, failures, warnings, vacuous };
 }
 
 /** Corpus-wide report (--all). Report-only; never non-zero. */
@@ -114,30 +142,21 @@ export async function scanCorpus(root) {
     if (!(rel.isDirectory && /^v\d+$/.test(rel.name))) continue;
     for await (const slug of Deno.readDir(`${root}/${rel.name}`)) {
       if (!slug.isDirectory) continue;
-      const walk = async (dir) => {
-        const contractPath = `${dir}/reference-contract.json`;
-        const contract = await loadContract(
-          root,
-          contractPath.slice(root.length + 1).replace(/\/reference-contract\.json$/, ""),
-        );
-        if (contract) {
-          contracts++;
-          const findings = await surfaceCoverageFindings(contract, root, readHtml);
-          for (const f of findings) (byClass[f.cls] ??= []).push(f);
-          for (const doc of contract.documentation ?? []) {
-            for (const [dim, cov] of Object.entries(doc.dimensions ?? {})) {
-              if (
-                cov?.status === "documented" && cov.selector &&
-                ["syntax", "examples", "errors", "inputs", "outputs"].includes(dim)
-              ) strictDims++;
-            }
+      for await (const id of contractIdsUnder(root, `${rel.name}/${slug.name}`)) {
+        const contract = await loadContract(root, id);
+        if (!contract) continue;
+        contracts++;
+        const findings = await surfaceCoverageFindings(contract, root, readHtml);
+        for (const f of findings) (byClass[f.cls] ??= []).push(f);
+        for (const doc of contract.documentation ?? []) {
+          for (const [dim, cov] of Object.entries(doc.dimensions ?? {})) {
+            if (
+              cov?.status === "documented" && cov.selector &&
+              ["syntax", "examples", "errors", "inputs", "outputs"].includes(dim)
+            ) strictDims++;
           }
         }
-        for await (const e of Deno.readDir(dir)) {
-          if (e.isDirectory) await walk(`${dir}/${e.name}`);
-        }
-      };
-      await walk(`${root}/${rel.name}/${slug.name}`);
+      }
     }
   }
   return { contracts, strictDims, byClass };
@@ -178,18 +197,18 @@ if (import.meta.main) {
   for (const w of r.warnings) console.log(`WARNING: ${w}`);
   if (r.vacuous) {
     console.log(
-      `WARNING: baseline ${r.base} equals HEAD; no COMMITTED changes are gated - only untracked/uncommitted contracts were compared (vacuous).`,
+      `WARNING: baseline ${r.base} equals HEAD; no COMMITTED changes are gated - only untracked/uncommitted contracts and pages were compared (vacuous).`,
     );
   }
   if (r.failures.length > 0) {
     for (const f of r.failures) console.error(`FAIL ${f}`);
     console.error(
-      `FAIL — ${r.failures.length} surface-coverage violation(s) on changed contracts (base ${r.base}; changed contracts ${r.changed.length}).`,
+      `FAIL — ${r.failures.length} surface-coverage violation(s) on touched contracts/pages (base ${r.base}; checked contracts ${r.changed.length}; page owners ${r.pageOwners.length}).`,
     );
     Deno.exit(1);
   }
   console.log(
-    `PASS — no wrong-surface mappings on changed contracts (base ${r.base}; changed contracts ${r.changed.length}; warnings ${r.warnings.length})${
+    `PASS — no wrong-surface mappings on touched contracts/pages (base ${r.base}; checked contracts ${r.changed.length}; page owners ${r.pageOwners.length}; warnings ${r.warnings.length})${
       r.vacuous ? " [VACUOUS: base == HEAD]" : ""
     }.`,
   );
