@@ -4,11 +4,13 @@
 // Run this before every push. It compares the PREVIOUSLY PUBLISHED manifest (baseline) against the
 // working tree (current) and fails (exit 1) on any destructive change to a published page identity.
 //
-// Baseline derivation (can't drift, because it comes from git):
-//   1. If `origin/main` is reachable, the baseline is the manifest computed from the catalogue at
-//      `origin/main` (`git show origin/main:<page>`).
-//   2. Otherwise fall back to the committed snapshot `.route-manifest.baseline.json` (refreshed by
-//      the routine so an offline run still has a floor to check against).
+// Baseline page tree comes from git, but its manifest uses the CURRENT extractor: extractor-only
+// edits can rebind BOTH baseline and current. A separate, committed identity/demo ledger below
+// catches that class. To authorize a ledger change, compare its old entry from the baseline ref
+// against the new entry and require a new exact migration. For the other route checks:
+//   1. If `origin/main` is reachable, derive the baseline manifest from its catalogue pages.
+//   2. Otherwise use `.route-manifest.baseline.json` for the older checks. The binding ratchet
+//      fails closed offline because this fallback snapshot is stale and cannot authorize changes.
 //
 // FAIL conditions (baseline -> current):
 //   1. a baseline published id is MISSING from current (deleted or renamed), and not covered by a
@@ -37,9 +39,42 @@
 import { buildManifest } from "./route-manifest.mjs";
 import { gitRefExists, runGit } from "./lib/bounded-git.mjs";
 import { judgedFileExists, readJudgedFile } from "./lib/judged-content.mjs";
+import { BINDING_LEDGER, evaluateBindingLedger } from "./lib/binding-ledger.mjs";
 
 const BASELINE_SNAPSHOT = ".route-manifest.baseline.json";
 const MIGRATIONS = "migrations.json";
+
+// Read the PREVIOUS committed ledger without running the current extractor on old HTML.
+// Absence at a resolvable baseline is allowed only for the initial bootstrap; a missing current
+// ledger, or an unreachable ref, is always a hard failure rather than an empty baseline.
+async function readPriorBindings(ref) {
+  if (!ref) throw new Error(`cannot check ${BINDING_LEDGER} without a resolvable baseline ref`);
+  const listed = await runGit(["ls-tree", "--name-only", ref, "--", BINDING_LEDGER], {
+    stdout: "piped",
+    stderr: "piped",
+  });
+  if (listed.code !== 0) throw new Error(`git ls-tree ${ref} failed: ${listed.stderr.trim()}`);
+  if (listed.stdout.trim() !== BINDING_LEDGER) return null; // first-rollout bootstrap
+  const old = await runGit(["show", `${ref}:${BINDING_LEDGER}`], {
+    stdout: "piped",
+    stderr: "piped",
+  });
+  if (old.code !== 0) {
+    throw new Error(`git show ${ref}:${BINDING_LEDGER} failed: ${old.stderr.trim()}`);
+  }
+  return JSON.parse(old.stdout);
+}
+
+async function readPriorMigrations(ref) {
+  const old = await runGit(["show", `${ref}:${MIGRATIONS}`], {
+    stdout: "piped",
+    stderr: "piped",
+  });
+  if (old.code !== 0) throw new Error(`git show ${ref}:${MIGRATIONS} failed: ${old.stderr.trim()}`);
+  const parsed = JSON.parse(old.stdout);
+  if (!Array.isArray(parsed)) throw new Error(`${ref}:${MIGRATIONS} is not an array`);
+  return parsed;
+}
 
 // The bounded runner is shared (gendn-8q2): this gate must not be able to hang on the same
 // object-store contention / forked-git-pipe-open failure that gendn-1tu fixed in check-conformance.
@@ -345,7 +380,9 @@ function parseBaselineArg(argv) {
 }
 
 async function main() {
-  const { source, commit, manifest: baseline } = await loadBaseline(parseBaselineArg(Deno.args));
+  const { source, ref, commit, manifest: baseline } = await loadBaseline(
+    parseBaselineArg(Deno.args),
+  );
   const current = await buildManifest();
   const migrations = await loadMigrations();
   // null = cannot determine; only `false` (definitely not contained) justifies the note.
@@ -358,6 +395,26 @@ async function main() {
     baselineLabel,
     drift,
   });
+  let ledgerCount = 0;
+  let priorCount = "bootstrap";
+  try {
+    const ledger = JSON.parse(await readJudgedFile(BINDING_LEDGER));
+    const priorLedger = await readPriorBindings(ref);
+    ledgerCount = Array.isArray(ledger) ? ledger.length : 0;
+    priorCount = priorLedger === null ? "bootstrap" : priorLedger.length;
+    failures.push(...evaluateBindingLedger({
+      current,
+      ledger,
+      priorLedger,
+      migrations,
+      priorMigrations: priorLedger === null ? [] : await readPriorMigrations(ref),
+    }));
+  } catch (err) {
+    failures.push(
+      `${BINDING_LEDGER} unavailable or unreadable: ${err.message}; ` +
+        `run deno task refresh-bindings and review the diff`,
+    );
+  }
 
   // Support coverage lines (reported, not failed-on for untested).
   const cov = (cls) => {
@@ -388,6 +445,9 @@ async function main() {
   console.log(`  + added          : ${added.length}`);
   console.log(`  ~ fixed-in-place : ${fixedInPlace.length}`);
   console.log(`  migrations       : ${migrated.length ? migrated.join("; ") : "none"}`);
+  console.log(
+    `  binding ledger   : ${ledgerCount} entries / ${current.length} routes (prior: ${priorCount})`,
+  );
   if (failures.length) {
     console.error(`\nFAIL — ${failures.length} contract violation(s):`);
     for (const f of failures) console.error(`  - ${f}`);

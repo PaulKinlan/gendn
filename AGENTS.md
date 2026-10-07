@@ -90,12 +90,23 @@ durable identity is:
   (fallback: committed `.route-manifest.baseline.json`); current = the working tree. Fails on a
   missing published id, a deleted `built` route, a changed published identity, a changed/removed
   selected demo URL, a deleted `stub` record, or an uncovered published-count drop. Passes additive
-  ids, honest stubs, and same-id in-place fixes that preserve their selected demo URL.
+  ids, honest stubs, and same-id in-place fixes that preserve their selected demo URL. Its separate
+  binding ratchet needs a reachable baseline ref; it fails closed rather than trusting the older
+  fallback snapshot when that ref is unavailable.
+- `route-bindings.json` — the small, committed binding ledger: exactly `{ route, identity, demo }`
+  for **every** published route. This independent snapshot catches rebindings made solely by edits
+  to extractor code (which otherwise affect both sides of the manifest comparison). The gate fails
+  on missing/extra/duplicate/stale entries; it NEVER rewrites the ledger. For a deliberate page or
+  extractor binding change, run **`deno task refresh-bindings` explicitly**, inspect the ledger diff
+  against the previous committed version, and commit it alongside the migration. New routes need a
+  ledger entry but no migration. Do not copy `.route-manifest.baseline.json` as this ledger: that
+  fallback contains different fields and may not represent the current route census.
 - `migrations.json` — array of `{ id, action, from, to, reason, evidence, date }` records for
-  exceptional removals/moves/identity-changes/demo-changes and aliases for moved routes. For a
-  demo change, the gate currently matches only `id` + `action`, **not** `from`/`to`: a green gate
-  proves a `demo-change` record exists for that route, NOT that the specific old/new URL pair was
-  authorized. A reviewer must compare both URLs, reason and evidence to the actual edit.
+  exceptional removals/moves/identity-changes/demo-changes and aliases for moved routes. The
+  original origin/main-derived check matches only `id` + `action`. **For an existing route whose
+  committed ledger binding changes**, the binding ratchet ALSO demands a *new*, exact `from`/`to`
+  pair plus reason, evidence and date: `identity-change` for identity, `demo-change` for demo. A
+  record already present at the baseline cannot authorize a new binding-ledger diff.
 
 Legitimate slug/milestone corrections that preserve a still-listed feature id under the correct
 route are fixes, not contract breaks — record the move as an `alias`/`move` migration so the old
