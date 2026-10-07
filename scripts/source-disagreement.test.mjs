@@ -747,7 +747,7 @@ const PAGES = [
     // to preference with auto/speed/capability (issue #96 open). The page states both sides.
     page: "v148/summarizer-api-performance-preference/index.html",
     marker: "sources disagree and the page reports both",
-    sideA: ["Chrome 148 ships", "performancePreference", "quality"],
+    sideA: ["Chrome 148 shipped builds accept", "performancePreference", "quality"],
     sideB: ["Writing Assistance APIs draft", "preference", "capability"],
     dates: ["fetched 2026-10-07"],
   },
