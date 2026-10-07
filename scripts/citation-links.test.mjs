@@ -158,6 +158,11 @@ ok(
 
 // case 4b: diff touches the legacy page UNRELATED to the label -> it must fail
 await Deno.writeTextFile(`${dir}/${PAGE_A}`, unlinkedPage("a").replace("body", "body edited"));
+let r4bPre = await runRatchet(dir);
+ok(
+  r4bPre.failures.length === 1 && r4bPre.failures[0].includes("v147/legacy-page"),
+  "4b uncommitted edit to legacy page fails before commit (resolve-on-touch)",
+);
 await g("add", ".");
 await g("commit", "-qm", "touch A unrelated to label");
 r = await runRatchet(dir);
@@ -175,6 +180,8 @@ await Deno.writeTextFile(
     '<a href="https://example.org/r">Example Org report</a>, 2026.',
   ),
 );
+let r4cPre = await runRatchet(dir);
+ok(r4cPre.failures.length === 0, "4c uncommitted resolution of label passes before commit");
 await g("add", ".");
 await g("commit", "-qm", "resolve A label");
 r = await runRatchet(dir);
@@ -339,4 +346,80 @@ ok(
 );
 
 await Deno.remove(dir4i, { recursive: true });
+
+// case 4j: gendn-u3i9 — uncommitted tracked page edit is gated before commit
+const dir4j = await Deno.makeTempDir({ prefix: "u3i9-uncommitted-" });
+async function g4j(...args) {
+  const cmd = new Deno.Command("git", { args, cwd: dir4j, stdout: "null", stderr: "null" });
+  const { code } = await cmd.output();
+  if (code !== 0) throw new Error(`git ${args.join(" ")} failed`);
+}
+await g4j("init", "-q", "-b", "main");
+await g4j("config", "user.email", "t@t");
+await g4j("config", "user.name", "t");
+
+const TRACKED_PAGE = "v150/focusgroup/index.html";
+await Deno.mkdir(`${dir4j}/v150/focusgroup`, { recursive: true });
+await Deno.writeTextFile(`${dir4j}/${TRACKED_PAGE}`, cleanDoc("focusgroup"));
+await g4j("add", ".");
+await g4j("commit", "-qm", "clean baseline");
+await g4j("update-ref", "refs/remotes/origin/main", "HEAD");
+
+// Initial state: clean baseline, zero changed pages, zero failures
+let r4j = await runRatchet(dir4j);
+ok(r4j.changed.length === 0 && r4j.failures.length === 0, "4j initial ratchet is clean");
+
+// Working tree mutation ONLY (tracked file, uncommitted, not staged)
+await Deno.writeTextFile(
+  `${dir4j}/${TRACKED_PAGE}`,
+  cleanDoc("focusgroup") + '\n<span class="citation">Source: Unlinked Test Citation 2026.</span>',
+);
+
+r4j = await runRatchet(dir4j);
+ok(
+  r4j.changed.includes("v150/focusgroup"),
+  "4j uncommitted tracked page edit is included in changed pages before commit",
+);
+ok(
+  r4j.failures.length === 1 && r4j.failures[0].includes("v150/focusgroup") &&
+    r4j.failures[0].includes("Source: Unlinked Test Citation 2026."),
+  "4j uncommitted tracked page edit FAILS the ratchet before commit (gap closed)",
+);
+
+// Staged but uncommitted mutation (git add without git commit)
+await g4j("add", TRACKED_PAGE);
+r4j = await runRatchet(dir4j);
+ok(
+  r4j.failures.length === 1 && r4j.failures[0].includes("v150/focusgroup"),
+  "4j staged uncommitted tracked page edit FAILS the ratchet before commit",
+);
+
+// Committed control: committing the same edit still fails
+await g4j("commit", "-qm", "commit unlinked citation");
+r4j = await runRatchet(dir4j);
+ok(
+  !r4j.vacuous && r4j.failures.length === 1 && r4j.failures[0].includes("v150/focusgroup"),
+  "4j committed control still fails (committed behavior preserved)",
+);
+
+// Uncommitted clean resolution: resolving the citation in working tree clears failure
+await Deno.writeTextFile(
+  `${dir4j}/${TRACKED_PAGE}`,
+  cleanDoc("focusgroup") +
+    '\n<span class="citation">Source: <a href="https://example.org/resolved">Resolved</a></span>',
+);
+r4j = await runRatchet(dir4j);
+ok(
+  r4j.failures.length === 0,
+  "4j uncommitted resolution of citation in working tree passes before commit",
+);
+
+// Committed clean resolution
+await g4j("add", TRACKED_PAGE);
+await g4j("commit", "-qm", "resolve citation");
+r4j = await runRatchet(dir4j);
+ok(r4j.failures.length === 0, "4j committed resolution passes");
+
+await Deno.remove(dir4j, { recursive: true });
+
 console.log(`citation-links fixture: all ${n} assertions passed`);
