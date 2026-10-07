@@ -35,6 +35,7 @@
 
 import { buildManifest } from "./route-manifest.mjs";
 import { gitRefExists, runGit } from "./lib/bounded-git.mjs";
+import { judgedFileExists, readJudgedFile } from "./lib/judged-content.mjs";
 
 const BASELINE_SNAPSHOT = ".route-manifest.baseline.json";
 const MIGRATIONS = "migrations.json";
@@ -76,7 +77,7 @@ async function loadBaseline(refOverride) {
     throw new Error(`--baseline ${refOverride} does not resolve to a ref`);
   }
   try {
-    const raw = await Deno.readTextFile(BASELINE_SNAPSHOT);
+    const raw = await readJudgedFile(BASELINE_SNAPSHOT);
     return { source: BASELINE_SNAPSHOT, ref: null, commit: null, manifest: JSON.parse(raw) };
   } catch {
     return { source: "none", ref: null, commit: null, manifest: [] };
@@ -114,7 +115,7 @@ export async function loadMigrations(source = MIGRATIONS) {
     parsed = source;
   } else {
     try {
-      const raw = await Deno.readTextFile(source);
+      const raw = await readJudgedFile(source);
       parsed = JSON.parse(raw);
     } catch (err) {
       if (err instanceof Deno.errors.NotFound) return [];
@@ -129,12 +130,7 @@ export async function loadMigrations(source = MIGRATIONS) {
 }
 
 async function fileExists(path) {
-  try {
-    await Deno.stat(path);
-    return true;
-  } catch {
-    return false;
-  }
+  return await judgedFileExists(path);
 }
 
 function indexById(manifest) {

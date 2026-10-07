@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-read
+#!/usr/bin/env -S deno run --allow-read --allow-run
 // validate-artifacts.mjs — well-formedness gate for the lifecycle artifacts.
 //
 // Checks, for the working tree:
@@ -34,6 +34,7 @@ import {
   validateContractOwnership,
   validateReferenceContract,
 } from "./lib/reference-contract.mjs";
+import { readJudgedFile } from "./lib/judged-content.mjs";
 
 const FRONTEND_DIMENSIONS = new Set(["responsive-ux", "accessibility", "examples"]);
 
@@ -212,7 +213,7 @@ async function main() {
   let noIdlSurface = 0;
   for (const id of builtIds) {
     if (sufficientOwners.has(id) || partialOwners.has(id)) continue;
-    const html = await Deno.readTextFile(`./${id}/index.html`).catch(() => null);
+    const html = await readJudgedFile(`./${id}/index.html`).catch(() => null);
     if (html && declaredSurfaceMembers(html).length === 0) noIdlSurface++;
   }
   console.log("validate-artifacts");

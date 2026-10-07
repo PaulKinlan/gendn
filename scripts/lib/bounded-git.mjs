@@ -25,9 +25,11 @@ const GIT_SAFE_ARGS = ["-c", "gc.auto=0", "--no-optional-locks"];
 /** Run git with a hard bound. Throws a named error on timeout; never returns on a hang. */
 export async function runGit(
   args,
-  { stdout = "null", timeoutMs = GIT_TIMEOUT_MS, stderr = "null" } = {},
+  { stdout = "null", timeoutMs = GIT_TIMEOUT_MS, stderr = "null", cwd } = {},
 ) {
-  const child = new Deno.Command("git", { args: [...GIT_SAFE_ARGS, ...args], stdout, stderr })
+  const options = { args: [...GIT_SAFE_ARGS, ...args], stdout, stderr };
+  if (cwd) options.cwd = cwd;
+  const child = new Deno.Command("git", options)
     .spawn();
   const output = child.output();
   let timer;

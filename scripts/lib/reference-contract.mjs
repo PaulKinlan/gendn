@@ -6,6 +6,7 @@
 // does not apply. Independent review remains responsible for checking the inventory against sources.
 
 import { readJson, renderedMarkup } from "./artifacts.mjs";
+import { readJudgedFile } from "./judged-content.mjs";
 
 export const REFERENCE_CONTRACT = "reference-contract.json";
 export const REQUIRED_DIMENSIONS = [
@@ -91,7 +92,7 @@ export async function validateReferenceContract(contract, root = ".") {
     }
     let html;
     try {
-      html = await Deno.readTextFile(resolved.path);
+      html = await readJudgedFile(resolved.path, root);
     } catch {
       errors.push(
         `${id}: documentation ${doc.inventoryId}: href ${

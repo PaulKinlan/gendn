@@ -25,8 +25,9 @@
 //   deno run --allow-read --allow-run scripts/route-manifest.mjs --ref origin/main   # a git ref
 //   (add `--pretty` for indented output)
 
-import { isMdnStubHtml } from "./lib/artifacts.mjs";
+import { collectPublishedPages, isMdnStubHtml } from "./lib/artifacts.mjs";
 import { runGit } from "./lib/bounded-git.mjs";
+import { readJudgedFile } from "./lib/judged-content.mjs";
 
 export const PAGE_RE = /^v\d+\/[^/]+\/index\.html$/;
 const FEATURE_ID_RE = /chromestatus\.com\/feature\/(\d+)/;
@@ -98,13 +99,16 @@ async function collectFromRef(ref) {
 }
 
 async function collectFromWorkingTree(root = ".") {
-  const pages = [];
-  for await (const rel of walkPages(root)) pages.push(rel);
-  pages.sort();
+  const pages = await collectPublishedPages(root);
   const entries = [];
   for (const pagePath of pages) {
-    const html = await Deno.readTextFile(`${root}/${pagePath}`);
-    entries.push(pathToIdentityFields(pagePath, html));
+    try {
+      const html = await readJudgedFile(pagePath, root);
+      entries.push(pathToIdentityFields(pagePath, html));
+    } catch (err) {
+      if (err instanceof Deno.errors.NotFound) continue;
+      throw err;
+    }
   }
   return entries;
 }
@@ -128,12 +132,12 @@ async function* walkPages(root) {
 
 // The responsive-support sidecar (git-tracked) carries each route's mobile+desktop support record.
 // It is merged into the manifest so the gate and any consumer see support state alongside identity.
-async function loadReferenceRoutes(ref, id) {
+async function loadReferenceRoutes(ref, id, root = ".") {
   let raw;
   try {
     raw = ref
       ? await runGitChecked(["show", `${ref}:${id}/reference-contract.json`])
-      : await Deno.readTextFile(`${id}/reference-contract.json`);
+      : await readJudgedFile(`${id}/reference-contract.json`, root);
   } catch {
     return [];
   }
@@ -151,12 +155,12 @@ async function loadReferenceRoutes(ref, id) {
   }
 }
 
-async function loadSupportRoutes(ref) {
+async function loadSupportRoutes(ref, root = ".") {
   let raw = null;
   try {
     raw = ref
       ? await runGitChecked(["show", `${ref}:responsive-support.json`])
-      : await Deno.readTextFile("responsive-support.json");
+      : await readJudgedFile("responsive-support.json", root);
   } catch {
     return {};
   }
@@ -167,13 +171,13 @@ async function loadSupportRoutes(ref) {
   }
 }
 
-export async function buildManifest({ ref } = {}) {
-  const entries = ref ? await collectFromRef(ref) : await collectFromWorkingTree();
-  const supportRoutes = await loadSupportRoutes(ref);
+export async function buildManifest({ ref, root = "." } = {}) {
+  const entries = ref ? await collectFromRef(ref) : await collectFromWorkingTree(root);
+  const supportRoutes = await loadSupportRoutes(ref, root);
   return await Promise.all(entries.map(async (e) => ({
     ...e,
     aliases: [],
-    referenceRoutes: await loadReferenceRoutes(ref, e.id),
+    referenceRoutes: await loadReferenceRoutes(ref, e.id, root),
     support: supportRoutes[e.route] ?? { desktop: "untested", mobile: "untested" },
   })));
 }
