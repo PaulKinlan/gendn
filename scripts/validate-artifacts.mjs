@@ -26,6 +26,7 @@ import {
   readJson,
   suiteHash,
   validate,
+  validateSupportRecord,
 } from "./lib/artifacts.mjs";
 import {
   collectReferenceContracts,
@@ -163,9 +164,13 @@ async function main() {
   const support = await readJson("./responsive-support.json");
   if (support) {
     for (const e of validate(supportSchema, support)) errors.push(`responsive-support.json: ${e}`);
-    for (const route of Object.keys(support.routes ?? {})) {
+    for (const [route, record] of Object.entries(support.routes ?? {})) {
       const id = route.replace(/^\//, "").replace(/\/$/, "");
       if (!pageIds.has(id)) errors.push(`responsive-support.json: route ${route} maps to no page`);
+      // Our minimal schema validator ignores if/then; check unsupported evidence in executable JS.
+      for (const e of validateSupportRecord(route, record)) {
+        errors.push(`responsive-support.json: ${e}`);
+      }
     }
   }
 
