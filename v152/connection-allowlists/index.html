@@ -6,6 +6,11 @@
   <title>Connection Allowlists — Chrome 152 — gendn</title>
   <link rel="stylesheet" href="/public/styles.css">
   <style>
+    /* gendn-7g6/goals.json:784 */
+    h1, code, .doc-table td, .doc-table th { overflow-wrap: anywhere; }
+    .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .table-wrap { overflow-x: auto; }
+    .table-wrap .doc-table { min-width: 34rem; }
     .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
     .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
     .doc-table th { background: var(--bg-stone); font-weight: 600; }
@@ -39,20 +44,37 @@
 
   <section>
     <h2>at a glance</h2>
+    <div class="table-wrap">
     <table class="doc-table">
       <tr><th>Shipped in</th><td>Chrome 152 (Enabled by default)</td></tr>
       <tr><th>Origin trial</th><td>Chrome 148 – 151 (concluded)</td></tr>
       <tr><th>Standards</th><td>WICG Proposal</td></tr>
       <tr><th>Spec</th><td><a href="https://wicg.github.io/connection-allowlists/" target="_blank" rel="noopener">WICG Connection Allowlists spec</a></td></tr>
       <tr><th>Explainer</th><td><a href="https://github.com/WICG/connection-allowlists" target="_blank" rel="noopener">WICG/connection-allowlists — GitHub</a></td></tr>
-      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5175745573945344" target="_blank" rel="noopener">5175745573945344 — Connection Allowlists</a></td></tr>
+      <tr><th>Standards position (Firefox)</th><td>Positive (<a href="https://github.com/mozilla/standards-positions/issues/1322" target="_blank" rel="noopener">Mozilla position #1322</a>)</td></tr>
+      <tr><th>Standards position (Safari)</th><td>No signal (<a href="https://github.com/WebKit/standards-positions/issues/583" target="_blank" rel="noopener">WebKit position #583</a>)</td></tr>
+      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5175745573945344" target="_blank" rel="noopener">5175745573945344 — Connection Allowlists</a> (<a href="https://chromestatus.com/api/v0/features/5175745573945344" target="_blank" rel="noopener">API record</a>)</td></tr>
     </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5175745573945344" target="_blank" rel="noopener">chromestatus.com/feature/5175745573945344</a></span>
   </section>
 
   <section>
     <h2>why it exists</h2>
     <p>Content Security Policy's <code>connect-src</code> directive can restrict where a page connects, but it is set by the server as a policy header and cannot easily be updated per-response or composed with dynamic endpoint lists. Connection Allowlists takes a complementary approach: the server sends a structured list of permitted URL patterns in the <code>Connection-Allowlist</code> response header, and the browser evaluates every outgoing connection — subresource fetches, navigations, redirects, prefetch, preload, WebSocket connections, and <code>history.back()</code>/<code>history.forward()</code> navigations — against that list before the connection is made. Connections that don't match are blocked at the network level. A report-only variant (<code>Connection-Allowlist-Report-Only</code>) lets developers audit their connection surface before enforcing it.</p>
-    <span class="citation">Source: WICG Connection Allowlists spec, blink-dev Intent to Experiment, Chrome for Developers blog, May 2026.</span>
+    <span class="citation">Source: <a href="https://wicg.github.io/connection-allowlists/" target="_blank" rel="noopener">WICG Connection Allowlists spec</a>; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/69a779c1.050a0220.1426e8.0068.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Experiment</a>; <a href="https://developer.chrome.com/blog/connection-allowlists-origin-trial" target="_blank" rel="noopener">Chrome for Developers blog</a></span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>HTTP response header grammar defined in the <a href="https://wicg.github.io/connection-allowlists/" target="_blank" rel="noopener">WICG Connection Allowlists specification</a>:</p>
+    <pre><code>Connection-Allowlist: ( [ &lt;item&gt; ... ] ) [ ; report-to=&lt;endpoint&gt; ]
+Connection-Allowlist-Report-Only: ( [ &lt;item&gt; ... ] ) [ ; report-to=&lt;endpoint&gt; ]
+
+# Where &lt;item&gt; is:
+# - response-origin (dynamically permits response own origin)
+# - "&lt;url-pattern&gt;" (quoted URLPattern string for absolute URLs)</code></pre>
+    <span class="citation">Source: <a href="https://wicg.github.io/connection-allowlists/" target="_blank" rel="noopener">WICG Connection Allowlists spec</a>; <a href="https://urlpattern.spec.whatwg.org/" target="_blank" rel="noopener">URLPattern specification</a></span>
   </section>
 
   <section>
@@ -61,32 +83,63 @@
     <h3>Connection-Allowlist</h3>
     <p>The header value is a Structured Field list containing a single inner list. Each element is either the token <code>response-origin</code> (dynamically adds the response's own origin) or a quoted string matching the <a href="https://urlpattern.spec.whatwg.org/" target="_blank" rel="noopener">URLPattern</a> syntax for absolute URLs.</p>
 
+    <div class="table-wrap">
     <table class="doc-table">
       <thead><tr><th>Element</th><th>Meaning</th></tr></thead>
       <tr><td><code>response-origin</code></td><td>Dynamically permits the origin from which the current response was served. Useful for same-origin requests without hard-coding the origin.</td></tr>
       <tr><td><code>"https://api.example.com/*"</code></td><td>A quoted URLPattern string. Permits any URL under <code>api.example.com</code>.</td></tr>
       <tr><td><code>"https://*.cdn.example"</code></td><td>Wildcard subdomain pattern.</td></tr>
     </table>
+    </div>
 
     <h3>Optional report-to parameter</h3>
     <p>Append <code>; report-to=&lt;endpoint-name&gt;</code> to route violation reports to a <a href="https://developer.mozilla.org/en-US/docs/Web/API/Reporting_API" target="_blank" rel="noopener">Reporting API</a> endpoint.</p>
-    <span class="citation">Source: WICG Connection Allowlists spec, blink-dev Intent to Experiment, May 2026.</span>
+    <span class="citation">Source: <a href="https://wicg.github.io/connection-allowlists/" target="_blank" rel="noopener">WICG Connection Allowlists spec</a>; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/69a779c1.050a0220.1426e8.0068.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Experiment</a></span>
   </section>
 
   <section>
-    <h2>examples</h2>
+    <h3 id="inputs">Inputs and parameters</h3>
+    <p>The header accepts structured field parameters formatted as an inner list of patterns. Permitted tokens include <code>response-origin</code> and quoted pattern strings complying with the WHATWG URLPattern specification. The optional <code>report-to</code> parameter takes an endpoint identifier defined in a companion <code>Reporting-Endpoints</code> header.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/connection-allowlists/" target="_blank" rel="noopener">WICG Connection Allowlists spec</a></span>
+  </section>
 
-    <h3>Basic allowlist — same origin plus a CDN</h3>
-    <pre><code># Server response header
+  <section>
+    <h3 id="outputs">Outputs and return values</h3>
+    <p>When an outgoing request matches an allowlist entry, it proceeds normally through the network stack. When a request fails to match an active <code>Connection-Allowlist</code> header, the browser aborts the request immediately before dispatch; JavaScript APIs such as <code>fetch()</code> reject with a <code>TypeError: Failed to fetch</code>. In report-only mode, the connection is allowed while a violation report is queued.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/connection-allowlists" target="_blank" rel="noopener">WICG connection-allowlists explainer</a></span>
+  </section>
+
+  <section>
+    <h3 id="errors">Errors and exceptions</h3>
+    <p>If the <code>Connection-Allowlist</code> header contains malformed Structured Field syntax, the user agent discards invalid list items or ignores the header according to standard Structured Field error-handling rules. Blocked network connections trigger standard fetch or resource error pathways, emitting network error events to the initiating element or script.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/connection-allowlists/" target="_blank" rel="noopener">WICG Connection Allowlists spec</a></span>
+  </section>
+
+  <section>
+    <h3 id="context">Execution context and exposure</h3>
+    <p>The policy applies to the browsing context or worker context established by the response that provided the header. It governs connections initiated by that document or worker, including subresource fetches, navigation redirects, and WebSocket handshakes.</p>
+    <span class="citation">Source: <a href="https://issues.chromium.org/issues/447954811" target="_blank" rel="noopener">Chromium issue 447954811</a></span>
+  </section>
+
+  <section>
+    <h3 id="lifecycle">Lifecycle and state transitions</h3>
+    <p>The allowlist takes effect upon receipt and parsing of the HTTP response headers. It persists for the lifetime of that specific document or worker execution environment and is re-evaluated independently on subsequent response navigations.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/connection-allowlists" target="_blank" rel="noopener">WICG connection-allowlists explainer</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+    <p>Declare permitted connection destinations in HTTP response headers:</p>
+    <pre><code># Basic allowlist — same origin plus a CDN:
 Connection-Allowlist: (response-origin "https://cdn.example.com/*")</code></pre>
 
-    <h3>Multiple trusted endpoints</h3>
+    <h4>Multiple trusted endpoints</h4>
     <pre><code>Connection-Allowlist: (response-origin "https://api.example.com/*" "https://*.assets.example.com")</code></pre>
 
-    <h3>Report-only mode (audit without blocking)</h3>
+    <h4>Report-only mode (audit without blocking)</h4>
     <pre><code>Connection-Allowlist-Report-Only: ("https://api.example.com/*" response-origin); report-to=security-endpoint</code></pre>
 
-    <h3>Express / Node.js middleware snippet</h3>
+    <h4>Express / Node.js middleware snippet</h4>
     <pre><code>app.use((req, res, next) => {
   res.setHeader(
     'Connection-Allowlist',
@@ -95,10 +148,10 @@ Connection-Allowlist: (response-origin "https://cdn.example.com/*")</code></pre>
   next();
 });</code></pre>
 
-    <h3>Origin trial token</h3>
+    <h4>Origin trial token</h4>
     <pre><code>&lt;meta http-equiv="origin-trial" content="YOUR_TOKEN_HERE"&gt;</code></pre>
     <p>Obtain a token at <a href="https://developer.chrome.com/origintrials/" target="_blank" rel="noopener">developer.chrome.com/origintrials</a> — search for "Connection Allowlists".</p>
-    <span class="citation">Source: WICG Connection Allowlists spec and blink-dev, May 2026.</span>
+    <span class="citation">Source: <a href="https://wicg.github.io/connection-allowlists/" target="_blank" rel="noopener">WICG Connection Allowlists spec</a>; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a3d7aca.54d5f168.18adb4.00dd.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a></span>
   </section>
 
   <section>
@@ -112,19 +165,27 @@ Connection-Allowlist: (response-origin "https://cdn.example.com/*")</code></pre>
       <li>Link prefetch and preload</li>
       <li>WebSocket connections</li>
     </ul>
-    <span class="citation">Source: blink-dev Intent to Experiment — Connection Allowlists, May 2026.</span>
+    <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/69a779c1.050a0220.1426e8.0068.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Experiment — Connection Allowlists, May 2026</a></span>
   </section>
 
   <section>
-    <h2>browser support</h2>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap">
     <table class="doc-table">
       <thead><tr><th>Browser</th><th>Support</th></tr></thead>
       <tr><td>Chrome 148 – 151</td><td>Origin trial (flag: <code>#connection-allowlist</code>)</td></tr>
       <tr><td>Chrome 152+</td><td>Enabled by default</td></tr>
-      <tr><td>Firefox</td><td>No position</td></tr>
-      <tr><td>Safari</td><td>No position</td></tr>
+      <tr><td>Firefox</td><td>Positive (<a href="https://github.com/mozilla/standards-positions/issues/1322" target="_blank" rel="noopener">standards position</a>)</td></tr>
+      <tr><td>Safari</td><td>No signal (<a href="https://github.com/WebKit/standards-positions/issues/583" target="_blank" rel="noopener">standards position</a>)</td></tr>
     </table>
-    <span class="citation">Source: chromestatus.com feature page, May 2026.</span>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5175745573945344" target="_blank" rel="noopener">chromestatus.com feature page</a></span>
+  </section>
+
+  <section>
+    <h3 id="security-privacy">Security and privacy considerations</h3>
+    <p>Connection Allowlists restricts outgoing network connections at the browser network layer before network packets are dispatched. By enforcing granular URLPattern match rules, it mitigates data exfiltration from cross-site scripting (XSS) and rogue third-party dependency compromise.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/connection-allowlists" target="_blank" rel="noopener">WICG connection-allowlists security</a></span>
   </section>
 
   <section>
@@ -134,6 +195,14 @@ Connection-Allowlist: (response-origin "https://cdn.example.com/*")</code></pre>
       <li><a href="https://github.com/WICG/connection-allowlists" target="_blank" rel="noopener">WICG/connection-allowlists — GitHub explainer</a></li>
       <li><a href="https://developer.chrome.com/blog/connection-allowlists-origin-trial" target="_blank" rel="noopener">Connection Allowlists origin trial — Chrome for Developers</a></li>
       <li><a href="https://chromestatus.com/feature/5175745573945344" target="_blank" rel="noopener">chromestatus — Connection Allowlists (5175745573945344)</a></li>
+      <li><a href="https://chromestatus.com/api/v0/features/5175745573945344" target="_blank" rel="noopener">ChromeStatus API record (5175745573945344)</a></li>
+      <li><a href="https://issues.chromium.org/issues/447954811" target="_blank" rel="noopener">Chromium Issue 447954811</a></li>
+      <li><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/69a779c1.050a0220.1426e8.0068.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Experiment</a></li>
+      <li><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a3d7aca.54d5f168.18adb4.00dd.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a></li>
+      <li><a href="https://github.com/mozilla/standards-positions/issues/1322" target="_blank" rel="noopener">Mozilla Standards Position #1322</a></li>
+      <li><a href="https://github.com/WebKit/standards-positions/issues/583" target="_blank" rel="noopener">WebKit Standards Position #583</a></li>
+      <li><a href="https://urlpattern.spec.whatwg.org/" target="_blank" rel="noopener">WHATWG URLPattern specification</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Reporting_API" target="_blank" rel="noopener">MDN Reporting API</a></li>
       <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/connection-allowlists/" target="_blank" rel="noopener">chrome-platform-showcase — live demo</a></li>
     </ul>
   </section>
