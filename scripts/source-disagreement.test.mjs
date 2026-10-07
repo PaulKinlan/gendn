@@ -365,6 +365,382 @@ const PAGES = [
     sideB: ["5172375182245888", "Proposed", "Shipped/Shipping"],
     dates: ["fetched 2026-10-06"],
   },
+  {
+    // gendn-g8o (B3, overscroll-gestures): the record the page cites names the feature differently and carries
+    // status and naming where the page says no spec is stable yet. An open draft is not a stable spec URL, so
+    // that pairing is NOT recorded as a disagreement. Both sides are named on the page; neither adjudicated.
+    page: "v149/overscroll-gestures/index.html",
+    marker: "Naming and status disagreement, both sides reported rather than resolved",
+    sideA: ["Overscroll Gestures", "No stable spec URL yet"],
+    sideB: ["Overscroll Areas", "14532", "Proposed"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, android-ime-media-insertion): page records a stepped rollout on Android in 149; the cited
+    // record's summary status still reads Proposed, though its rollout stage does carry 149 and Android.
+    page: "v149/android-ime-media-insertion/index.html",
+    marker: "Rollout-status disagreement, both sides reported rather than resolved",
+    sideA: ["Chrome 149 (Stepped rollout)", "Android only"],
+    sideB: ["5484282563919872", "Proposed"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, gamepad-event-driven-input-api): the page's event name and timestamp source differ from the
+    // proposal explainer, and the cited record's summary status reads In development while its OT stage lists 149.
+    page: "v149/gamepad-event-driven-input-api/index.html",
+    marker: "Event-name and status disagreement, both sides reported rather than resolved",
+    sideA: ["rawgamepadinputchange", "event.timestamp"],
+    sideB: ["gamepadrawinputchanged", "axesChanged", "In development"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3 unit 1): the page's Safari cell and its summary status disagree with the ChromeStatus
+    // record the page itself cites. The record's own stage data AGREES with the page (149 dev trial, 150
+    // shipping), so only the Safari view and the summary status are in dispute; neither side is adjudicated.
+    page: "v149/comma-separated-container-queries/index.html",
+    marker: "Safari and release-status disagreement, both sides reported rather than resolved",
+    sideA: ["No signal", "Chrome 150"],
+    sideB: ["6196591858941952", "Support", "Proposed"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, css-text-box): the page's browser-support cells disagree with the record it cites on every
+    // browser it names, and on the milestone; the record is accurate as of 2025-02-14, which the note pins.
+    page: "v149/css-text-box/index.html",
+    marker: "Browser-support and milestone disagreement, both sides reported rather than resolved",
+    sideA: ["No signal yet", "149+"],
+    sideB: ["5174589850648576", "Positive", "In development", "133"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, css-text-box): the page's flat single-keyword syntax list vs the editor's draft two-value
+    // positional production. Neither side adjudicated; the page also had two stale #text-box fragments repaired.
+    page: "v149/css-text-box/index.html",
+    marker: "Specification-grammar disagreement, both sides reported rather than resolved",
+    sideA: ["text-box-edge"],
+    sideB: ["two-value", "'text-box-trim'"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, inline-script-cache): the page keys the inline cache on the script source alone and stores
+    // it with the document's cache entry, while the cited ChromeStatus record keys it on SHA256(source +
+    // network isolation key) and reuses it across pages/sessions. Neither side adjudicated.
+    page: "v149/inline-script-cache/index.html",
+    marker: "Cache-keying disagreement, both sides reported rather than resolved",
+    sideA: [
+      "keying the cache on a hash of the script source",
+      "alongside the HTML document's cache entry",
+    ],
+    sideB: ["network isolation key", "across different pages and sessions"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, inline-script-cache): the page's at-a-glance Blink component disagrees with the record's
+    // blink_components. Neither side adjudicated.
+    page: "v149/inline-script-cache/index.html",
+    marker: "Blink-component disagreement, both sides reported rather than resolved",
+    sideA: ["Blink&gt;JavaScript&gt;Compiler"],
+    sideB: ["Blink&gt;HTML&gt;Script"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, inline-script-cache): the page reports a developer trial behind the generic experimental
+    // flag; the record's summary status is Proposed and it names a dedicated flag. Neither side adjudicated.
+    page: "v149/inline-script-cache/index.html",
+    marker: "Status-and-flag disagreement, both sides reported rather than resolved",
+    sideA: [
+      "In developer trial (behind a flag)",
+      "chrome://flags/#enable-experimental-web-platform-features",
+    ],
+    sideB: ["Proposed", "inline-script-cache"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, platform-provided-behaviors-for-custom-elements): the page documents argument-passing
+    // attachInternals({ behaviors: [...] }) while the cited record describes a static class property plus an
+    // argument-less attachInternals() access route. Neither side adjudicated.
+    page: "v149/platform-provided-behaviors-for-custom-elements/index.html",
+    marker: "API-shape disagreement, both sides reported rather than resolved",
+    sideA: ["attachInternals({ behaviors: [...] })", "ElementInternals.behaviors"],
+    sideB: ["behaviors static class property", "attachInternals()"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, platform-provided-behaviors-for-custom-elements): the page names "listbox"/"checkbox"/
+    // "textfield" while the explainer names HTML*Behavior classes. Neither side adjudicated.
+    page: "v149/platform-provided-behaviors-for-custom-elements/index.html",
+    marker: "Behavior-identifier disagreement, both sides reported rather than resolved",
+    sideA: ['"listbox"', '"checkbox"', '"textfield"'],
+    sideB: ["HTMLButtonBehavior", "HTMLCheckboxBehavior"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, platform-provided-behaviors-for-custom-elements): the page's at-a-glance Blink component
+    // disagrees with the record's blink_components. Neither side adjudicated.
+    page: "v149/platform-provided-behaviors-for-custom-elements/index.html",
+    marker: "Blink-component disagreement, both sides reported rather than resolved",
+    sideA: ["Blink&gt;HTML&gt;CustomElements"],
+    sideB: ["Blink&gt;DOM"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, indexeddb-sqlite-backend): the page says Chrome migrates existing IDB data on first run of
+    // 149, while the record says the step applies to new data stores for now and existing LevelDB data is
+    // unimpacted. Neither side adjudicated.
+    page: "v149/indexeddb-sqlite-backend/index.html",
+    marker: "Migration-scope disagreement, both sides reported rather than resolved",
+    sideA: ["Chrome migrates existing IDB data automatically on first run of 149"],
+    sideB: ["new data stores", "existing data stored in LevelDB is unimpacted"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, indexeddb-sqlite-backend): the page says ships by default in Chrome 150, while the record's
+    // ship stage carries milestone 156. Neither side adjudicated.
+    page: "v149/indexeddb-sqlite-backend/index.html",
+    marker: "Ship-milestone disagreement, both sides reported rather than resolved",
+    sideA: ["Chrome 150"],
+    sideB: ["156", "WebView"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, indexeddb-sqlite-backend): the page names the generic experimental flag while the record
+    // names a dedicated flag. Neither side adjudicated.
+    page: "v149/indexeddb-sqlite-backend/index.html",
+    marker: "Flag disagreement, both sides reported rather than resolved",
+    sideA: ["chrome://flags/#enable-experimental-web-platform-features"],
+    sideB: ["idb-sqlite-backing-store"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, css-gap-decorations): page says enabled by default and shipped in 149; the cited
+    // record reports In development (desktop + Android 149). Neither side is adjudicated.
+    page: "v149/css-gap-decorations/index.html",
+    marker: "Status disagreement, both sides reported rather than resolved",
+    sideA: ["Enabled by default", "Chrome 149 (desktop + Android)"],
+    sideB: ["In development"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, css-scroll-state-container-queries): page lists both as a scrollable value; the spec
+    // defines scrollable without both (both is a snapped value only). Neither side is adjudicated.
+    page: "v149/css-scroll-state-container-queries/index.html",
+    marker: "Scrollable-value disagreement, both sides reported rather than resolved",
+    sideA: ["both"],
+    sideB: ["snapped"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, css-scroll-state-container-queries): page documents three features (stuck, snapped,
+    // scrollable); the spec additionally defines a fourth feature scrolled. Neither side is adjudicated.
+    page: "v149/css-scroll-state-container-queries/index.html",
+    marker: "Feature-list disagreement, both sides reported rather than resolved",
+    sideA: ["stuck", "snapped", "scrollable"],
+    sideB: ["scrolled"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, css-scroll-state-container-queries): page says the feature shipped in Chrome 149; the
+    // cited record reports milestone 133. Neither side is adjudicated.
+    page: "v149/css-scroll-state-container-queries/index.html",
+    marker: "Milestone disagreement, both sides reported rather than resolved",
+    sideA: ["Chrome 149 (desktop + Android)"],
+    sideB: ["133"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, disconnect-websockets-on-bfcache-entry): page documents Chrome 149 closing sockets on
+    // BFCache entry; MDN still documents the older rule (may not add to bfcache / close when done).
+    // Neither side is adjudicated.
+    page: "v149/disconnect-websockets-on-bfcache-entry/index.html",
+    marker: "BFCache WebSocket handling divergence, both sides reported rather than resolved",
+    sideA: ["closes open WebSocket connections", "check MDN BFCache docs"],
+    sideB: ["MDN WebSockets API", "good practice to close the connection"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, disconnect-websockets-on-bfcache-entry): page reports Safari/Firefox as "may differ";
+    // the cited record lists Safari Shipped/Shipping and Firefox Positive. Neither side is adjudicated.
+    page: "v149/disconnect-websockets-on-bfcache-entry/index.html",
+    marker: "Browser-support view disagreement, both sides reported rather than resolved",
+    sideA: ["check WebKit release notes", "check MDN BFCache docs"],
+    sideB: ["5068439115923456", "Shipped/Shipping", "Positive"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, popover-hint-behavior-changes): page says the change is behind the generic
+    // experimental-web-platform-features flag; the cited record reports no flag and a Finch rollout name
+    // PopoverHintNewBehavior. Neither side is adjudicated.
+    page: "v149/popover-hint-behavior-changes/index.html",
+    marker: "Gating and enablement disagreement, both sides reported rather than resolved",
+    sideA: ["chrome://flags/#enable-experimental-web-platform-features"],
+    sideB: ["6282804208992256", "PopoverHintNewBehavior"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, respect-autocorrect-off-for-windows-touch-keyboard-in-tsf): page says the change
+    // shipped and is enabled by default; the cited record reports status Proposed with desktop 149.
+    // Neither side is adjudicated.
+    page: "v149/respect-autocorrect-off-for-windows-touch-keyboard-in-tsf/index.html",
+    marker: "Shipped-versus-proposed disagreement, both sides reported rather than resolved",
+    sideA: ["Chrome 149 (Windows desktop, touch keyboard path)", "Enabled by default"],
+    sideB: ["5196629995028480", "Proposed", "desktop 149"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, webmcp): page documents the earlier script-tools surface (navigator.modelContext,
+    // provideTools, toolinvoke); the explainer reports document.modelContext with registerTool() and an
+    // execute callback. Neither side is adjudicated.
+    page: "v149/webmcp/index.html",
+    marker: "API shape disagreement, both sides reported rather than resolved",
+    sideA: [
+      "navigator.modelContext",
+      "provideTools(toolset)",
+      'addEventListener("toolinvoke", handler)',
+    ],
+    sideB: ["document.modelContext", "registerTool()"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, webmcp): page says origin trial in 149 and shipping target 157; the cited record
+    // reports status Proposed with no shipping milestone. Neither side is adjudicated.
+    page: "v149/webmcp/index.html",
+    marker: "Milestone disagreement, both sides reported rather than resolved",
+    sideA: ["Origin trial in 149; shipping target 157"],
+    sideB: ["Proposed"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, payment-request-allow-payment-handlers-to-report-back-internal-errors): the page documents
+    // show() rejecting with OperationError for internal app errors; MDN still lists only the old exception set.
+    page: "v149/payment-request-allow-payment-handlers-to-report-back-internal-errors/index.html",
+    marker: "Behavior disagreement, both sides reported rather than resolved",
+    sideA: ["internal payment app error", "user cancellation"],
+    sideB: ["InvalidStateError", "NotSupportedError", "SecurityError"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, payment-request-allow-payment-handlers-to-report-back-internal-errors): the page's
+    // Firefox/Safari cells read No signal; the record's views read N/A (Firefox does not ship the APIs) and
+    // Positive. Neither side is adjudicated.
+    page: "v149/payment-request-allow-payment-handlers-to-report-back-internal-errors/index.html",
+    marker: "Browser-support disagreement, both sides reported rather than resolved",
+    sideA: ["No signal"],
+    sideB: ["Firefox does not ship Payment Request or Payment Handler", "Positive"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, payment-request-allow-payment-handlers-to-report-back-internal-errors): page says shipped
+    // and enabled by default; the record's summary status still reads Proposed (ship stage carries 149).
+    page: "v149/payment-request-allow-payment-handlers-to-report-back-internal-errors/index.html",
+    marker: "Status disagreement, both sides reported rather than resolved",
+    sideA: ["Enabled by default", "Chrome 149 / Edge 149"],
+    sideB: ["Proposed", "is_released false"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, permissions-policy-focus-without-user-activation): page's Safari cell vs the record's
+    // Safari view (Support, WebKit standards-positions issue 406). Neither side is adjudicated.
+    page: "v149/permissions-policy-focus-without-user-activation/index.html",
+    marker: "Safari-view disagreement, both sides reported rather than resolved",
+    sideA: ["No signal (as of Chrome 149)"],
+    sideB: ["Support", "WebKit/standards-positions/issues/406"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, permissions-policy-focus-without-user-activation): page says the origin trial runs
+    // 149–151; the record's trial stage (BlockingFocusWithoutUserActivation) carries desktop_last/
+    // android_last/webview_last 152. Neither side is adjudicated.
+    page: "v149/permissions-policy-focus-without-user-activation/index.html",
+    marker: "Origin-trial milestone disagreement, both sides reported rather than resolved",
+    sideA: ["Chrome 149–151"],
+    sideB: ["152", "BlockingFocusWithoutUserActivation"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, permissions-policy-focus-without-user-activation): page claims stable ship at 150 and
+    // origin-trial framing; the record's summary status reads In developer trial (Behind a flag) with its
+    // shipping milestones unset. Neither side is adjudicated.
+    page: "v149/permissions-policy-focus-without-user-activation/index.html",
+    marker: "Ship-milestone and status disagreement, both sides reported rather than resolved",
+    sideA: ["Expected stable ship", "Chrome 150"],
+    sideB: ["In developer trial (Behind a flag)"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, permissions-policy-focus-without-user-activation): page names the generic experimental
+    // flag; the record names a dedicated flag. Neither side is adjudicated.
+    page: "v149/permissions-policy-focus-without-user-activation/index.html",
+    marker: "Flag disagreement, both sides reported rather than resolved",
+    sideA: ["chrome://flags/#enable-experimental-web-platform-features"],
+    sideB: ["blocking-focus-without-user-activation"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, permissions-policy-focus-without-user-activation): page says the default allowlist is *;
+    // the WHATWG HTML Standard defines it as 'self'. Neither side is adjudicated.
+    page: "v149/permissions-policy-focus-without-user-activation/index.html",
+    marker: "Default-allowlist disagreement, both sides reported rather than resolved",
+    sideA: [
+      "The default allowlist for <code>focus-without-user-activation</code> is <code>*</code>",
+    ],
+    sideB: ["default allowlist of 'self'"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, remove-explicit-border-color-ua-stylesheet-rule-for-tables): page says shipped/enabled;
+    // the record reads Proposed with is_released false, and the beta blog dates 149's beta. Neither side is
+    // adjudicated.
+    page: "v149/remove-explicit-border-color-ua-stylesheet-rule-for-tables/index.html",
+    marker: "Status disagreement, both sides reported rather than resolved",
+    sideA: ["Enabled by default", "Shipped in"],
+    sideB: ["Proposed", "is_released false", "Chrome is beta as of May 6, 2026"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, user-action-pseudo-class-top-layer-boundary): page says enabled by default and shipped in
+    // 149; the cited record's summary status reads Proposed (ship stage carries 149). Neither side adjudicated.
+    page: "v149/user-action-pseudo-class-top-layer-boundary/index.html",
+    marker: "Browser-status disagreement, both sides reported rather than resolved",
+    sideA: ["Enabled by default", "Chrome 149 / Edge 149"],
+    sideB: ["6296574159355904", "Proposed"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, user-action-pseudo-class-top-layer-boundary): page describes propagation through the DOM
+    // ancestors; Selectors 4 specifies flat tree ancestors up to the first top layer element or root.
+    page: "v149/user-action-pseudo-class-top-layer-boundary/index.html",
+    marker: "Selector-ancestry disagreement, both sides reported rather than resolved",
+    sideA: ["propagate upward through the DOM", "all its ancestors match too"],
+    sideB: ["flat tree ancestors"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, web-app-scope-system-accent-color): page says shipped/enabled by default; the record reads
+    // Proposed with is_released false and a desktop-only milestone. Neither side is adjudicated.
+    page: "v149/web-app-scope-system-accent-color/index.html",
+    marker: "Status disagreement, both sides reported rather than resolved",
+    sideA: ["Privacy change — enabled by default", "Chrome 149"],
+    sideB: ["5106043975761920", "Proposed", "is_released false"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, web-app-scope-system-accent-color): page's Chrome/Edge cells say 149; MDN's compatibility
+    // data records the system colour keywords at version_added 150 (auto scoping From version 149).
+    page: "v149/web-app-scope-system-accent-color/index.html",
+    marker: "Milestone disagreement, both sides reported rather than resolved",
+    sideA: ["149 — AccentColor restricted to installed PWA scope", "149 (Chromium)"],
+    sideB: ["version_added 150", "From version 149"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
+    // gendn-g8o (B3, web-app-scope-system-accent-color): page's Safari cell asserts support; the cited record's
+    // Safari view reads No signal with the note In discussion. Neither side is adjudicated.
+    page: "v149/web-app-scope-system-accent-color/index.html",
+    marker: "Safari browser-view disagreement, both sides reported rather than resolved",
+    sideA: ["AccentColor supported; scoping behaviour may differ"],
+    sideB: ["No signal", "In discussion"],
+    dates: ["fetched 2026-10-07"],
+  },
 ];
 
 let failures = 0;
@@ -426,6 +802,25 @@ const DATED_PAGES = new Set([
   "v147/local-network-access-restrictions/index.html",
   "v147/local-network-access-restrictions-for-webtransport/index.html",
   "v147/x25519kyber768-key-encapsulation-for-tls/index.html",
+  "v149/comma-separated-container-queries/index.html",
+  "v149/overscroll-gestures/index.html",
+  "v149/android-ime-media-insertion/index.html",
+  "v149/gamepad-event-driven-input-api/index.html",
+  "v149/css-text-box/index.html",
+  "v149/inline-script-cache/index.html",
+  "v149/platform-provided-behaviors-for-custom-elements/index.html",
+  "v149/indexeddb-sqlite-backend/index.html",
+  "v149/css-gap-decorations/index.html",
+  "v149/css-scroll-state-container-queries/index.html",
+  "v149/disconnect-websockets-on-bfcache-entry/index.html",
+  "v149/popover-hint-behavior-changes/index.html",
+  "v149/respect-autocorrect-off-for-windows-touch-keyboard-in-tsf/index.html",
+  "v149/webmcp/index.html",
+  "v149/payment-request-allow-payment-handlers-to-report-back-internal-errors/index.html",
+  "v149/permissions-policy-focus-without-user-activation/index.html",
+  "v149/remove-explicit-border-color-ua-stylesheet-rule-for-tables/index.html",
+  "v149/user-action-pseudo-class-top-layer-boundary/index.html",
+  "v149/web-app-scope-system-accent-color/index.html",
 ]);
 const datedInTable = new Set(PAGES.filter((e) => e.dates.length > 0).map((e) => e.page));
 assert(
