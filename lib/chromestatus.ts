@@ -21,6 +21,15 @@ try {
 const TTL_MS = 5 * 60 * 1000;
 const XSSI_PREFIX = ")]}'";
 
+// Allowed origins for outbound fetches and redirect destinations (gendn-lkj). fetchBounded()
+// is the single outbound primitive in the repo (THREAT_MODEL.md invariant #7). If an upstream
+// redirects, the destination origin must remain on this allowlist rather than an arbitrary host.
+export const ALLOWED_ORIGINS = new Set([
+  "https://chromestatus.com",
+  "https://api.github.com",
+  "https://developer.mozilla.org",
+]);
+
 // Bounded upstream fetches (gendn-snd). A hung or oversized upstream must not be able to stall
 // or balloon the server.
 //
@@ -90,6 +99,14 @@ export async function fetchBounded(
   } = {},
 ): Promise<{ res: Response; text: string }> {
   const res = await fetch(url, { method, headers, signal: AbortSignal.timeout(timeoutMs) });
+  if (res.redirected && !ALLOWED_ORIGINS.has(new URL(res.url).origin)) {
+    try {
+      await res.body?.cancel();
+    } catch {
+      // already closed or absent
+    }
+    throw new Error(`fetchBounded: redirected off-allowlist to ${new URL(res.url).origin}`);
+  }
   const text = await readCapped(res, maxBytes);
   return { res, text };
 }
