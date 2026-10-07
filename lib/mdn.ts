@@ -13,31 +13,38 @@
 // carries the same timeout and byte bound as every other outbound fetch in the repo
 // (THREAT_MODEL.md invariant #7) instead of being able to hang indefinitely.
 //
-// A TRANSPORT FAILURE IS UNKNOWN, NOT A NEGATIVE ANSWER (gendn-5fk): only a definitive HTTP
-// response decides the CACHED answer.
-//   - res.ok (200 and friends)  -> true,  cached
-//   - 404                       -> false, cached (a real "no such page")
+// A TRANSPORT FAILURE IS UNKNOWN, NOT A NEGATIVE ANSWER (gendn-5fk, gendn-s4i6): only a
+// definitive HTTP response decides the CACHED answer.
+//   - res.ok (200 and friends)  -> { kind: "present" }, cached
+//   - 404                       -> { kind: "missing" }, cached (a real "no such page")
 //   - anything else (5xx, 429, ...) and every transport/timeout/oversize error
-//                               -> false, NOT cached, so the next call retries instead of being
-//                                  told "MDN has no page" for an hour because of a network blip.
-// The returned false therefore means "not known to exist", which is the honest reading for
-// callers; the cache is what carries the definitive answer.
+//                               -> { kind: "unknown" }, NOT cached, so the next call retries.
+// A caller must distinguish "missing" from "unknown"; when coverage is ambiguous, generate
+// a page rather than mis-redirecting (THREAT_MODEL.md invariant #6).
 
 import { fetchBounded, UPSTREAM_TIMEOUT_MS } from "./chromestatus.ts";
 
 const TTL_MS = 60 * 60 * 1000;
-const cache = new Map<string, { at: number; exists: boolean }>();
 const MDN_BASE = "https://developer.mozilla.org";
+
+// A discriminant instead of a boolean prevents a transport failure from masquerading as a
+// definitive 404. The cache type cannot hold UNKNOWN, and the frozen values are safe to share.
+type MdnKnown = Readonly<{ kind: "present" } | { kind: "missing" }>;
+export type MdnLookup = MdnKnown | Readonly<{ kind: "unknown" }>;
+const PRESENT: MdnKnown = Object.freeze({ kind: "present" });
+const MISSING: MdnKnown = Object.freeze({ kind: "missing" });
+const UNKNOWN: MdnLookup = Object.freeze({ kind: "unknown" });
+const cache = new Map<string, { at: number; result: MdnKnown }>();
 
 export async function mdnHas(
   path: string,
-  // base/timeoutMs are an explicit test seam (the module has no importers, so this is additive):
+  // base/timeoutMs are an explicit test seam (no non-test importers today):
   // a fixture points base at a local server and shortens the bound instead of reaching MDN.
   opts: { base?: string; timeoutMs?: number } = {},
-): Promise<boolean> {
+): Promise<MdnLookup> {
   const url = `${opts.base ?? MDN_BASE}${path}`;
   const hit = cache.get(url);
-  if (hit && Date.now() - hit.at < TTL_MS) return hit.exists;
+  if (hit && Date.now() - hit.at < TTL_MS) return hit.result;
 
   let res: Response;
   try {
@@ -47,19 +54,19 @@ export async function mdnHas(
     }));
   } catch {
     // timeout / transport error / oversized response: UNKNOWN, deliberately not cached
-    return false;
+    return UNKNOWN;
   }
 
   if (res.ok) {
-    cache.set(url, { at: Date.now(), exists: true });
-    return true;
+    cache.set(url, { at: Date.now(), result: PRESENT });
+    return PRESENT;
   }
   if (res.status === 404) {
-    cache.set(url, { at: Date.now(), exists: false });
-    return false;
+    cache.set(url, { at: Date.now(), result: MISSING });
+    return MISSING;
   }
   // Any other status is a statement about the server, not about the page: do not cache.
-  return false;
+  return UNKNOWN;
 }
 
 // NO CALLERS TODAY (gendn-76k; verified repo-wide - the only references are these two definitions

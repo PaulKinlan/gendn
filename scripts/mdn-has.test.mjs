@@ -5,13 +5,14 @@
 // catch cached ANY transport error for the 1-hour TTL as a definitive exists:false — so a network
 // blip was remembered as "MDN has no page".
 //
-// This drives the real module against a REAL local HTTP server (no network, real fetch, real
+// This drives the real module against a REAL local HTTP server (loopback only, real fetch, real
 // timeouts) and asserts:
 //   1. a stalling endpoint fails BOUNDED rather than hanging;
-//   2. a timed-out call does NOT poison the cache — a later good response still returns true;
-//   3. a genuine 200 caches true and is served from cache on the second call;
-//   4. a genuine 404 returns false and is cached (a real negative answer stays definitive);
-//   5. a 5xx is NOT cached (a server error is not a statement about the page);
+//   2. a timed-out call does NOT poison the cache — a later good response is present;
+//   3. a genuine 200 caches { kind: "present" } and is served from cache on the second call;
+//   4. a genuine 404 returns { kind: "missing" } and is cached (a real negative answer);
+//   5. a 5xx returns { kind: "unknown" } and is NOT cached;
+//   5b. a caller must distinguish an UNKNOWN transport failure from a definitive 404;
 //   6. no bare fetch() survives in lib/mdn.ts (source-level check for acceptance item 3);
 //   7. (gendn-5ua) mdnApiUrl/mdnCssUrl produce EXACT documented URLs; a drifted base path or locale
 //      segment must fail here. (These builders are currently UNCALLED — the pages' reference links
@@ -87,22 +88,22 @@ try {
   const stall = await timed(() => mdnHas("/stall", { base, timeoutMs: 300 }));
   assert(
     "stalling endpoint fails BOUNDED (settles, does not hang)",
-    stall.ok && stall.value === false && stall.ms < 2000,
-    `${stall.ms}ms, bound 300ms, value=${stall.value}`,
+    stall.ok && stall.value?.kind === "unknown" && stall.ms < 2000,
+    `${stall.ms}ms, bound 300ms, kind=${stall.value?.kind}`,
   );
 
   // 2. A TIMED-OUT call must not poison the cache: the second call sees a good response.
   const first = await timed(() => mdnHas("/flaky", { base, timeoutMs: 300 }));
   assert(
-    "flaky first call (transport never answers) returns false bounded",
-    first.ok && first.value === false,
+    "flaky first call (transport never answers) returns unknown bounded",
+    first.ok && first.value?.kind === "unknown",
     `${first.ms}ms`,
   );
   flakyShouldStall = false;
   const second = await timed(() => mdnHas("/flaky", { base, timeoutMs: 5000 }));
   assert(
-    "SECOND call after a transport failure is NOT answered from cache (returns true)",
-    second.ok && second.value === true,
+    "SECOND call after a transport failure is NOT answered from cache (returns present)",
+    second.ok && second.value?.kind === "present",
     `value=${second.value}, hits=${hits.flaky}`,
   );
   assert("the flaky endpoint was actually re-requested", hits.flaky >= 2, `hits=${hits.flaky}`);
@@ -110,24 +111,60 @@ try {
   // 3. genuine 200: true, and cached.
   const ok1 = await mdnHas("/ok", { base, timeoutMs: 5000 });
   const ok2 = await mdnHas("/ok", { base, timeoutMs: 5000 });
-  assert("genuine 200 returns true", ok1 === true && ok2 === true, `${ok1}/${ok2}`);
+  assert(
+    "genuine 200 returns present",
+    ok1.kind === "present" && ok2.kind === "present",
+    `${ok1.kind}/${ok2.kind}`,
+  );
   assert("genuine 200 is cached (one request for two calls)", hits.ok === 1, `hits=${hits.ok}`);
 
-  // 4. genuine 404: false, and cached (a definitive negative stays definitive).
+  // 4. genuine 404: missing, and cached (a definitive negative stays definitive).
   const miss1 = await mdnHas("/missing", { base, timeoutMs: 5000 });
   const miss2 = await mdnHas("/missing", { base, timeoutMs: 5000 });
-  assert("genuine 404 returns false", miss1 === false && miss2 === false, `${miss1}/${miss2}`);
+  assert(
+    "genuine 404 returns missing",
+    miss1.kind === "missing" && miss2.kind === "missing",
+    `${miss1.kind}/${miss2.kind}`,
+  );
   assert(
     "genuine 404 is cached (one request for two calls)",
     hits.missing === 1,
     `hits=${hits.missing}`,
   );
 
-  // 5. 5xx: false and NOT cached, because a server error says nothing about the page.
+  // 5. 5xx: unknown and NOT cached, because a server error says nothing about the page.
   const err1 = await mdnHas("/error", { base, timeoutMs: 5000 });
   const err2 = await mdnHas("/error", { base, timeoutMs: 5000 });
-  assert("5xx returns false", err1 === false && err2 === false, `${err1}/${err2}`);
+  assert(
+    "5xx returns unknown",
+    err1.kind === "unknown" && err2.kind === "unknown",
+    `${err1.kind}/${err2.kind}`,
+  );
   assert("5xx is NOT cached (both calls hit the server)", hits.error === 2, `hits=${hits.error}`);
+
+  // 5b. An actual caller must branch on the discriminant, not treat UNKNOWN as a
+  // definitive negative. Ambiguous MDN coverage still generates the page rather than
+  // redirecting (THREAT_MODEL.md invariant #6), but must be labeled as ambiguous.
+  const decision = (lookup) => {
+    switch (lookup.kind) {
+      case "present":
+        return "redirect";
+      case "missing":
+        return "generate-known-missing";
+      case "unknown":
+        return "generate-ambiguous";
+      default:
+        throw new Error(`unhandled MDN lookup state: ${lookup.kind}`);
+    }
+  };
+  assert(
+    "caller distinguishes a real transport failure from a genuine 404",
+    decision(stall.value) === "generate-ambiguous" &&
+      decision(miss1) === "generate-known-missing" &&
+      decision(ok1) === "redirect" &&
+      stall.value?.kind !== miss1.kind,
+    `stall=${stall.value?.kind}; 404=${miss1.kind}; 200=${ok1.kind}`,
+  );
 } finally {
   for (const release of hangResolvers) {
     try {
