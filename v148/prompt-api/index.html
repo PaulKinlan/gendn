@@ -149,6 +149,28 @@ const result = await session.prompt([
   { type: 'image', value: blob }
 ]);
 session.destroy();</code></pre>
+
+    <h3>Session lifecycle and context management</h3>
+    <pre><code>// Sampling parameters are create() options; LanguageModel.params() reports the model's
+// defaults and maxima (defaultTemperature/maxTemperature/defaultTopK/maxTopK)
+const limits = await LanguageModel.params();
+const session = await LanguageModel.create({
+  temperature: Math.min(0.7, limits.maxTemperature),
+  topK: limits.maxTopK,
+  initialPrompts: [{ role: 'system', content: 'Answer concisely.' }]
+});
+
+// Seed few-shot context without generating a reply
+await session.append([{ type: 'text', value: 'Example Q&amp;A pair for style.' }]);
+
+// Budget check: tokens a hypothetical prompt would consume vs the session budget
+const projected = await session.measureContextUsage(largeDocument);
+console.log(projected, session.contextUsage, 'of', session.contextWindow);
+
+// clone() copies the session including conversation history
+const branch = await session.clone();
+branch.destroy();
+session.destroy();</code></pre>
     <span class="citation">Source: <a href="https://github.com/webmachinelearning/prompt-api/blob/main/README.md" target="_blank" rel="noopener">webmachinelearning/prompt-api README examples</a>, May 2026.</span>
   </section>
 
