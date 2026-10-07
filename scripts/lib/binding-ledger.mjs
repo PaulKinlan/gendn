@@ -2,6 +2,70 @@
 // `deno task refresh-bindings` is the only intentional update path.
 export const BINDING_LEDGER = "route-bindings.json";
 
+export function formatRemovedRoutes(removed, max = 3) {
+  if (!removed || removed.length === 0) return "none";
+  if (removed.length <= max) {
+    return removed.join(", ");
+  }
+  const shown = removed.slice(0, max);
+  const remaining = removed.length - max;
+  return `${shown.join(", ")}, ... and ${remaining} more`;
+}
+
+export function evaluateLedgerRefresh({
+  current,
+  ledger = [],
+  allowRemovals = false,
+  ledgerLabel = BINDING_LEDGER,
+}) {
+  if (!Array.isArray(current)) {
+    return {
+      ok: false,
+      reason: "invalid rows",
+      removed: [],
+      message: `refusing to refresh ${ledgerLabel}: derived rows must be an array`,
+    };
+  }
+
+  const currentRoutes = new Set(current.map((r) => r.route));
+  const priorRoutes = Array.isArray(ledger) ? ledger.map((r) => r.route) : [];
+  const removed = priorRoutes.filter((route) => !currentRoutes.has(route));
+
+  // Condition 1: newly derived rows are EMPTY
+  if (current.length === 0) {
+    const formatted = formatRemovedRoutes(removed);
+    const detail = removed.length > 0
+      ? `; would remove ${removed.length} route${removed.length === 1 ? "" : "s"}: ${formatted}`
+      : "";
+    return {
+      ok: false,
+      reason: "catalogue empty",
+      removed,
+      message: `refusing to refresh ${ledgerLabel}: catalogue empty (0 derived rows)${detail}`,
+    };
+  }
+
+  // Condition 2: newly derived rows would REMOVE routes from existing ledger
+  if (removed.length > 0 && !allowRemovals) {
+    const formatted = formatRemovedRoutes(removed);
+    return {
+      ok: false,
+      reason: "catalogue shrunk",
+      removed,
+      message:
+        `refusing to refresh ${ledgerLabel}: catalogue shrunk; would remove ${removed.length} route${
+          removed.length === 1 ? "" : "s"
+        }: ${formatted} (pass --allow-removals to authorize)`,
+    };
+  }
+
+  return {
+    ok: true,
+    reason: null,
+    removed: allowRemovals ? removed : [],
+  };
+}
+
 export function bindingsFromManifest(manifest) {
   return manifest.map(({ route, identity, demo }) => ({ route, identity, demo }))
     .sort((a, b) => a.route < b.route ? -1 : a.route > b.route ? 1 : 0);
