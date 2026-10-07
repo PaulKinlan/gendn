@@ -79,6 +79,73 @@ const sameReportBytes = (before, after) =>
   before.every((bytes, i) =>
     bytes.length === after[i].length && bytes.every((byte, j) => byte === after[i][j])
   );
+// CI has no Chrome, so a browser-backed valid-run fixture would break it. Instead, copy the REAL
+// tracked results.json to an isolated temp file and exercise the same valid-root selector and
+// scoped report merge that a valid run uses. The unchanged/changed comparator controls here prove
+// the rejected-run byte pin below is not vacuous. A real valid browser run was observed separately
+// during acceptance (it changed results.json and was restored); that observation is NOT a fixture.
+const trackedResults = trackedReportPaths[0];
+const originalResults = await Deno.readFile(trackedResults);
+const controlDir = await Deno.makeTempDir({ prefix: "gendn-scoped-report-control-" });
+try {
+  const tempResults = `${controlDir}/results.json`;
+  await Deno.writeFile(tempResults, originalResults);
+  const unchanged = await Deno.readFile(tempResults);
+  assert(
+    "comparator reports SAME for an unchanged copy of the real tracked results report",
+    sameReportBytes([originalResults], [unchanged]),
+  );
+  const sourceReport = JSON.parse(new TextDecoder().decode(unchanged));
+  const sourceSuite = sourceReport.suites.find((s) =>
+    s.pass > 0 && actualCatalogue.includes(`${s.id}/index.html`)
+  );
+  if (!sourceSuite) {
+    assert("comparator control has a valid published suite with a passing result", false);
+  } else {
+    const selected = selectPublishedRootPages(actualCatalogue, {
+      hasSelector: true,
+      selector: sourceSuite.id,
+    });
+    const passIndex = sourceSuite.results.findIndex((r) => r.status === "pass");
+    const scannedSuite = {
+      ...sourceSuite,
+      pass: sourceSuite.pass - 1,
+      fail: sourceSuite.fail + 1,
+      results: sourceSuite.results.map((r, i) =>
+        i === passIndex
+          ? { ...r, status: "fail", reason: "fixture-generated scoped observation" }
+          : r
+      ),
+    };
+    const merged = scopedResultsReport({
+      existing: sourceReport.suites,
+      scanned: [scannedSuite],
+      scoped: true,
+    });
+    await Deno.writeTextFile(
+      tempResults,
+      JSON.stringify(
+        { generatedAt: sourceReport.generatedAt, agg: merged.agg, suites: merged.suites },
+        null,
+        2,
+      ) + "\n",
+    );
+    const changed = await Deno.readFile(tempResults);
+    assert(
+      "valid published-root scoped report replacement makes SAME comparator report CHANGED",
+      selected.error === null && selected.pages.length === 1 && passIndex >= 0 &&
+        merged.suites.length === sourceReport.suites.length &&
+        merged.suites.find((s) => s.id === sourceSuite.id)?.fail === sourceSuite.fail + 1 &&
+        !sameReportBytes([unchanged], [changed]),
+    );
+    assert(
+      "isolated valid scoped report control does not write the tracked source report",
+      sameReportBytes([originalResults], [await Deno.readFile(trackedResults)]),
+    );
+  }
+} finally {
+  await Deno.remove(controlDir, { recursive: true });
+}
 for (const selector of ["v152/window-shape-api/setshape", "v152/window-shape-apix"]) {
   const miss = selectPublishedRootPages(published, { hasSelector: true, selector });
   assert(
@@ -115,8 +182,8 @@ for (const selector of ["v152/window-shape-api/setshape", "v152/window-shape-api
     );
   }
   // Unlike the restricted CLI checks above, this is the real task with write permission. A
-  // rejected selector must not mutate either tracked report; a valid scan is allowed to update
-  // them (the scopedResultsReport replacement assertions below pin that positive case).
+  // rejected selector must not mutate either tracked report; the isolated comparator control
+  // above proves that the same comparison detects a valid scoped replacement.
   const before = await Promise.all(trackedReportPaths.map((path) => Deno.readFile(path)));
   const real = await new Deno.Command("deno", {
     args: ["task", "conformance", "--page", selector],
@@ -199,7 +266,12 @@ for (const [rawLimit, expected] of [["1", 1], ["202", actualCatalogue.length]]) 
 // tracked report before printing an error, which a restricted subprocess would not detect.
 for (const rawLimit of ["0", "-1", "foo"]) {
   for (const mode of ["conformance", "responsive"]) {
-    const before = await Promise.all(trackedReportPaths.map((path) => Deno.readFile(path)));
+    // Only conformance writes these TWO tracked reports. Responsive writes the gitignored
+    // responsive.json, so comparing conformance's tracked outputs there would pass vacuously.
+    // Its rc2/no-verdict/no-responsive-check assertions below pin rejection before browser work.
+    const before = mode === "conformance"
+      ? await Promise.all(trackedReportPaths.map((path) => Deno.readFile(path)))
+      : null;
     const output = await new Deno.Command("deno", {
       args: ["task", mode, "--limit", rawLimit],
       stdout: "piped",
@@ -207,7 +279,6 @@ for (const rawLimit of ["0", "-1", "foo"]) {
     }).output();
     const stdout = new TextDecoder().decode(output.stdout);
     const stderr = new TextDecoder().decode(output.stderr);
-    const after = await Promise.all(trackedReportPaths.map((path) => Deno.readFile(path)));
     assert(
       `${mode} --limit ${rawLimit} rejects pre-boot without a green zero-work verdict`,
       output.code === 2 && stderr.includes(`--limit "${rawLimit}"`) &&
@@ -216,11 +287,14 @@ for (const rawLimit of ["0", "-1", "foo"]) {
         !stdout.includes("responsive-check:"),
       `code=${output.code} stdout=${stdout.trim()} stderr=${stderr.trim()}`,
     );
-    assert(
-      `${mode} --limit ${rawLimit} preserves both tracked reports byte-for-byte`,
-      sameReportBytes(before, after),
-      trackedReportPaths.join(", "),
-    );
+    if (mode === "conformance") {
+      const after = await Promise.all(trackedReportPaths.map((path) => Deno.readFile(path)));
+      assert(
+        `${mode} --limit ${rawLimit} preserves both tracked reports byte-for-byte`,
+        sameReportBytes(before, after),
+        trackedReportPaths.join(", "),
+      );
+    }
   }
 }
 for (const mode of ["conformance", "responsive"]) {
