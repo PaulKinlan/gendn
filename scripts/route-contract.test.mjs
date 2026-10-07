@@ -610,6 +610,71 @@ try {
       "0n5s Case 8: unrelated unstaged edit ALONE passes gate",
       evaluated.failures.length === 0,
     );
+
+    // Case 9 (gendn-0n5s P1-A ADV2): Staged identity mutation with tolerated status decoy
+    // Worktree reverts identity to base, but eyebrow becomes "Covered on MDN" (tolerated status drift).
+    // The reader must still read the staged index content and fail the gate.
+    invalidateJudgedCache();
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, probePage(mutatedFeature));
+    await g("add", `${probe}/index.html`);
+    const mdnStubPage =
+      `<!doctype html><html><head></head><body><p class="eyebrow">Covered on MDN</p><h1>Probe</h1>` +
+      `<a href="https://chromestatus.com/feature/${baseFeature}">ChromeStatus</a></body></html>`;
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, mdnStubPage);
+    const adv2Status = (await g("status", "--short")).trim();
+    assert(
+      "0n5s Case 9 (ADV2): git status shows MM for staged mutation with tolerated status decoy",
+      adv2Status.includes("MM") && adv2Status.includes(probe),
+    );
+    current = await buildManifest({ root: scratch });
+    assert(
+      "0n5s Case 9 (ADV2): manifest reads staged index content (not worktree with status decoy)",
+      current[0].identity === mutatedFeature,
+    );
+    evaluated = await evaluate(baselineManifest, current);
+    assert(
+      "0n5s Case 9 (ADV2): identity change with status decoy fails gate (escape closed)",
+      evaluated.failures.length === 1 && mentions(evaluated, "identity changed"),
+    );
+
+    // Clean up probe for Case 10
+    await g("checkout", "-f", "HEAD");
+
+    // Case 10 (gendn-0n5s P1-B): Staged rename with old path restored on disk
+    // git mv moves probe -> probe2 in index; old probe/index.html is restored on disk as untracked.
+    // The reader must read the index deletion for the old route, failing gate without migration,
+    // and passing gate with a reviewed move migration.
+    const probe2 = `${probe}2`;
+    await g("mv", probe, probe2);
+    await Deno.mkdir(`${scratch}/${probe}`, { recursive: true });
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, probePage(baseFeature));
+    const renameStatus = (await g("status", "--short")).trim();
+    assert(
+      "0n5s Case 10: git status shows staged rename (R ) and untracked restored old dir (??)",
+      renameStatus.includes("R") && renameStatus.includes(probe2) &&
+        renameStatus.includes(`?? ${probe}/`),
+    );
+    invalidateJudgedCache();
+    current = await buildManifest({ root: scratch });
+    assert(
+      "0n5s Case 10: current manifest does NOT contain old route (index deletion detected)",
+      !current.some((e) => e.id === probe),
+    );
+    evaluated = await evaluate(baselineManifest, current);
+    assert(
+      "0n5s Case 10: unmigrated staged rename with restored worktree fails gate",
+      evaluated.failures.length === 1 && mentions(evaluated, `missing published id ${probe}`),
+    );
+    const migrated = await evaluate(baselineManifest, current, [{
+      id: probe,
+      action: "move",
+      from: `/${probe}/`,
+      to: `/${probe2}/`,
+    }]);
+    assert(
+      "0n5s Case 10: staged rename with reviewed move migration passes gate",
+      migrated.failures.length === 0,
+    );
   } finally {
     await Deno.remove(scratch, { recursive: true });
   }

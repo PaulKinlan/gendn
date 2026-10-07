@@ -393,6 +393,59 @@ try {
       r.code === 0,
       r.text,
     );
+
+    // Case 9 (gendn-0n5s P1-A ADV1): Staged identity mutation in conformance.json with tolerated status decoy
+    // Staged conformance.json has BETA_ID. Worktree conformance.json has ALPHA_ID + status:"stub".
+    // Validator treats status drift as report-only, so this decoy must not disguise the staged identity mutation.
+    const mutatedSuiteBeta = { ...baseSuite, identity: BETA_ID };
+    await Deno.writeTextFile(
+      `${scratch}/${ALPHA}/conformance.json`,
+      JSON.stringify(mutatedSuiteBeta, null, 2),
+    );
+    await g("add", `${ALPHA}/conformance.json`);
+    const statusDecoySuite = { ...baseSuite, status: "stub" };
+    await Deno.writeTextFile(
+      `${scratch}/${ALPHA}/conformance.json`,
+      JSON.stringify(statusDecoySuite, null, 2),
+    );
+    const adv1Status = (await g("status", "--short")).trim();
+    assert(
+      "0n5s validate-artifacts Case 9: git status shows MM for staged suite mutation with status decoy",
+      adv1Status.includes("MM") && adv1Status.includes(ALPHA),
+    );
+    r = await runValidator();
+    assert(
+      "0n5s validate-artifacts Case 9 (ADV1): validator reads staged conformance.json content and fails (escape closed)",
+      r.code === 1 && r.text.includes("identity"),
+      r.text,
+    );
+
+    // Clean up conformance.json
+    await Deno.writeTextFile(
+      `${scratch}/${ALPHA}/conformance.json`,
+      JSON.stringify(baseSuite, null, 2),
+    );
+    await g("add", `${ALPHA}/conformance.json`);
+
+    // Case 10 (gendn-0n5s P1-A ADV2): Staged identity mutation in index.html with tolerated status decoy
+    // Staged index.html has BETA_ID. Worktree index.html has ALPHA_ID + MDN stub eyebrow.
+    // Conformance has ALPHA_ID. Validator must read staged index.html and fail on identity mismatch.
+    await Deno.writeTextFile(`${scratch}/${ALPHA}/index.html`, html(BETA_ID));
+    await g("add", `${ALPHA}/index.html`);
+    const mdnStubHtml =
+      `<html><body><p class="eyebrow">Covered on MDN</p><h1>Reference</h1><a href="https://chromestatus.com/feature/${ALPHA_ID}">ChromeStatus</a></body></html>`;
+    await Deno.writeTextFile(`${scratch}/${ALPHA}/index.html`, mdnStubHtml);
+    const adv2Status = (await g("status", "--short")).trim();
+    assert(
+      "0n5s validate-artifacts Case 10: git status shows MM for staged page mutation with status decoy",
+      adv2Status.includes("MM") && adv2Status.includes(ALPHA),
+    );
+    r = await runValidator();
+    assert(
+      "0n5s validate-artifacts Case 10 (ADV2): validator reads staged index.html content and fails (escape closed)",
+      r.code === 1 && r.text.includes("identity"),
+      r.text,
+    );
   } finally {
     await Deno.remove(scratch, { recursive: true });
   }

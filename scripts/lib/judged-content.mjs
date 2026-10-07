@@ -41,23 +41,24 @@ function extractCriticalFields(filePath, content) {
     const demos = [
       ...content.matchAll(/chrome-platform-showcase\.paulkinlan-ea\.deno\.net\/[^\s"'<>]+/g),
     ].map((m) => m[0]);
-    const mdnStub = /<p\b[^>]*class=["'][^"']*\beyebrow\b[^"']*["'][^>]*>[\s\S]*?covered on mdn/i
-      .test(
-        content,
-      );
-    return { featureIds, demos, mdnStub };
+    // NOTE: Status/eyebrow (e.g. "Covered on MDN") is deliberately excluded here because
+    // the gates tolerate status drift between built and stub (report-only in validate-artifacts,
+    // allowed in check-routes). Only gate-binding fields are compared so that a decoy status
+    // drift in the worktree cannot defeat the comparison and let a staged mutation escape.
+    return { featureIds, demos };
   }
 
   if (filePath.endsWith(".json")) {
     try {
       const parsed = JSON.parse(content);
       if (filePath.endsWith("conformance.json")) {
+        // Exclude status: validate-artifacts explicitly treats status drift as report-only,
+        // so a status change must not mask a staged identity/demo mutation.
         return {
           id: parsed.id ?? null,
           route: parsed.route ?? null,
           milestone: parsed.milestone ?? null,
           identity: parsed.identity ?? null,
-          status: parsed.status ?? null,
           demo: parsed.demo ?? null,
           cpsFeatureRoute: parsed.cpsFeature?.route ?? null,
         };
@@ -79,6 +80,29 @@ function extractCriticalFields(filePath, content) {
   }
 
   return null;
+}
+
+function parseNameStatus(stdout) {
+  const allStaged = new Set();
+  const renamedOld = new Set();
+  for (const line of stdout.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const parts = trimmed.split("\t");
+    const status = parts[0];
+    if (status.startsWith("R") || status.startsWith("C")) {
+      if (parts[1]) {
+        allStaged.add(parts[1]);
+        if (status.startsWith("R")) {
+          renamedOld.add(parts[1]);
+        }
+      }
+      if (parts[2]) allStaged.add(parts[2]);
+    } else {
+      if (parts[1]) allStaged.add(parts[1]);
+    }
+  }
+  return { allStaged, renamedOld };
 }
 
 async function getRepoState(root = ".", { fresh = false } = {}) {
@@ -106,24 +130,23 @@ async function getRepoState(root = ".", { fresh = false } = {}) {
     }
 
     // 1. Files where index differs from HEAD (staged changes vs HEAD)
-    const stagedVsHeadRes = await runGit(["diff", "--cached", "--name-only"], {
+    const stagedVsHeadRes = await runGit(["diff", "--cached", "--name-status"], {
       stdout: "piped",
       cwd: topLevel,
     });
-    const stagedVsHead = new Set(
-      stagedVsHeadRes.code === 0
-        ? stagedVsHeadRes.stdout.split("\n").map((s) => s.trim()).filter(Boolean)
-        : [],
+    const { allStaged: stagedVsHead, renamedOld: renamedOldVsHead } = parseNameStatus(
+      stagedVsHeadRes.code === 0 ? stagedVsHeadRes.stdout : "",
     );
 
     // Optional: check against origin/main if it exists as a baseline
     let stagedVsBase = null;
     let worktreeVsBase = null;
+    let renamedOldVsBase = new Set();
     const baseCheck = await runGit(["rev-parse", "--verify", "--quiet", "origin/main"], {
       cwd: topLevel,
     });
     if (baseCheck.code === 0) {
-      const sRes = await runGit(["diff", "--cached", "--name-only", "origin/main"], {
+      const sRes = await runGit(["diff", "--cached", "--name-status", "origin/main"], {
         stdout: "piped",
         cwd: topLevel,
       });
@@ -132,7 +155,9 @@ async function getRepoState(root = ".", { fresh = false } = {}) {
         cwd: topLevel,
       });
       if (sRes.code === 0 && wRes.code === 0) {
-        stagedVsBase = new Set(sRes.stdout.split("\n").map((s) => s.trim()).filter(Boolean));
+        const parsedBase = parseNameStatus(sRes.stdout);
+        stagedVsBase = parsedBase.allStaged;
+        renamedOldVsBase = parsedBase.renamedOld;
         worktreeVsBase = new Set(wRes.stdout.split("\n").map((s) => s.trim()).filter(Boolean));
       }
     }
@@ -179,6 +204,13 @@ async function getRepoState(root = ".", { fresh = false } = {}) {
     const candidates = new Set([...worktreeVsIndex, ...untracked]);
     const stagedPaths = new Set();
     for (const p of candidates) {
+      // If the path was renamed away in the index but restored/retained on disk,
+      // it is a staged-deleted path: read from index (which reports it deleted).
+      if (renamedOldVsHead.has(p) || renamedOldVsBase.has(p)) {
+        stagedPaths.add(p);
+        continue;
+      }
+
       const revertedVsHead = stagedVsHead.has(p) && !worktreeVsHead.has(p);
       const revertedVsBase = stagedVsBase && stagedVsBase.has(p) && !worktreeVsBase.has(p);
       if (revertedVsHead || revertedVsBase) {
