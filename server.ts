@@ -632,9 +632,11 @@ export async function renderFeaturesCatalogue(channels: Channels): Promise<strin
       background: var(--bg-paper);
       color: var(--text-black);
       border: 2px solid var(--border-black);
-      outline: none;
     }
-    .filters input:focus { box-shadow: var(--thin-shadow); }
+    .filters input:focus-visible, .filters select:focus-visible {
+      outline: 2px solid var(--accent-blue);
+      outline-offset: 2px;
+    }
     .filters input[type=search] { flex: 1; min-width: 160px; }
     .features-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
     .features-table th, .features-table td { padding: 0.6rem 0.6rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
