@@ -5,6 +5,7 @@
 import { evaluateRouteContract, loadMigrations, validateMigrationRecord } from "./check-routes.mjs";
 import { buildManifest, PAGE_RE, pathToIdentityFields } from "./route-manifest.mjs";
 import { metadataFromHtml } from "./lib/artifacts.mjs";
+import { invalidateJudgedCache } from "./lib/judged-content.mjs";
 import { loadRedirects, redirectTarget } from "../server.ts";
 
 let passed = 0;
@@ -453,6 +454,120 @@ try {
     "evaluateRouteContract rejects non-slash-terminated move migration",
     mentions(gateResult, "must end in '/' (path boundary invariant"),
   );
+}
+
+// gendn-ip0z: staged-then-reverted edit (git status MM) must not escape check-routes / route-manifest
+{
+  const scratch = await Deno.makeTempDir({ prefix: "ip0z-route-manifest-" });
+  const probe = "v900/probe";
+  const probePage = (featureId) =>
+    `<!doctype html><html><head></head><body><h1>Probe</h1>` +
+    `<a href="https://chromestatus.com/feature/${featureId}">ChromeStatus</a></body></html>`;
+  const baseFeature = "1234567890";
+  const mutatedFeature = "9999999999";
+
+  const g = async (...args) => {
+    const c = new Deno.Command("git", { args, cwd: scratch, stdout: "piped", stderr: "piped" });
+    const o = await c.output();
+    if (!o.success) {
+      throw new Error(`git ${args.join(" ")} failed: ${new TextDecoder().decode(o.stderr)}`);
+    }
+    return new TextDecoder().decode(o.stdout);
+  };
+
+  try {
+    await Deno.mkdir(`${scratch}/${probe}`, { recursive: true });
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, probePage(baseFeature));
+    await g("init", "-q", "-b", "main");
+    await g("config", "user.email", "ip0z@example.test");
+    await g("config", "user.name", "ip0z");
+    await g("add", ".");
+    await g("commit", "-qm", "baseline");
+    await g("update-ref", "refs/remotes/origin/main", "HEAD");
+
+    const baselineManifest = await buildManifest({ root: scratch });
+    assert("ip0z: baseline manifest captures 1 route", baselineManifest.length === 1);
+    assert(
+      "ip0z: baseline manifest captures feature id",
+      baselineManifest[0].identity === baseFeature,
+    );
+
+    // Case 1: Clean baseline — passes gate
+    invalidateJudgedCache();
+    let current = await buildManifest({ root: scratch });
+    let evaluated = await evaluate(baselineManifest, current);
+    assert("ip0z Case 1 (clean): route gate passes", evaluated.failures.length === 0);
+
+    // Case 2: Uncommitted edit in working tree (mutating identity) — fails gate
+    invalidateJudgedCache();
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, probePage(mutatedFeature));
+    current = await buildManifest({ root: scratch });
+    assert(
+      "ip0z Case 2 (uncommitted): manifest reflects worktree identity",
+      current[0].identity === mutatedFeature,
+    );
+    evaluated = await evaluate(baselineManifest, current);
+    assert(
+      "ip0z Case 2 (uncommitted): identity change fails gate",
+      evaluated.failures.length === 1 && mentions(evaluated, "identity changed"),
+    );
+
+    // Case 3: Staged edit — fails gate
+    invalidateJudgedCache();
+    await g("add", `${probe}/index.html`);
+    current = await buildManifest({ root: scratch });
+    assert(
+      "ip0z Case 3 (staged): manifest reflects staged identity",
+      current[0].identity === mutatedFeature,
+    );
+    evaluated = await evaluate(baselineManifest, current);
+    assert(
+      "ip0z Case 3 (staged): identity change fails gate",
+      evaluated.failures.length === 1 && mentions(evaluated, "identity changed"),
+    );
+
+    // Case 4: Staged-then-reverted (git status shows MM) — escape closed!
+    // Worktree file restored to base content: base -> worktree diff is empty,
+    // but the index holds the change, so route-manifest reads from the index.
+    invalidateJudgedCache();
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, probePage(baseFeature));
+    const statusOut = (await g("status", "--short")).trim();
+    assert(
+      "ip0z Case 4: git status shows MM for staged-then-reverted page",
+      statusOut.includes("MM") && statusOut.includes(probe),
+    );
+    current = await buildManifest({ root: scratch });
+    assert(
+      "ip0z Case 4 (staged-then-reverted): manifest reads staged index content (not reverted worktree bytes)",
+      current[0].identity === mutatedFeature,
+    );
+    evaluated = await evaluate(baselineManifest, current);
+    assert(
+      "ip0z Case 4 (staged-then-reverted): identity change fails gate (escape closed)",
+      evaluated.failures.length === 1 && mentions(evaluated, "identity changed"),
+    );
+
+    // Case 5: Committed edit — fails gate
+    invalidateJudgedCache();
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, probePage(mutatedFeature));
+    await g("commit", "-am", "commit mutated identity");
+    current = await buildManifest({ root: scratch });
+    evaluated = await evaluate(baselineManifest, current);
+    assert(
+      "ip0z Case 5 (committed): committed mutation fails gate",
+      evaluated.failures.length === 1 && mentions(evaluated, "identity changed"),
+    );
+
+    // Case 6: Resolved — passes gate
+    invalidateJudgedCache();
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, probePage(baseFeature));
+    await g("commit", "-am", "resolve identity");
+    current = await buildManifest({ root: scratch });
+    evaluated = await evaluate(baselineManifest, current);
+    assert("ip0z Case 6 (resolved): resolved route passes gate", evaluated.failures.length === 0);
+  } finally {
+    await Deno.remove(scratch, { recursive: true });
+  }
 }
 
 if (failures) Deno.exit(1);

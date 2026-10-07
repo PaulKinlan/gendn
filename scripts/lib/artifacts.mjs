@@ -10,6 +10,13 @@
 // Nothing here fabricates data: assertions and support records are DERIVED from the page's own
 // chromestatus id, route, status (built/stub), sections, and embedded showcase link.
 
+import {
+  judgedFileExists,
+  readJudgedFile,
+  readJudgedJson,
+  stagedRevertedPaths,
+} from "./judged-content.mjs";
+
 export const SHOWCASE_HOST = "chrome-platform-showcase.paulkinlan-ea.deno.net";
 
 const PAGE_RE = /^v\d+\/[^/]+\/index\.html$/;
@@ -20,26 +27,35 @@ const EXPERIMENTAL_RE =
 // ---------- page discovery ----------
 
 export async function collectPublishedPages(root = ".") {
-  const pages = [];
-  for await (const rel of Deno.readDir(root)) {
-    if (!(rel.isDirectory && /^v\d+$/.test(rel.name))) continue;
-    for await (const slug of Deno.readDir(`${root}/${rel.name}`)) {
-      if (!slug.isDirectory) continue;
-      const pagePath = `${rel.name}/${slug.name}/index.html`;
-      try {
-        await Deno.stat(`${root}/${pagePath}`);
-        pages.push(pagePath);
-      } catch {
-        // no index.html — not published
+  const pages = new Set();
+  try {
+    for await (const rel of Deno.readDir(root)) {
+      if (!(rel.isDirectory && /^v\d+$/.test(rel.name))) continue;
+      for await (const slug of Deno.readDir(`${root}/${rel.name}`)) {
+        if (!slug.isDirectory) continue;
+        const pagePath = `${rel.name}/${slug.name}/index.html`;
+        if (await judgedFileExists(pagePath, root)) {
+          pages.add(pagePath);
+        }
       }
     }
+  } catch {
+    // directory may not exist
   }
-  pages.sort();
-  return pages;
+
+  // Include any staged-reverted pages in index (e.g. staged added but deleted on disk)
+  const staged = await stagedRevertedPaths(root);
+  for (const p of staged) {
+    if (PAGE_RE.test(p) && await judgedFileExists(p, root)) {
+      pages.add(p);
+    }
+  }
+
+  return [...pages].sort();
 }
 
 export async function pageMetadata(pagePath, root = ".") {
-  const html = await Deno.readTextFile(`${root}/${pagePath}`);
+  const html = await readJudgedFile(pagePath, root);
   return metadataFromHtml(pagePath, html);
 }
 
@@ -191,13 +207,8 @@ export async function suiteHash(assertions) {
 
 // ---------- artifact loading ----------
 
-export async function readJson(path) {
-  try {
-    return JSON.parse(await Deno.readTextFile(path));
-  } catch (err) {
-    if (err instanceof Deno.errors.NotFound) return null;
-    throw err;
-  }
+export async function readJson(path, root = ".") {
+  return await readJudgedJson(path, root);
 }
 
 export function conformancePath(pageId, root = ".") {

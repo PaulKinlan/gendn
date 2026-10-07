@@ -55,7 +55,7 @@ async function putSuite(id, value) {
 }
 async function gate() {
   const cmd = new Deno.Command(Deno.execPath(), {
-    args: ["run", "--allow-read", VALIDATOR],
+    args: ["run", "--allow-read", "--allow-run", VALIDATOR],
     cwd: tmp,
     stdout: "piped",
     stderr: "piped",
@@ -250,6 +250,122 @@ try {
   );
 } finally {
   await Deno.remove(tmp, { recursive: true });
+}
+
+// gendn-ip0z: staged-then-reverted edit (git status MM) must not escape validate-artifacts
+{
+  const scratch = await Deno.makeTempDir({ prefix: "ip0z-suite-metadata-" });
+  const g = async (...args) => {
+    const c = new Deno.Command("git", { args, cwd: scratch, stdout: "piped", stderr: "piped" });
+    const o = await c.output();
+    if (!o.success) {
+      throw new Error(`git ${args.join(" ")} failed: ${new TextDecoder().decode(o.stderr)}`);
+    }
+    return new TextDecoder().decode(o.stdout);
+  };
+  const runValidator = async () => {
+    const cmd = new Deno.Command(Deno.execPath(), {
+      args: ["run", "--allow-read", "--allow-run", VALIDATOR],
+      cwd: scratch,
+      stdout: "piped",
+      stderr: "piped",
+    });
+    const { code, stdout, stderr } = await cmd.output();
+    return { code, text: new TextDecoder().decode(stdout) + new TextDecoder().decode(stderr) };
+  };
+
+  try {
+    await Deno.mkdir(`${scratch}/schema`);
+    for (const name of SCHEMAS) {
+      await Deno.copyFile(`${REPO}/schema/${name}`, `${scratch}/schema/${name}`);
+    }
+    await Deno.mkdir(`${scratch}/${ALPHA}`, { recursive: true });
+    await Deno.writeTextFile(`${scratch}/${ALPHA}/index.html`, html(ALPHA_ID));
+    const baseSuite = await suite(ALPHA, ALPHA_ID);
+    await Deno.writeTextFile(
+      `${scratch}/${ALPHA}/conformance.json`,
+      JSON.stringify(baseSuite, null, 2),
+    );
+
+    await g("init", "-q", "-b", "main");
+    await g("config", "user.email", "ip0z@example.test");
+    await g("config", "user.name", "ip0z");
+    await g("add", ".");
+    await g("commit", "-qm", "baseline");
+    await g("update-ref", "refs/remotes/origin/main", "HEAD");
+
+    // Case 1: Clean baseline
+    let r = await runValidator();
+    assert("ip0z validate-artifacts Case 1 (clean): validator passes", r.code === 0, r.text);
+
+    // Case 2: Uncommitted edit to conformance.json
+    const mutatedSuite = { ...baseSuite, identity: BETA_ID };
+    await Deno.writeTextFile(
+      `${scratch}/${ALPHA}/conformance.json`,
+      JSON.stringify(mutatedSuite, null, 2),
+    );
+    r = await runValidator();
+    assert(
+      "ip0z validate-artifacts Case 2 (uncommitted): identity difference fails",
+      r.code === 1 && r.text.includes("identity"),
+      r.text,
+    );
+
+    // Case 3: Staged edit
+    await g("add", `${ALPHA}/conformance.json`);
+    r = await runValidator();
+    assert(
+      "ip0z validate-artifacts Case 3 (staged): staged identity difference fails",
+      r.code === 1 && r.text.includes("identity"),
+      r.text,
+    );
+
+    // Case 4: Staged-then-reverted (git status shows MM)
+    // Worktree conformance.json restored to base: disk matches index.html, but index has BETA_ID.
+    await Deno.writeTextFile(
+      `${scratch}/${ALPHA}/conformance.json`,
+      JSON.stringify(baseSuite, null, 2),
+    );
+    const statusOut = (await g("status", "--short")).trim();
+    assert(
+      "ip0z validate-artifacts Case 4: git status shows MM for staged-then-reverted conformance.json",
+      statusOut.includes("MM") && statusOut.includes(ALPHA),
+    );
+    r = await runValidator();
+    assert(
+      "ip0z validate-artifacts Case 4 (staged-then-reverted): validator reads staged index content and fails (escape closed)",
+      r.code === 1 && r.text.includes("identity"),
+      r.text,
+    );
+
+    // Case 5: Committed edit
+    await Deno.writeTextFile(
+      `${scratch}/${ALPHA}/conformance.json`,
+      JSON.stringify(mutatedSuite, null, 2),
+    );
+    await g("commit", "-am", "commit mutated suite");
+    r = await runValidator();
+    assert(
+      "ip0z validate-artifacts Case 5 (committed): committed mutation fails",
+      r.code === 1 && r.text.includes("identity"),
+      r.text,
+    );
+
+    // Case 6: Resolved
+    await Deno.writeTextFile(
+      `${scratch}/${ALPHA}/conformance.json`,
+      JSON.stringify(baseSuite, null, 2),
+    );
+    await g("commit", "-am", "resolve suite");
+    r = await runValidator();
+    assert(
+      "ip0z validate-artifacts Case 6 (resolved): resolved suite passes",
+      r.code === 0,
+      r.text,
+    );
+  } finally {
+    await Deno.remove(scratch, { recursive: true });
+  }
 }
 if (failures) {
   console.error(`suite-metadata fixture: ${failures} assertion(s) failed`);
