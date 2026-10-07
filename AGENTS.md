@@ -85,9 +85,11 @@ durable identity is:
   missing published id, a deleted `built` route, a changed published identity, a changed/removed
   selected demo URL, a deleted `stub` record, or an uncovered published-count drop. Passes additive
   ids, honest stubs, and same-id in-place fixes that preserve their selected demo URL.
-- `migrations.json` — array of `{ id, action, from, to, reason, evidence, date }` records that
-  authorize exceptional removals/moves/identity-changes/demo-changes and keep moved routes alive
-  via aliases.
+- `migrations.json` — array of `{ id, action, from, to, reason, evidence, date }` records for
+  exceptional removals/moves/identity-changes/demo-changes and aliases for moved routes. For a
+  demo change, the gate currently matches only `id` + `action`, **not** `from`/`to`: a green gate
+  proves a `demo-change` record exists for that route, NOT that the specific old/new URL pair was
+  authorized. A reviewer must compare both URLs, reason and evidence to the actual edit.
 
 Legitimate slug/milestone corrections that preserve a still-listed feature id under the correct
 route are fixes, not contract breaks — record the move as an `alias`/`move` migration so the old

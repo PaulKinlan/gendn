@@ -172,7 +172,9 @@ Tooling: `deno task manifest` emits the normalized manifest
 (`{ id, route, identity, status, demo, referenceRoutes, aliases, support }`) from the catalogue;
 `deno task check-routes` is the regression gate (baseline = the manifest at `origin/main`, fallback
 `.route-manifest.baseline.json`). Exceptional removals/moves/demo changes are recorded in
-`migrations.json`.
+`migrations.json`. For demo changes the gate matches only `id` + `action`, not `from`/`to`: a green
+result proves a `demo-change` record exists for that route, NOT that this specific URL repoint was
+authorized. Review the recorded old/new URLs, reason and evidence against the page change.
 Legitimate slug/milestone corrections that preserve a still-listed feature id under the correct
 route are fixes, not contract breaks; record the move as an `alias`/`move` migration so the old
 route stays honest.
