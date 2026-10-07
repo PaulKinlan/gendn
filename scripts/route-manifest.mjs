@@ -25,13 +25,16 @@
 //   deno run --allow-read --allow-run scripts/route-manifest.mjs --ref origin/main   # a git ref
 //   (add `--pretty` for indented output)
 
-import { collectPublishedPages, isMdnStubHtml } from "./lib/artifacts.mjs";
+import {
+  collectPublishedPages,
+  extractDemoUrl,
+  extractFeatureIdentity,
+  isMdnStubHtml,
+} from "./lib/artifacts.mjs";
 import { runGit } from "./lib/bounded-git.mjs";
 import { readJudgedFile } from "./lib/judged-content.mjs";
 
 export const PAGE_RE = /^v\d+\/[^/]+\/index\.html$/;
-const FEATURE_ID_RE = /chromestatus\.com\/feature\/(\d+)/;
-const SHOWCASE_HOST = "chrome-platform-showcase.paulkinlan-ea.deno.net";
 
 export function pathToIdentityFields(pagePath, html) {
   // pagePath: `v<N>/<slug>/index.html`
@@ -41,30 +44,9 @@ export function pathToIdentityFields(pagePath, html) {
   const id = `${release}/${slug}`;
   const route = `/${release}/${slug}/`;
 
-  const idMatch = html.match(FEATURE_ID_RE);
-  const identity = idMatch ? idMatch[1] : null;
-
+  const identity = extractFeatureIdentity(html);
   const status = isMdnStubHtml(html) ? "stub" : "built";
-
-  // The embedded-demo identity: the showcase route this page links to for its OWN feature.
-  // Prefer a link whose path matches this page's `/v<N>/<slug>`; otherwise use the first showcase link.
-  let demo = null;
-  const showcaseRe = new RegExp(
-    `${SHOWCASE_HOST.replace(/\./g, "\\.")}(/v\\d+/[a-z0-9-]+/?[a-z0-9-]*/?)`,
-    "g",
-  );
-  const ownPrefix = `/${release}/${slug}`;
-  let m;
-  while ((m = showcaseRe.exec(html)) !== null) {
-    const routePath = m[1];
-    // Require the feature path segment boundary: prompt-api-sampling-parameters is a sibling,
-    // not a concept of prompt-api, despite sharing its text prefix.
-    if (routePath === ownPrefix || routePath.startsWith(`${ownPrefix}/`)) {
-      demo = `https://${SHOWCASE_HOST}${routePath}`;
-      break;
-    }
-    if (demo === null) demo = `https://${SHOWCASE_HOST}${routePath}`;
-  }
+  const demo = extractDemoUrl(html, release, slug);
 
   return { id, route, identity, status, demo };
 }

@@ -100,6 +100,72 @@ assert(
   pathToIdentityFields(promptPage, siblingDemo).demo === siblingDemo,
 );
 
+// gendn-zswf (a): explicit doc-table declaration row beats earlier incidental ChromeStatus reference
+const relatedFirstDeclaredSecond = `
+  <p>Related feature: <a href="https://chromestatus.com/feature/6299876096737280">earlier subset</a></p>
+  <table class="doc-table">
+    <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5068277495758848">5068277495758848 — Media element pseudo-classes</a></td></tr>
+  </table>
+`;
+const zswfManifest = pathToIdentityFields(
+  "v152/media-element-pseudo-classes/index.html",
+  relatedFirstDeclaredSecond,
+);
+const zswfMetadata = metadataFromHtml(
+  "v152/media-element-pseudo-classes/index.html",
+  relatedFirstDeclaredSecond,
+);
+assert(
+  "declared ChromeStatus table row beats earlier incidental ChromeStatus link in manifest and metadata",
+  zswfManifest.identity === "5068277495758848" && zswfMetadata.identity === "5068277495758848",
+  `manifest: ${zswfManifest.identity}; metadata: ${zswfMetadata.identity}; expected: 5068277495758848`,
+);
+
+// gendn-jt5r (b): marked related showcase link + no-own-demo disclaimer yields null demo; unmarked fallback preserved
+const cameraMicPage = "v153/capability-elements-camera-and-microphone/index.html";
+const markedRelatedHtml = `
+  <p>The Chrome Platform Showcase has no demo for this feature yet; the sibling <a href="${showcase}/v151/capability-elements-usermedia-mvp/" target="_blank" rel="noopener" data-demo-rel="related">&lt;usermedia&gt; demo</a> exercises the same mechanism.</p>
+`;
+const markedManifestDemo = pathToIdentityFields(cameraMicPage, markedRelatedHtml).demo;
+const markedMetadataDemo = metadataFromHtml(cameraMicPage, markedRelatedHtml).demo;
+assert(
+  "marked related showcase link is excluded from own demo yielding null in manifest and metadata",
+  markedManifestDemo === null && markedMetadataDemo === null,
+  `manifest: ${markedManifestDemo}; metadata: ${markedMetadataDemo}; expected: null`,
+);
+
+const unmarkedSiblingHtml = `
+  <p>Related context: <a href="${showcase}/v151/capability-elements-usermedia-mvp/">sibling</a></p>
+`;
+const unmarkedManifestDemo = pathToIdentityFields(cameraMicPage, unmarkedSiblingHtml).demo;
+const unmarkedMetadataDemo = metadataFromHtml(cameraMicPage, unmarkedSiblingHtml).demo;
+assert(
+  "unmarked showcase link with no own link still uses first-showcase fallback",
+  unmarkedManifestDemo === `${showcase}/v151/capability-elements-usermedia-mvp/` &&
+    unmarkedMetadataDemo === `${showcase}/v151/capability-elements-usermedia-mvp/`,
+);
+
+// gendn-jt5r (c): page with marked related link AND an own-feature demo link still selects own demo
+const markedRelatedPlusOwnDemoHtml = `
+  <p>Sibling: <a href="${showcase}/v151/capability-elements-usermedia-mvp/" data-demo-rel="related">sibling</a></p>
+  <figure><iframe src="${showcase}/v153/capability-elements-camera-and-microphone/live-demo/"></iframe></figure>
+`;
+const ownPlusMarkedManifestDemo = pathToIdentityFields(
+  cameraMicPage,
+  markedRelatedPlusOwnDemoHtml,
+).demo;
+const ownPlusMarkedMetadataDemo = metadataFromHtml(
+  cameraMicPage,
+  markedRelatedPlusOwnDemoHtml,
+).demo;
+assert(
+  "page own showcase demo wins even when a marked related link occurs earlier",
+  ownPlusMarkedManifestDemo ===
+      `${showcase}/v153/capability-elements-camera-and-microphone/live-demo/` &&
+    ownPlusMarkedMetadataDemo ===
+      `${showcase}/v153/capability-elements-camera-and-microphone/live-demo/`,
+);
+
 function entry(id, overrides = {}) {
   return {
     id,

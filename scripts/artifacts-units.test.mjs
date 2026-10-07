@@ -145,6 +145,60 @@ assert(
 );
 assert("isRemoval false for a normal feature page", meta.isRemoval === false);
 
+// gendn-zswf (a): declared ChromeStatus row beats earlier incidental ChromeStatus link
+const incidentalFirstHtml = `<!doctype html><html><body>
+<p>Earlier subset: <a href="https://chromestatus.com/feature/6299876096737280">6299876096737280</a></p>
+<table class="doc-table"><tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5068277495758848">5068277495758848</a></td></tr></table>
+</body></html>`;
+const incidentalFirstMeta = metadataFromHtml("v900/test-feature/index.html", incidentalFirstHtml);
+assert(
+  "declared ChromeStatus table row beats earlier incidental ChromeStatus link in metadataFromHtml",
+  incidentalFirstMeta.identity === "5068277495758848",
+  String(incidentalFirstMeta.identity),
+);
+
+// gendn-jt5r (b): marked related showcase link yields null demo; unmarked link uses fallback
+const markedRelatedMeta = metadataFromHtml(
+  "v900/no-demo-feature/index.html",
+  `<!doctype html><html><body>
+<p>No demo for this feature yet; see sibling <a href="https://${SHOWCASE_HOST}/v900/sibling/" data-demo-rel="related">sibling</a></p>
+<a href="https://chromestatus.com/feature/1234">CS</a>
+</body></html>`,
+);
+assert(
+  "marked related showcase link yields null demo in metadataFromHtml",
+  markedRelatedMeta.demo === null,
+  String(markedRelatedMeta.demo),
+);
+
+const unmarkedFallbackMeta = metadataFromHtml(
+  "v900/no-demo-feature/index.html",
+  `<!doctype html><html><body>
+<p>See sibling <a href="https://${SHOWCASE_HOST}/v900/sibling/">sibling</a></p>
+<a href="https://chromestatus.com/feature/1234">CS</a>
+</body></html>`,
+);
+assert(
+  "unmarked showcase link with no own demo still falls back to first showcase link",
+  unmarkedFallbackMeta.demo === `https://${SHOWCASE_HOST}/v900/sibling/`,
+  String(unmarkedFallbackMeta.demo),
+);
+
+// gendn-jt5r (c): page own demo wins even with earlier marked related link
+const markedPlusOwnMeta = metadataFromHtml(
+  "v900/own-demo-feature/index.html",
+  `<!doctype html><html><body>
+<p>See sibling <a href="https://${SHOWCASE_HOST}/v900/sibling/" data-demo-rel="related">sibling</a></p>
+<figure><iframe src="https://${SHOWCASE_HOST}/v900/own-demo-feature/main/"></iframe></figure>
+<a href="https://chromestatus.com/feature/1234">CS</a>
+</body></html>`,
+);
+assert(
+  "page own demo wins even when earlier marked related link exists",
+  markedPlusOwnMeta.demo === `https://${SHOWCASE_HOST}/v900/own-demo-feature/main/`,
+  String(markedPlusOwnMeta.demo),
+);
+
 // identity missing -> null (never fabricated)
 const noId = metadataFromHtml("v900/no-id/index.html", `<html><body><h1>No ID</h1></body></html>`);
 assert(

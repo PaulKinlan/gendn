@@ -72,7 +72,10 @@ durable identity is:
   the same feature**, or its removal, requires a reviewed `demo-change` migration (or an
   `identity-change` migration when the feature itself changes). Adding sibling concept links while
   preserving the selected URL is additive; reordering links can change selection, so inspect the
-  manifest before treating such a change as harmless.
+  manifest before treating such a change as harmless. When a page references a showcase demo purely
+  as a related, sibling, or context link without having an own demo, mark the link with
+  `data-demo-rel="related"` (or `rel="related"`): marked related links are excluded from own-demo
+  selection so the page's manifest demo remains honestly `null` rather than inheriting a sibling URL.
 
 ## Route manifest + regression gate
 
