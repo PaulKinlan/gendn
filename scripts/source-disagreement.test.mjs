@@ -755,6 +755,9 @@ const PAGES = [
       "unverified against any surviving public source",
     ],
     sideB: ["Writing Assistance APIs draft", "preference", "capability"],
+    dates: ["fetched 2026-10-07"],
+  },
+  {
     // gendn-yaa (B4, opaque-origin-for-data-urls): verified against the cited source on 2026-10-07.
     page: "v150/opaque-origin-for-data-urls/index.html",
     marker: "localStorage reach disagreement, both sides reported rather than resolved",
