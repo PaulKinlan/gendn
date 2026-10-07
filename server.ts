@@ -23,8 +23,6 @@ import {
   renderSuite,
 } from "./lib/lifecycle.ts";
 
-const PORT = Number(Deno.env.get("PORT") ?? 3000);
-
 // ----- Durable-demo route aliases (301 redirects) -----
 //
 // migrations.json is the single source of truth for the compatibility contract (see AGENTS.md /
@@ -33,38 +31,78 @@ const PORT = Number(Deno.env.get("PORT") ?? 3000);
 // corrections don't 404 old inbound links. `remove` records are provenance only (no redirect).
 // Don't hand-maintain a second list — this reads migrations.json directly.
 
-interface Migration {
+export interface Migration {
   id: string;
-  action: "move" | "alias" | "remove" | "identity-change";
-  from: string;
-  to: string | null;
+  action:
+    | "move"
+    | "alias"
+    | "remove"
+    | "identity-change"
+    | "assertion-migrate"
+    | "support-change"
+    | string;
+  from?: string;
+  to?: string | null;
   reason?: string;
   evidence?: string;
   date?: string;
+  assertion?: string;
 }
 
-function loadRedirects(): { from: string; to: string }[] {
-  try {
-    const raw = Deno.readTextFileSync("./migrations.json");
-    const migrations = JSON.parse(raw) as Migration[];
-    return migrations
-      .filter((m) => (m.action === "move" || m.action === "alias") && m.from && m.to)
-      .map((m) => ({ from: m.from, to: m.to as string }));
-  } catch {
-    return [];
+export function validateMigrationRecord(m: Migration): void {
+  if ((m.action === "move" || m.action === "alias") && m.from) {
+    if (!m.from.endsWith("/")) {
+      throw new Error(
+        `Migration ${
+          m.id ?? "(unknown)"
+        }: action "${m.action}" from "${m.from}" must end in '/' (path boundary invariant; non-slash prefix matches unrelated routes)`,
+      );
+    }
   }
 }
 
-const REDIRECTS = loadRedirects();
+export function loadRedirects(
+  source: string | Migration[] = "./migrations.json",
+): { from: string; to: string }[] {
+  let migrations: Migration[];
+  if (Array.isArray(source)) {
+    migrations = source;
+  } else {
+    let raw: string;
+    try {
+      raw = Deno.readTextFileSync(source);
+    } catch (err) {
+      if (err instanceof Deno.errors.NotFound) return [];
+      throw err;
+    }
+    migrations = JSON.parse(raw) as Migration[];
+  }
+  if (!Array.isArray(migrations)) {
+    throw new Error("migrations.json must be an array");
+  }
+  for (const m of migrations) {
+    validateMigrationRecord(m);
+  }
+  return migrations
+    .filter((m) => (m.action === "move" || m.action === "alias") && m.from && m.to)
+    .map((m) => ({ from: m.from as string, to: m.to as string }));
+}
+
+export const REDIRECTS = loadRedirects();
 
 // Returns the 301 target for a request path if it falls under an aliased old route, else null.
 // Matches the old route exactly (with or without trailing slash) and any deep link under it,
-// carrying the remaining sub-path over to the new route.
-function redirectTarget(path: string): string | null {
-  for (const { from, to } of REDIRECTS) {
+// carrying the remaining sub-path over to the new route. Only applies prefix matching when
+// 'from' ends in '/', enforcing the path boundary invariant (gendn-exxi).
+export function redirectTarget(
+  path: string,
+  redirects: { from: string; to: string }[] = REDIRECTS,
+): string | null {
+  for (const { from, to } of redirects) {
     const fromNoSlash = from.endsWith("/") ? from.slice(0, -1) : from;
-    if (path === fromNoSlash || path === from) return to;
-    if (path.startsWith(from)) return to + path.slice(from.length);
+    const fromWithSlash = from.endsWith("/") ? from : `${from}/`;
+    if (path === fromNoSlash || path === fromWithSlash) return to;
+    if (from.endsWith("/") && path.startsWith(from)) return to + path.slice(from.length);
   }
   return null;
 }
@@ -1071,6 +1109,7 @@ export async function handleRequest(req: Request): Promise<Response> {
 }
 
 if (import.meta.main) {
+  const PORT = Number(Deno.env.get("PORT") ?? 3000);
   const server = Deno.serve({ port: PORT, automaticCompression: true }, async (req) => {
     try {
       return addSecurityHeaders(await withRevalidation(req, await handleRequest(req)));

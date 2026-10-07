@@ -94,16 +94,36 @@ async function headContainsBaseline(commit) {
   }
 }
 
-async function loadMigrations() {
-  try {
-    const raw = await Deno.readTextFile(MIGRATIONS);
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) throw new Error("migrations.json must be an array");
-    return parsed;
-  } catch (err) {
-    if (err instanceof Deno.errors.NotFound) return [];
-    throw err;
+export function validateMigrationRecord(m) {
+  if ((m.action === "move" || m.action === "alias") && m.from) {
+    if (!m.from.endsWith("/")) {
+      throw new Error(
+        `migration ${
+          m.id ?? "(unknown)"
+        }: action "${m.action}" from "${m.from}" must end in '/' (path boundary invariant; non-slash prefix matches unrelated routes)`,
+      );
+    }
   }
+}
+
+export async function loadMigrations(source = MIGRATIONS) {
+  let parsed;
+  if (Array.isArray(source)) {
+    parsed = source;
+  } else {
+    try {
+      const raw = await Deno.readTextFile(source);
+      parsed = JSON.parse(raw);
+    } catch (err) {
+      if (err instanceof Deno.errors.NotFound) return [];
+      throw err;
+    }
+  }
+  if (!Array.isArray(parsed)) throw new Error("migrations.json must be an array");
+  for (const m of parsed) {
+    validateMigrationRecord(m);
+  }
+  return parsed;
 }
 
 async function fileExists(path) {
@@ -153,6 +173,16 @@ export async function evaluateRouteContract(
 
   const failures = [];
   const migrated = [];
+
+  for (const m of migrations) {
+    if ((m.action === "move" || m.action === "alias") && m.from && !m.from.endsWith("/")) {
+      failures.push(
+        `migration ${
+          m.id ?? "(unknown)"
+        }: action "${m.action}" from "${m.from}" must end in '/' (path boundary invariant; non-slash prefix matches unrelated routes)`,
+      );
+    }
+  }
 
   // Conditions 1-4, per baseline entry.
   for (const b of baseline) {
