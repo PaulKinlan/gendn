@@ -74,6 +74,7 @@ assert(
     unscopedSelection.pages.every((path, i) => path === actualCatalogue[i]),
   `count=${unscopedSelection.pages.length}`,
 );
+const trackedReportPaths = ["reports/conformance/results.json", "reports/conformance/index.html"];
 for (const selector of ["v152/window-shape-api/setshape", "v152/window-shape-apix"]) {
   const miss = selectPublishedRootPages(published, { hasSelector: true, selector });
   assert(
@@ -109,6 +110,33 @@ for (const selector of ["v152/window-shape-api/setshape", "v152/window-shape-api
       `code=${output.code} stdout=${stdout.trim()} stderr=${stderr.trim()}`,
     );
   }
+  // Unlike the restricted CLI checks above, this is the real task with write permission. A
+  // rejected selector must not mutate either tracked report; a valid scan is allowed to update
+  // them (the scopedResultsReport replacement assertions below pin that positive case).
+  const before = await Promise.all(trackedReportPaths.map((path) => Deno.readFile(path)));
+  const real = await new Deno.Command("deno", {
+    args: ["task", "conformance", "--page", selector],
+    stdout: "piped",
+    stderr: "piped",
+  }).output();
+  const realOut = new TextDecoder().decode(real.stdout);
+  const realErr = new TextDecoder().decode(real.stderr);
+  const after = await Promise.all(trackedReportPaths.map((path) => Deno.readFile(path)));
+  assert(
+    `real-permission rejected conformance --page ${selector} fails before report generation`,
+    real.code === 2 && realErr.includes(selector) &&
+      realErr.includes("only published root routes are selectable") &&
+      !realOut.includes("run-all:") && !realOut.includes("verdict:"),
+    `code=${real.code} stdout=${realOut.trim()} stderr=${realErr.trim()}`,
+  );
+  assert(
+    `real-permission rejected conformance --page ${selector} preserves both tracked reports byte-for-byte`,
+    before.every((bytes, i) =>
+      bytes.length === after[i].length &&
+      bytes.every((byte, j) => byte === after[i][j])
+    ),
+    trackedReportPaths.join(", "),
+  );
 }
 for (const selector of [undefined, "", "--screenshots"]) {
   const malformed = selectPublishedRootPages(published, { hasSelector: true, selector });
