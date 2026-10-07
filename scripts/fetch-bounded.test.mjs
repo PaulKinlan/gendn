@@ -278,15 +278,64 @@ try {
     ALLOWED_ORIGINS.delete(destOrigin);
   }
 
-  // 8c. ALLOWED_ORIGINS contains exactly the three canonical upstream origins
+  // 8c. ALLOWED_ORIGINS contains all canonical caller origins across the repo
   assert(
-    "ALLOWED_ORIGINS contains exactly chromestatus, github, and mdn",
+    "ALLOWED_ORIGINS includes the vendor-fonts caller origin https://fonts.googleapis.com",
+    ALLOWED_ORIGINS.has("https://fonts.googleapis.com"),
+  );
+  assert(
+    "ALLOWED_ORIGINS contains exactly chromestatus, github, mdn, and google fonts",
     ALLOWED_ORIGINS.has("https://chromestatus.com") &&
       ALLOWED_ORIGINS.has("https://api.github.com") &&
       ALLOWED_ORIGINS.has("https://developer.mozilla.org") &&
-      ALLOWED_ORIGINS.size === 3,
+      ALLOWED_ORIGINS.has("https://fonts.googleapis.com") &&
+      ALLOWED_ORIGINS.size === 4,
     `size=${ALLOWED_ORIGINS.size}`,
   );
+
+  // 8d. a redirect to each allowlisted origin (including fonts.googleapis.com) is allowed (passes),
+  // while an off-allowlist redirect still throws.
+  const origFetch = globalThis.fetch;
+  try {
+    for (const origin of ALLOWED_ORIGINS) {
+      globalThis.fetch = async () => {
+        const resp = new Response(`content from ${origin}`, { status: 200 });
+        Object.defineProperty(resp, "redirected", { value: true });
+        Object.defineProperty(resp, "url", { value: `${origin}/endpoint` });
+        return resp;
+      };
+      const allowed = await timed(
+        `redirect-to-${origin}`,
+        () => fetchBounded("http://127.0.0.1:0/mock-redirect", { timeoutMs: 1000 }),
+      );
+      assert(
+        `redirect to allowlisted origin ${origin} is allowed (passes)`,
+        allowed.ok && allowed.value?.text === `content from ${origin}`,
+        `${allowed.err?.message}`,
+      );
+    }
+
+    globalThis.fetch = async () => {
+      const resp = new Response("evil", { status: 200 });
+      Object.defineProperty(resp, "redirected", { value: true });
+      Object.defineProperty(resp, "url", { value: "https://evil.example.com/exploit" });
+      return resp;
+    };
+    const offMock = await timed(
+      "redirect-mock-off-allowlist",
+      () => fetchBounded("http://127.0.0.1:0/mock-redirect", { timeoutMs: 1000 }),
+    );
+    assert(
+      "redirect to off-allowlist origin throws (simulated)",
+      !offMock.ok &&
+        /fetchBounded: redirected off-allowlist to https:\/\/evil\.example\.com/.test(
+          String(offMock.err?.message),
+        ),
+      `rejected: ${offMock.err?.message}`,
+    );
+  } finally {
+    globalThis.fetch = origFetch;
+  }
 } finally {
   // Drain every cleanup, each wrapped so one failure cannot skip the rest.
   for (const cleanup of hangCleanups) {
