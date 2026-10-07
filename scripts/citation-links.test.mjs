@@ -21,6 +21,8 @@ import {
   changedPageIds,
   detectCsIdShapes,
   detectUnlinkedLabels,
+  mapPool,
+  PAGE_CONCURRENCY,
   runRatchet,
   scanIdShapes,
 } from "./check-citation-links.mjs";
@@ -92,6 +94,30 @@ ok(
   ) ===
     JSON.stringify(["v147/foo", "v148/bar"]),
   "changedPageIds maps any file in a page tree (members included) to the page id, ignores non-page files",
+);
+
+// --- 3b. mapPool concurrency & ordering contract ---------------------------
+ok(PAGE_CONCURRENCY === 8, "PAGE_CONCURRENCY is calibrated to 8");
+
+// Empty items returns empty array
+const emptyRes = await mapPool([], 8, async () => 1);
+ok(Array.isArray(emptyRes) && emptyRes.length === 0, "mapPool handles empty items");
+
+// Ordering preservation even when items resolve out-of-order
+const delays = [50, 10, 30, 5, 20, 40, 15, 25];
+let active = 0;
+let maxActive = 0;
+const poolRes = await mapPool(delays, 3, async (ms, idx) => {
+  active++;
+  maxActive = Math.max(maxActive, active);
+  await new Promise((resolve) => setTimeout(resolve, ms));
+  active--;
+  return { idx, ms };
+});
+ok(maxActive <= 3, "mapPool strictly obeys concurrency limit");
+ok(
+  poolRes.every((item, i) => item.idx === i && item.ms === delays[i]),
+  "mapPool returns results in exact input order regardless of resolution order",
 );
 
 // --- 4. ratchet end-to-end in a scratch repo --------------------------------
@@ -210,4 +236,107 @@ r = await runRatchet(dir);
 ok(r.vacuous === true, "4h missing origin/main ref yields vacuous=true for the CLI to warn about");
 
 await Deno.remove(dir, { recursive: true });
+
+// case 4i: multi-page diff with nested types/*, deleted page, untracked page
+// ensures bounded parallel walk preserves exact deterministic input-order failures
+const dir4i = await Deno.makeTempDir({ prefix: "t7h-multi-" });
+async function g4i(...args) {
+  const cmd = new Deno.Command("git", { args, cwd: dir4i, stdout: "null", stderr: "null" });
+  const { code } = await cmd.output();
+  if (code !== 0) throw new Error(`git ${args.join(" ")} failed`);
+}
+await g4i("init", "-q", "-b", "main");
+await g4i("config", "user.email", "t@t");
+await g4i("config", "user.name", "t");
+
+const cleanDoc = (title) =>
+  `<!doctype html><html><head><title>${title}</title></head><body><p>body</p><span class="citation">Source: <a href="https://example.org/${title}">link</a></span></body></html>`;
+
+// Create 10 base pages
+for (let i = 0; i < 10; i++) {
+  const pad = String(i).padStart(2, "0");
+  await Deno.mkdir(`${dir4i}/v150/page-${pad}`, { recursive: true });
+  await Deno.writeTextFile(`${dir4i}/v150/page-${pad}/index.html`, cleanDoc(`p-${pad}`));
+}
+// Nested types page
+await Deno.mkdir(`${dir4i}/v150/page-nested/types/sub`, { recursive: true });
+await Deno.writeTextFile(`${dir4i}/v150/page-nested/index.html`, cleanDoc("nested-root"));
+await Deno.writeTextFile(`${dir4i}/v150/page-nested/types/sub/index.html`, cleanDoc("nested-sub"));
+
+// Page to delete
+await Deno.mkdir(`${dir4i}/v150/page-to-delete`, { recursive: true });
+await Deno.writeTextFile(`${dir4i}/v150/page-to-delete/index.html`, cleanDoc("to-delete"));
+
+await g4i("add", ".");
+await g4i("commit", "-qm", "base commit");
+await g4i("update-ref", "refs/remotes/origin/main", "HEAD");
+
+// Introduce diff:
+// Touch several pages with unlinked citations
+for (let i = 0; i < 10; i++) {
+  const pad = String(i).padStart(2, "0");
+  if (i % 2 === 0) {
+    await Deno.writeTextFile(
+      `${dir4i}/v150/page-${pad}/index.html`,
+      unlinkedPage(`p-${pad}`).replace("Example Org report, 2026.", `Report for ${pad}`),
+    );
+  } else {
+    await Deno.writeTextFile(
+      `${dir4i}/v150/page-${pad}/index.html`,
+      cleanDoc(`p-${pad}-v2`),
+    );
+  }
+}
+// Touch nested types child with an unlinked citation
+await Deno.writeTextFile(
+  `${dir4i}/v150/page-nested/types/sub/index.html`,
+  unlinkedPage("nested-sub").replace("Example Org report, 2026.", "Nested report 2026"),
+);
+// Delete page-to-delete
+await g4i("rm", "-r", "v150/page-to-delete");
+await g4i("add", "v150/page-*");
+await g4i("commit", "-qm", "modify pages and delete one");
+
+// Untracked new page with unlinked citation
+await Deno.mkdir(`${dir4i}/v150/page-untracked`, { recursive: true });
+await Deno.writeTextFile(
+  `${dir4i}/v150/page-untracked/index.html`,
+  unlinkedPage("untracked").replace("Example Org report, 2026.", "Untracked report 2026"),
+);
+
+r = await runRatchet(dir4i);
+ok(!r.error, "4i multi-page runRatchet executes cleanly");
+ok(r.changed.length >= 12, "4i all changed pages identified");
+ok(
+  r.failures.length === 7,
+  "4i exactly 7 expected failures detected across parallel walks",
+);
+
+// Verify failure order matches changed page id order (input order preservation)
+const failurePageIds = r.failures.map((f) => f.match(/^(v\d+\/[^/]+)\//)[1]);
+let lastChangedIndex = -1;
+let inOrder = true;
+for (const fId of failurePageIds) {
+  const idx = r.changed.indexOf(fId);
+  if (idx < lastChangedIndex) {
+    inOrder = false;
+    break;
+  }
+  lastChangedIndex = idx;
+}
+ok(inOrder, "4i failure report order is strictly monotonic with respect to changedPageIds order");
+
+// Verify deleted page is not present in failures and caused no throw
+ok(
+  r.failures.every((f) => !f.includes("page-to-delete")),
+  "4i deleted page handled gracefully with empty failure list",
+);
+
+// Verify nested type was detected
+ok(
+  r.failures.some((f) => f.includes("v150/page-nested/types/sub/index.html")),
+  "4i nested types route failure detected and reported under parent page id",
+);
+
+await Deno.remove(dir4i, { recursive: true });
 console.log(`citation-links fixture: all ${n} assertions passed`);
