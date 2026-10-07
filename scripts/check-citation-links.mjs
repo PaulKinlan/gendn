@@ -120,7 +120,8 @@ async function baselineRef(root) {
   const mb = await git(["merge-base", "origin/main", "HEAD"], root);
   if (mb?.trim()) return mb.trim();
   if (await git(["rev-parse", "--verify", "origin/main"], root)) return "origin/main";
-  if (await git(["rev-parse", "--verify", "HEAD"], root)) return "HEAD";
+  const head = await git(["rev-parse", "HEAD"], root);
+  if (head?.trim()) return head.trim();
   return null;
 }
 
