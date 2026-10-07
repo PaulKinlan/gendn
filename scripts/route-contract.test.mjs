@@ -2,9 +2,10 @@
 // These synthetic manifests exercise both failure and harmless-change directions without git or pages
 // - with ONE exception at the end (gendn-r1q), which calls git locally against a ref that cannot
 // exist, to pin that a non-zero exit NAMES what git said rather than only its exit code.
-import { evaluateRouteContract } from "./check-routes.mjs";
+import { evaluateRouteContract, loadMigrations, validateMigrationRecord } from "./check-routes.mjs";
 import { buildManifest, PAGE_RE, pathToIdentityFields } from "./route-manifest.mjs";
 import { metadataFromHtml } from "./lib/artifacts.mjs";
+import { loadRedirects, redirectTarget } from "../server.ts";
 
 let passed = 0;
 let failures = 0;
@@ -291,6 +292,104 @@ try {
   assert(
     "without a label the message is unchanged (git-free callers keep the old text)",
     !/vs baseline/.test(uRemoval ?? "") && /removed or renamed/.test(uRemoval ?? ""),
+  );
+}
+
+// gendn-exxi: redirectTarget prefix match path boundary and migration key load-time validation.
+// A non-slash-terminated 'from' (e.g. '/v149/foo') must NOT match a longer unrelated path (e.g. '/v149/foobar').
+// Existing slash-terminated deep link behavior must remain unchanged.
+// Both loadRedirects (server startup) and loadMigrations/evaluateRouteContract (route gate) must reject
+// non-slash-terminated 'from' keys at load time.
+{
+  const nonSlash = [{ from: "/v149/foo", to: "/v150/foo/" }];
+  assert(
+    "redirectTarget: non-slash-terminated from does NOT match longer unrelated path",
+    redirectTarget("/v149/foobar", nonSlash) === null,
+  );
+  assert(
+    "redirectTarget: non-slash-terminated from does NOT match hyphenated sibling path",
+    redirectTarget("/v149/foo-bar", nonSlash) === null,
+  );
+  assert(
+    "redirectTarget: non-slash-terminated from exact match without slash redirects",
+    redirectTarget("/v149/foo", nonSlash) === "/v150/foo/",
+  );
+  assert(
+    "redirectTarget: non-slash-terminated from exact match with slash redirects",
+    redirectTarget("/v149/foo/", nonSlash) === "/v150/foo/",
+  );
+  assert(
+    "redirectTarget: non-slash-terminated from does NOT match deep link subpath",
+    redirectTarget("/v149/foo/sub", nonSlash) === null,
+  );
+
+  const slash = [{ from: "/v149/foo/", to: "/v150/foo/" }];
+  assert(
+    "redirectTarget: slash-terminated from does NOT match longer unrelated path",
+    redirectTarget("/v149/foobar", slash) === null,
+  );
+  assert(
+    "redirectTarget: slash-terminated from exact match without slash redirects",
+    redirectTarget("/v149/foo", slash) === "/v150/foo/",
+  );
+  assert(
+    "redirectTarget: slash-terminated from exact match with slash redirects",
+    redirectTarget("/v149/foo/", slash) === "/v150/foo/",
+  );
+  assert(
+    "redirectTarget: slash-terminated from carries deep link subpath over to target",
+    redirectTarget("/v149/foo/sub/page", slash) === "/v150/foo/sub/page",
+  );
+
+  // Load-time validation: server loadRedirects rejects non-slash-terminated 'from'
+  let serverRejected = false;
+  try {
+    loadRedirects([{ id: "test/foo", action: "move", from: "/v149/foo", to: "/v150/foo/" }]);
+  } catch (e) {
+    serverRejected = /must end in '\/'/.test(String(e?.message ?? e));
+  }
+  assert("loadRedirects rejects non-slash-terminated move record at load time", serverRejected);
+
+  let aliasRejected = false;
+  try {
+    loadRedirects([{ id: "test/alias", action: "alias", from: "/v149/foo", to: "/v150/foo/" }]);
+  } catch (e) {
+    aliasRejected = /must end in '\/'/.test(String(e?.message ?? e));
+  }
+  assert("loadRedirects rejects non-slash-terminated alias record at load time", aliasRejected);
+
+  // Load-time validation: check-routes validateMigrationRecord & loadMigrations reject non-slash-terminated 'from'
+  let validatorRejected = false;
+  try {
+    validateMigrationRecord({
+      id: "test/foo",
+      action: "move",
+      from: "/v149/foo",
+      to: "/v150/foo/",
+    });
+  } catch (e) {
+    validatorRejected = /must end in '\/'/.test(String(e?.message ?? e));
+  }
+  assert("validateMigrationRecord rejects non-slash-terminated move record", validatorRejected);
+
+  let fileLoaderRejected = false;
+  try {
+    await loadMigrations([{ id: "test", action: "move", from: "/v149/foo", to: "/v150/foo/" }]);
+  } catch (e) {
+    fileLoaderRejected = /must end in '\/'/.test(String(e?.message ?? e));
+  }
+  assert(
+    "loadMigrations rejects non-slash-terminated record at load time",
+    fileLoaderRejected,
+  );
+
+  // evaluateRouteContract reports a failure when a non-slash migration is present
+  const gateResult = await evaluate([base], [base], [
+    { id: "v149/foo", action: "move", from: "/v149/foo", to: "/v150/foo/" },
+  ]);
+  assert(
+    "evaluateRouteContract rejects non-slash-terminated move migration",
+    mentions(gateResult, "must end in '/' (path boundary invariant"),
   );
 }
 
