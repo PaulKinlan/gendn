@@ -164,6 +164,36 @@ ok(
   "4b uncommitted edit to legacy page fails before commit (resolve-on-touch)",
 );
 await g("add", ".");
+let r4bStaged = await runRatchet(dir);
+ok(
+  r4bStaged.failures.length === 1 && r4bStaged.failures[0].includes("v147/legacy-page"),
+  "4b staged edit to legacy page fails before commit",
+);
+
+// gendn-waa3: staged-then-worktree-reverted (git status shows MM) must not escape.
+// Overwrite working file back to base content: base -> working tree diff is empty,
+// but the index holds the change, so union of git diff --cached keeps it in the key.
+await Deno.writeTextFile(`${dir}/${PAGE_A}`, unlinkedPage("a"));
+const statusShort4b = new TextDecoder().decode(
+  (await (new Deno.Command("git", { args: ["status", "--short"], cwd: dir, stdout: "piped" }))
+    .output()).stdout,
+).trim();
+ok(
+  statusShort4b.includes("MM") && statusShort4b.includes(PAGE_A),
+  "4b git status shows MM for staged-then-reverted file",
+);
+let r4bReverted = await runRatchet(dir);
+ok(
+  r4bReverted.changed.includes("v147/legacy-page"),
+  "4b staged-then-reverted edit is included in changed pages via cached diff (gendn-waa3)",
+);
+ok(
+  r4bReverted.failures.length === 1 && r4bReverted.failures[0].includes("v147/legacy-page"),
+  "4b staged-then-reverted page retaining its legacy label FAILS the ratchet (escape closed)",
+);
+
+// Restore the edit in working tree before commit so the committed control runs as before
+await Deno.writeTextFile(`${dir}/${PAGE_A}`, unlinkedPage("a").replace("body", "body edited"));
 await g("commit", "-qm", "touch A unrelated to label");
 r = await runRatchet(dir);
 ok(r.changed.includes("v147/legacy-page"), "4b changed set includes A");
@@ -392,6 +422,19 @@ r4j = await runRatchet(dir4j);
 ok(
   r4j.failures.length === 1 && r4j.failures[0].includes("v150/focusgroup"),
   "4j staged uncommitted tracked page edit FAILS the ratchet before commit",
+);
+
+// gendn-waa3: staged-then-reverted edit is included in changed pages via cached diff
+await Deno.writeTextFile(`${dir4j}/${TRACKED_PAGE}`, cleanDoc("focusgroup"));
+let r4jReverted = await runRatchet(dir4j);
+ok(
+  r4jReverted.changed.includes("v150/focusgroup"),
+  "4j staged-then-reverted tracked page edit is included in changed pages via cached diff (gendn-waa3)",
+);
+// Restore unlinked citation before committed control
+await Deno.writeTextFile(
+  `${dir4j}/${TRACKED_PAGE}`,
+  cleanDoc("focusgroup") + '\n<span class="citation">Source: Unlinked Test Citation 2026.</span>',
 );
 
 // Committed control: committing the same edit still fails
