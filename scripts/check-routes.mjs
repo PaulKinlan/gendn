@@ -434,6 +434,7 @@ async function main() {
     const oldLedger = await readPriorBindings(ref);
     ledgerCount = Array.isArray(ledger) ? ledger.length : 0;
     priorCount = oldLedger === null ? "bootstrap" : oldLedger.length;
+    let priorLedger = oldLedger;
     if (oldLedger === null) {
       const changed = await bootstrapExtractorChanges(ref);
       if (changed.length) {
@@ -441,17 +442,37 @@ async function main() {
           `${BINDING_LEDGER} first-rollout bootstrap cannot change extractor sources: ` +
             `${changed.join(", ")}; land the ledger first, then change extraction with a migration`,
         );
+        // An extractor-mutated baseline would invent a backwards migration requirement;
+        // still report the current-vs-ledger mismatch, but never trust that synthetic prior.
+      } else {
+        priorLedger = bindingsFromManifest(baseline);
       }
     }
-    // During the one-time bootstrap only, the unchanged extractor can derive the old bindings
+    // During the one-time bootstrap only, the UNCHANGED extractor can derive old bindings
     // from baseline pages; thereafter the committed PRIOR ledger is authoritative instead.
-    failures.push(...evaluateBindingLedger({
+    const ledgerErrors = evaluateBindingLedger({
       current,
       ledger,
-      priorLedger: oldLedger ?? bindingsFromManifest(baseline),
+      priorLedger,
       migrations,
       priorMigrations: await readPriorMigrations(ref),
-    }));
+    });
+    failures.push(...ledgerErrors);
+    if (ledgerErrors.length === 0 && priorLedger !== null) {
+      const priorByRoute = new Map(priorLedger.map((entry) => [entry.route, entry]));
+      for (const entry of ledger) {
+        const old = priorByRoute.get(entry.route);
+        if (!old) continue;
+        for (const field of ["identity", "demo"]) {
+          if (old[field] !== entry[field]) {
+            migrated.push(
+              `${entry.route} (${field} binding change via migration: ` +
+                `${JSON.stringify(old[field])} -> ${JSON.stringify(entry[field])})`,
+            );
+          }
+        }
+      }
+    }
   } catch (err) {
     failures.push(
       `${BINDING_LEDGER} unavailable or unreadable: ${err.message}; ` +

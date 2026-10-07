@@ -220,7 +220,8 @@ try {
   assert(
     "REAL gate: initial rollout rejects a simultaneously changed extractor even after ledger refresh",
     bootstrapEscape.code !== 0 &&
-      /bootstrap cannot change extractor sources/.test(bootstrapEscape.text),
+      /bootstrap cannot change extractor sources/.test(bootstrapEscape.text) &&
+      !/binding changed .*without a NEW exact/.test(bootstrapEscape.text),
     bootstrapEscape.text,
   );
   await Deno.writeTextFile(artifactPath, original);
@@ -250,7 +251,8 @@ try {
   const idWithMigration = await gate();
   assert(
     "REAL gate: matching NEW exact identity migration passes",
-    idWithMigration.code === 0,
+    idWithMigration.code === 0 &&
+      /identity binding change via migration/.test(idWithMigration.text),
     idWithMigration.text,
   );
 
@@ -287,7 +289,8 @@ try {
   const demoWithMigration = await gate();
   assert(
     "REAL gate: matching NEW exact demo migration passes",
-    demoWithMigration.code === 0,
+    demoWithMigration.code === 0 &&
+      /demo binding change via migration/.test(demoWithMigration.text),
     demoWithMigration.text,
   );
 } finally {
