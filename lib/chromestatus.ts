@@ -26,7 +26,8 @@ const XSSI_PREFIX = ")]}'";
 // decide which origins are fetched (this set is the complete set of origins fetchBounded is
 // called with across the repo: lib/chromestatus.ts, server.ts, lib/mdn.ts,
 // scripts/vendor-fonts.mjs) — the guard below enforces only that an upstream REDIRECT
-// destination stays on this allowlist rather than an arbitrary host.
+// destination stays on this allowlist rather than an arbitrary host - validated BEFORE the
+// hop, so no connection is ever opened to an off-allowlist destination (gendn-lr61).
 export const ALLOWED_ORIGINS = new Set([
   "https://chromestatus.com",
   "https://api.github.com",
@@ -102,17 +103,68 @@ export async function fetchBounded(
     method?: string;
   } = {},
 ): Promise<{ res: Response; text: string }> {
-  const res = await fetch(url, { method, headers, signal: AbortSignal.timeout(timeoutMs) });
-  if (res.redirected && !ALLOWED_ORIGINS.has(new URL(res.url).origin)) {
-    try {
-      await res.body?.cancel();
-    } catch {
-      // already closed or absent
+  // gendn-lr61: redirects are followed MANUALLY. Each hop's Location header is resolved and
+  // validated against ALLOWED_ORIGINS BEFORE the next request is issued, so a hostile or
+  // misbehaving upstream can never make this process open a connection to an off-allowlist
+  // host. The old guard followed first and threw after - the destination had already been
+  // reached (measured: the test destination logged a request before the rejection). The
+  // post-hoc res.redirected check below stays as defence in depth: with redirect:"manual"
+  // it is unreachable, but if auto-following is ever re-enabled the destination check holds.
+  const MAX_REDIRECT_HOPS = 5;
+  // gendn-lr61 review: ONE timeout budget per CALL, not per hop - a redirect chain must
+  // not multiply the bound (auto-follow gave the whole chain a single signal; the hoisted
+  // signal restores exactly that, as THREAT_MODEL.md's "15 s AbortSignal.timeout" states).
+  const signal = AbortSignal.timeout(timeoutMs);
+  // gendn-lr61 review: follow only the Fetch spec's redirect statuses. A 304 (or any other
+  // 3xx) is NOT a redirect here - it falls through to the caller, matching auto-follow.
+  const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+  let current = url;
+  for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
+    const res = await fetch(current, {
+      method,
+      headers,
+      redirect: "manual",
+      signal,
+    });
+    if (REDIRECT_STATUSES.has(res.status)) {
+      const location = res.headers.get("location");
+      try {
+        await res.body?.cancel();
+      } catch {
+        // already closed or absent
+      }
+      if (!location) {
+        throw new Error(`fetchBounded: ${res.status} redirect without a Location header`);
+      }
+      const next = new URL(location, current);
+      if (!ALLOWED_ORIGINS.has(next.origin)) {
+        throw new Error(`fetchBounded: redirected off-allowlist to ${next.origin}`);
+      }
+      // gendn-lr61 review: auto-follow strips CORS-non-wildcard headers (authorization,
+      // cookie) on a CROSS-ORIGIN redirect; a manual hop must match that or a future
+      // credentialed caller would leak to an allowlisted destination. No current caller
+      // sends credentials - this pins the invariant anyway.
+      if (next.origin !== new URL(current).origin) {
+        const stripped = new Headers(headers);
+        stripped.delete("authorization");
+        stripped.delete("cookie");
+        headers = stripped;
+      }
+      current = next.href;
+      continue;
     }
-    throw new Error(`fetchBounded: redirected off-allowlist to ${new URL(res.url).origin}`);
+    if (res.redirected && !ALLOWED_ORIGINS.has(new URL(res.url).origin)) {
+      try {
+        await res.body?.cancel();
+      } catch {
+        // already closed or absent
+      }
+      throw new Error(`fetchBounded: redirected off-allowlist to ${new URL(res.url).origin}`);
+    }
+    const text = await readCapped(res, maxBytes);
+    return { res, text };
   }
-  const text = await readCapped(res, maxBytes);
-  return { res, text };
+  throw new Error(`fetchBounded: exceeded ${MAX_REDIRECT_HOPS} redirect hops`);
 }
 
 const cache = new Map<string, { at: number; value: unknown }>();
