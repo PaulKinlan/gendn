@@ -868,11 +868,11 @@ const REVALIDATION_CACHE_CONTROL = "no-cache";
 // when offered br, and leaves identity alone). Used only to decide whether a 304 owes a Vary.
 const ACCEPTS_COMPRESSION = /\b(?:gzip|br)\b/i;
 
-async function withRevalidation(req: Request, res: Response): Promise<Response> {
+export async function withRevalidation(req: Request, res: Response): Promise<Response> {
   if (res.body === null) return res; // 204/302: no representation to validate
   // 200 ONLY. A 404/500 has no current representation to validate (see the note above), and a future 206
   // would have only a PARTIAL one - an ETag hashed over part of a body conflicts with range requests,
-  // exactly as RFC 9110 8.8.3.3 warns. Reachable statuses here are 200/204/301/304/400/404/502, so this
+  // exactly as RFC 9110 8.8.3.3 warns. Reachable statuses here are 200/204/301/400/404/502, so this
   // is equivalent to !res.ok today and closes that hole in advance.
   if (res.status !== 200) return res;
   // Only GET and HEAD revalidate. RFC 9110 13.1.2 defines this condition in terms of "the request method
@@ -894,9 +894,17 @@ async function withRevalidation(req: Request, res: Response): Promise<Response> 
   if (ifNoneMatchMatches(req.headers.get("if-none-match"), etag)) {
     // RFC 9110 15.4.5: a 304 MUST carry the Vary that a 200 to the SAME request would have carried. The
     // runtime adds vary: Accept-Encoding only when it compresses, and it cannot add anything to a
-    // bodyless 304, so it is set here whenever this request is one the runtime would compress.
+    // bodyless 304, so it is merged here whenever this request is one the runtime would compress.
+    // If a future route already set Vary, accept-encoding is appended rather than clobbering it.
     if (ACCEPTS_COMPRESSION.test(req.headers.get("accept-encoding") ?? "")) {
-      headers.set("vary", "accept-encoding");
+      const existing = headers.get("vary");
+      if (!existing) {
+        headers.set("vary", "accept-encoding");
+      } else if (
+        !existing.split(",").some((part) => part.trim().toLowerCase() === "accept-encoding")
+      ) {
+        headers.append("vary", "accept-encoding");
+      }
     }
     // DEFENSIVE, AND MEASURED RATHER THAN ASSUMED (review P2-4). No route sets either header today. The
     // runtime already strips content-length from a bodiless 304 - forcing a value on and probing the wire
