@@ -93,11 +93,14 @@ async function main() {
     : null;
   let baselineChecked = 0;
   if (!baselineRef) {
-    failures.push(
-      "cannot verify immutable assertion weakening or touched-page contracts: independent " +
-        "baseline refs/remotes/origin/main is unavailable or not a commit; fetch origin main " +
-        "before running this ratchet (no HEAD self-baseline)",
+    // Same precondition exit as landing-preflight.sh: inability to CHECK is not a genuine
+    // weakening violation (rc1), and neither condition may claim a successful ratchet.
+    console.error(
+      "FAIL — PRECONDITION (exit 6): cannot verify immutable assertion weakening or " +
+        "touched-page contracts: independent baseline refs/remotes/origin/main is unavailable " +
+        "or not a commit; run git fetch origin main before this ratchet (no HEAD self-baseline)",
     );
+    Deno.exit(6);
   }
   if (baselineRef) {
     for (const s of suites) {

@@ -389,9 +389,10 @@ const root = Deno.cwd();
     await g("update-ref", "-d", "refs/remotes/origin/main");
     cli = await runSurfaceGate();
     assert(
-      "missing independent baseline refuses surface CLI validation (rc1; no PASS)",
-      cli.code === 1 && cli.text.includes("cannot verify committed surface mappings") &&
-        cli.text.includes("refs/remotes/origin/main") && !cli.text.includes("PASS —"),
+      "missing independent baseline is PRECONDITION rc6, not violation rc1 or PASS",
+      cli.code === 6 && cli.text.includes("cannot verify committed surface mappings") &&
+        cli.text.includes("refs/remotes/origin/main") &&
+        cli.text.includes("run git fetch origin main") && !cli.text.includes("PASS —"),
       cli.text,
     );
   } finally {

@@ -98,8 +98,8 @@ export async function runRatchet(root) {
   if (!base) {
     return {
       error: "cannot verify committed surface mappings: independent baseline " +
-        "refs/remotes/origin/main is unavailable or not a commit; fetch origin main " +
-        "before running this ratchet (no HEAD self-baseline)",
+        "refs/remotes/origin/main is unavailable or not a commit; run git fetch origin main " +
+        "before this ratchet (no HEAD self-baseline)",
     };
   }
   // base -> WORKING TREE + INDEX (union --cached): the ratchet must also see uncommitted
@@ -203,8 +203,12 @@ if (import.meta.main) {
   }
   const r = await runRatchet(root);
   if (r.error) {
-    console.error(`FAIL — surface-coverage ratchet could not run: ${r.error}`);
-    Deno.exit(1);
+    // No independent baseline is a precondition failure (landing-preflight's rc6), not a
+    // wrong-surface finding (rc1). Both stay nonzero, with no successful ratchet verdict.
+    console.error(
+      `FAIL — PRECONDITION (exit 6): surface-coverage ratchet could not verify: ${r.error}`,
+    );
+    Deno.exit(6);
   }
   for (const w of r.warnings) console.log(`WARNING: ${w}`);
   if (r.vacuous) {

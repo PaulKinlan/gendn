@@ -241,10 +241,11 @@ try {
   await g("update-ref", "-d", "refs/remotes/origin/main");
   r = await runGate();
   assert(
-    "rtvp check-conformance Case 8: missing independent baseline refuses before claiming checked suites",
-    r.code === 1 && r.text.includes("cannot verify immutable assertion weakening") &&
-      r.text.includes("refs/remotes/origin/main") && !r.text.includes("PASS —") &&
-      r.text.includes("baseline suites    : 0 checked for weakening"),
+    "rtvp check-conformance Case 8: missing baseline is PRECONDITION rc6, never weakening rc1 or PASS",
+    r.code === 6 && r.text.includes("cannot verify immutable assertion weakening") &&
+      r.text.includes("refs/remotes/origin/main") &&
+      r.text.includes("run git fetch origin main") && !r.text.includes("PASS —") &&
+      !r.text.includes("baseline suites"),
     r.text,
   );
 } finally {

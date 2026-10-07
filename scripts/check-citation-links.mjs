@@ -156,8 +156,8 @@ export async function runRatchet(root) {
   if (!base) {
     return {
       error: "cannot verify committed citation-label changes: independent baseline " +
-        "refs/remotes/origin/main is unavailable or not a commit; fetch origin main " +
-        "before running this ratchet (no HEAD self-baseline)",
+        "refs/remotes/origin/main is unavailable or not a commit; run git fetch origin main " +
+        "before this ratchet (no HEAD self-baseline)",
     };
   }
   // base -> WORKING TREE + INDEX (union --cached): the ratchet must also see uncommitted
@@ -264,8 +264,12 @@ if (import.meta.main) {
   }
   const r = await runRatchet(root);
   if (r.error) {
-    console.log(`FAIL — citation-links ratchet: ${r.error}`);
-    Deno.exit(1);
+    // An unverifiable ratchet is a precondition failure (landing-preflight's rc6), not a
+    // genuine citation violation (rc1). Neither may print a PASS verdict.
+    console.error(
+      `FAIL — PRECONDITION (exit 6): citation-links ratchet could not verify: ${r.error}`,
+    );
+    Deno.exit(6);
   }
   const failures = [...r.failures, ...shapes.failures];
   console.log(

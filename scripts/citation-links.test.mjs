@@ -501,9 +501,10 @@ ok(
 await g4j("update-ref", "-d", "refs/remotes/origin/main");
 cli4j = await runCitationGate();
 ok(
-  cli4j.code === 1 && cli4j.text.includes("cannot verify committed citation-label changes") &&
-    cli4j.text.includes("refs/remotes/origin/main") && !cli4j.text.includes("PASS —"),
-  "4j missing independent baseline refuses CLI validation (rc1; no PASS)",
+  cli4j.code === 6 && cli4j.text.includes("cannot verify committed citation-label changes") &&
+    cli4j.text.includes("refs/remotes/origin/main") &&
+    cli4j.text.includes("run git fetch origin main") && !cli4j.text.includes("PASS —"),
+  "4j missing independent baseline is PRECONDITION rc6, not violation rc1 or PASS",
 );
 
 await Deno.remove(dir4j, { recursive: true });
