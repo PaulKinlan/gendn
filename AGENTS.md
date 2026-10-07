@@ -92,14 +92,18 @@ durable identity is:
   selected demo URL, a deleted `stub` record, or an uncovered published-count drop. Passes additive
   ids, honest stubs, and same-id in-place fixes that preserve their selected demo URL. Its separate
   binding ratchet needs a reachable baseline ref; it fails closed rather than trusting the older
-  fallback snapshot when that ref is unavailable.
+  fallback snapshot when that ref is unavailable. A clean offline `deno task check-routes` now exits
+  non-zero if `origin/main` (or an explicit `--baseline` ref) is unavailable: fetch the ref instead
+  of treating the stale fallback snapshot as a green binding verdict.
 - `route-bindings.json` — the small, committed binding ledger: exactly `{ route, identity, demo }`
   for **every** published route. This independent snapshot catches rebindings made solely by edits
   to extractor code (which otherwise affect both sides of the manifest comparison). The gate fails
   on missing/extra/duplicate/stale entries; it NEVER rewrites the ledger. For a deliberate page or
   extractor binding change, run **`deno task refresh-bindings` explicitly**, inspect the ledger diff
-  against the previous committed version, and commit it alongside the migration. New routes need a
-  ledger entry but no migration. Do not copy `.route-manifest.baseline.json` as this ledger: that
+  against the previous committed version, and commit it alongside the migration. Regenerating the
+  ledger WITHOUT a new authorising migration is exactly the bypass this gate exists to stop: the
+  gate must fail, not silently bless the changed identity or demo. New routes need a ledger entry
+  but no migration. Do not copy `.route-manifest.baseline.json` as this ledger: that
   fallback contains different fields and may not represent the current route census. During the
   one-time initial rollout (when the baseline has no ledger), the gate refuses simultaneous edits
   to the extractor pipeline; land the ledger first, then do any extractor rebinding separately.
