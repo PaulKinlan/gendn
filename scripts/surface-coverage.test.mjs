@@ -10,6 +10,7 @@
 // three fragments (~360/#syntax, ~189/#scroll-state-query, ~3005/#features); the misread
 // 'to the next h2' yields one ~3562-char slice. A copied rule silently inherits the misread.
 import { fragmentAfterId, stripMarkup } from "./lib/reference-contract.mjs";
+import { plainCorpusPath } from "./lib/plain-corpus-path.mjs";
 import {
   CLASSIFIER_STOPWORDS,
   EXEMPT_TIER,
@@ -334,12 +335,39 @@ const root = Deno.cwd();
         ),
       cli.text,
     );
+    const aliasRoot = `${scratch}-alias`;
+    await Deno.symlink(scratch, aliasRoot);
+    try {
+      const plain = await plainCorpusPath(aliasRoot, `${probe}/index.html`, "file");
+      assert(
+        "checker helper accepts a symlinked REPO ROOT while checking only descendants",
+        plain.state === "ok",
+        JSON.stringify(plain),
+      );
+      const dotHref = await plainCorpusPath(aliasRoot, `${probe}/./index.html`, "file");
+      assert(
+        "same-page ./ href remains a valid plain path",
+        dotHref.state === "ok",
+        JSON.stringify(dotHref),
+      );
+    } finally {
+      await Deno.remove(aliasRoot);
+    }
     const baseline = await scanCorpus(scratch);
     assert(
       "scratch corpus starts clean with root + nested contracts",
       baseline.contracts === 2 && Object.keys(baseline.byClass).length === 0,
       JSON.stringify({ contracts: baseline.contracts, byClass: baseline.byClass }),
     );
+    await g("rm", `${child}/reference-contract.json`);
+    let cliDeleted = await runSurfaceGate();
+    assert(
+      "genuinely deleted child contract defers to other gates while remaining corpus stays non-empty",
+      cliDeleted.code === 0 && cliDeleted.text.includes("checked contracts 0") &&
+        cliDeleted.text.includes("PASS —"),
+      cliDeleted.text,
+    );
+    await g("reset", "--hard", "HEAD");
 
     // Only the overview PAGE changes; both contracts are conservatively checked, but the
     // wrong-surface finding belongs to the overview slice. The old ratchet checked ZERO.
@@ -476,7 +504,7 @@ const root = Deno.cwd();
     assert(
       "dangling touched DIRECTORY fails by name and never claims its contract was checked",
       cli.code === 1 && cli.text.includes(probe) &&
-        cli.text.includes("cannot traverse contract directory") &&
+        cli.text.includes(`symlink component ${probe}`) &&
         cli.text.includes(`${probe}/reference-contract.json`) &&
         cli.text.includes("checked contracts 0") && !cli.text.includes("PASS —"),
       cli.text,
@@ -486,6 +514,88 @@ const root = Deno.cwd();
     cli = await runSurfaceGate();
     assert(
       "restored readable directory and contracts pass",
+      cli.code === 0 && cli.text.includes("PASS —"),
+      cli.text,
+    );
+
+    await Deno.remove(`${scratch}/v147`, { recursive: true });
+    await Deno.symlink("missing-milestone", `${scratch}/v147`);
+    cli = await runSurfaceGate();
+    assert(
+      "dangling MILESTONE component fails with named summary and zero inspected contracts",
+      cli.code === 1 && cli.text.includes("symlink component v147") &&
+        cli.text.includes("checked contracts 0") && !cli.text.includes("PASS —"),
+      cli.text,
+    );
+    await Deno.remove(`${scratch}/v147`);
+    await g("reset", "--hard", "HEAD");
+
+    await Deno.remove(`${scratch}/${child}`, { recursive: true });
+    await Deno.symlink("missing-member", `${scratch}/${child}`);
+    cli = await runSurfaceGate();
+    assert(
+      "dangling MEMBER component fails with named summary",
+      cli.code === 1 && cli.text.includes(`symlink component ${child}`) &&
+        !cli.text.includes("PASS —"),
+      cli.text,
+    );
+    await Deno.remove(`${scratch}/${child}`);
+    await g("reset", "--hard", "HEAD");
+
+    const outside = await Deno.makeTempDir({ prefix: "surface-outside-empty-" });
+    try {
+      await Deno.remove(`${scratch}/${child}`, { recursive: true });
+      await Deno.symlink(outside, `${scratch}/${child}`);
+      cli = await runSurfaceGate();
+      assert(
+        "symlink to REAL EMPTY OUTSIDE directory fails proactively",
+        cli.code === 1 && cli.text.includes(`symlink component ${child}`) &&
+          !cli.text.includes("PASS —"),
+        cli.text,
+      );
+    } finally {
+      await Deno.remove(`${scratch}/${child}`);
+      await Deno.remove(outside, { recursive: true });
+      await g("reset", "--hard", "HEAD");
+    }
+
+    const contractPath = `${scratch}/${probe}/reference-contract.json`;
+    const externalContract = await Deno.makeTempFile({ prefix: "surface-real-contract-" });
+    try {
+      await Deno.copyFile(contractPath, externalContract);
+      await Deno.remove(contractPath);
+      await Deno.symlink(externalContract, contractPath);
+      cli = await runSurfaceGate();
+      assert(
+        "symlinked regular contract file is rejected even when target is readable",
+        cli.code === 1 && cli.text.includes(`${probe}/reference-contract.json`) &&
+          cli.text.includes("symlink component") && !cli.text.includes("PASS —"),
+        cli.text,
+      );
+    } finally {
+      await Deno.remove(contractPath);
+      await Deno.remove(externalContract);
+      await g("reset", "--hard", "HEAD");
+    }
+
+    await Deno.mkdir(`${scratch}/${probe}/private`);
+    await Deno.writeTextFile(`${scratch}/${probe}/private/index.html`, page(named));
+    await Deno.chmod(`${scratch}/${probe}/private`, 0o000);
+    try {
+      cli = await runSurfaceGate();
+      assert(
+        "permission-denied member directory fails with named controlled summary",
+        cli.code === 1 && cli.text.includes(`${probe}/private`) &&
+          cli.text.includes("FAIL —") && !cli.text.includes("PASS —"),
+        cli.text,
+      );
+    } finally {
+      await Deno.chmod(`${scratch}/${probe}/private`, 0o700);
+      await Deno.remove(`${scratch}/${probe}/private`, { recursive: true });
+    }
+    cli = await runSurfaceGate();
+    assert(
+      "restored plain corpus still passes",
       cli.code === 0 && cli.text.includes("PASS —"),
       cli.text,
     );

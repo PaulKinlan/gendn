@@ -14,6 +14,7 @@
 // re-implements it. The /<h[1-3]\b/i rule ends a slice at the next h1/h2/h3 — the misread
 // 'next h2' produced gendn-5ao's self-confirming probe; the fixture replays that trap.
 import { surfaceCoverageFindings } from "./lib/surface-coverage.mjs";
+import { plainCorpusPath } from "./lib/plain-corpus-path.mjs";
 
 const CONTRACT_RE = /^(v\d+\/[^/]+(?:\/[^/]+)*)\/reference-contract\.json$/;
 const PAGE_RE = /^(v\d+\/[^/]+)(?:\/[^/]+)*\/index\.html$/;
@@ -57,25 +58,24 @@ export function changedPageOwners(names) {
 // One contract walk for both the corpus report and changed-page ownership. A member page can
 // be documented by an overview contract or a nested contract, so gate the whole slug subtree.
 async function* contractIdsUnder(root, id) {
+  const verdict = await plainCorpusPath(root, id);
+  if (verdict.state === "missing") return; // genuine deletion: check-routes owns it
+  if (verdict.state !== "ok") throw new Error(`${id}: ${verdict.reason}`);
   try {
     for await (const entry of Deno.readDir(`${root}/${id}`)) {
+      const child = `${id}/${entry.name}`;
+      if (entry.isSymlink) {
+        throw new Error(`${child}: ${(await plainCorpusPath(root, child)).reason}`);
+      }
       if (entry.isFile && entry.name === "reference-contract.json") yield id;
-      if (entry.isDirectory) yield* contractIdsUnder(root, `${id}/${entry.name}`);
+      if (entry.isDirectory) yield* contractIdsUnder(root, child);
     }
   } catch (err) {
-    if (err instanceof Deno.errors.NotFound && !await lstatIfPresent(`${root}/${id}`)) {
-      return; // genuinely deleted page/owner: check-routes owns removals
+    if (err instanceof Deno.errors.NotFound) {
+      const recheck = await plainCorpusPath(root, id);
+      if (recheck.state === "missing") return; // genuine deletion, not a dangling component
     }
     throw new Error(`${id}: cannot traverse contract directory: ${err.message}`);
-  }
-}
-
-async function lstatIfPresent(path) {
-  try {
-    return await Deno.lstat(path);
-  } catch (err) {
-    if (err instanceof Deno.errors.NotFound) return null;
-    throw err;
   }
 }
 
@@ -88,16 +88,27 @@ async function baselineRef(root) {
   return mb?.trim() || "origin/main";
 }
 
-async function readHtml(path) {
+async function readHtml(root, path) {
+  const relative = path.slice(root.length + 1);
+  const verdict = await plainCorpusPath(root, relative, "file");
+  if (verdict.state === "missing") return null; // missing href is handled by contract validation
+  if (verdict.state !== "ok") throw new Error(`${relative}: ${verdict.reason}`);
   try {
     return await Deno.readTextFile(path);
-  } catch {
-    return null;
+  } catch (err) {
+    if (err instanceof Deno.errors.NotFound) {
+      const recheck = await plainCorpusPath(root, relative, "file");
+      if (recheck.state === "missing") return null;
+    }
+    throw new Error(`${relative}: cannot read documented page: ${err.message}`);
   }
 }
 
 async function loadContract(root, id) {
   const path = `${id}/reference-contract.json`;
+  const verdict = await plainCorpusPath(root, path, "file");
+  if (verdict.state === "missing") return null; // genuine removal: check-routes owns it
+  if (verdict.state !== "ok") throw new Error(`${path}: ${verdict.reason}`);
   try {
     const contract = JSON.parse(await Deno.readTextFile(`${root}/${path}`));
     if (
@@ -109,18 +120,9 @@ async function loadContract(root, id) {
     }
     return contract;
   } catch (err) {
-    if (err instanceof Deno.errors.NotFound && !await lstatIfPresent(`${root}/${path}`)) {
-      // A contract can be genuinely deleted, or hidden behind a dangling symlink
-      // to its owner directory. Walk to the published owner before deferring.
-      const parts = id.split("/");
-      let dangling = false;
-      for (let n = parts.length; n >= 2; n--) {
-        if ((await lstatIfPresent(`${root}/${parts.slice(0, n).join("/")}`))?.isSymlink) {
-          dangling = true;
-          break;
-        }
-      }
-      if (!dangling) return null; // genuine removal: check-routes owns it
+    if (err instanceof Deno.errors.NotFound) {
+      const recheck = await plainCorpusPath(root, path, "file");
+      if (recheck.state === "missing") return null;
     }
     throw new Error(`${path}: cannot read or parse touched contract: ${err.message}`);
   }
@@ -129,10 +131,15 @@ async function loadContract(root, id) {
 async function countCurrentContracts(root) {
   let count = 0;
   for await (const rel of Deno.readDir(root)) {
-    if (!(rel.isDirectory && /^v\d+$/.test(rel.name))) continue;
+    if (!/^v\d+$/.test(rel.name)) continue;
+    const milestone = await plainCorpusPath(root, rel.name);
+    if (milestone.state !== "ok") throw new Error(`${rel.name}: ${milestone.reason}`);
     for await (const slug of Deno.readDir(`${root}/${rel.name}`)) {
-      if (!slug.isDirectory) continue;
-      for await (const _id of contractIdsUnder(root, `${rel.name}/${slug.name}`)) count++;
+      if (!slug.isDirectory && !slug.isSymlink) continue;
+      const owner = `${rel.name}/${slug.name}`;
+      const verdict = await plainCorpusPath(root, owner);
+      if (verdict.state !== "ok") throw new Error(`${owner}: ${verdict.reason}`);
+      for await (const _id of contractIdsUnder(root, owner)) count++;
     }
   }
   return count;
@@ -190,7 +197,14 @@ export async function runRatchet(root) {
     }
     if (!contract) continue; // deleted in the diff; route gate owns removal
     inspected++;
-    for (const f of await surfaceCoverageFindings(contract, root, readHtml)) {
+    let findings;
+    try {
+      findings = await surfaceCoverageFindings(contract, root, (path) => readHtml(root, path));
+    } catch (err) {
+      failures.push(`touched contract ${id}: cannot read documented page: ${err.message}`);
+      continue;
+    }
+    for (const f of findings) {
       const line =
         `${f.id}: ${f.inventoryId}.${f.dim} -> ${f.selector} maps a slice without any surface marker [${
           (f.markers ?? []).join(", ")
@@ -215,7 +229,12 @@ export async function runRatchet(root) {
       error: "independent published contract catalogue has zero contracts; cannot anchor the floor",
     };
   }
-  const currentContracts = await countCurrentContracts(root);
+  let currentContracts;
+  try {
+    currentContracts = await countCurrentContracts(root);
+  } catch (err) {
+    failures.push(`published contract census: cannot inspect ${err.message}`);
+  }
   if (currentContracts === 0) {
     failures.push(
       `published reference-contract corpus empty: zero contracts against ${priorContracts} independent origin/main contracts`,
@@ -230,14 +249,23 @@ export async function scanCorpus(root) {
   let contracts = 0;
   let strictDims = 0;
   for await (const rel of Deno.readDir(root)) {
-    if (!(rel.isDirectory && /^v\d+$/.test(rel.name))) continue;
+    if (!/^v\d+$/.test(rel.name)) continue;
+    const milestone = await plainCorpusPath(root, rel.name);
+    if (milestone.state !== "ok") throw new Error(`${rel.name}: ${milestone.reason}`);
     for await (const slug of Deno.readDir(`${root}/${rel.name}`)) {
-      if (!slug.isDirectory) continue;
-      for await (const id of contractIdsUnder(root, `${rel.name}/${slug.name}`)) {
+      if (!slug.isDirectory && !slug.isSymlink) continue;
+      const owner = `${rel.name}/${slug.name}`;
+      const verdict = await plainCorpusPath(root, owner);
+      if (verdict.state !== "ok") throw new Error(`${owner}: ${verdict.reason}`);
+      for await (const id of contractIdsUnder(root, owner)) {
         const contract = await loadContract(root, id);
         if (!contract) continue;
         contracts++;
-        const findings = await surfaceCoverageFindings(contract, root, readHtml);
+        const findings = await surfaceCoverageFindings(
+          contract,
+          root,
+          (path) => readHtml(root, path),
+        );
         for (const f of findings) (byClass[f.cls] ??= []).push(f);
         for (const doc of contract.documentation ?? []) {
           for (const [dim, cov] of Object.entries(doc.dimensions ?? {})) {
@@ -257,7 +285,13 @@ if (import.meta.main) {
   const root = Deno.cwd();
   const all = Deno.args.includes("--all");
   if (all) {
-    const r = await scanCorpus(root);
+    let r;
+    try {
+      r = await scanCorpus(root);
+    } catch (err) {
+      console.error(`FAIL — cannot scan published contract: ${err.message}`);
+      Deno.exit(1);
+    }
     if (r.contracts === 0) {
       console.error(
         "FAIL — surface-coverage report cannot assess an empty published contract corpus (zero reference-contract.json files scanned)",
@@ -286,7 +320,13 @@ if (import.meta.main) {
     );
     Deno.exit(0);
   }
-  const r = await runRatchet(root);
+  let r;
+  try {
+    r = await runRatchet(root);
+  } catch (err) {
+    console.error(`FAIL — cannot inspect published contract: ${err.message}`);
+    Deno.exit(1);
+  }
   if (r.error) {
     // No independent baseline is a precondition failure (landing-preflight's rc6), not a
     // wrong-surface finding (rc1). Both stay nonzero, with no successful ratchet verdict.

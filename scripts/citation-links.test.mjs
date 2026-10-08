@@ -561,8 +561,8 @@ await Deno.symlink("missing-page.html", `${dir4j}/${TRACKED_PAGE}`);
 cli4j = await runCitationGate();
 ok(
   cli4j.code === 1 && cli4j.text.includes(TRACKED_PAGE) &&
-    cli4j.text.includes("cannot read touched page") && !cli4j.text.includes("PASS —"),
-  "4l unreadable touched page names path and read failure (CLI rc1, no PASS)",
+    cli4j.text.includes("symlink component") && !cli4j.text.includes("PASS —"),
+  "4l symlinked touched page is named and refused (CLI rc1, no PASS)",
 );
 await g4j("reset", "--hard", "HEAD");
 cli4j = await runCitationGate();
@@ -575,13 +575,62 @@ await Deno.symlink("missing-dir", `${dir4j}/v150/focusgroup`);
 cli4j = await runCitationGate();
 ok(
   cli4j.code === 1 && cli4j.text.includes("v150/focusgroup") &&
-    cli4j.text.includes("cannot inspect touched page") && !cli4j.text.includes("PASS —"),
+    cli4j.text.includes("symlink component") && !cli4j.text.includes("PASS —"),
   "4l dangling touched DIRECTORY is a named hard failure (CLI rc1, no PASS)",
 );
 await Deno.remove(`${dir4j}/v150/focusgroup`);
 await g4j("reset", "--hard", "HEAD");
 cli4j = await runCitationGate();
 ok(cli4j.code === 0 && cli4j.text.includes("PASS —"), "4l readable directory restoration passes");
+
+await Deno.remove(`${dir4j}/v150`, { recursive: true });
+await Deno.symlink("missing-milestone", `${dir4j}/v150`);
+cli4j = await runCitationGate();
+ok(
+  cli4j.code === 1 && cli4j.text.includes("symlink component v150") &&
+    !cli4j.text.includes("PASS —"),
+  "4n dangling MILESTONE component is a named hard failure (CLI rc1)",
+);
+await Deno.remove(`${dir4j}/v150`);
+await g4j("reset", "--hard", "HEAD");
+
+await Deno.symlink("missing-member", `${dir4j}/v150/focusgroup/member`);
+cli4j = await runCitationGate();
+ok(
+  cli4j.code === 1 && cli4j.text.includes("v150/focusgroup/member") &&
+    cli4j.text.includes("symlink component") && !cli4j.text.includes("PASS —"),
+  "4n dangling MEMBER component is a named hard failure (CLI rc1)",
+);
+await Deno.remove(`${dir4j}/v150/focusgroup/member`);
+const outside4j = await Deno.makeTempDir({ prefix: "citation-outside-empty-" });
+try {
+  await Deno.symlink(outside4j, `${dir4j}/v150/focusgroup/member`);
+  cli4j = await runCitationGate();
+  ok(
+    cli4j.code === 1 && cli4j.text.includes("v150/focusgroup/member") &&
+      cli4j.text.includes("symlink component") && !cli4j.text.includes("PASS —"),
+    "4n symlink to REAL EMPTY OUTSIDE directory fails proactively (CLI rc1)",
+  );
+} finally {
+  await Deno.remove(`${dir4j}/v150/focusgroup/member`);
+  await Deno.remove(outside4j, { recursive: true });
+}
+await Deno.mkdir(`${dir4j}/v150/focusgroup/private`);
+await Deno.writeTextFile(`${dir4j}/v150/focusgroup/private/index.html`, cleanDoc("private"));
+await Deno.chmod(`${dir4j}/v150/focusgroup/private`, 0o000);
+try {
+  cli4j = await runCitationGate();
+  ok(
+    cli4j.code === 1 && cli4j.text.includes("v150/focusgroup/private") &&
+      cli4j.text.includes("FAIL —") && !cli4j.text.includes("PASS —"),
+    "4n permission-denied member directory fails with named controlled summary",
+  );
+} finally {
+  await Deno.chmod(`${dir4j}/v150/focusgroup/private`, 0o700);
+  await Deno.remove(`${dir4j}/v150/focusgroup/private`, { recursive: true });
+}
+cli4j = await runCitationGate();
+ok(cli4j.code === 0 && cli4j.text.includes("PASS —"), "4n plain restored corpus passes");
 
 // When the fetched ref is ahead of HEAD, merge-base == HEAD does NOT mean fetched == HEAD.
 await g4j("commit", "--allow-empty", "-qm", "fixture fetched-ahead ref");

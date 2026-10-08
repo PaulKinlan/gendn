@@ -28,6 +28,8 @@
 //     RFC n, Intent) and no immediate <a href. Plain prose uses of the word
 //     "Source:" without a source-like token are not flagged.
 
+import { plainCorpusPath } from "./lib/plain-corpus-path.mjs";
+
 const PAGE_RE = /^(v\d+\/[^/]+)\//; // any file in the page tree: member routes included,
 // matching check-conformance.mjs touched-page mapping (a member-only diff must not bypass the gate)
 const CS_ID_MIN_LEN = 15;
@@ -124,20 +126,48 @@ export function changedPageIds(names) {
 /** Every index.html in one page tree (parent + member routes), any depth. */
 async function pageTreeHtml(root, id, strict = false) {
   const out = [];
-  const walk = async (dir) => {
-    for await (const e of Deno.readDir(dir)) {
-      if (e.isDirectory) await walk(`${dir}/${e.name}`);
-      else if (e.name === "index.html") {
-        const path = `${dir}/index.html`;
-        try {
-          out.push({ path, html: await Deno.readTextFile(path) });
-        } catch (err) {
-          if (strict) throw new Error(`${path}: cannot read touched page: ${err.message}`);
+  const walk = async (relative) => {
+    const verdict = await plainCorpusPath(root, relative);
+    if (verdict.state === "missing") {
+      throw new Deno.errors.NotFound(`${relative}: ${verdict.reason}`);
+    }
+    if (verdict.state !== "ok") throw new Error(`${relative}: ${verdict.reason}`);
+    try {
+      for await (const e of Deno.readDir(`${root}/${relative}`)) {
+        const child = `${relative}/${e.name}`;
+        // readDir marks even a real-directory symlink isDirectory=false. Inspect it
+        // proactively, including an external-but-empty target with no index.html.
+        if (e.isDirectory || e.isSymlink && e.name !== "index.html") {
+          const childVerdict = await plainCorpusPath(root, child);
+          if (childVerdict.state !== "ok") {
+            throw new Error(`${child}: ${childVerdict.reason}`);
+          }
+          await walk(child);
+        } else if (e.name === "index.html") {
+          const file = await plainCorpusPath(root, child, "file");
+          if (file.state !== "ok") throw new Error(`${child}: ${file.reason}`);
+          try {
+            out.push({
+              path: `${root}/${child}`,
+              html: await Deno.readTextFile(`${root}/${child}`),
+            });
+          } catch (err) {
+            if (strict) throw new Error(`${child}: cannot read touched page: ${err.message}`);
+          }
         }
       }
+    } catch (err) {
+      if (err instanceof Deno.errors.NotFound) {
+        const recheck = await plainCorpusPath(root, relative);
+        if (recheck.state === "missing") throw err; // genuine deletion: check-routes owns it
+        throw new Error(
+          `${relative}: cannot list page directory: ${recheck.reason ?? err.message}`,
+        );
+      }
+      throw new Error(`${relative}: cannot inspect page directory: ${err.message}`);
     }
   };
-  await walk(`${root}/${id}`);
+  await walk(id);
   return out;
 }
 
@@ -187,13 +217,8 @@ export async function runRatchet(root) {
       tree = await pageTreeHtml(root, id, true);
     } catch (err) {
       if (err instanceof Deno.errors.NotFound) {
-        try {
-          // A dangling symlink to the touched DIRECTORY also raises NotFound on readDir.
-          // Only a genuinely absent owner belongs to check-routes' deletion policy.
-          await Deno.lstat(`${root}/${id}`);
-        } catch (statErr) {
-          if (statErr instanceof Deno.errors.NotFound) return []; // genuinely deleted route
-        }
+        const recheck = await plainCorpusPath(root, id);
+        if (recheck.state === "missing") return []; // genuinely deleted route: check-routes owns it
       }
       return [`${id}: cannot inspect touched page: ${err.message}`];
     }
@@ -218,10 +243,15 @@ export async function runRatchet(root) {
 async function allPageHtml(root) {
   const out = [];
   for await (const rel of Deno.readDir(root)) {
-    if (!(rel.isDirectory && /^v\d+$/.test(rel.name))) continue;
+    if (!/^v\d+$/.test(rel.name)) continue;
+    const milestone = await plainCorpusPath(root, rel.name);
+    if (milestone.state !== "ok") throw new Error(`${rel.name}: ${milestone.reason}`);
     for await (const slug of Deno.readDir(`${root}/${rel.name}`)) {
-      if (!slug.isDirectory) continue;
-      for (const f of await pageTreeHtml(root, `${rel.name}/${slug.name}`)) out.push(f);
+      if (!slug.isDirectory && !slug.isSymlink) continue;
+      const owner = `${rel.name}/${slug.name}`;
+      const verdict = await plainCorpusPath(root, owner);
+      if (verdict.state !== "ok") throw new Error(`${owner}: ${verdict.reason}`);
+      for (const f of await pageTreeHtml(root, owner)) out.push(f);
     }
   }
   return out;
@@ -259,9 +289,21 @@ export async function countAll(root) {
 if (import.meta.main) {
   const root = ".";
   const all = Deno.args.includes("--all");
-  const shapes = await scanIdShapes(root);
+  let shapes;
+  try {
+    shapes = await scanIdShapes(root);
+  } catch (err) {
+    console.error(`FAIL — cannot scan published page: ${err.message}`);
+    Deno.exit(1);
+  }
   if (all) {
-    const c = await countAll(root);
+    let c;
+    try {
+      c = await countAll(root);
+    } catch (err) {
+      console.error(`FAIL — cannot count published page: ${err.message}`);
+      Deno.exit(1);
+    }
     if (c.pages === 0) {
       console.error(
         "FAIL — citation-links report cannot assess an empty published page corpus (zero index.html pages scanned)",
