@@ -26,6 +26,7 @@ import {
   runRatchet,
   scanIdShapes,
 } from "./check-citation-links.mjs";
+import { plainCorpusPath } from "./lib/plain-corpus-path.mjs";
 
 let n = 0;
 function ok(cond, name) {
@@ -119,6 +120,23 @@ ok(
   poolRes.every((item, i) => item.idx === i && item.ms === delays[i]),
   "mapPool returns results in exact input order regardless of resolution order",
 );
+
+// A symlink to a REAL, EMPTY directory never throws on readDir. Pin the shared
+// proactive lstat invariant before the older parallel/deletion assertions.
+const plainProbe = await Deno.makeTempDir({ prefix: "citation-plain-path-" });
+const realOutside = await Deno.makeTempDir({ prefix: "citation-real-outside-" });
+try {
+  await Deno.mkdir(`${plainProbe}/v150`);
+  await Deno.symlink(realOutside, `${plainProbe}/v150/member`);
+  const verdict = await plainCorpusPath(plainProbe, "v150/member");
+  ok(
+    verdict.state === "invalid" && verdict.reason.includes("symlink component v150/member"),
+    "shared helper proactively rejects a real-but-empty external directory symlink",
+  );
+} finally {
+  await Deno.remove(plainProbe, { recursive: true });
+  await Deno.remove(realOutside, { recursive: true });
+}
 
 // --- 4. ratchet end-to-end in a scratch repo --------------------------------
 const dir = await Deno.makeTempDir({ prefix: "t7h-" });
