@@ -102,6 +102,30 @@ async function main() {
     );
     Deno.exit(6);
   }
+  // An empty working corpus is not evidence of full coverage. Anchor the floor on the
+  // independently fetched published catalogue, not a reciprocal 0/0 equality.
+  const priorPaths = await git(["ls-tree", "-r", "--name-only", baselineRef]);
+  if (priorPaths === null) {
+    console.error("FAIL — PRECONDITION (exit 6): cannot read the published baseline catalogue");
+    Deno.exit(6);
+  }
+  const priorPages = priorPaths.split("\n").filter((path) =>
+    /^v\d+\/[^/]+\/index\.html$/.test(path)
+  );
+  const priorSuites = priorPaths.split("\n").filter((path) =>
+    /^v\d+\/[^/]+\/conformance\.json$/.test(path)
+  );
+  if (priorPages.length === 0 || priorSuites.length === 0) {
+    console.error(
+      "FAIL — PRECONDITION (exit 6): independent published catalogue has no pages or conformance suites to anchor the coverage floor",
+    );
+    Deno.exit(6);
+  }
+  if (pageIds.size === 0 || suites.length === 0) {
+    failures.push(
+      `published corpus empty: ${pageIds.size} pages and ${suites.length} suites against independent baseline ${priorPages.length} pages and ${priorSuites.length} suites`,
+    );
+  }
   // The fetched ref can be independent yet equal to HEAD (a run on main). In that case
   // no committed change was compared; qualify BOTH the count and success verdict.
   const headCommit = (await git(["rev-parse", "--verify", "HEAD^{commit}"]))?.trim();

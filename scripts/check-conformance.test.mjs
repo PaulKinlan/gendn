@@ -259,6 +259,27 @@ try {
       !r.text.includes("baseline suites"),
     r.text,
   );
+
+  // The independent baseline has two published pages and suites. Erasing every working
+  // page AND suite used to print 0/0 and PASS; it must now fail with the real prior floor.
+  await g("update-ref", "refs/remotes/origin/main", "HEAD~1");
+  await Deno.remove(`${scratch}/v150`, { recursive: true });
+  await Deno.remove(`${scratch}/v999`, { recursive: true });
+  r = await runGate();
+  assert(
+    "rtvp check-conformance Case 9: zero pages and zero suites vs independent catalogue is rc1, never PASS",
+    r.code === 1 && r.text.includes("published corpus empty: 0 pages and 0 suites") &&
+      r.text.includes("independent baseline 2 pages and 2 suites") && !r.text.includes("PASS —"),
+    r.text,
+  );
+  await g("reset", "--hard", "refs/remotes/origin/main");
+  r = await runGate();
+  assert(
+    "rtvp check-conformance Case 10: restored non-empty catalogue still passes",
+    r.code === 0 && r.text.includes("conformance suites : 2/2 published pages") &&
+      r.text.includes("PASS —"),
+    r.text,
+  );
 } finally {
   await Deno.remove(scratch, { recursive: true });
 }
