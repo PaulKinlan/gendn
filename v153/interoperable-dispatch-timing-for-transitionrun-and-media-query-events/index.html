@@ -56,7 +56,7 @@
   <div class="warn-block" id="behavior-change">
     <strong>Behavior change &mdash; event ordering observable by scripts</strong>
     <p>Scripts that implicitly depended on the old Blink timing &mdash; for example asserting that <code>transitionrun</code> arrives <em>one frame after</em> a style change that creates a transition, or observing media-query <code>change</code> listeners interleaved with <code>transitionrun</code>/<code>animationstart</code> listeners in a single callback batch &mdash; will observe a different, now spec-conformant order from Chrome 153. Review tests that snapshot event order. There is no new API surface to feature-detect; the events, their interfaces, and their targets are unchanged.</p>
-    <p><strong>Flag state.</strong> The <a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">milestone=153 listing</a> files this feature under &ldquo;Enabled by default&rdquo; (verified 2026-07-29; the listing is authoritative for identity). The Blink runtime feature that gates the change is <code>EventTimingMatchingHTML</code>, recorded with status <code>experimental</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a> at trunk (fetched 2026-07-29) and <em>not</em> marked <code>public: true</code> &mdash; so there is no <code>chrome://flags</code> entry. For local testing of the aligned behavior outside the rollout, launch Chrome with <code>--enable-blink-features=EventTimingMatchingHTML</code>. The two implementation CLs (<a href="https://chromium-review.googlesource.com/c/chromium/src/+/8044688" target="_blank" rel="noopener">8044688</a>, <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8045604" target="_blank" rel="noopener">8045604</a>) both landed behind this flag.</p>
+    <p><strong>Source-dated flag state.</strong> The <a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">milestone=153 listing</a> files this as &ldquo;Enabled by default&rdquo;. As of 2026-10-08, <code>EventTimingMatchingHTML</code> is <code>status: "stable"</code> on <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">trunk</a>, but remains <code>status: "experimental"</code> on the <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7978/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">M153 branch (7978)</a>. Neither record marks it <code>public: true</code>; the Blink command-line switch, not a documented <code>chrome://flags</code> entry, is the reproducible way to compare behaviors in a local build: <code>--enable-blink-features=EventTimingMatchingHTML</code> versus <code>--disable-blink-features=EventTimingMatchingHTML</code>. The later trunk flip alone does not establish the M153 build default.</p>
   </div>
 
   <section>
@@ -67,7 +67,7 @@
       <tr><th scope="row">Milestone listing</th><td>Chrome 153 &mdash; Enabled by default (<a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">listing</a>, verified 2026-07-29)</td></tr>
       <tr><th scope="row">New API surface</th><td>None &mdash; no new interfaces, members, values, or flags for authors</td></tr>
       <tr><th scope="row">What changes</th><td>(1) <code>transitionrun</code> fires in the same rendering iteration that creates the transition (previously delayed to a later iteration); (2) media-query <code>change</code> fires at the media-query step, before pending animation events (previously intermixed with them)</td></tr>
-      <tr><th scope="row">Runtime feature</th><td><code>EventTimingMatchingHTML</code> (status <code>experimental</code>, not public) in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a></td></tr>
+      <tr><th scope="row">Runtime feature</th><td><code>EventTimingMatchingHTML</code>: stable on <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">trunk</a>, experimental on <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7978/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">M153 branch</a> (2026-10-08); neither publicly exposed as a flags-UI toggle</td></tr>
       <tr><th scope="row">Implementation</th><td><a href="https://chromium-review.googlesource.com/c/chromium/src/+/8044688" target="_blank" rel="noopener">CL 8044688</a> (merged 2026-07-08) + <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8045604" target="_blank" rel="noopener">CL 8045604</a> (merged 2026-07-14), both in <code>page_animator.cc</code>; tracking bug <a href="https://crbug.com/397737222" target="_blank" rel="noopener">crbug.com/397737222</a></td></tr>
       <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/6312504658624512" target="_blank" rel="noopener">6312504658624512 &mdash; Interoperable dispatch timing for transitionrun and media query events</a> (Blink component <code>Blink&gt;Animation</code>)</td></tr>
     </table>
@@ -131,7 +131,7 @@
       <thead><tr><th>Situation</th><th>Before Chrome 153 (Blink)</th><th>From Chrome 153 (spec-aligned)</th></tr></thead>
       <tr><td>Viewport/class change flips a media query during iteration N</td><td><code>change</code> dispatched <strong>intermixed with animation events</strong> at the animation-events step</td><td><code>change</code> dispatched at the earlier media-query step, <strong>before</strong> pending animation events</td></tr>
       <tr><td><code>change</code> listener starts/cancels an animation</td><td>Resulting animation events raced in the same mixed batch</td><td>Listener runs first; animation events it causes are still collected and dispatched in the same iteration&rsquo;s animation step</td></tr>
-      <tr><td>Legacy <code>mql.addListener(cb)</code> callbacks</td><td>Separate dispatch path from standard <code>change</code> events</td><td>Standard <code>MediaQueryListEvent</code> &ldquo;dispatched immediately in Step 10 alongside legacy <code>mql.addListener()</code> callbacks&rdquo; (<a href="https://chromium-review.googlesource.com/c/chromium/src/+/8044688" target="_blank" rel="noopener">CL 8044688</a>) &mdash; both paths observe the same step</td></tr>
+      <tr><td>Legacy <code>mql.addListener(cb)</code> callbacks</td><td>Separate dispatch path from standard <code>change</code> events</td><td>Both paths observe the media-query step; <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7978/third_party/blink/renderer/core/page/page_animator.cc" target="_blank" rel="noopener">page_animator.cc</a> calls <code>CallMediaQueryListListeners()</code> before dispatching queued <code>MediaQueryListEvent</code> listeners when the flag is enabled. This is Blink source order, not a cross-engine ordering promise</td></tr>
     </table>
     </div>
     <span class="citation">Source: <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8044688" target="_blank" rel="noopener">CL 8044688 commit message</a>; <a href="https://drafts.csswg.org/cssom-view/#evaluate-media-queries-and-report-changes" target="_blank" rel="noopener">CSSOM View &mdash; evaluate media queries and report changes</a></span>
@@ -143,33 +143,30 @@
     <blockquote>
       <p>&ldquo;While HTML spec for Step 11 is only about animation updates, Blink has been dispatching all events without any filtering here. &hellip; We are splitting this dispatch in two: first dispatch the animation events as per Step 11, then dispatch all events not covered to maintain backward compatibility. We are avoiding unfiltered dispatch in the last step to prevent premature dispatch of any events covered by the previous steps in case any such event is queued after their dispatch before in the same loop.&rdquo;</p>
     </blockquote>
-    <p>Net effect for authors: events that belong to the named rendering steps (resize, scroll, media-query, animation) are no longer at risk of being flushed early by the catch-all in <code>page_animator.cc</code>; events the spec doesn&rsquo;t assign to a step keep their historical delivery point. This is the piece that keeps the alignment web-compatible &mdash; the CL frames the second dispatch explicitly as backward compatibility, not a new contract.</p>
-    <span class="citation">Source: <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8044688" target="_blank" rel="noopener">CL 8044688 commit message (quoted verbatim)</a></span>
+    <p>The <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7978/third_party/blink/renderer/core/page/page_animator.cc" target="_blank" rel="noopener">M153 page_animator.cc predicate</a> defines this flush by <em>exclusion</em>, not by a finite allowlist: it excludes <code>scroll</code>, <code>scrollsnapchange</code>, <code>scrollsnapchanging</code>, <code>scrollend</code>, <code>resize</code>, <code>pagereveal</code>, and events whose interface is <code>MediaQueryListEvent</code>. Remaining queued events, including animation events and the source-comment examples of <code>&lt;dialog&gt;</code> <code>close</code> and text-control <code>select</code>/<code>change</code>, are dispatched here. This is an implementation filter, not an exhaustive author-facing event list or a new timing guarantee for every unlisted event.</p>
+    <span class="citation">Source: <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8044688" target="_blank" rel="noopener">CL 8044688 commit message (quoted verbatim)</a>; <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7978/third_party/blink/renderer/core/page/page_animator.cc" target="_blank" rel="noopener">M153 Step 11 filter in page_animator.cc</a>.</span>
   </section>
 
   <section>
     <h2 id="observable">observing the new order (examples)</h2>
-    <p>Nothing to feature-detect &mdash; the events and interfaces are unchanged &mdash; but the ordering is observable. These gendn-derived snippets (not from a spec; labelled as such) log the relative order so you can compare engines or pre/post-153 Chrome:</p>
-    <pre><code>// Order probe: media-query change vs animation events in one iteration
-const log = [];
-const mql = matchMedia("(max-width: 600px)");
-mql.addEventListener("change", () =&gt; log.push("mq-change"));
-
-document.documentElement.style.transition = "margin-left 100s";
-document.documentElement.addEventListener("transitionrun",
-  () =&gt; log.push("transitionrun"), { once: true });
-
-// Force both in one iteration: shrink the viewport and flip the property.
-// Spec order (Chrome 153+): "mq-change" before "transitionrun".
-// Old Blink: the two could appear in either relative order.</code></pre>
-    <pre><code>// Same-iteration transitionrun: listener observes the transition
-// in the frame it was created (Chrome 153+), not a frame later.
-el.addEventListener("transitionrun", (e) =&gt; {
-  // e.elapsedTime === 0 at interval start (negative delay = -delay)
-  console.log("running:", e.propertyName, e.elapsedTime);
-});
-el.style.transition = "opacity 1s";
-el.style.opacity = "0";  // creates + queues in one style change</code></pre>
+    <p>Nothing new to feature-detect, but the order can be measured. This probe was run in local headless Chrome 154.0.8037.97 (2026-10-08), with a CDP viewport override from 800 to 500 CSS pixels immediately after the opacity change. Run it on a page initially wider than 600px; let <code>#timing-probe</code> render before changing its opacity. CDP&rsquo;s <code>Emulation.setDeviceMetricsOverride</code> (width 500, height 800, deviceScaleFactor 1, mobile false) supplies the resize &mdash; <code>window.resizeTo()</code> did not resize this headless build.</p>
+    <pre><code>&lt;div id="timing-probe" style="width:40px;height:40px;opacity:1;transition:opacity 1s"&gt;&lt;/div&gt;
+&lt;script&gt;
+const trace = [];
+let frame = 0;
+function tick() { frame++; requestAnimationFrame(tick); }
+requestAnimationFrame(tick);
+const mql = matchMedia('(max-width:600px)');
+mql.addEventListener('change', () =&gt; trace.push(['mq-change', frame]));
+const box = document.querySelector('#timing-probe');
+box.addEventListener('transitionrun', () =&gt; trace.push(['transitionrun', frame]));
+// After two rAFs allow initial opacity to render, then run these two CDP steps:
+box.style.opacity = '0';
+trace.push(['set', frame]);
+// CDP: Emulation.setDeviceMetricsOverride({width:500,height:800,
+//   deviceScaleFactor:1,mobile:false}); then inspect trace after 1 second.
+&lt;/script&gt;</code></pre>
+    <p><strong>Observed flag comparison:</strong> with <code>--enable-blink-features=EventTimingMatchingHTML</code>, <code>set</code>, <code>mq-change</code>, and <code>transitionrun</code> were all recorded in frame 17, in that order. With <code>--disable-blink-features=EventTimingMatchingHTML</code>, <code>set</code> and <code>mq-change</code> were in frame 22, while <code>transitionrun</code> arrived in frame 23. The absolute frame numbers are incidental; the on/off difference demonstrates the frame-late transition regression in this Chrome 154 build and the media-query-before-transition ordering for this probe, <em>not</em> a universal assertion about every viewport/transition combination or an M153 binary.</p>
     <p>The Chrome Platform Showcase has no demo route for this feature (<a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v153/interoperable-dispatch-timing-for-transitionrun-and-media-query-events/" target="_blank" rel="noopener">route HEAD-checked 404, 2026-07-29</a>), so no live iframe is embedded; the snippets above are the canonical probes.</p>
     <span class="citation">Source: ordering asserted by the <a href="https://chromestatus.com/api/v0/features/6312504658624512" target="_blank" rel="noopener">ChromeStatus summary</a> and <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8044688" target="_blank" rel="noopener">CL 8044688</a>; snippets are gendn-derived illustrations</span>
   </section>
@@ -193,7 +190,7 @@ el.style.opacity = "0";  // creates + queues in one style change</code></pre>
     <table class="doc-table compat-table">
       <caption>The alignment change (not from BCD)</caption>
       <thead><tr><th>Engine</th><th>Aligned timing</th><th>Evidence</th></tr></thead>
-      <tr><td>Chrome / Edge (Chromium)</td><td>From Chrome 153</td><td><a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">milestone=153 listing</a> (&ldquo;Enabled by default&rdquo;); gated by <code>EventTimingMatchingHTML</code> (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">flag record</a>)</td></tr>
+      <tr><td>Chrome / Edge (Chromium)</td><td>153 per listing; verify build behavior</td><td><a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">milestone=153 listing</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">trunk stable</a> versus <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7978/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">M153 branch experimental</a>; local Chrome 154 flag-on/off timing observation below</td></tr>
       <tr><td>Firefox (Gecko)</td><td>Already conformant (per listing)</td><td><a href="https://chromestatus.com/api/v0/features/6312504658624512" target="_blank" rel="noopener">ChromeStatus record</a>: the change makes Blink &ldquo;interoperable with Gecko and WebKit&rdquo;; vendor-position field records no objection (no notes)</td></tr>
       <tr><td>Safari (WebKit)</td><td>Already conformant (per listing)</td><td>Same record; no WebKit standards-position link on record</td></tr>
     </table>
