@@ -649,6 +649,20 @@ try {
     "collectSuites: only pages WITH a conformance.json contribute",
     suites.length === 1 && suites[0].id === "v900/alpha",
   );
+  const aliasRoot = `${tmp}-alias`;
+  await Deno.symlink(tmp, aliasRoot);
+  try {
+    const aliasPages = await collectPublishedPages(aliasRoot);
+    const aliasSuites = await collectSuites(aliasRoot);
+    assert(
+      "1bin symlinked catalogue ROOT is allowed; only descendants must be plain",
+      JSON.stringify(aliasPages) === JSON.stringify(pages) &&
+        aliasSuites.length === 1 && aliasSuites[0].id === "v900/alpha",
+      JSON.stringify({ aliasPages, aliasSuites }),
+    );
+  } finally {
+    await Deno.remove(aliasRoot);
+  }
   const critiques = await collectCritiques(tmp);
   assert(
     "collectCritiques: only pages WITH a _questions.json contribute",

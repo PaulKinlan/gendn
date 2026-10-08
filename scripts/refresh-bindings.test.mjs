@@ -147,6 +147,9 @@ try {
   const artifactsSource = await Deno.readTextFile(
     new URL("./lib/artifacts.mjs", import.meta.url),
   );
+  const plainCorpusPathSource = await Deno.readTextFile(
+    new URL("./lib/plain-corpus-path.mjs", import.meta.url),
+  );
   const boundedGitSource = await Deno.readTextFile(
     new URL("./lib/bounded-git.mjs", import.meta.url),
   );
@@ -166,6 +169,7 @@ try {
   await Deno.writeTextFile(`${tempLibDir}/binding-ledger.mjs`, bindingLedgerSource);
   await Deno.writeTextFile(`${tempScriptsDir}/route-manifest.mjs`, routeManifestSource);
   await Deno.writeTextFile(`${tempLibDir}/artifacts.mjs`, artifactsSource);
+  await Deno.writeTextFile(`${tempLibDir}/plain-corpus-path.mjs`, plainCorpusPathSource);
   await Deno.writeTextFile(`${tempLibDir}/bounded-git.mjs`, boundedGitSource);
   await Deno.writeTextFile(`${tempLibDir}/judged-content.mjs`, judgedContentSource);
 
