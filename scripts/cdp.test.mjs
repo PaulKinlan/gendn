@@ -4,9 +4,14 @@
 // TMPDIR root resolution (incl. the empty-string → /tmp-like-unset case). No Chrome. Runs as
 // `deno task test-cdp` and chained first in `deno task test-reference-contract`.
 import {
+  CDP_TIMEOUT_MAX_MS,
+  CDP_TIMEOUT_MIN_MS,
+  CDP_TIMEOUT_MS,
   classifyOrigin,
+  configuredCdpTimeoutMs,
   Conn,
   isLocalNavigation,
+  parseCdpTimeoutMs,
   parseProcessListForDir,
   tmpRoot,
 } from "./lib/cdp.mjs";
@@ -78,6 +83,70 @@ Deno.env.set("TMPDIR", "rel/dir");
 assert("relative TMPDIR resolves against the CWD", tmpRoot() === `${Deno.cwd()}/rel/dir`);
 if (savedTmpdir === undefined) Deno.env.delete("TMPDIR");
 else Deno.env.set("TMPDIR", savedTmpdir);
+
+// gendn-ybg4: the default remains bounded, and the optional override cannot disable it.
+{
+  const invalidWarnings = [];
+  assert("unset CDP timeout keeps the 30s default", parseCdpTimeoutMs(undefined) === 30_000);
+  assert(
+    "valid override and inclusive bounds are interpreted as milliseconds",
+    parseCdpTimeoutMs("45000") === 45_000 &&
+      parseCdpTimeoutMs("1000") === CDP_TIMEOUT_MIN_MS &&
+      parseCdpTimeoutMs("120000") === CDP_TIMEOUT_MAX_MS,
+  );
+  const invalid = ["", "0", "-1", "999", "120001", "1e6", "30000.5", " 30000 ", "NaN", "Infinity"];
+  for (const raw of invalid) {
+    assert(
+      `invalid CDP timeout ${JSON.stringify(raw)} falls back to 30s`,
+      parseCdpTimeoutMs(raw, (warning) => invalidWarnings.push(warning)) === CDP_TIMEOUT_MS,
+    );
+  }
+  assert(
+    "each invalid value warns without logging its raw contents",
+    invalidWarnings.length === invalid.length &&
+      invalidWarnings.every((warning) =>
+        warning.includes("GENDN_CDP_TIMEOUT_MS") &&
+        warning.includes("[1000, 120000]") && !warning.includes("Infinity")
+      ),
+  );
+
+  const name = "GENDN_CDP_TIMEOUT_MS";
+  const saved = Deno.env.get(name);
+  try {
+    Deno.env.delete(name);
+    assert("lazy unset env uses default", configuredCdpTimeoutMs() === CDP_TIMEOUT_MS);
+    Deno.env.set(name, "2500");
+    assert("lazy env read picks up a new override", configuredCdpTimeoutMs() === 2500);
+    Deno.env.set(name, "1000");
+    const stub = new Conn({ send() {}, onmessage: null });
+    let rejected = "";
+    try {
+      await stub.send("Runtime.evaluate"); // no explicit timeout: exercise the production default
+    } catch (err) {
+      rejected = err.message;
+    }
+    assert("the env override reaches CDP pendingCall", rejected.includes("within 1000ms"));
+    assert("env-bounded call removes its pending entry", stub.pending.size === 0);
+
+    Deno.env.set(name, "invalid-value");
+    const warnings = [];
+    const original = console.error;
+    console.error = (...args) => warnings.push(args.join(" "));
+    try {
+      assert(
+        "invalid env falls back rather than aborting the gate",
+        configuredCdpTimeoutMs() === CDP_TIMEOUT_MS &&
+          configuredCdpTimeoutMs() === CDP_TIMEOUT_MS,
+      );
+    } finally {
+      console.error = original;
+    }
+    assert("invalid env warns once across repeated CDP calls", warnings.length === 1);
+  } finally {
+    if (saved === undefined) Deno.env.delete(name);
+    else Deno.env.set(name, saved);
+  }
+}
 
 // gendn-8na: the gate browser's navigation whitelist (the control that bounds --no-sandbox).
 assert("localhost route allowed", isLocalNavigation("http://localhost:3000/v150/x/"));

@@ -40,9 +40,45 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // {resolve,reject} in the pending map and never deleted or bounded it. A dead or wedged Chrome
 // target therefore hung the caller FOREVER - and because these are awaited at the top of a gate,
 // that presents as "Top-level await promise never resolved" with zero output. A timeout now rejects
-// with the method named. The bound is a parameter with a default so a test can use a small value
-// without any env var or flag that could be abused to disable it.
-const CDP_TIMEOUT_MS = 30_000;
+// with the method named. Tests can pass an explicit small bound; production can raise the default
+// through a bounded environment override, but cannot disable the timeout.
+export const CDP_TIMEOUT_MS = 30_000;
+export const CDP_TIMEOUT_MIN_MS = 1_000;
+export const CDP_TIMEOUT_MAX_MS = 120_000;
+// Example: GENDN_CDP_TIMEOUT_MS=60000 deno task conformance --page v147/js-profiling-in-dedicated-workers.
+const CDP_TIMEOUT_ENV = "GENDN_CDP_TIMEOUT_MS";
+const warnedCdpTimeoutValues = new Set();
+
+export function parseCdpTimeoutMs(raw, warn = () => {}) {
+  if (raw == null) return CDP_TIMEOUT_MS;
+  if (typeof raw === "string" && /^\d+$/.test(raw)) {
+    const value = Number(raw);
+    if (Number.isSafeInteger(value) && value >= CDP_TIMEOUT_MIN_MS && value <= CDP_TIMEOUT_MAX_MS) {
+      return value;
+    }
+  }
+  warn(
+    `[cdp] WARNING: ${CDP_TIMEOUT_ENV} must be an integer in ` +
+      `[${CDP_TIMEOUT_MIN_MS}, ${CDP_TIMEOUT_MAX_MS}] milliseconds; using ${CDP_TIMEOUT_MS}ms`,
+  );
+  return CDP_TIMEOUT_MS;
+}
+
+export function configuredCdpTimeoutMs() {
+  let raw;
+  try {
+    // Read lazily: some Chrome-free fixtures import this module without --allow-env.
+    raw = Deno.env.get(CDP_TIMEOUT_ENV);
+  } catch (error) {
+    if (error?.name === "NotCapable" || error?.name === "PermissionDenied") return CDP_TIMEOUT_MS;
+    throw error;
+  }
+  return parseCdpTimeoutMs(raw, (warning) => {
+    if (warnedCdpTimeoutValues.has(raw)) return;
+    warnedCdpTimeoutValues.add(raw);
+    console.error(warning);
+  });
+}
 
 function pendingCall(conn, ws, payload, method, timeoutMs) {
   return new Promise((resolve, reject) => {
@@ -458,7 +494,7 @@ export class Conn {
       }
     };
   }
-  send(method, params = {}, sessionId, timeoutMs = CDP_TIMEOUT_MS) {
+  send(method, params = {}, sessionId, timeoutMs = configuredCdpTimeoutMs()) {
     const id = this.nextId++;
     const payload = { id, method, params };
     if (sessionId) payload.sessionId = id && sessionId;
@@ -523,7 +559,7 @@ class Page {
   cmd(method, params) {
     return this.sendSession(method, params);
   }
-  sendSession(method, params = {}, timeoutMs = CDP_TIMEOUT_MS) {
+  sendSession(method, params = {}, timeoutMs = configuredCdpTimeoutMs()) {
     // send with sessionId (flat protocol)
     const id = this.conn.nextId++;
     return pendingCall(
