@@ -14,6 +14,8 @@
 //
 // One headless Chrome, OS-assigned ports, everything torn down in finally.
 // Run: deno run --allow-read --allow-net --allow-run --allow-env --allow-write scripts/iframe-posture-sweep.mjs
+// Read-only discovery: deno run --allow-read scripts/iframe-posture-sweep.mjs --check-corpus
+// The discovery check is NOT evidence that any served iframe works.
 
 import { launch } from "./lib/cdp.mjs";
 import { PENDING_HARDENING } from "./lib/iframe-posture.mjs";
@@ -24,6 +26,13 @@ const OUT = "/tmp/kjq-sweep";
 // Results are appended HERE as they accumulate (not buffered to the end): if this sweep is killed
 // at a time bound, the partial evidence survives with explicit gaps rather than vanishing.
 const RESULTS = `${OUT}/results.jsonl`;
+const checkCorpus = Deno.args.length === 1 && Deno.args[0] === "--check-corpus";
+if (Deno.args.length && !checkCorpus) {
+  console.error(
+    "iframe-posture sweep: unknown argument; valid options: --check-corpus (read-only discovery) or no arguments (browser acceptance)",
+  );
+  Deno.exit(2);
+}
 
 let failures = 0;
 let passed = 0;
@@ -91,6 +100,21 @@ for (const d of deferred) {
   console.log(
     `PENDING (could NOT verify posture/demo for this page — deferred to gendn-sgc): ${d.file}`,
   );
+}
+
+// Empty and deferred-only corpora are not successful acceptance. Decide before acquiring ports,
+// starting the server/browser, or touching the fixed evidence directory.
+if (hardened.length === 0) {
+  console.error(
+    `iframe-posture sweep: EMPTY — 0 hardened embeds available for verification (${embeds.length} discovered, ${deferred.length} deferred). No assertions ran; add a published v<N>/<slug>/index.html with an iframe, or resolve the deferred entries before running acceptance.`,
+  );
+  Deno.exit(2);
+}
+if (checkCorpus) {
+  console.log(
+    `preflight: ${hardened.length} hardened embed(s) eligible; NOT browser-verified (run without --check-corpus for acceptance)`,
+  );
+  Deno.exit(0);
 }
 
 const serverPort = freePort();
