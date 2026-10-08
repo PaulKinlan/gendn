@@ -302,13 +302,14 @@ const root = Deno.cwd();
     await g("add", ".");
     await g("commit", "-qm", "clean baseline");
     await g("update-ref", "refs/remotes/origin/main", "HEAD");
-    const runSurfaceGate = async () => {
+    const runSurfaceGate = async (all = false) => {
       const out = await new Deno.Command(Deno.execPath(), {
         args: [
           "run",
           "--allow-read",
           "--allow-run",
           new URL("./check-surface-coverage.mjs", import.meta.url).pathname,
+          ...(all ? ["--all"] : []),
         ],
         cwd: scratch,
         stdout: "piped",
@@ -408,6 +409,75 @@ const root = Deno.cwd();
       cli.code === 6 && cli.text.includes("cannot verify committed surface mappings") &&
         cli.text.includes("refs/remotes/origin/main") &&
         cli.text.includes("run git fetch origin main") && !cli.text.includes("PASS —"),
+      cli.text,
+    );
+
+    await g("update-ref", "refs/remotes/origin/main", "HEAD~1");
+    await g("rm", `${probe}/reference-contract.json`, `${child}/reference-contract.json`);
+    cli = await runSurfaceGate();
+    assert(
+      "deleted whole contract corpus fails independent published floor (CLI rc1, no PASS)",
+      cli.code === 1 && cli.text.includes("published reference-contract corpus empty") &&
+        cli.text.includes("2 independent origin/main contracts") && !cli.text.includes("PASS —"),
+      cli.text,
+    );
+    const emptyReport = await runSurfaceGate(true);
+    assert(
+      "report mode also refuses an empty contract corpus (CLI rc1)",
+      emptyReport.code === 1 && emptyReport.text.includes("empty published contract corpus") &&
+        !emptyReport.text.includes("PASS —"),
+      emptyReport.text,
+    );
+    await g("reset", "--hard", "refs/remotes/origin/main");
+    cli = await runSurfaceGate();
+    assert(
+      "restored valid non-empty contract corpus passes (CLI rc0)",
+      cli.code === 0 && cli.text.includes("PASS —"),
+      cli.text,
+    );
+    const nonemptyReport = await runSurfaceGate(true);
+    assert(
+      "report mode still measures a valid non-empty contract corpus",
+      nonemptyReport.code === 0 && nonemptyReport.text.includes("2 contracts"),
+      nonemptyReport.text,
+    );
+
+    await Deno.writeTextFile(`${scratch}/${probe}/reference-contract.json`, "{ malformed json");
+    cli = await runSurfaceGate();
+    assert(
+      "malformed touched contract fails with named file and parse reason (CLI rc1, no PASS)",
+      cli.code === 1 && cli.text.includes(`${probe}/reference-contract.json`) &&
+        cli.text.includes("cannot read or parse touched contract") && !cli.text.includes("PASS —"),
+      cli.text,
+    );
+    for (const malformed of ["null", "{}", "[]"]) {
+      await Deno.writeTextFile(`${scratch}/${probe}/reference-contract.json`, malformed);
+      cli = await runSurfaceGate();
+      assert(
+        `parseable but malformed touched contract ${malformed} cannot be skipped`,
+        cli.code === 1 && cli.text.includes(`${probe}/reference-contract.json`) &&
+          cli.text.includes("malformed contract") && !cli.text.includes("PASS —"),
+        cli.text,
+      );
+    }
+    await g("reset", "--hard", "HEAD");
+    cli = await runSurfaceGate();
+    assert(
+      "restored valid contract after malformed probe passes",
+      cli.code === 0 && cli.text.includes("PASS —"),
+      cli.text,
+    );
+
+    // Fetched ref ahead of HEAD: merge-base == HEAD but fetched != HEAD.
+    await g("commit", "--allow-empty", "-qm", "fixture fetched-ahead ref");
+    await g("update-ref", "refs/remotes/origin/main", "HEAD");
+    await g("reset", "--hard", "HEAD~1");
+    cli = await runSurfaceGate();
+    r = await runRatchet(scratch);
+    assert(
+      "fetched ref ahead of HEAD is not falsely labelled UNCHANGED",
+      cli.code === 0 && r.vacuous === false && !cli.text.includes(unchangedNote) &&
+        cli.text.includes("PASS —"),
       cli.text,
     );
   } finally {

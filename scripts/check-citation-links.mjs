@@ -122,18 +122,18 @@ export function changedPageIds(names) {
 }
 
 /** Every index.html in one page tree (parent + member routes), any depth. */
-async function pageTreeHtml(root, id) {
+async function pageTreeHtml(root, id, strict = false) {
   const out = [];
   const walk = async (dir) => {
     for await (const e of Deno.readDir(dir)) {
       if (e.isDirectory) await walk(`${dir}/${e.name}`);
       else if (e.name === "index.html") {
+        const path = `${dir}/index.html`;
         try {
-          out.push({
-            path: `${dir}/index.html`,
-            html: await Deno.readTextFile(`${dir}/index.html`),
-          });
-        } catch { /* unreadable: skip */ }
+          out.push({ path, html: await Deno.readTextFile(path) });
+        } catch (err) {
+          if (strict) throw new Error(`${path}: cannot read touched page: ${err.message}`);
+        }
       }
     }
   };
@@ -169,7 +169,9 @@ export async function runRatchet(root) {
   const cached = await git(["diff", "--cached", "--name-only", base], root);
   if (cached === null) return { error: `git diff --cached against ${base} failed` };
   const others = await git(["ls-files", "--others", "--exclude-standard"], root);
-  const head = await git(["rev-parse", "HEAD"], root);
+  const head = await git(["rev-parse", "HEAD^{commit}"], root);
+  const fetched = await git(["rev-parse", "--verify", "refs/remotes/origin/main^{commit}"], root);
+  if (!head || !fetched) return { error: "cannot resolve HEAD or fetched baseline commit" };
   const names = [
     ...new Set([
       ...diff.split("\n").map((s) => s.trim()).filter(Boolean),
@@ -177,14 +179,15 @@ export async function runRatchet(root) {
       ...(others ?? "").split("\n").map((s) => s.trim()).filter(Boolean),
     ]),
   ];
-  const vacuous = base === (head ?? "").trim();
+  const vacuous = fetched.trim() === head.trim();
   const ids = changedPageIds(names);
   const perId = await mapPool(ids, PAGE_CONCURRENCY, async (id) => {
     let tree;
     try {
-      tree = await pageTreeHtml(root, id);
-    } catch {
-      return []; // page deleted in the diff; nothing to ratchet
+      tree = await pageTreeHtml(root, id, true);
+    } catch (err) {
+      if (err instanceof Deno.errors.NotFound) return []; // deleted route: check-routes owns removals
+      return [`${id}: cannot inspect touched page: ${err.message}`];
     }
     const out = [];
     for (const f of tree) {
@@ -251,6 +254,12 @@ if (import.meta.main) {
   const shapes = await scanIdShapes(root);
   if (all) {
     const c = await countAll(root);
+    if (c.pages === 0) {
+      console.error(
+        "FAIL — citation-links report cannot assess an empty published page corpus (zero index.html pages scanned)",
+      );
+      Deno.exit(1);
+    }
     console.log(
       `citation-links report: ${c.pages} pages scanned; unlinked labels: ${c.spans} citation-span + ${c.prose} prose-source (report-only, cleanup tracked separately); id-shape failures: ${shapes.failures.length} of ${shapes.scanned} pages`,
     );
@@ -271,7 +280,24 @@ if (import.meta.main) {
     );
     Deno.exit(6);
   }
+  // An empty working corpus cannot certify clean citations. The floor comes from the
+  // independently fetched published pages, not equality between two empty scans.
+  const priorPaths = await git(["ls-tree", "-r", "--name-only", "origin/main"], root);
+  if (
+    priorPaths === null ||
+    !priorPaths.split("\n").some((path) => /^v\d+\/[^/]+\/index\.html$/.test(path))
+  ) {
+    console.error(
+      "FAIL — PRECONDITION (exit 6): cannot verify a non-empty independent published page catalogue",
+    );
+    Deno.exit(6);
+  }
   const failures = [...r.failures, ...shapes.failures];
+  if (shapes.scanned === 0) {
+    failures.push(
+      "published page corpus empty: zero index.html pages scanned against non-empty origin/main catalogue",
+    );
+  }
   const unchangedNote = r.vacuous
     ? " [UNCHANGED: fetched baseline == HEAD - committed changes not in scope; uncommitted edits still checked]"
     : "";

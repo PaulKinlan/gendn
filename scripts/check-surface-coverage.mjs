@@ -85,11 +85,39 @@ async function readHtml(path) {
 }
 
 async function loadContract(root, id) {
+  const path = `${id}/reference-contract.json`;
   try {
-    return JSON.parse(await Deno.readTextFile(`${root}/${id}/reference-contract.json`));
-  } catch {
-    return null;
+    const contract = JSON.parse(await Deno.readTextFile(`${root}/${path}`));
+    if (
+      !contract || typeof contract !== "object" || Array.isArray(contract) ||
+      contract.id !== id || !Array.isArray(contract.inventory) ||
+      !Array.isArray(contract.documentation)
+    ) {
+      throw new Error("malformed contract: expected matching id, inventory[] and documentation[]");
+    }
+    return contract;
+  } catch (err) {
+    if (err instanceof Deno.errors.NotFound) {
+      try {
+        await Deno.lstat(`${root}/${path}`); // a broken symlink is present but unreadable
+      } catch (statErr) {
+        if (statErr instanceof Deno.errors.NotFound) return null; // removed: route gate owns deletion
+      }
+    }
+    throw new Error(`${path}: cannot read or parse touched contract: ${err.message}`);
   }
+}
+
+async function countCurrentContracts(root) {
+  let count = 0;
+  for await (const rel of Deno.readDir(root)) {
+    if (!(rel.isDirectory && /^v\d+$/.test(rel.name))) continue;
+    for await (const slug of Deno.readDir(`${root}/${rel.name}`)) {
+      if (!slug.isDirectory) continue;
+      for await (const _id of contractIdsUnder(root, `${rel.name}/${slug.name}`)) count++;
+    }
+  }
+  return count;
 }
 
 /** Ratchet changed contracts and contracts owning changed pages. Exported for scratch fixtures. */
@@ -111,7 +139,9 @@ export async function runRatchet(root) {
   const cached = await git(["diff", "--cached", "--name-only", base], root);
   if (cached === null) return { error: `git diff --cached against ${base} failed` };
   const others = await git(["ls-files", "--others", "--exclude-standard"], root);
-  const head = await git(["rev-parse", "HEAD"], root);
+  const head = await git(["rev-parse", "HEAD^{commit}"], root);
+  const fetched = await git(["rev-parse", "--verify", "refs/remotes/origin/main^{commit}"], root);
+  if (!head || !fetched) return { error: "cannot resolve HEAD or fetched baseline commit" };
   const names = [
     ...new Set([
       ...diff.split("\n").map((s) => s.trim()).filter(Boolean),
@@ -119,7 +149,7 @@ export async function runRatchet(root) {
       ...(others ?? "").split("\n").map((s) => s.trim()).filter(Boolean),
     ]),
   ];
-  const vacuous = base === (head ?? "").trim();
+  const vacuous = fetched.trim() === head.trim();
   const pageOwners = changedPageOwners(names);
   const ids = new Set(changedContractIds(names));
   for (const owner of pageOwners) {
@@ -128,8 +158,14 @@ export async function runRatchet(root) {
   const failures = [];
   const warnings = [];
   for (const id of ids) {
-    const contract = await loadContract(root, id);
-    if (!contract) continue; // deleted in the diff; nothing to ratchet
+    let contract;
+    try {
+      contract = await loadContract(root, id);
+    } catch (err) {
+      failures.push(`touched contract ${err.message}`);
+      continue;
+    }
+    if (!contract) continue; // deleted in the diff; route gate owns removal
     for (const f of await surfaceCoverageFindings(contract, root, readHtml)) {
       const line =
         `${f.id}: ${f.inventoryId}.${f.dim} -> ${f.selector} maps a slice without any surface marker [${
@@ -141,6 +177,25 @@ export async function runRatchet(root) {
         );
       } else failures.push(line);
     }
+  }
+  // Independently published contracts anchor the floor. Zero current contracts is a
+  // finding, not a clean result from a ratchet that happened to inspect nothing.
+  const priorPaths = await git(["ls-tree", "-r", "--name-only", "origin/main"], root);
+  if (priorPaths === null) return { error: "cannot read independent published contract catalogue" };
+  const priorContracts =
+    priorPaths.split("\n").filter((path) =>
+      /^v\d+\/[^/]+(?:\/[^/]+)*\/reference-contract\.json$/.test(path)
+    ).length;
+  if (priorContracts === 0) {
+    return {
+      error: "independent published contract catalogue has zero contracts; cannot anchor the floor",
+    };
+  }
+  const currentContracts = await countCurrentContracts(root);
+  if (currentContracts === 0) {
+    failures.push(
+      `published reference-contract corpus empty: zero contracts against ${priorContracts} independent origin/main contracts`,
+    );
   }
   return { base, changed: [...ids], pageOwners, failures, warnings, vacuous };
 }
@@ -179,6 +234,12 @@ if (import.meta.main) {
   const all = Deno.args.includes("--all");
   if (all) {
     const r = await scanCorpus(root);
+    if (r.contracts === 0) {
+      console.error(
+        "FAIL — surface-coverage report cannot assess an empty published contract corpus (zero reference-contract.json files scanned)",
+      );
+      Deno.exit(1);
+    }
     console.log(
       `surface-coverage report: ${r.contracts} contracts, ${r.strictDims} strict-tier documented mappings`,
     );
