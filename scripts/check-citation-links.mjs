@@ -283,10 +283,10 @@ if (import.meta.main) {
   // An empty working corpus cannot certify clean citations. The floor comes from the
   // independently fetched published pages, not equality between two empty scans.
   const priorPaths = await git(["ls-tree", "-r", "--name-only", "origin/main"], root);
-  if (
-    priorPaths === null ||
-    !priorPaths.split("\n").some((path) => /^v\d+\/[^/]+\/index\.html$/.test(path))
-  ) {
+  const priorPages = priorPaths?.split("\n").filter((path) =>
+    /^v\d+\/[^/]+\/index\.html$/.test(path)
+  ) ?? [];
+  if (priorPaths === null || priorPages.length === 0) {
     console.error(
       "FAIL — PRECONDITION (exit 6): cannot verify a non-empty independent published page catalogue",
     );
@@ -295,7 +295,9 @@ if (import.meta.main) {
   const failures = [...r.failures, ...shapes.failures];
   if (shapes.scanned === 0) {
     failures.push(
-      "published page corpus empty: zero index.html pages scanned against non-empty origin/main catalogue",
+      `published page corpus empty: ${shapes.scanned} scanned index.html pages vs ${priorPages.length} independently published origin/main pages (difference ${
+        priorPages.length - shapes.scanned
+      })`,
     );
   }
   const unchangedNote = r.vacuous

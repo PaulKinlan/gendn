@@ -529,7 +529,10 @@ await Deno.remove(`${dir4j}/v150`, { recursive: true });
 cli4j = await runCitationGate();
 ok(
   cli4j.code === 1 && cli4j.text.includes("published page corpus empty") &&
-    cli4j.text.includes("non-empty origin/main catalogue") && !cli4j.text.includes("PASS —"),
+    cli4j.text.includes(
+      "0 scanned index.html pages vs 1 independently published origin/main pages (difference 1)",
+    ) &&
+    !cli4j.text.includes("PASS —"),
   "4k erased published page fails against independent floor (CLI rc1, no PASS)",
 );
 const emptyReport4k = await runCitationGate(true);
