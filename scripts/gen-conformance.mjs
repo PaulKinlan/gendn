@@ -25,6 +25,7 @@ import {
   suiteHash,
 } from "./lib/artifacts.mjs";
 import { verifiedCpsConformance } from "./lib/cps-conformance.mjs";
+import { selectPublishedRootPages } from "./conformance.mjs";
 
 const GENERATED_AT = "2026-07-19T00:00:00Z"; // fixed → deterministic suiteHash across regens
 const AUTHOR = "gen-conformance/v1 (derived from page metadata)";
@@ -340,13 +341,20 @@ async function main() {
   const args = Deno.args;
   const dryRun = args.includes("--dry-run");
   const pageIdx = args.indexOf("--page");
-  const only = pageIdx >= 0 ? args[pageIdx + 1] : null;
+  const only = pageIdx >= 0 ? args[pageIdx + 1] : undefined;
 
-  const pages = await collectPublishedPages(".");
+  // Resolve published roots before reading page contents, reaching CPS, or writing suites.
+  const selection = selectPublishedRootPages(await collectPublishedPages("."), {
+    hasSelector: pageIdx >= 0,
+    selector: only,
+  });
+  if (selection.error) {
+    console.error(`gen-conformance: ${selection.error}`);
+    Deno.exit(1);
+  }
   let written = 0, skipped = 0, total = 0;
-  for (const pagePath of pages) {
+  for (const pagePath of selection.pages) {
     const pageId = pagePath.replace(/\/index\.html$/, "");
-    if (only && pageId !== only) continue;
     total++;
     const outPath = conformancePath(pageId, ".");
     try {
