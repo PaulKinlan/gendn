@@ -280,6 +280,85 @@ try {
       r.text.includes("PASS —"),
     r.text,
   );
+
+  // gendn-1bin: one lost owner previously made 1/1 PASS, because DirEntry
+  // reports a symlink as !isDirectory and the empty-corpus floor still had v999.
+  await Deno.remove(`${scratch}/${FEATURE}`, { recursive: true });
+  await Deno.symlink("missing-feature", `${scratch}/${FEATURE}`);
+  r = await runGate();
+  assert(
+    "1bin dangling release MEMBER is a named rc1, never a partial 1/1 PASS",
+    r.code === 1 && r.text.includes(FEATURE) && r.text.includes("symlink component") &&
+      !r.text.includes("PASS —"),
+    r.text,
+  );
+  await Deno.remove(`${scratch}/${FEATURE}`);
+  await g("reset", "--hard", "HEAD");
+
+  const emptyOutside = await Deno.makeTempDir({ prefix: "1bin-outside-empty-" });
+  try {
+    await Deno.remove(`${scratch}/${FEATURE}`, { recursive: true });
+    await Deno.symlink(emptyOutside, `${scratch}/${FEATURE}`);
+    r = await runGate();
+    assert(
+      "1bin release MEMBER symlink to a real empty outside directory fails proactively",
+      r.code === 1 && r.text.includes(FEATURE) && r.text.includes("symlink component") &&
+        !r.text.includes("PASS —"),
+      r.text,
+    );
+  } finally {
+    await Deno.remove(`${scratch}/${FEATURE}`);
+    await Deno.remove(emptyOutside, { recursive: true });
+    await g("reset", "--hard", "HEAD");
+  }
+
+  await Deno.remove(`${scratch}/v150`, { recursive: true });
+  await Deno.symlink("missing-milestone", `${scratch}/v150`);
+  r = await runGate();
+  assert(
+    "1bin dangling MILESTONE is a named rc1 while legacy corpus remains non-empty",
+    r.code === 1 && r.text.includes("symlink component v150") &&
+      !r.text.includes("PASS —"),
+    r.text,
+  );
+  await Deno.remove(`${scratch}/v150`);
+  await g("reset", "--hard", "HEAD");
+
+  const suiteCopy = await Deno.makeTempFile({ prefix: "1bin-real-suite-" });
+  try {
+    await Deno.copyFile(`${scratch}/${LEGACY}/conformance.json`, suiteCopy);
+    await Deno.remove(`${scratch}/${LEGACY}/conformance.json`);
+    await Deno.symlink(suiteCopy, `${scratch}/${LEGACY}/conformance.json`);
+    r = await runGate();
+    assert(
+      "1bin readable external suite symlink is a named rc1, not counted as inspected",
+      r.code === 1 && r.text.includes(`${LEGACY}/conformance.json`) &&
+        r.text.includes("symlink component") && !r.text.includes("PASS —"),
+      r.text,
+    );
+  } finally {
+    await Deno.remove(`${scratch}/${LEGACY}/conformance.json`);
+    await Deno.remove(suiteCopy);
+    await g("reset", "--hard", "HEAD");
+  }
+
+  // A genuinely absent page remains the route regression gate's responsibility.
+  await g("rm", `${FEATURE}/index.html`);
+  r = await runGate();
+  assert(
+    "1bin genuinely deleted page still defers to check-routes with remaining 1/1 corpus",
+    r.code === 0 && r.text.includes("conformance suites : 1/1 published pages") &&
+      r.text.includes("PASS —"),
+    r.text,
+  );
+  await g("reset", "--hard", "HEAD");
+  r = await runGate();
+  assert(
+    "1bin restored ordinary 2/2 corpus still passes",
+    r.code === 0 && r.text.includes("conformance suites : 2/2 published pages") &&
+      r.text.includes("PASS —"),
+    r.text,
+  );
 } finally {
   await Deno.remove(scratch, { recursive: true });
 }

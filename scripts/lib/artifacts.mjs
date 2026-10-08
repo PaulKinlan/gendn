@@ -16,6 +16,7 @@ import {
   readJudgedJson,
   stagedRevertedPaths,
 } from "./judged-content.mjs";
+import { plainCorpusPath } from "./plain-corpus-path.mjs";
 
 export const SHOWCASE_HOST = "chrome-platform-showcase.paulkinlan-ea.deno.net";
 
@@ -66,29 +67,48 @@ export function extractDemoUrl(html, release, slug) {
 
 // ---------- page discovery ----------
 
+async function plainCatalogueEntry(root, relative, leaf = "directory") {
+  const check = await plainCorpusPath(root, relative, leaf);
+  if (check.state === "invalid") throw new Error(`${relative}: ${check.reason}`);
+  return check.state === "ok";
+}
+
 export async function collectPublishedPages(root = ".") {
   const pages = new Set();
   try {
     for await (const rel of Deno.readDir(root)) {
-      if (!(rel.isDirectory && /^v\d+$/.test(rel.name))) continue;
+      if (!/^v\d+$/.test(rel.name)) continue;
+      // DirEntry.isDirectory is false for symlinks, including a published release
+      // replaced by a dangling link. Never silently shrink the catalogue.
+      if (!await plainCatalogueEntry(root, rel.name)) continue;
       for await (const slug of Deno.readDir(`${root}/${rel.name}`)) {
-        if (!slug.isDirectory) continue;
-        const pagePath = `${rel.name}/${slug.name}/index.html`;
-        if (await judgedFileExists(pagePath, root)) {
+        if (!slug.isDirectory && !slug.isSymlink) continue; // ordinary stray files
+        const owner = `${rel.name}/${slug.name}`;
+        if (!await plainCatalogueEntry(root, owner)) continue;
+        const pagePath = `${owner}/index.html`;
+        if (
+          await plainCatalogueEntry(root, pagePath, "file") &&
+          await judgedFileExists(pagePath, root)
+        ) {
           pages.add(pagePath);
         }
       }
     }
-  } catch {
-    // directory may not exist
+  } catch (err) {
+    // A truly removed directory is left to check-routes; all other read or
+    // inspection failures must reach the caller by name, not become 0/0 PASS.
+    if (!(err instanceof Deno.errors.NotFound)) {
+      throw new Error(`cannot enumerate published pages: ${err.message}`);
+    }
   }
 
-  // Include any staged-reverted pages in index (e.g. staged added but deleted on disk)
+  // Staged-reverted pages may be absent on disk yet present in the git index.
+  // Still reject an invalid component before judging their staged contents.
   const staged = await stagedRevertedPaths(root);
   for (const p of staged) {
-    if (PAGE_RE.test(p) && await judgedFileExists(p, root)) {
-      pages.add(p);
-    }
+    if (!PAGE_RE.test(p)) continue;
+    await plainCatalogueEntry(root, p, "file");
+    if (await judgedFileExists(p, root)) pages.add(p);
   }
 
   return [...pages].sort();
@@ -248,6 +268,9 @@ export async function collectSuites(root = ".") {
   const out = [];
   for (const p of pages) {
     const pageId = p.replace(/\/index\.html$/, "");
+    // A missing suite still belongs to the ordinary missing-coverage gate;
+    // a present symlinked suite is not an inspected on-disk artifact.
+    await plainCatalogueEntry(root, `${pageId}/conformance.json`, "file");
     const suite = await readJson(conformancePath(pageId, root));
     if (suite) out.push(suite);
   }
