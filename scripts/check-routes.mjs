@@ -4,11 +4,13 @@
 // Run this before every push. It compares the PREVIOUSLY PUBLISHED manifest (baseline) against the
 // working tree (current) and fails (exit 1) on any destructive change to a published page identity.
 //
-// Baseline derivation (can't drift, because it comes from git):
-//   1. If `origin/main` is reachable, the baseline is the manifest computed from the catalogue at
-//      `origin/main` (`git show origin/main:<page>`).
-//   2. Otherwise fall back to the committed snapshot `.route-manifest.baseline.json` (refreshed by
-//      the routine so an offline run still has a floor to check against).
+// Baseline page tree comes from git, but its manifest uses the CURRENT extractor: extractor-only
+// edits can rebind BOTH baseline and current. A separate, committed identity/demo ledger below
+// catches that class. To authorize a ledger change, compare its old entry from the baseline ref
+// against the new entry and require a new exact migration. For the other route checks:
+//   1. If `origin/main` is reachable, derive the baseline manifest from its catalogue pages.
+//   2. Otherwise use `.route-manifest.baseline.json` for the older checks. The binding ratchet
+//      fails closed offline because this fallback snapshot is stale and cannot authorize changes.
 //
 // FAIL conditions (baseline -> current):
 //   1. a baseline published id is MISSING from current (deleted or renamed), and not covered by a
@@ -16,15 +18,16 @@
 //   2. a baseline "built" route no longer resolves (its `v<N>/<slug>/index.html` page file is gone);
 //   3. a baseline id's IDENTITY changed or became null (its chromestatus feature id now differs or
 //      was removed — slug repurposed or identity lost), and not covered by an identity-change migration;
-//   4. a baseline id's DEMO identity changed or became null (its showcase demo link now differs or
-//      was removed — demo repointed or lost), and not covered by a demo-change migration;
+//   4. a baseline id's selected full DEMO URL changed, including a same-feature concept swap, or
+//      was removed, and not covered by a reviewed demo-change migration;
 //   5. a baseline "stub" id (gendn's analogue of an honestly-recorded `blocked` entry — an
 //      MDN-covered redirect) was DELETED (stubs must stay recorded);
 //   6. a stable member/protocol route declared by a baseline reference contract disappeared;
-//   7. the published count DROPPED vs baseline and the difference is not covered by migrations.
+//   7. mobile/desktop support regressed from ok or claims broken on a current page;
+//   8. the published count DROPPED vs baseline and the difference is not covered by migrations.
 //
-// PASS for: additive new ids, honest new stubs, in-place fixes that keep the same id + identity +
-// live route, and any change explicitly listed in migrations.json.
+// PASS for: additive new ids, honest new stubs, in-place fixes that preserve the same id + identity +
+// previously selected demo URL + live route, and any change explicitly listed in migrations.json.
 //
 // Usage: deno run --allow-read --allow-run scripts/check-routes.mjs [--baseline <ref>]
 //
@@ -35,9 +38,75 @@
 
 import { buildManifest } from "./route-manifest.mjs";
 import { gitRefExists, runGit } from "./lib/bounded-git.mjs";
+import { judgedFileExists, readJudgedFile } from "./lib/judged-content.mjs";
+import {
+  BINDING_LEDGER,
+  bindingsFromManifest,
+  evaluateBindingLedger,
+} from "./lib/binding-ledger.mjs";
 
 const BASELINE_SNAPSHOT = ".route-manifest.baseline.json";
 const MIGRATIONS = "migrations.json";
+
+// Read the PREVIOUS committed ledger without running the current extractor on old HTML.
+// Absence at a resolvable baseline is allowed only for the initial bootstrap; a missing current
+// ledger, or an unreachable ref, is always a hard failure rather than an empty baseline.
+async function readPriorBindings(ref) {
+  if (!ref) throw new Error(`cannot check ${BINDING_LEDGER} without a resolvable baseline ref`);
+  const listed = await runGit(["ls-tree", "--name-only", ref, "--", BINDING_LEDGER], {
+    stdout: "piped",
+    stderr: "piped",
+  });
+  if (listed.code !== 0) throw new Error(`git ls-tree ${ref} failed: ${listed.stderr.trim()}`);
+  if (listed.stdout.trim() !== BINDING_LEDGER) return null; // first-rollout bootstrap
+  const old = await runGit(["show", `${ref}:${BINDING_LEDGER}`], {
+    stdout: "piped",
+    stderr: "piped",
+  });
+  if (old.code !== 0) {
+    throw new Error(`git show ${ref}:${BINDING_LEDGER} failed: ${old.stderr.trim()}`);
+  }
+  return JSON.parse(old.stdout);
+}
+
+async function readPriorMigrations(ref) {
+  const old = await runGit(["show", `${ref}:${MIGRATIONS}`], {
+    stdout: "piped",
+    stderr: "piped",
+  });
+  if (old.code !== 0) throw new Error(`git show ${ref}:${MIGRATIONS} failed: ${old.stderr.trim()}`);
+  const parsed = JSON.parse(old.stdout);
+  if (!Array.isArray(parsed)) throw new Error(`${ref}:${MIGRATIONS} is not an array`);
+  return parsed;
+}
+
+// The first rollout has no prior ledger. The baseline manifest is a trustworthy one-time seed
+// ONLY if the extractor pipeline has not changed relative to that ref. Otherwise the original
+// blind spot would be reintroduced during bootstrap by regenerating the new ledger and gate.
+async function bootstrapExtractorChanges(ref) {
+  const files = [
+    "scripts/route-manifest.mjs",
+    "scripts/lib/artifacts.mjs",
+    "scripts/lib/judged-content.mjs",
+    "scripts/lib/bounded-git.mjs",
+  ];
+  const changed = new Set();
+  for (
+    const args of [["diff", "--name-only", ref, "--", ...files], [
+      "diff",
+      "--cached",
+      "--name-only",
+      ref,
+      "--",
+      ...files,
+    ]]
+  ) {
+    const result = await runGit(args, { stdout: "piped", stderr: "piped" });
+    if (result.code !== 0) throw new Error(`git ${args.join(" ")} failed: ${result.stderr.trim()}`);
+    for (const file of result.stdout.trim().split("\n").filter(Boolean)) changed.add(file);
+  }
+  return [...changed].sort();
+}
 
 // The bounded runner is shared (gendn-8q2): this gate must not be able to hang on the same
 // object-store contention / forked-git-pipe-open failure that gendn-1tu fixed in check-conformance.
@@ -76,7 +145,7 @@ async function loadBaseline(refOverride) {
     throw new Error(`--baseline ${refOverride} does not resolve to a ref`);
   }
   try {
-    const raw = await Deno.readTextFile(BASELINE_SNAPSHOT);
+    const raw = await readJudgedFile(BASELINE_SNAPSHOT);
     return { source: BASELINE_SNAPSHOT, ref: null, commit: null, manifest: JSON.parse(raw) };
   } catch {
     return { source: "none", ref: null, commit: null, manifest: [] };
@@ -114,7 +183,7 @@ export async function loadMigrations(source = MIGRATIONS) {
     parsed = source;
   } else {
     try {
-      const raw = await Deno.readTextFile(source);
+      const raw = await readJudgedFile(source);
       parsed = JSON.parse(raw);
     } catch (err) {
       if (err instanceof Deno.errors.NotFound) return [];
@@ -129,12 +198,7 @@ export async function loadMigrations(source = MIGRATIONS) {
 }
 
 async function fileExists(path) {
-  try {
-    await Deno.stat(path);
-    return true;
-  } catch {
-    return false;
-  }
+  return await judgedFileExists(path);
 }
 
 function indexById(manifest) {
@@ -186,7 +250,7 @@ export async function evaluateRouteContract(
     }
   }
 
-  // Conditions 1-4, per baseline entry.
+  // Conditions 1-6, per baseline entry.
   for (const b of baseline) {
     const c = currById.get(b.id);
 
@@ -197,7 +261,7 @@ export async function evaluateRouteContract(
         migrated.push(`${b.id} (removed/moved via migration)`);
         continue;
       }
-      // Condition 1 + 4: a missing id. Stubs (blocked analogue) get their own explicit message.
+      // Conditions 1 + 5: a missing id. Stubs (blocked analogue) get their own explicit message.
       if (b.status === "stub") {
         failures.push(
           `deleted stub route ${b.route} (id ${b.id}) — MDN-covered stubs must stay recorded`,
@@ -239,7 +303,7 @@ export async function evaluateRouteContract(
       }
     }
 
-    // Condition 4: demo link changed (repointed to a different showcase route) or removed.
+    // Condition 4: selected full demo URL changed (even within one feature) or was removed.
     if (b.demo && !c.demo) {
       if (
         migrationCovers(migrations, b.id, "demo-change") ||
@@ -248,8 +312,8 @@ export async function evaluateRouteContract(
         migrated.push(`${b.id} (demo link change via migration: ${b.demo} -> null)`);
       } else {
         failures.push(
-          `missing demo link for published route ${b.id}: showcase demo ${b.demo} was removed` +
-            `${where}${driftNote}`,
+          `missing demo link for published route ${b.id}: showcase demo ${b.demo} was removed ` +
+            `(requires a reviewed demo-change migration)${where}${driftNote}`,
         );
       }
     } else if (b.demo && c.demo && b.demo !== c.demo) {
@@ -260,13 +324,13 @@ export async function evaluateRouteContract(
         migrated.push(`${b.id} (demo link change via migration: ${b.demo} -> ${c.demo})`);
       } else {
         failures.push(
-          `demo link changed for ${b.id}: showcase demo ${b.demo} -> ${c.demo} (repointed)` +
-            `${where}${driftNote}`,
+          `demo link changed for ${b.id}: showcase demo ${b.demo} -> ${c.demo} ` +
+            `(repointed; requires a reviewed demo-change migration)${where}${driftNote}`,
         );
       }
     }
 
-    // Condition 5: stable child reference routes are append-only once published.
+    // Condition 6: stable child reference routes are append-only once published.
     const currentReferenceRoutes = new Set(c.referenceRoutes ?? []);
     for (const route of b.referenceRoutes ?? []) {
       if (!currentReferenceRoutes.has(route)) {
@@ -312,7 +376,7 @@ export async function evaluateRouteContract(
     }
   }
 
-  // Condition 5: published-count drop not covered by migrations.
+  // Condition 8: published-count drop not covered by migrations.
   const removedCount = baseline.filter((b) => !currById.has(b.id)).length;
   const migratedRemovals = baseline.filter((b) =>
     !currById.has(b.id) &&
@@ -326,19 +390,15 @@ export async function evaluateRouteContract(
     );
   }
 
-  // Informational: additive ids, in-place fixes, and demo (embedded-showcase) inbound-link changes.
+  // Informational: additive ids and in-place fixes. Demo removals are already either hard
+  // failures or migration entries above, so never report the same change a second time.
   const added = current.filter((c) => !baseById.has(c.id));
   const fixedInPlace = current.filter((c) => {
     const b = baseById.get(c.id);
     return b && b.identity === c.identity && b.route === c.route;
   });
-  const demoDropped = [];
-  for (const b of baseline) {
-    const c = currById.get(b.id);
-    if (c && b.demo && !c.demo) demoDropped.push(`${b.id} lost its showcase demo link (${b.demo})`);
-  }
 
-  return { failures, migrated, added, fixedInPlace, demoDropped };
+  return { failures, migrated, added, fixedInPlace };
 }
 
 function parseBaselineArg(argv) {
@@ -352,19 +412,73 @@ function parseBaselineArg(argv) {
 }
 
 async function main() {
-  const { source, commit, manifest: baseline } = await loadBaseline(parseBaselineArg(Deno.args));
+  const { source, ref, commit, manifest: baseline } = await loadBaseline(
+    parseBaselineArg(Deno.args),
+  );
   const current = await buildManifest();
   const migrations = await loadMigrations();
   // null = cannot determine; only `false` (definitely not contained) justifies the note.
   const drift = await headContainsBaseline(commit);
   const baselineLabel = commit ? `${source} @ ${commit.slice(0, 7)}` : source;
-  const { failures, migrated, added, fixedInPlace, demoDropped } = await evaluateRouteContract({
+  const { failures, migrated, added, fixedInPlace } = await evaluateRouteContract({
     baseline,
     current,
     migrations,
     baselineLabel,
     drift,
   });
+  let ledgerCount = 0;
+  let priorCount = "bootstrap";
+  try {
+    const ledger = JSON.parse(await readJudgedFile(BINDING_LEDGER));
+    const oldLedger = await readPriorBindings(ref);
+    ledgerCount = Array.isArray(ledger) ? ledger.length : 0;
+    priorCount = oldLedger === null ? "bootstrap" : oldLedger.length;
+    let priorLedger = oldLedger;
+    if (oldLedger === null) {
+      const changed = await bootstrapExtractorChanges(ref);
+      if (changed.length) {
+        failures.push(
+          `${BINDING_LEDGER} first-rollout bootstrap cannot change extractor sources: ` +
+            `${changed.join(", ")}; land the ledger first, then change extraction with a migration`,
+        );
+        // An extractor-mutated baseline would invent a backwards migration requirement;
+        // still report the current-vs-ledger mismatch, but never trust that synthetic prior.
+      } else {
+        priorLedger = bindingsFromManifest(baseline);
+      }
+    }
+    // During the one-time bootstrap only, the UNCHANGED extractor can derive old bindings
+    // from baseline pages; thereafter the committed PRIOR ledger is authoritative instead.
+    const ledgerErrors = evaluateBindingLedger({
+      current,
+      ledger,
+      priorLedger,
+      migrations,
+      priorMigrations: await readPriorMigrations(ref),
+    });
+    failures.push(...ledgerErrors);
+    if (ledgerErrors.length === 0 && priorLedger !== null) {
+      const priorByRoute = new Map(priorLedger.map((entry) => [entry.route, entry]));
+      for (const entry of ledger) {
+        const old = priorByRoute.get(entry.route);
+        if (!old) continue;
+        for (const field of ["identity", "demo"]) {
+          if (old[field] !== entry[field]) {
+            migrated.push(
+              `${entry.route} (${field} binding change via migration: ` +
+                `${JSON.stringify(old[field])} -> ${JSON.stringify(entry[field])})`,
+            );
+          }
+        }
+      }
+    }
+  } catch (err) {
+    failures.push(
+      `${BINDING_LEDGER} unavailable or unreadable: ${err.message}; ` +
+        `run deno task refresh-bindings and review the diff`,
+    );
+  }
 
   // Support coverage lines (reported, not failed-on for untested).
   const cov = (cls) => {
@@ -395,11 +509,9 @@ async function main() {
   console.log(`  + added          : ${added.length}`);
   console.log(`  ~ fixed-in-place : ${fixedInPlace.length}`);
   console.log(`  migrations       : ${migrated.length ? migrated.join("; ") : "none"}`);
-  if (demoDropped.length) {
-    console.log(`  ! demo warnings  : ${demoDropped.length}`);
-    for (const w of demoDropped) console.log(`      - ${w}`);
-  }
-
+  console.log(
+    `  binding ledger   : ${ledgerCount} entries / ${current.length} routes (prior: ${priorCount})`,
+  );
   if (failures.length) {
     console.error(`\nFAIL — ${failures.length} contract violation(s):`);
     for (const f of failures) console.error(`  - ${f}`);

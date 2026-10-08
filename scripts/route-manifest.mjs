@@ -25,12 +25,16 @@
 //   deno run --allow-read --allow-run scripts/route-manifest.mjs --ref origin/main   # a git ref
 //   (add `--pretty` for indented output)
 
-import { isMdnStubHtml } from "./lib/artifacts.mjs";
+import {
+  collectPublishedPages,
+  extractDemoUrl,
+  extractFeatureIdentity,
+  isMdnStubHtml,
+} from "./lib/artifacts.mjs";
 import { runGit } from "./lib/bounded-git.mjs";
+import { readJudgedFile } from "./lib/judged-content.mjs";
 
 export const PAGE_RE = /^v\d+\/[^/]+\/index\.html$/;
-const FEATURE_ID_RE = /chromestatus\.com\/feature\/(\d+)/;
-const SHOWCASE_HOST = "chrome-platform-showcase.paulkinlan-ea.deno.net";
 
 export function pathToIdentityFields(pagePath, html) {
   // pagePath: `v<N>/<slug>/index.html`
@@ -40,28 +44,9 @@ export function pathToIdentityFields(pagePath, html) {
   const id = `${release}/${slug}`;
   const route = `/${release}/${slug}/`;
 
-  const idMatch = html.match(FEATURE_ID_RE);
-  const identity = idMatch ? idMatch[1] : null;
-
+  const identity = extractFeatureIdentity(html);
   const status = isMdnStubHtml(html) ? "stub" : "built";
-
-  // The embedded-demo identity: the showcase route this page links to for its OWN feature.
-  // Prefer a link whose path matches this page's `/v<N>/<slug>`; otherwise use the first showcase link.
-  let demo = null;
-  const showcaseRe = new RegExp(
-    `${SHOWCASE_HOST.replace(/\./g, "\\.")}(/v\\d+/[a-z0-9-]+/?[a-z0-9-]*/?)`,
-    "g",
-  );
-  const ownPrefix = `/${release}/${slug}`;
-  let m;
-  while ((m = showcaseRe.exec(html)) !== null) {
-    const routePath = m[1];
-    if (routePath.startsWith(ownPrefix)) {
-      demo = `https://${SHOWCASE_HOST}${routePath}`;
-      break;
-    }
-    if (demo === null) demo = `https://${SHOWCASE_HOST}${routePath}`;
-  }
+  const demo = extractDemoUrl(html, release, slug);
 
   return { id, route, identity, status, demo };
 }
@@ -98,13 +83,16 @@ async function collectFromRef(ref) {
 }
 
 async function collectFromWorkingTree(root = ".") {
-  const pages = [];
-  for await (const rel of walkPages(root)) pages.push(rel);
-  pages.sort();
+  const pages = await collectPublishedPages(root);
   const entries = [];
   for (const pagePath of pages) {
-    const html = await Deno.readTextFile(`${root}/${pagePath}`);
-    entries.push(pathToIdentityFields(pagePath, html));
+    try {
+      const html = await readJudgedFile(pagePath, root);
+      entries.push(pathToIdentityFields(pagePath, html));
+    } catch (err) {
+      if (err instanceof Deno.errors.NotFound) continue;
+      throw err;
+    }
   }
   return entries;
 }
@@ -128,12 +116,12 @@ async function* walkPages(root) {
 
 // The responsive-support sidecar (git-tracked) carries each route's mobile+desktop support record.
 // It is merged into the manifest so the gate and any consumer see support state alongside identity.
-async function loadReferenceRoutes(ref, id) {
+async function loadReferenceRoutes(ref, id, root = ".") {
   let raw;
   try {
     raw = ref
       ? await runGitChecked(["show", `${ref}:${id}/reference-contract.json`])
-      : await Deno.readTextFile(`${id}/reference-contract.json`);
+      : await readJudgedFile(`${id}/reference-contract.json`, root);
   } catch {
     return [];
   }
@@ -151,12 +139,12 @@ async function loadReferenceRoutes(ref, id) {
   }
 }
 
-async function loadSupportRoutes(ref) {
+async function loadSupportRoutes(ref, root = ".") {
   let raw = null;
   try {
     raw = ref
       ? await runGitChecked(["show", `${ref}:responsive-support.json`])
-      : await Deno.readTextFile("responsive-support.json");
+      : await readJudgedFile("responsive-support.json", root);
   } catch {
     return {};
   }
@@ -167,13 +155,13 @@ async function loadSupportRoutes(ref) {
   }
 }
 
-export async function buildManifest({ ref } = {}) {
-  const entries = ref ? await collectFromRef(ref) : await collectFromWorkingTree();
-  const supportRoutes = await loadSupportRoutes(ref);
+export async function buildManifest({ ref, root = "." } = {}) {
+  const entries = ref ? await collectFromRef(ref) : await collectFromWorkingTree(root);
+  const supportRoutes = await loadSupportRoutes(ref, root);
   return await Promise.all(entries.map(async (e) => ({
     ...e,
     aliases: [],
-    referenceRoutes: await loadReferenceRoutes(ref, e.id),
+    referenceRoutes: await loadReferenceRoutes(ref, e.id, root),
     support: supportRoutes[e.route] ?? { desktop: "untested", mobile: "untested" },
   })));
 }

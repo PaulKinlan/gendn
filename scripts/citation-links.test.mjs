@@ -26,6 +26,7 @@ import {
   runRatchet,
   scanIdShapes,
 } from "./check-citation-links.mjs";
+import { plainCorpusPath } from "./lib/plain-corpus-path.mjs";
 
 let n = 0;
 function ok(cond, name) {
@@ -120,6 +121,23 @@ ok(
   "mapPool returns results in exact input order regardless of resolution order",
 );
 
+// A symlink to a REAL, EMPTY directory never throws on readDir. Pin the shared
+// proactive lstat invariant before the older parallel/deletion assertions.
+const plainProbe = await Deno.makeTempDir({ prefix: "citation-plain-path-" });
+const realOutside = await Deno.makeTempDir({ prefix: "citation-real-outside-" });
+try {
+  await Deno.mkdir(`${plainProbe}/v150`);
+  await Deno.symlink(realOutside, `${plainProbe}/v150/member`);
+  const verdict = await plainCorpusPath(plainProbe, "v150/member");
+  ok(
+    verdict.state === "invalid" && verdict.reason.includes("symlink component v150/member"),
+    "shared helper proactively rejects a real-but-empty external directory symlink",
+  );
+} finally {
+  await Deno.remove(plainProbe, { recursive: true });
+  await Deno.remove(realOutside, { recursive: true });
+}
+
 // --- 4. ratchet end-to-end in a scratch repo --------------------------------
 const dir = await Deno.makeTempDir({ prefix: "t7h-" });
 async function g(...args) {
@@ -164,6 +182,36 @@ ok(
   "4b uncommitted edit to legacy page fails before commit (resolve-on-touch)",
 );
 await g("add", ".");
+let r4bStaged = await runRatchet(dir);
+ok(
+  r4bStaged.failures.length === 1 && r4bStaged.failures[0].includes("v147/legacy-page"),
+  "4b staged edit to legacy page fails before commit",
+);
+
+// gendn-waa3: staged-then-worktree-reverted (git status shows MM) must not escape.
+// Overwrite working file back to base content: base -> working tree diff is empty,
+// but the index holds the change, so union of git diff --cached keeps it in the key.
+await Deno.writeTextFile(`${dir}/${PAGE_A}`, unlinkedPage("a"));
+const statusShort4b = new TextDecoder().decode(
+  (await (new Deno.Command("git", { args: ["status", "--short"], cwd: dir, stdout: "piped" }))
+    .output()).stdout,
+).trim();
+ok(
+  statusShort4b.includes("MM") && statusShort4b.includes(PAGE_A),
+  "4b git status shows MM for staged-then-reverted file",
+);
+let r4bReverted = await runRatchet(dir);
+ok(
+  r4bReverted.changed.includes("v147/legacy-page"),
+  "4b staged-then-reverted edit is included in changed pages via cached diff (gendn-waa3)",
+);
+ok(
+  r4bReverted.failures.length === 1 && r4bReverted.failures[0].includes("v147/legacy-page"),
+  "4b staged-then-reverted page retaining its legacy label FAILS the ratchet (escape closed)",
+);
+
+// Restore the edit in working tree before commit so the committed control runs as before
+await Deno.writeTextFile(`${dir}/${PAGE_A}`, unlinkedPage("a").replace("body", "body edited"));
 await g("commit", "-qm", "touch A unrelated to label");
 r = await runRatchet(dir);
 ok(r.changed.includes("v147/legacy-page"), "4b changed set includes A");
@@ -236,11 +284,15 @@ ok(
   "4g truncated id in a member page detected by the recursive scan",
 );
 
-// case 4h: with no origin/main ref the baseline falls back to HEAD and the
-// ratchet reports itself vacuous instead of passing silently (round-2 P2)
+// case 4h: without an independent origin/main ref the ratchet must refuse, not compare HEAD
+// to itself. A warning on a successful exit would still hide committed violations.
 await g("update-ref", "-d", "refs/remotes/origin/main");
 r = await runRatchet(dir);
-ok(r.vacuous === true, "4h missing origin/main ref yields vacuous=true for the CLI to warn about");
+ok(
+  r.error?.includes("cannot verify committed citation-label changes") &&
+    r.error.includes("refs/remotes/origin/main"),
+  "4h missing origin/main ref explicitly refuses to verify citation changes",
+);
 
 await Deno.remove(dir, { recursive: true });
 
@@ -394,6 +446,19 @@ ok(
   "4j staged uncommitted tracked page edit FAILS the ratchet before commit",
 );
 
+// gendn-waa3: staged-then-reverted edit is included in changed pages via cached diff
+await Deno.writeTextFile(`${dir4j}/${TRACKED_PAGE}`, cleanDoc("focusgroup"));
+let r4jReverted = await runRatchet(dir4j);
+ok(
+  r4jReverted.changed.includes("v150/focusgroup"),
+  "4j staged-then-reverted tracked page edit is included in changed pages via cached diff (gendn-waa3)",
+);
+// Restore unlinked citation before committed control
+await Deno.writeTextFile(
+  `${dir4j}/${TRACKED_PAGE}`,
+  cleanDoc("focusgroup") + '\n<span class="citation">Source: Unlinked Test Citation 2026.</span>',
+);
+
 // Committed control: committing the same edit still fails
 await g4j("commit", "-qm", "commit unlinked citation");
 r4j = await runRatchet(dir4j);
@@ -419,6 +484,183 @@ await g4j("add", TRACKED_PAGE);
 await g4j("commit", "-qm", "resolve citation");
 r4j = await runRatchet(dir4j);
 ok(r4j.failures.length === 0, "4j committed resolution passes");
+
+// CLI controls use a real committed bad page in this isolated repo. They pin the exit and
+// diagnostic, not only runRatchet's return shape; neither case needs Chrome or network.
+const runCitationGate = async (all = false) => {
+  const out = await new Deno.Command(Deno.execPath(), {
+    args: [
+      "run",
+      "--allow-read",
+      "--allow-run",
+      new URL("./check-citation-links.mjs", import.meta.url).pathname,
+      ...(all ? ["--all"] : []),
+    ],
+    cwd: dir4j,
+    stdout: "piped",
+    stderr: "piped",
+  }).output();
+  return {
+    code: out.code,
+    text: new TextDecoder().decode(out.stdout) + new TextDecoder().decode(out.stderr),
+  };
+};
+await g4j("update-ref", "refs/remotes/origin/main", "HEAD");
+const unchangedNote4j =
+  "[UNCHANGED: fetched baseline == HEAD - committed changes not in scope; uncommitted edits still checked]";
+let cli4j = await runCitationGate();
+ok(
+  cli4j.code === 0 &&
+    cli4j.text.split("\n").some((line) =>
+      line.startsWith("citation-links ratchet:") && line.includes(unchangedNote4j)
+    ) &&
+    cli4j.text.split("\n").some((line) =>
+      line.startsWith("PASS —") && line.includes(unchangedNote4j)
+    ),
+  "4j equal fetched baseline qualifies BOTH citation count and PASS line",
+);
+await Deno.writeTextFile(
+  `${dir4j}/${TRACKED_PAGE}`,
+  cleanDoc("focusgroup") + '\n<span class="citation">Source: Unlinked Test Citation 2026.</span>',
+);
+await g4j("add", TRACKED_PAGE);
+await g4j("commit", "-qm", "fixture-only committed unlinked citation");
+cli4j = await runCitationGate();
+ok(
+  cli4j.code === 1 && cli4j.text.includes("unlinked citation label") &&
+    cli4j.text.includes("Source: Unlinked Test Citation 2026.") &&
+    !cli4j.text.includes(unchangedNote4j),
+  "4j independent baseline detects committed unlinked citation (CLI rc1)",
+);
+await g4j("update-ref", "-d", "refs/remotes/origin/main");
+cli4j = await runCitationGate();
+ok(
+  cli4j.code === 6 && cli4j.text.includes("cannot verify committed citation-label changes") &&
+    cli4j.text.includes("refs/remotes/origin/main") &&
+    cli4j.text.includes("run git fetch origin main") && !cli4j.text.includes("PASS —"),
+  "4j missing independent baseline is PRECONDITION rc6, not violation rc1 or PASS",
+);
+
+// A published page in the fetched catalogue cannot be replaced by zero scanned pages.
+await g4j("update-ref", "refs/remotes/origin/main", "HEAD~1");
+await Deno.remove(`${dir4j}/v150`, { recursive: true });
+cli4j = await runCitationGate();
+ok(
+  cli4j.code === 1 && cli4j.text.includes("published page corpus empty") &&
+    cli4j.text.includes(
+      "0 scanned index.html pages vs 1 independently published origin/main pages (difference 1)",
+    ) &&
+    !cli4j.text.includes("PASS —"),
+  "4k erased published page fails against independent floor (CLI rc1, no PASS)",
+);
+const emptyReport4k = await runCitationGate(true);
+ok(
+  emptyReport4k.code === 1 && emptyReport4k.text.includes("empty published page corpus") &&
+    !emptyReport4k.text.includes("PASS —"),
+  "4k report mode also refuses an empty page corpus (CLI rc1)",
+);
+await g4j("reset", "--hard", "refs/remotes/origin/main");
+cli4j = await runCitationGate();
+ok(
+  cli4j.code === 0 && cli4j.text.includes("pages scanned for id shape 1") &&
+    cli4j.text.includes("PASS —"),
+  "4k restored valid non-empty catalogue passes (CLI rc0)",
+);
+const nonemptyReport4k = await runCitationGate(true);
+ok(
+  nonemptyReport4k.code === 0 && nonemptyReport4k.text.includes("1 pages scanned") &&
+    nonemptyReport4k.text.includes("PASS —"),
+  "4k report mode still passes a valid non-empty corpus",
+);
+
+// A broken link to a touched index.html is unreadable even though the directory remains.
+await Deno.remove(`${dir4j}/${TRACKED_PAGE}`);
+await Deno.symlink("missing-page.html", `${dir4j}/${TRACKED_PAGE}`);
+cli4j = await runCitationGate();
+ok(
+  cli4j.code === 1 && cli4j.text.includes(TRACKED_PAGE) &&
+    cli4j.text.includes("symlink component") && !cli4j.text.includes("PASS —"),
+  "4l symlinked touched page is named and refused (CLI rc1, no PASS)",
+);
+await g4j("reset", "--hard", "HEAD");
+cli4j = await runCitationGate();
+ok(cli4j.code === 0 && cli4j.text.includes("PASS —"), "4l readable page restoration passes");
+
+// A dangling symlink for the whole touched directory yields NotFound from readDir,
+// but lstat proves the owner path exists and must not be treated as a deleted route.
+await Deno.remove(`${dir4j}/v150/focusgroup`, { recursive: true });
+await Deno.symlink("missing-dir", `${dir4j}/v150/focusgroup`);
+cli4j = await runCitationGate();
+ok(
+  cli4j.code === 1 && cli4j.text.includes("v150/focusgroup") &&
+    cli4j.text.includes("symlink component") && !cli4j.text.includes("PASS —"),
+  "4l dangling touched DIRECTORY is a named hard failure (CLI rc1, no PASS)",
+);
+await Deno.remove(`${dir4j}/v150/focusgroup`);
+await g4j("reset", "--hard", "HEAD");
+cli4j = await runCitationGate();
+ok(cli4j.code === 0 && cli4j.text.includes("PASS —"), "4l readable directory restoration passes");
+
+await Deno.remove(`${dir4j}/v150`, { recursive: true });
+await Deno.symlink("missing-milestone", `${dir4j}/v150`);
+cli4j = await runCitationGate();
+ok(
+  cli4j.code === 1 && cli4j.text.includes("symlink component v150") &&
+    !cli4j.text.includes("PASS —"),
+  "4n dangling MILESTONE component is a named hard failure (CLI rc1)",
+);
+await Deno.remove(`${dir4j}/v150`);
+await g4j("reset", "--hard", "HEAD");
+
+await Deno.symlink("missing-member", `${dir4j}/v150/focusgroup/member`);
+cli4j = await runCitationGate();
+ok(
+  cli4j.code === 1 && cli4j.text.includes("v150/focusgroup/member") &&
+    cli4j.text.includes("symlink component") && !cli4j.text.includes("PASS —"),
+  "4n dangling MEMBER component is a named hard failure (CLI rc1)",
+);
+await Deno.remove(`${dir4j}/v150/focusgroup/member`);
+const outside4j = await Deno.makeTempDir({ prefix: "citation-outside-empty-" });
+try {
+  await Deno.symlink(outside4j, `${dir4j}/v150/focusgroup/member`);
+  cli4j = await runCitationGate();
+  ok(
+    cli4j.code === 1 && cli4j.text.includes("v150/focusgroup/member") &&
+      cli4j.text.includes("symlink component") && !cli4j.text.includes("PASS —"),
+    "4n symlink to REAL EMPTY OUTSIDE directory fails proactively (CLI rc1)",
+  );
+} finally {
+  await Deno.remove(`${dir4j}/v150/focusgroup/member`);
+  await Deno.remove(outside4j, { recursive: true });
+}
+await Deno.mkdir(`${dir4j}/v150/focusgroup/private`);
+await Deno.writeTextFile(`${dir4j}/v150/focusgroup/private/index.html`, cleanDoc("private"));
+await Deno.chmod(`${dir4j}/v150/focusgroup/private`, 0o000);
+try {
+  cli4j = await runCitationGate();
+  ok(
+    cli4j.code === 1 && cli4j.text.includes("v150/focusgroup/private") &&
+      cli4j.text.includes("FAIL —") && !cli4j.text.includes("PASS —"),
+    "4n permission-denied member directory fails with named controlled summary",
+  );
+} finally {
+  await Deno.chmod(`${dir4j}/v150/focusgroup/private`, 0o700);
+  await Deno.remove(`${dir4j}/v150/focusgroup/private`, { recursive: true });
+}
+cli4j = await runCitationGate();
+ok(cli4j.code === 0 && cli4j.text.includes("PASS —"), "4n plain restored corpus passes");
+
+// When the fetched ref is ahead of HEAD, merge-base == HEAD does NOT mean fetched == HEAD.
+await g4j("commit", "--allow-empty", "-qm", "fixture fetched-ahead ref");
+await g4j("update-ref", "refs/remotes/origin/main", "HEAD");
+await g4j("reset", "--hard", "HEAD~1");
+cli4j = await runCitationGate();
+r4j = await runRatchet(dir4j);
+ok(
+  cli4j.code === 0 && r4j.vacuous === false &&
+    !cli4j.text.includes(unchangedNote4j) && cli4j.text.includes("PASS —"),
+  "4m fetched ref ahead of HEAD is not falsely labelled UNCHANGED",
+);
 
 await Deno.remove(dir4j, { recursive: true });
 

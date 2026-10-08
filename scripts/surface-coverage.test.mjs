@@ -10,6 +10,7 @@
 // three fragments (~360/#syntax, ~189/#scroll-state-query, ~3005/#features); the misread
 // 'to the next h2' yields one ~3562-char slice. A copied rule silently inherits the misread.
 import { fragmentAfterId, stripMarkup } from "./lib/reference-contract.mjs";
+import { plainCorpusPath } from "./lib/plain-corpus-path.mjs";
 import {
   CLASSIFIER_STOPWORDS,
   EXEMPT_TIER,
@@ -302,12 +303,71 @@ const root = Deno.cwd();
     await g("add", ".");
     await g("commit", "-qm", "clean baseline");
     await g("update-ref", "refs/remotes/origin/main", "HEAD");
+    const runSurfaceGate = async (all = false) => {
+      const out = await new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          "--allow-read",
+          "--allow-run",
+          new URL("./check-surface-coverage.mjs", import.meta.url).pathname,
+          ...(all ? ["--all"] : []),
+        ],
+        cwd: scratch,
+        stdout: "piped",
+        stderr: "piped",
+      }).output();
+      return {
+        code: out.code,
+        text: new TextDecoder().decode(out.stdout) + new TextDecoder().decode(out.stderr),
+      };
+    };
+    const unchangedNote =
+      "[UNCHANGED: fetched baseline == HEAD - committed changes not in scope; uncommitted edits still checked]";
+    let cli = await runSurfaceGate();
+    assert(
+      "equal fetched baseline qualifies BOTH surface count and PASS line",
+      cli.code === 0 &&
+        cli.text.split("\n").some((line) =>
+          line.startsWith("surface-coverage ratchet:") && line.includes(unchangedNote)
+        ) &&
+        cli.text.split("\n").some((line) =>
+          line.startsWith("PASS —") && line.includes(unchangedNote)
+        ),
+      cli.text,
+    );
+    const aliasRoot = `${scratch}-alias`;
+    await Deno.symlink(scratch, aliasRoot);
+    try {
+      const plain = await plainCorpusPath(aliasRoot, `${probe}/index.html`, "file");
+      assert(
+        "checker helper accepts a symlinked REPO ROOT while checking only descendants",
+        plain.state === "ok",
+        JSON.stringify(plain),
+      );
+      const dotHref = await plainCorpusPath(aliasRoot, `${probe}/./index.html`, "file");
+      assert(
+        "same-page ./ href remains a valid plain path",
+        dotHref.state === "ok",
+        JSON.stringify(dotHref),
+      );
+    } finally {
+      await Deno.remove(aliasRoot);
+    }
     const baseline = await scanCorpus(scratch);
     assert(
       "scratch corpus starts clean with root + nested contracts",
       baseline.contracts === 2 && Object.keys(baseline.byClass).length === 0,
       JSON.stringify({ contracts: baseline.contracts, byClass: baseline.byClass }),
     );
+    await g("rm", `${child}/reference-contract.json`);
+    let cliDeleted = await runSurfaceGate();
+    assert(
+      "genuinely deleted child contract defers to other gates while remaining corpus stays non-empty",
+      cliDeleted.code === 0 && cliDeleted.text.includes("checked contracts 0") &&
+        cliDeleted.text.includes("PASS —"),
+      cliDeleted.text,
+    );
+    await g("reset", "--hard", "HEAD");
 
     // Only the overview PAGE changes; both contracts are conservatively checked, but the
     // wrong-surface finding belongs to the overview slice. The old ratchet checked ZERO.
@@ -358,6 +418,312 @@ const root = Deno.cwd();
       "committed page-only regression still fails; baseline warning is not vacuous",
       !r.vacuous && r.failures.length === 2 && r.pageOwners.join() === probe,
       JSON.stringify({ vacuous: r.vacuous, failures: r.failures }),
+    );
+
+    // Exercise the actual CLI in both directions on the SAME committed wrong-surface tree.
+    // The scratch repo's origin/main is a local ref: no network or browser is involved.
+    cli = await runSurfaceGate();
+    assert(
+      "independent baseline detects committed wrong-surface page (CLI rc1)",
+      cli.code === 1 && cli.text.includes("surface-coverage violation(s)") &&
+        cli.text.includes("computequota-method.syntax") &&
+        !cli.text.includes(unchangedNote),
+      cli.text,
+    );
+    await g("update-ref", "-d", "refs/remotes/origin/main");
+    cli = await runSurfaceGate();
+    assert(
+      "missing independent baseline is PRECONDITION rc6, not violation rc1 or PASS",
+      cli.code === 6 && cli.text.includes("cannot verify committed surface mappings") &&
+        cli.text.includes("refs/remotes/origin/main") &&
+        cli.text.includes("run git fetch origin main") && !cli.text.includes("PASS —"),
+      cli.text,
+    );
+
+    await g("update-ref", "refs/remotes/origin/main", "HEAD~1");
+    await g("rm", `${probe}/reference-contract.json`, `${child}/reference-contract.json`);
+    cli = await runSurfaceGate();
+    assert(
+      "deleted whole contract corpus fails independent published floor (CLI rc1, no PASS)",
+      cli.code === 1 && cli.text.includes("published reference-contract corpus empty") &&
+        cli.text.includes("2 independent origin/main contracts") && !cli.text.includes("PASS —"),
+      cli.text,
+    );
+    const emptyReport = await runSurfaceGate(true);
+    assert(
+      "report mode also refuses an empty contract corpus (CLI rc1)",
+      emptyReport.code === 1 && emptyReport.text.includes("empty published contract corpus") &&
+        !emptyReport.text.includes("PASS —"),
+      emptyReport.text,
+    );
+    await g("reset", "--hard", "refs/remotes/origin/main");
+    cli = await runSurfaceGate();
+    assert(
+      "restored valid non-empty contract corpus passes (CLI rc0)",
+      cli.code === 0 && cli.text.includes("PASS —"),
+      cli.text,
+    );
+    const nonemptyReport = await runSurfaceGate(true);
+    assert(
+      "report mode still measures a valid non-empty contract corpus",
+      nonemptyReport.code === 0 && nonemptyReport.text.includes("2 contracts"),
+      nonemptyReport.text,
+    );
+
+    await Deno.writeTextFile(`${scratch}/${probe}/reference-contract.json`, "{ malformed json");
+    cli = await runSurfaceGate();
+    assert(
+      "malformed touched contract fails with named file and parse reason (CLI rc1, no PASS)",
+      cli.code === 1 && cli.text.includes(`${probe}/reference-contract.json`) &&
+        cli.text.includes("cannot read or parse touched contract") && !cli.text.includes("PASS —"),
+      cli.text,
+    );
+    for (const malformed of ["null", "{}", "[]"]) {
+      await Deno.writeTextFile(`${scratch}/${probe}/reference-contract.json`, malformed);
+      cli = await runSurfaceGate();
+      assert(
+        `parseable but malformed touched contract ${malformed} cannot be skipped`,
+        cli.code === 1 && cli.text.includes(`${probe}/reference-contract.json`) &&
+          cli.text.includes("malformed contract") && !cli.text.includes("PASS —"),
+        cli.text,
+      );
+    }
+    await g("reset", "--hard", "HEAD");
+    cli = await runSurfaceGate();
+    assert(
+      "restored valid contract after malformed probe passes",
+      cli.code === 0 && cli.text.includes("PASS —"),
+      cli.text,
+    );
+
+    // NotFound from the owner's readDir or the contract read is ambiguous: a dangling
+    // directory symlink exists according to lstat, unlike a genuinely deleted owner.
+    await Deno.remove(`${scratch}/${probe}`, { recursive: true });
+    await Deno.symlink("missing-dir", `${scratch}/${probe}`);
+    cli = await runSurfaceGate();
+    assert(
+      "dangling touched DIRECTORY fails by name and never claims its contract was checked",
+      cli.code === 1 && cli.text.includes(probe) &&
+        cli.text.includes(`symlink component ${probe}`) &&
+        cli.text.includes(`${probe}/reference-contract.json`) &&
+        cli.text.includes("checked contracts 0") && !cli.text.includes("PASS —"),
+      cli.text,
+    );
+    await Deno.remove(`${scratch}/${probe}`);
+    await g("reset", "--hard", "HEAD");
+    cli = await runSurfaceGate();
+    assert(
+      "restored readable directory and contracts pass",
+      cli.code === 0 && cli.text.includes("PASS —"),
+      cli.text,
+    );
+
+    await Deno.remove(`${scratch}/v147`, { recursive: true });
+    await Deno.symlink("missing-milestone", `${scratch}/v147`);
+    cli = await runSurfaceGate();
+    assert(
+      "dangling MILESTONE component fails with named summary and zero inspected contracts",
+      cli.code === 1 && cli.text.includes("symlink component v147") &&
+        cli.text.includes("checked contracts 0") && !cli.text.includes("PASS —"),
+      cli.text,
+    );
+    await Deno.remove(`${scratch}/v147`);
+    await g("reset", "--hard", "HEAD");
+
+    await Deno.remove(`${scratch}/${child}`, { recursive: true });
+    await Deno.symlink("missing-member", `${scratch}/${child}`);
+    cli = await runSurfaceGate();
+    assert(
+      "dangling MEMBER component fails with named summary",
+      cli.code === 1 && cli.text.includes(`symlink component ${child}`) &&
+        !cli.text.includes("PASS —"),
+      cli.text,
+    );
+    await Deno.remove(`${scratch}/${child}`);
+    await g("reset", "--hard", "HEAD");
+
+    const outside = await Deno.makeTempDir({ prefix: "surface-outside-empty-" });
+    try {
+      await Deno.remove(`${scratch}/${child}`, { recursive: true });
+      await Deno.symlink(outside, `${scratch}/${child}`);
+      cli = await runSurfaceGate();
+      assert(
+        "symlink to REAL EMPTY OUTSIDE directory fails proactively",
+        cli.code === 1 && cli.text.includes(`symlink component ${child}`) &&
+          !cli.text.includes("PASS —"),
+        cli.text,
+      );
+    } finally {
+      await Deno.remove(`${scratch}/${child}`);
+      await Deno.remove(outside, { recursive: true });
+      await g("reset", "--hard", "HEAD");
+    }
+
+    const contractPath = `${scratch}/${probe}/reference-contract.json`;
+    const externalContract = await Deno.makeTempFile({ prefix: "surface-real-contract-" });
+    try {
+      await Deno.copyFile(contractPath, externalContract);
+      await Deno.remove(contractPath);
+      await Deno.symlink(externalContract, contractPath);
+      cli = await runSurfaceGate();
+      assert(
+        "symlinked regular contract file is rejected even when target is readable",
+        cli.code === 1 && cli.text.includes(`${probe}/reference-contract.json`) &&
+          cli.text.includes("symlink component") && !cli.text.includes("PASS —"),
+        cli.text,
+      );
+    } finally {
+      await Deno.remove(contractPath);
+      await Deno.remove(externalContract);
+      await g("reset", "--hard", "HEAD");
+    }
+
+    await Deno.mkdir(`${scratch}/${probe}/private`);
+    await Deno.writeTextFile(`${scratch}/${probe}/private/index.html`, page(named));
+    await Deno.chmod(`${scratch}/${probe}/private`, 0o000);
+    try {
+      cli = await runSurfaceGate();
+      assert(
+        "permission-denied member directory fails with named controlled summary",
+        cli.code === 1 && cli.text.includes(`${probe}/private`) &&
+          cli.text.includes("FAIL —") && !cli.text.includes("PASS —"),
+        cli.text,
+      );
+    } finally {
+      await Deno.chmod(`${scratch}/${probe}/private`, 0o700);
+      await Deno.remove(`${scratch}/${probe}/private`, { recursive: true });
+    }
+    cli = await runSurfaceGate();
+    assert(
+      "restored plain corpus still passes",
+      cli.code === 0 && cli.text.includes("PASS —"),
+      cli.text,
+    );
+
+    // Fetched ref ahead of HEAD: merge-base == HEAD but fetched != HEAD.
+    await g("commit", "--allow-empty", "-qm", "fixture fetched-ahead ref");
+    await g("update-ref", "refs/remotes/origin/main", "HEAD");
+    await g("reset", "--hard", "HEAD~1");
+    cli = await runSurfaceGate();
+    r = await runRatchet(scratch);
+    assert(
+      "fetched ref ahead of HEAD is not falsely labelled UNCHANGED",
+      cli.code === 0 && r.vacuous === false && !cli.text.includes(unchangedNote) &&
+        cli.text.includes("PASS —"),
+      cli.text,
+    );
+  } finally {
+    await Deno.remove(scratch, { recursive: true });
+  }
+}
+
+// ---- 8. gendn-waa3: staged-then-reverted edit (git status MM) must not escape ----
+{
+  const scratch = await Deno.makeTempDir({ prefix: "waa3-surface-" });
+  const probe = "v147/probe";
+  const page = (text) =>
+    `<html><body><h2 id="syntax">syntax</h2><p>${text}</p><h2 id="next">next</h2></body></html>`;
+  const named = "Call computeQuota(hints) to calculate the estimate. Substantive.";
+  const neutral = "Generic placeholder without the named surface.";
+  const inventory = [{ id: "computequota-method", name: "computeQuota method", kind: "method" }];
+  const doc = {
+    inventoryId: "computequota-method",
+    href: "#syntax",
+    dimensions: { syntax: { status: "documented", selector: "#syntax" } },
+  };
+  const g = async (...args) => {
+    const c = new Deno.Command("git", { args, cwd: scratch, stdout: "piped", stderr: "piped" });
+    const o = await c.output();
+    if (!o.success) {
+      throw new Error(`git ${args.join(" ")} failed: ${new TextDecoder().decode(o.stderr)}`);
+    }
+  };
+  try {
+    await Deno.mkdir(`${scratch}/${probe}`, { recursive: true });
+    await Deno.writeTextFile(
+      `${scratch}/${probe}/reference-contract.json`,
+      JSON.stringify({ id: probe, inventory, documentation: [doc] }),
+    );
+    // Baseline starts with neutral placeholder: pre-existing debt on origin/main
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, page(neutral));
+    await g("init", "-q", "-b", "main");
+    await g("config", "user.email", "waa3@example.test");
+    await g("config", "user.name", "waa3");
+    await g("add", ".");
+    await g("commit", "-qm", "baseline with debt");
+    await g("update-ref", "refs/remotes/origin/main", "HEAD");
+
+    // Case 1: Clean baseline — untouched pre-existing debt is not gated
+    let r = await runRatchet(scratch);
+    assert(
+      "clean baseline: untouched pre-existing debt is not gated (0 changed, 0 failures)",
+      r.changed.length === 0 && r.failures.length === 0,
+      JSON.stringify({ changed: r.changed, failures: r.failures }),
+    );
+
+    // Case 2: Uncommitted edit to page with debt fails before commit
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, page(neutral) + "<!-- touch -->");
+    r = await runRatchet(scratch);
+    assert(
+      "uncommitted touch to page with debt FAILS before commit (resolve-on-touch)",
+      r.changed.includes(probe) && r.failures.length === 1,
+      JSON.stringify({ changed: r.changed, failures: r.failures }),
+    );
+
+    // Case 3: Staged edit fails before commit
+    await g("add", `${probe}/index.html`);
+    r = await runRatchet(scratch);
+    assert(
+      "staged edit to page with debt FAILS before commit",
+      r.changed.includes(probe) && r.failures.length === 1,
+      JSON.stringify({ changed: r.changed, failures: r.failures }),
+    );
+
+    // Case 4: Staged-then-worktree-reverted (git status shows MM)
+    // Working file restored to base content: base -> working tree diff is empty,
+    // but the index holds the change, so union of git diff --cached keeps owner in the key.
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, page(neutral));
+    const statusCmd = new Deno.Command("git", {
+      args: ["status", "--short"],
+      cwd: scratch,
+      stdout: "piped",
+    });
+    const statusOut = new TextDecoder().decode((await statusCmd.output()).stdout).trim();
+    assert(
+      "staged-then-reverted file shows MM in git status --short",
+      statusOut.includes("MM") && statusOut.includes(probe),
+      statusOut,
+    );
+    r = await runRatchet(scratch);
+    assert(
+      "staged-then-reverted touch is included in changed pages via cached diff (gendn-waa3)",
+      r.changed.includes(probe),
+      JSON.stringify(r.changed),
+    );
+    assert(
+      "staged-then-reverted touch FAILS the ratchet on retained pre-existing debt (escape closed)",
+      r.failures.length === 1 && r.failures[0].includes("computequota-method.syntax"),
+      JSON.stringify(r.failures),
+    );
+
+    // Case 5: Committed edit still fails
+    await g("commit", "-qm", "committed touch");
+    r = await runRatchet(scratch);
+    assert(
+      "committed touch to page with debt FAILS the ratchet",
+      !r.vacuous && r.failures.length === 1,
+      JSON.stringify({ vacuous: r.vacuous, failures: r.failures }),
+    );
+
+    // Case 6: Resolved — updating to named surface clears the failure
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, page(named));
+    await g("add", `${probe}/index.html`);
+    await g("commit", "-qm", "resolve surface");
+    r = await runRatchet(scratch);
+    assert(
+      "resolved surface mapping PASSES the ratchet",
+      r.failures.length === 0,
+      JSON.stringify(r.failures),
     );
   } finally {
     await Deno.remove(scratch, { recursive: true });

@@ -48,9 +48,10 @@ controls, its use-case intent, and all inbound links.** Routine and agent waves 
 
 **Gate before every push:** run the route regression gate (`deno task check-routes`). It compares
 the previously published manifest against the working tree and fails on any missing published ID,
-deleted route, renamed/repurposed slug, changed published identity, or unexplained concept-count
-reduction — while allowing additive entries, honest `blocked` records, and in-place fixes.
-Exceptional removals/moves must be listed in the migration record with reason + evidence.
+deleted route, renamed/repurposed slug, changed published identity, changed/removed selected
+showcase demo URL, or unexplained concept-count reduction — while allowing additive entries, honest
+`blocked` records, and in-place fixes. Exceptional removals/moves/demo changes require a reviewed
+migration record with reason + evidence.
 
 ## How the contract maps to gendn
 
@@ -60,26 +61,59 @@ durable identity is:
 
 - **id / route** — id `v<N>/<slug>` (append-only), served at `/v<N>/<slug>/`.
 - **identity** — the `chromestatus.com/feature/<id>` link every page carries. This is the stable
-  feature/spec descriptor; a slug must NEVER be repointed to a different feature id.
+  feature/spec descriptor; a slug must NEVER be repointed to a different feature id. When a page
+  carries a structured quick-reference doc-table row labelled ChromeStatus, that declared link defines
+  the identity over an earlier incidental link, falling back to the first `chromestatus.com/feature/<id>`
+  link only when no declared row exists.
 - **status** — `built` (full reference) or `stub` (honest "covered on MDN" redirect). Both are
   PUBLISHED, live routes under contract; a `stub` is gendn's analogue of a `blocked` record and must
   never be silently deleted. A feature with no folder yet is `pending` — not published, not covered.
-- **embedded-demo identity** — the chrome-platform-showcase route a page embeds/links for its OWN
-  feature. The contract covers this inbound demo link too: don't repoint it to a different feature.
+- **selected demo URL** — the full chrome-platform-showcase URL recorded in the manifest's `demo`
+  field, including any concept sub-path. The extractor selects the first own-feature showcase link
+  in source order (or the first showcase link if none belongs to this page); this is not independent
+  proof that an iframe stayed unchanged. Once published, a change to this selected URL **even within
+  the same feature**, or its removal, requires a reviewed `demo-change` migration (or an
+  `identity-change` migration when the feature itself changes). Adding sibling concept links while
+  preserving the selected URL is additive; reordering links can change selection, so inspect the
+  manifest before treating such a change as harmless. When a page references a showcase demo purely
+  as a related, sibling, or context link without having an own demo, mark the link with
+  `data-demo-rel="related"` (or `rel="related"`): marked related links are excluded from own-demo
+  selection so the page's manifest demo remains honestly `null` rather than inheriting a sibling URL.
+- **v148 CPS lineage:** four settled same-feature suites (WebRTC DataChannel, `createEvent`, Summarizer preference, table-border; gendn-c5zp) retain historical ChromeStatus IDs distinct from the current pages; verify scope, but do not re-file an ID-only mismatch.
 
 ## Route manifest + regression gate
 
 - `deno task manifest` — emit the normalized manifest
-  `{ id, route, identity, status, demo, aliases, support }` from the catalogue (the `support` record
+  `{ id, route, identity, status, demo, referenceRoutes, aliases, support }` from the catalogue (the `support` record
   is merged from `responsive-support.json`). `--ref origin/main` emits it for a git ref; `--pretty`
   indents.
 - `deno task check-routes` — the regression gate. Baseline = the manifest at `origin/main`
   (fallback: committed `.route-manifest.baseline.json`); current = the working tree. Fails on a
-  missing published id, a deleted `built` route, a changed published identity, a deleted `stub`
-  record, or an uncovered published-count drop. Passes additive ids, honest stubs, and same-id
-  in-place fixes.
-- `migrations.json` — array of `{ id, action, from, to, reason, evidence, date }` records that
-  authorize exceptional removals/moves/identity-changes and keep moved routes alive via aliases.
+  missing published id, a deleted `built` route, a changed published identity, a changed/removed
+  selected demo URL, a deleted `stub` record, or an uncovered published-count drop. Passes additive
+  ids, honest stubs, and same-id in-place fixes that preserve their selected demo URL. Its separate
+  binding ratchet needs a reachable baseline ref; it fails closed rather than trusting the older
+  fallback snapshot when that ref is unavailable. A clean offline `deno task check-routes` now exits
+  non-zero if `origin/main` (or an explicit `--baseline` ref) is unavailable: fetch the ref instead
+  of treating the stale fallback snapshot as a green binding verdict.
+- `route-bindings.json` — the small, committed binding ledger: exactly `{ route, identity, demo }`
+  for **every** published route. This independent snapshot catches rebindings made solely by edits
+  to extractor code (which otherwise affect both sides of the manifest comparison). The gate fails
+  on missing/extra/duplicate/stale entries; it NEVER rewrites the ledger. For a deliberate page or
+  extractor binding change, run **`deno task refresh-bindings` explicitly**, inspect the ledger diff
+  against the previous committed version, and commit it alongside the migration. Regenerating the
+  ledger WITHOUT a new authorising migration is exactly the bypass this gate exists to stop: the
+  gate must fail, not silently bless the changed identity or demo. New routes need a ledger entry
+  but no migration. Do not copy `.route-manifest.baseline.json` as this ledger: that
+  fallback contains different fields and may not represent the current route census. During the
+  one-time initial rollout (when the baseline has no ledger), the gate refuses simultaneous edits
+  to the extractor pipeline; land the ledger first, then do any extractor rebinding separately.
+- `migrations.json` — array of `{ id, action, from, to, reason, evidence, date }` records for
+  exceptional removals/moves/identity-changes/demo-changes and aliases for moved routes. The
+  original origin/main-derived check matches only `id` + `action`. **For an existing route whose
+  committed ledger binding changes**, the binding ratchet ALSO demands a *new*, exact `from`/`to`
+  pair plus reason, evidence and date: `identity-change` for identity, `demo-change` for demo. A
+  record already present at the baseline cannot authorize a new binding-ledger diff.
 
 Legitimate slug/milestone corrections that preserve a still-listed feature id under the correct
 route are fixes, not contract breaks — record the move as an `alias`/`move` migration so the old
@@ -235,6 +269,15 @@ contract (`cpsFeature`) rather than forking it.
 - `v<N>/<slug>/conformance.json` — immutable suite (`suiteHash` = sha256 of normalized assertions).
   Never delete/weaken an assertion to go green — FIX THE PAGE; add assertions freely. Weakening
   needs an `assertion-migrate` record in `migrations.json`.
+- `cpsFeature.conformanceRoute` is **not** `<selected demo URL>/conformance` when the demo is
+  a concept sub-path. For a new suite, verify the live selected CPS page's explicit parent-feature
+  breadcrumb (or the selected page itself if it is the feature root), then verify that parent's
+  conformance HTML and JSON resolve and its declared `release`, `featureSlug`, and `chromestatusId`
+  match the candidate feature route and this page's identity. Never guess the root by truncating
+  path segments. If the breadcrumb is absent or the parent suite does not match, record `null`
+  and render no conformance link; do not substitute another feature's suite. Existing authored
+  root pointers, including a working trailing-slash form, must not be normalized by regeneration.
+  A pointer-only correction changes metadata, not frozen assertions or `suiteHash`.
 - `v<N>/<slug>/_questions.json` — mutable critique with reference-site rubric + `guidanceConsulted`
   (empty on a frontend critique = INCOMPLETE) + `followUpGoals`.
 - `v<N>/<slug>/reference-contract.json` — source-derived surface inventory and exact mapping to

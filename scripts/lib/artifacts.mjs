@@ -10,36 +10,112 @@
 // Nothing here fabricates data: assertions and support records are DERIVED from the page's own
 // chromestatus id, route, status (built/stub), sections, and embedded showcase link.
 
+import {
+  judgedFileExists,
+  readJudgedFile,
+  readJudgedJson,
+  stagedRevertedPaths,
+} from "./judged-content.mjs";
+import { plainCorpusPath } from "./plain-corpus-path.mjs";
+
 export const SHOWCASE_HOST = "chrome-platform-showcase.paulkinlan-ea.deno.net";
 
 const PAGE_RE = /^v\d+\/[^/]+\/index\.html$/;
-const FEATURE_ID_RE = /chromestatus\.com\/feature\/(\d+)/;
+export const FEATURE_ID_RE = /chromestatus\.com\/feature\/(\d+)/;
+export const DECLARED_FEATURE_ID_RE =
+  /<tr\b[^>]*>(?:(?!<\/tr>)[\s\S])*?<th\b[^>]*>\s*ChromeStatus\s*<\/th>(?:(?!<\/tr>)[\s\S])*?chromestatus\.com\/feature\/(\d+)/i;
 const EXPERIMENTAL_RE =
   /origin[ -]?trial|dev(?:eloper)? trial|behind a flag|experimental|chrome:\/\/flags|--enable-blink-features/i;
 
-// ---------- page discovery ----------
+export function extractFeatureIdentity(html) {
+  const declaredMatch = html.match(DECLARED_FEATURE_ID_RE);
+  if (declaredMatch) return declaredMatch[1];
+  const fallbackMatch = html.match(FEATURE_ID_RE);
+  return fallbackMatch ? fallbackMatch[1] : null;
+}
 
-export async function collectPublishedPages(root = ".") {
-  const pages = [];
-  for await (const rel of Deno.readDir(root)) {
-    if (!(rel.isDirectory && /^v\d+$/.test(rel.name))) continue;
-    for await (const slug of Deno.readDir(`${root}/${rel.name}`)) {
-      if (!slug.isDirectory) continue;
-      const pagePath = `${rel.name}/${slug.name}/index.html`;
-      try {
-        await Deno.stat(`${root}/${pagePath}`);
-        pages.push(pagePath);
-      } catch {
-        // no index.html — not published
+export function extractDemoUrl(html, release, slug) {
+  let demo = null;
+  const showcaseRe = new RegExp(
+    `${SHOWCASE_HOST.replace(/\./g, "\\.")}(/v\\d+/[a-z0-9-]+/?[a-z0-9-]*/?)`,
+    "g",
+  );
+  const ownPrefix = `/${release}/${slug}`;
+  let m;
+  while ((m = showcaseRe.exec(html)) !== null) {
+    const routePath = m[1];
+    const tagStart = html.lastIndexOf("<", m.index);
+    if (tagStart !== -1) {
+      const tagEnd = html.indexOf(">", tagStart);
+      if (tagEnd !== -1 && tagEnd > m.index) {
+        const tagText = html.slice(tagStart, tagEnd + 1);
+        const isRelated = /\b(?:data-demo-rel|data-demo)\s*=\s*["']?related\b/i.test(tagText) ||
+          /\brel\s*=\s*["'][^"']*\brelated\b[^"']*["']/i.test(tagText) ||
+          /\bdata-related-demo\b/i.test(tagText);
+        if (isRelated) continue;
       }
     }
+    // A sibling with a longer slug is not this feature; require the path-segment boundary.
+    if (routePath === ownPrefix || routePath.startsWith(`${ownPrefix}/`)) {
+      demo = `https://${SHOWCASE_HOST}${routePath}`;
+      break;
+    }
+    if (demo === null) demo = `https://${SHOWCASE_HOST}${routePath}`;
   }
-  pages.sort();
-  return pages;
+  return demo;
+}
+
+// ---------- page discovery ----------
+
+async function plainCatalogueEntry(root, relative, leaf = "directory") {
+  const check = await plainCorpusPath(root, relative, leaf);
+  if (check.state === "invalid") throw new Error(`${relative}: ${check.reason}`);
+  return check.state === "ok";
+}
+
+export async function collectPublishedPages(root = ".") {
+  const pages = new Set();
+  try {
+    for await (const rel of Deno.readDir(root)) {
+      if (!/^v\d+$/.test(rel.name)) continue;
+      // DirEntry.isDirectory is false for symlinks, including a published release
+      // replaced by a dangling link. Never silently shrink the catalogue.
+      if (!await plainCatalogueEntry(root, rel.name)) continue;
+      for await (const slug of Deno.readDir(`${root}/${rel.name}`)) {
+        if (!slug.isDirectory && !slug.isSymlink) continue; // ordinary stray files
+        const owner = `${rel.name}/${slug.name}`;
+        if (!await plainCatalogueEntry(root, owner)) continue;
+        const pagePath = `${owner}/index.html`;
+        if (
+          await plainCatalogueEntry(root, pagePath, "file") &&
+          await judgedFileExists(pagePath, root)
+        ) {
+          pages.add(pagePath);
+        }
+      }
+    }
+  } catch (err) {
+    // A truly removed directory is left to check-routes; all other read or
+    // inspection failures must reach the caller by name, not become 0/0 PASS.
+    if (!(err instanceof Deno.errors.NotFound)) {
+      throw new Error(`cannot enumerate published pages: ${err.message}`);
+    }
+  }
+
+  // Staged-reverted pages may be absent on disk yet present in the git index.
+  // Still reject an invalid component before judging their staged contents.
+  const staged = await stagedRevertedPaths(root);
+  for (const p of staged) {
+    if (!PAGE_RE.test(p)) continue;
+    await plainCatalogueEntry(root, p, "file");
+    if (await judgedFileExists(p, root)) pages.add(p);
+  }
+
+  return [...pages].sort();
 }
 
 export async function pageMetadata(pagePath, root = ".") {
-  const html = await Deno.readTextFile(`${root}/${pagePath}`);
+  const html = await readJudgedFile(pagePath, root);
   return metadataFromHtml(pagePath, html);
 }
 
@@ -77,8 +153,7 @@ export function metadataFromHtml(pagePath, html) {
   const route = `/${release}/${slug}/`;
   const milestone = Number(release.slice(1));
 
-  const idMatch = html.match(FEATURE_ID_RE);
-  const identity = idMatch ? idMatch[1] : null;
+  const identity = extractFeatureIdentity(html);
   const status = isMdnStubHtml(html) ? "stub" : "built";
   // gendn-aewp: the page's own eyebrow is the authoritative status claim. A shipped /
   // enabled-by-default eyebrow overrides experimental-sounding PROSE: historical flag
@@ -131,21 +206,7 @@ export function metadataFromHtml(pagePath, html) {
   const hasStylesheet = /href="\/public\/styles\.css"/.test(html);
 
   // The embedded-demo identity: the showcase route this page links for its OWN feature.
-  let demo = null;
-  const showcaseRe = new RegExp(
-    `${SHOWCASE_HOST.replace(/\./g, "\\.")}(/v\\d+/[a-z0-9-]+/?[a-z0-9-]*/?)`,
-    "g",
-  );
-  const ownPrefix = `/${release}/${slug}`;
-  let m;
-  while ((m = showcaseRe.exec(html)) !== null) {
-    const routePath = m[1];
-    if (routePath.startsWith(ownPrefix)) {
-      demo = `https://${SHOWCASE_HOST}${routePath}`;
-      break;
-    }
-    if (demo === null) demo = `https://${SHOWCASE_HOST}${routePath}`;
-  }
+  const demo = extractDemoUrl(html, release, slug);
 
   return {
     id,
@@ -191,13 +252,8 @@ export async function suiteHash(assertions) {
 
 // ---------- artifact loading ----------
 
-export async function readJson(path) {
-  try {
-    return JSON.parse(await Deno.readTextFile(path));
-  } catch (err) {
-    if (err instanceof Deno.errors.NotFound) return null;
-    throw err;
-  }
+export async function readJson(path, root = ".") {
+  return await readJudgedJson(path, root);
 }
 
 export function conformancePath(pageId, root = ".") {
@@ -212,6 +268,9 @@ export async function collectSuites(root = ".") {
   const out = [];
   for (const p of pages) {
     const pageId = p.replace(/\/index\.html$/, "");
+    // A missing suite still belongs to the ordinary missing-coverage gate;
+    // a present symlinked suite is not an inspected on-disk artifact.
+    await plainCatalogueEntry(root, `${pageId}/conformance.json`, "file");
     const suite = await readJson(conformancePath(pageId, root));
     if (suite) out.push(suite);
   }
@@ -241,6 +300,36 @@ export async function loadSupport(root = ".") {
 
 export function supportForRoute(support, route) {
   return support.routes?.[route] ?? { desktop: "untested", mobile: "untested" };
+}
+
+/** Conditional unsupported evidence that our minimal JSON-schema validator cannot express. */
+export function validateSupportRecord(route, record) {
+  const unsupported = ["desktop", "mobile"].filter((cls) => record?.[cls] === "unsupported");
+  if (unsupported.length === 0) return [];
+  const errors = [];
+  if (unsupported.length === 2) {
+    errors.push(
+      `${route}: both classes are unsupported, but this schema models evidence for only one class; add per-class evidence to the schema before recording both`,
+    );
+  } else if (record.unsupportedClass !== unsupported[0]) {
+    errors.push(
+      `${route}: ${unsupported[0]} unsupported requires unsupportedClass ${
+        JSON.stringify(unsupported[0])
+      } (got ${JSON.stringify(record.unsupportedClass)})`,
+    );
+  }
+  const evidence = typeof record.evidence === "string" ? record.evidence.trim() : "";
+  if (evidence.length < 20) {
+    errors.push(
+      `${route}: unsupported requires substantive evidence of platform unavailability (at least 20 non-whitespace characters)`,
+    );
+  }
+  // The automated overflow scan can flag needs-review/broken; it cannot prove an API is
+  // unavailable on an entire device class. Match the exact method, not prose mentioning it.
+  if (record.method === "auto-scan") {
+    errors.push(`${route}: auto-scan cannot establish unsupported platform capability`);
+  }
+  return errors;
 }
 
 // ---------- minimal draft-07 validator (dependency-free) ----------

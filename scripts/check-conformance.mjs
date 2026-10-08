@@ -30,6 +30,7 @@ import {
   validate,
 } from "./lib/artifacts.mjs";
 import { validateReferenceContractsInBrowser } from "./lib/reference-browser.mjs";
+import { readJudgedFile } from "./lib/judged-content.mjs";
 import { gitRefExists, runGit } from "./lib/bounded-git.mjs";
 import {
   collectReferenceContracts,
@@ -85,18 +86,55 @@ async function main() {
     if (!pageIds.has(s.id)) failures.push(`orphan suite ${s.id} maps to no published page`);
   }
 
-  // 3. immutability vs the remote baseline, falling back to local HEAD when offline.
-  const baselineRef = await gitRefExists("origin/main")
+  // 3. Immutability needs an independent, locally fetched baseline. HEAD compares committed
+  // changes against themselves, so it must never stand in for the missing remote-tracking ref.
+  const baselineRef = await gitRefExists("refs/remotes/origin/main^{commit}")
     ? "origin/main"
-    : await gitRefExists("HEAD")
-    ? "HEAD"
     : null;
   let baselineChecked = 0;
   if (!baselineRef) {
+    // Same precondition exit as landing-preflight.sh: inability to CHECK is not a genuine
+    // weakening violation (rc1), and neither condition may claim a successful ratchet.
+    console.error(
+      "FAIL — PRECONDITION (exit 6): cannot verify immutable assertion weakening or " +
+        "touched-page contracts: independent baseline refs/remotes/origin/main is unavailable " +
+        "or not a commit; run git fetch origin main before this ratchet (no HEAD self-baseline)",
+    );
+    Deno.exit(6);
+  }
+  // An empty working corpus is not evidence of full coverage. Anchor the floor on the
+  // independently fetched published catalogue, not a reciprocal 0/0 equality.
+  const priorPaths = await git(["ls-tree", "-r", "--name-only", baselineRef]);
+  if (priorPaths === null) {
+    console.error("FAIL — PRECONDITION (exit 6): cannot read the published baseline catalogue");
+    Deno.exit(6);
+  }
+  const priorPages = priorPaths.split("\n").filter((path) =>
+    /^v\d+\/[^/]+\/index\.html$/.test(path)
+  );
+  const priorSuites = priorPaths.split("\n").filter((path) =>
+    /^v\d+\/[^/]+\/conformance\.json$/.test(path)
+  );
+  if (priorPages.length === 0 || priorSuites.length === 0) {
+    console.error(
+      "FAIL — PRECONDITION (exit 6): independent published catalogue has no pages or conformance suites to anchor the coverage floor",
+    );
+    Deno.exit(6);
+  }
+  if (pageIds.size === 0 || suites.length === 0) {
     failures.push(
-      "no origin/main or HEAD baseline is available; cannot enforce immutable/touched contracts",
+      `published corpus empty: ${pageIds.size} pages and ${suites.length} suites against independent baseline ${priorPages.length} pages and ${priorSuites.length} suites`,
     );
   }
+  // The fetched ref can be independent yet equal to HEAD (a run on main). In that case
+  // no committed change was compared; qualify BOTH the count and success verdict.
+  const headCommit = (await git(["rev-parse", "--verify", "HEAD^{commit}"]))?.trim();
+  const baselineCommit = (await git(["rev-parse", "--verify", "refs/remotes/origin/main^{commit}"]))
+    ?.trim();
+  const vacuous = !!headCommit && headCommit === baselineCommit;
+  const unchangedNote = vacuous
+    ? " [UNCHANGED: fetched baseline == HEAD - committed changes not in scope; uncommitted edits still checked]"
+    : "";
   if (baselineRef) {
     for (const s of suites) {
       const baseRaw = await git(["show", `${baselineRef}:${s.id}/conformance.json`]);
@@ -148,8 +186,15 @@ async function main() {
   const browserCheckRecords = [];
   if (baselineRef) {
     const diff = (await git(["diff", "--name-only", baselineRef, "--", "v*"])) ?? "";
+    const cached = (await git(["diff", "--cached", "--name-only", baselineRef, "--", "v*"])) ?? "";
     const untracked = (await git(["ls-files", "--others", "--exclude-standard", "--", "v*"])) ?? "";
-    const changedPaths = `${diff}\n${untracked}`.split("\n").filter(Boolean);
+    const changedPaths = [
+      ...new Set([
+        ...diff.split("\n").map((s) => s.trim()).filter(Boolean),
+        ...cached.split("\n").map((s) => s.trim()).filter(Boolean),
+        ...untracked.split("\n").map((s) => s.trim()).filter(Boolean),
+      ]),
+    ];
     const pathsById = new Map();
     for (const path of changedPaths) {
       const id = path.match(/^(v\d+\/[^/]+)\//)?.[1];
@@ -259,7 +304,7 @@ async function main() {
           // fleet-check, an 18/18 fixture suite and a three-way mutation matrix because those mutate the
           // DETECTOR and this is the CALLER: the library and its call sites fail independently, and
           // `check-conformance` is not part of `fleet-check` (rule 121).
-          const pageHtml = await Deno.readTextFile(`./${id}/index.html`).catch(() => null);
+          const pageHtml = await readJudgedFile(`./${id}/index.html`).catch(() => null);
           if (contract.completeness === "implementation-sufficient") {
             if (pageHtml) {
               structuralErrors.push(...validateDeclaredSurface(contract, pageHtml));
@@ -345,7 +390,7 @@ async function main() {
     const isPartial = contract?.id === id && contract.completeness === "partial" &&
       referenceErrorsById.get(id)?.length === 0;
     if (isSufficient || isPartial) continue;
-    const html = await Deno.readTextFile(`./${id}/index.html`).catch(() => null);
+    const html = await readJudgedFile(`./${id}/index.html`).catch(() => null);
     if (html && declaredSurfaceMembers(html).length === 0) noIdlSurface++;
   }
   console.log(`  critiques          : ${critiquePages.length}/${pageIds.size} published pages`);
@@ -356,7 +401,7 @@ async function main() {
   );
   console.log(`  desktop matrix ok  : ${okCls("desktop")}/${pageIds.size}`);
   console.log(`  mobile matrix ok   : ${okCls("mobile")}/${pageIds.size}`);
-  console.log(`  baseline suites    : ${baselineChecked} checked for weakening`);
+  console.log(`  baseline suites    : ${baselineChecked} checked for weakening${unchangedNote}`);
   if (surfaceNotes.length) {
     console.log(
       `  declared surfaces  : ${
@@ -383,7 +428,7 @@ async function main() {
     );
     Deno.exit(1);
   }
-  console.log("\nPASS — full conformance coverage, no weakened assertions.");
+  console.log(`\nPASS — full conformance coverage, no weakened assertions.${unchangedNote}`);
 }
 
 if (import.meta.main) {

@@ -159,6 +159,29 @@ await Deno.writeTextFile(
     ],
   }),
 );
+// gendn-i3yx: unverified CPS contracts must be plain text, never a fabricated href.
+await Deno.mkdir(`${tmp}/v900/unverified`, { recursive: true });
+await Deno.writeTextFile(
+  `${tmp}/v900/unverified/conformance.json`,
+  j({
+    id: "v900/unverified",
+    route: "/v900/unverified/",
+    identity: "4321",
+    milestone: 900,
+    status: "stub",
+    demo: "https://chrome-platform-showcase.paulkinlan-ea.deno.net/v900/unverified/concept/",
+    cpsFeature: {
+      host: "chrome-platform-showcase.paulkinlan-ea.deno.net",
+      route: "/v900/unverified/concept/",
+      conformanceRoute: null,
+      note: "No same-feature suite was verified.",
+    },
+    suiteHash: "ab".repeat(32),
+    generatedAt: "2026-01-01",
+    author: "gendn",
+    assertions: [{ id: "a", category: "c", describe: "d", kind: "k", deviceClass: "both" }],
+  }),
+);
 // gendn-xt9: SITE-LOCAL rows. Each row is hostile in exactly ONE field, so the escaped literal
 // can only have come from that site, and each pin hardcodes the ENTIRE row markup (never esc(),
 // which would just assert the function agrees with itself). A leak at one site therefore fails
@@ -238,6 +261,7 @@ const out = {
   runAll: await renderRunAll(),
   suiteEvil: await renderSuite("v900", "evil"),
   suiteOk: await renderSuite("v900", "ok"),
+  suiteUnverified: await renderSuite("v900", "unverified"),
   suiteSites: await renderSuite("v900", "sites"),
   suiteMissing: await renderSuite("v900", "absent"),
   critiqueEvil: await renderCritique("v900", "evil"),
@@ -347,6 +371,13 @@ assert(
   R.suiteMissing === null,
 );
 assert("renderCritique: missing _questions.json returns null", R.critiqueMissing === null);
+assert(
+  "unverified CPS contract has honest explanatory text and no fabricated link",
+  R.suiteUnverified.includes("No independently verified same-feature") &&
+    !R.suiteUnverified.includes("/null") &&
+    !R.suiteUnverified.includes("/undefined") &&
+    !R.suiteUnverified.includes('href="https://chrome-platform-showcase.paulkinlan-ea.deno.net'),
+);
 assert("renderRunAll: missing reports/conformance/index.html returns null", R2.runAll === null);
 assert(
   "renderRunAll: present rollup is passed through BYTE-EXACT (documented trust boundary: the runner-generated report is served as-is, not re-rendered)",
@@ -441,16 +472,21 @@ assert(
 );
 
 // ---------- structure sanity -------------------------------------------------------------------
-// 3 = v900/evil + v900/ok + v900/sites (the gendn-xt9 site-local suite added above).
-assert("index counts every suite in the catalogue", R.index.includes("3 suites"));
+// 4 = v900/evil + v900/ok + v900/sites + v900/unverified (gendn-i3yx null CPS fixture).
+assert("index counts every suite in the catalogue", R.index.includes("4 suites"));
 assert(
   "suite page carries the hash prefix and author",
   R.suiteOk.includes("cdcdcdcdcdcdcdcd") && R.suiteOk.includes("gendn"),
 );
 assert(
   "cpsFeature block renders only when present",
-  R.suiteEvil.includes("chrome-platform-showcase") &&
-    !R.suiteOk.includes("chrome-platform-showcase"),
+  R.suiteEvil.includes("showcase.test") &&
+    !R.suiteOk.includes("showcase.test"),
+);
+assert(
+  "CPS contract copy does not claim every linked demo is embedded",
+  R.suiteEvil.includes("Chrome-platform-showcase conformance (listed assertions only):") &&
+    !R.suiteEvil.includes("Embedded demo behavior governed"),
 );
 
 await Deno.remove(tmp, { recursive: true }).catch(() => {});

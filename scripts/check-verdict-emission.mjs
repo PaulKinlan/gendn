@@ -110,7 +110,7 @@ const PHASES = {
     // Both exact producer forms: a --page/--limit run reports the scan count AND the merged
     // report size. Do not accept a truncated or merely similar line as a completed run.
     summary:
-      /^run-all: \d+ (?:suites · assertions \d+ pass \/ \d+ fail \/ \d+ blocked \(of \d+\)|suite\(s\) scanned \(merged into reports\/conformance\/results\.json; report now \d+ suites\))$/m,
+      /^run-all: (\d+) (?:suites · assertions \d+ pass \/ \d+ fail \/ \d+ blocked \(of \d+\)|suite\(s\) scanned \(merged into reports\/conformance\/results\.json; report now \d+ suites\))$/m,
     shape: "run-all: <n> suites · assertions … or run-all: <n> suite(s) scanned (merged into …)",
     command: "deno task conformance [--page <id>]",
   },
@@ -119,7 +119,7 @@ const PHASES = {
     // because a scoped run must not describe the REPORT's row count as pages scanned; both shapes
     // are the responsive phase completing, so recognising only the full one would misclassify a
     // scoped log and refuse it for missing kill evidence.
-    summary: /^responsive-check: \d+ page\(?s\)? scanned\b/m,
+    summary: /^responsive-check: (\d+) page\(?s\)? scanned\b/m,
     shape: "responsive-check: <n> pages scanned",
     command: "deno task responsive",
   },
@@ -224,7 +224,7 @@ export function classifyPhase(logText) {
   const text = stripAnsi(logText);
   for (const [name, phase] of Object.entries(PHASES)) {
     const match = phase.summary ? text.match(phase.summary) : null;
-    if (match) return { name, evidence: match[0].trim() };
+    if (match) return { name, evidence: match[0].trim(), scanned: Number(match[1]) };
   }
   const probe = text.match(PROBE_INITIATION);
   if (probe) return { name: "behavioural", evidence: probe[0].trim() };
@@ -319,6 +319,20 @@ async function main() {
 
   const problems = [];
   if (logText.trim() === "") problems.push("the log is empty: no phase to verify");
+  // A completion summary and a GREEN emission prove nothing if the producer scanned zero items.
+  // Read the phase's own matched summary, not a merged report's historical row count.
+  if (derived.name === "run-all" || derived.name === "responsive") {
+    if (derived.scanned === 0) {
+      const unit = derived.name === "run-all" ? "suites" : "pages";
+      problems.push(
+        `${derived.name} scanned zero ${unit}; cannot verify an empty input set — ${
+          PHASES[derived.name].command
+        } must scan at least one ${
+          unit === "suites" ? "suite" : "page"
+        } before its verdict can pass`,
+      );
+    }
+  }
 
   if (!derivedKnown) {
     // The blocker: an unsummarised log used to default to behavioural and pass on 0 == 0.

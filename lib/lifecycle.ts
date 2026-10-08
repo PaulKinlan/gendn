@@ -27,7 +27,7 @@ interface Suite {
   milestone: number;
   status: string;
   demo: string | null;
-  cpsFeature: { host: string; route: string; conformanceRoute: string; note: string } | null;
+  cpsFeature: { host: string; route: string; conformanceRoute: string | null; note: string } | null;
   suiteHash: string;
   generatedAt: string;
   author: string;
@@ -176,12 +176,14 @@ export async function renderSuite(release: string, slug: string): Promise<string
     }</td></tr>`;
   }).join("");
 
-  const cps = suite.cpsFeature
-    ? `<p class="meta">Embedded demo behavior governed by chrome-platform-showcase: <a href="https://${
+  const cps = suite.cpsFeature?.conformanceRoute
+    ? `<p class="meta">Chrome-platform-showcase conformance (listed assertions only): <a href="https://${
       esc(suite.cpsFeature.host)
     }${esc(suite.cpsFeature.conformanceRoute)}" target="_blank" rel="noopener">${
       esc(suite.cpsFeature.conformanceRoute)
     }</a> (referenced, not forked).</p>`
+    : suite.cpsFeature
+    ? `<p class="meta">No independently verified same-feature Chrome-platform-showcase conformance suite is linked for this demo.</p>`
     : "";
   return HEAD(`conformance — ${suite.id}`) +
     `<p class="crumbs"><a href="${esc(suite.route)}">&larr; ${

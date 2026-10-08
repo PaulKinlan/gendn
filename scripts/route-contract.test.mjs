@@ -5,6 +5,7 @@
 import { evaluateRouteContract, loadMigrations, validateMigrationRecord } from "./check-routes.mjs";
 import { buildManifest, PAGE_RE, pathToIdentityFields } from "./route-manifest.mjs";
 import { metadataFromHtml } from "./lib/artifacts.mjs";
+import { invalidateJudgedCache } from "./lib/judged-content.mjs";
 import { loadRedirects, redirectTarget } from "../server.ts";
 
 let passed = 0;
@@ -72,6 +73,190 @@ assert(
     `${showcase}/v153/other/demo ${showcase}/v153/foo/demo`,
   ).demo === `${showcase}/v153/foo/demo`,
 );
+// t7sr: a longer sibling slug is not the /v148/prompt-api/ feature. With no own link,
+// the documented fallback is the FIRST showcase URL, not a later prefix-colliding sibling.
+const promptPage = "v148/prompt-api/index.html";
+const unrelatedDemo = `${showcase}/v148/other-feature/`;
+const siblingDemo = `${showcase}/v148/prompt-api-sampling-parameters/`;
+const ownPromptDemo = `${showcase}/v148/prompt-api/`;
+const noOwnHtml = `${unrelatedDemo} ${siblingDemo}`;
+const noOwnDemo = pathToIdentityFields(promptPage, noOwnHtml).demo;
+const noOwnMetadataDemo = metadataFromHtml(promptPage, noOwnHtml).demo;
+assert(
+  "prefix-colliding sibling cannot override an earlier fallback in manifest OR suite metadata",
+  noOwnDemo === unrelatedDemo && noOwnMetadataDemo === unrelatedDemo,
+  `manifest: ${noOwnDemo}; metadata: ${noOwnMetadataDemo}; expected: ${unrelatedDemo}`,
+);
+const ownAfterSiblingHtml = `${siblingDemo} ${ownPromptDemo}`;
+const ownAfterSibling = pathToIdentityFields(promptPage, ownAfterSiblingHtml).demo;
+const ownMetadataAfterSibling = metadataFromHtml(promptPage, ownAfterSiblingHtml).demo;
+assert(
+  "real own demo wins after a colliding sibling in manifest AND suite metadata",
+  ownAfterSibling === ownPromptDemo && ownMetadataAfterSibling === ownPromptDemo,
+  `manifest: ${ownAfterSibling}; metadata: ${ownMetadataAfterSibling}; expected: ${ownPromptDemo}`,
+);
+assert(
+  "a lone sibling remains the first-showcase fallback, not an own-feature match",
+  pathToIdentityFields(promptPage, siblingDemo).demo === siblingDemo,
+);
+
+// gendn-zswf (a): explicit doc-table declaration row beats earlier incidental ChromeStatus reference
+const relatedFirstDeclaredSecond = `
+  <p>Related feature: <a href="https://chromestatus.com/feature/6299876096737280">earlier subset</a></p>
+  <table class="doc-table">
+    <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5068277495758848">5068277495758848 — Media element pseudo-classes</a></td></tr>
+  </table>
+`;
+const zswfManifest = pathToIdentityFields(
+  "v152/media-element-pseudo-classes/index.html",
+  relatedFirstDeclaredSecond,
+);
+const zswfMetadata = metadataFromHtml(
+  "v152/media-element-pseudo-classes/index.html",
+  relatedFirstDeclaredSecond,
+);
+assert(
+  "declared ChromeStatus table row beats earlier incidental ChromeStatus link in manifest and metadata",
+  zswfManifest.identity === "5068277495758848" && zswfMetadata.identity === "5068277495758848",
+  `manifest: ${zswfManifest.identity}; metadata: ${zswfMetadata.identity}; expected: 5068277495758848`,
+);
+
+// gendn-hkv3: the two durable routes cover the SAME seven-class feature; the separate
+// :playing/:paused ChromeStatus entry is context only, not v150's canonical identity.
+const v150MediaId = "v150/media-element-pseudo-classes";
+const v152MediaId = "v152/media-element-pseudo-classes";
+const v150MediaHtml = await Deno.readTextFile(`${v150MediaId}/index.html`);
+const v152MediaHtml = await Deno.readTextFile(`${v152MediaId}/index.html`);
+const v150Media = pathToIdentityFields(`${v150MediaId}/index.html`, v150MediaHtml);
+const v152Media = pathToIdentityFields(`${v152MediaId}/index.html`, v152MediaHtml);
+assert(
+  "real v150 and v152 seven-class pages share the verified ChromeStatus identity without losing either route",
+  v150Media.identity === "5068277495758848" &&
+    v152Media.identity === v150Media.identity &&
+    v150Media.route === "/v150/media-element-pseudo-classes/" &&
+    v152Media.route === "/v152/media-element-pseudo-classes/" &&
+    metadataFromHtml(`${v150MediaId}/index.html`, v150MediaHtml).identity === v150Media.identity,
+  `v150: ${v150Media.identity}; v152: ${v152Media.identity}`,
+);
+assert(
+  "v150 labels the full seven-class subject and links the companion v152 route",
+  /<h1>Media element pseudo-classes<\/h1>/.test(v150MediaHtml) &&
+    /<code>:volume-locked<\/code>/.test(v150MediaHtml) &&
+    v150MediaHtml.includes('href="/v152/media-element-pseudo-classes/"') &&
+    !v150MediaHtml.includes('href="https://chromestatus.com/feature/6299876096737280"'),
+);
+assert(
+  "both pages distinguish dated listing history from the current proposed status, not a flat shipment",
+  v150MediaHtml.includes("archived milestone-150 listing captured 2026-05-30") &&
+    v152MediaHtml.includes("2026-07-28 review") &&
+    [v150MediaHtml, v152MediaHtml].every((html) =>
+      html.includes("live feature record checked 2026-10-07") &&
+      html.includes("Proposed") &&
+      !/Chrome (?:150|152) ships (?:these|the full set)/.test(html) &&
+      !/first Chromium-based release to ship the full set/.test(html)
+    ),
+);
+assert(
+  "v152 labels the older two-class ID as separate from BOTH seven-class routes",
+  v152MediaHtml.includes("6299876096737280") &&
+    v152MediaHtml.includes("earlier two-class subset") &&
+    v152MediaHtml.includes("not</strong> the identity of either this page") &&
+    v152MediaHtml.includes('href="/v150/media-element-pseudo-classes/"'),
+);
+
+// gendn-jt5r (b): marked related showcase link + no-own-demo disclaimer yields null demo; unmarked fallback preserved
+const cameraMicPage = "v153/capability-elements-camera-and-microphone/index.html";
+const markedRelatedHtml = `
+  <p>The Chrome Platform Showcase has no demo for this feature yet; the sibling <a href="${showcase}/v151/capability-elements-usermedia-mvp/" target="_blank" rel="noopener" data-demo-rel="related">&lt;usermedia&gt; demo</a> exercises the same mechanism.</p>
+`;
+const markedManifestDemo = pathToIdentityFields(cameraMicPage, markedRelatedHtml).demo;
+const markedMetadataDemo = metadataFromHtml(cameraMicPage, markedRelatedHtml).demo;
+assert(
+  "marked related showcase link is excluded from own demo yielding null in manifest and metadata",
+  markedManifestDemo === null && markedMetadataDemo === null,
+  `manifest: ${markedManifestDemo}; metadata: ${markedMetadataDemo}; expected: null`,
+);
+
+const unmarkedSiblingHtml = `
+  <p>Related context: <a href="${showcase}/v151/capability-elements-usermedia-mvp/">sibling</a></p>
+`;
+const unmarkedManifestDemo = pathToIdentityFields(cameraMicPage, unmarkedSiblingHtml).demo;
+const unmarkedMetadataDemo = metadataFromHtml(cameraMicPage, unmarkedSiblingHtml).demo;
+assert(
+  "unmarked showcase link with no own link still uses first-showcase fallback",
+  unmarkedManifestDemo === `${showcase}/v151/capability-elements-usermedia-mvp/` &&
+    unmarkedMetadataDemo === `${showcase}/v151/capability-elements-usermedia-mvp/`,
+);
+
+// gendn-jt5r (c): page with marked related link AND an own-feature demo link still selects own demo
+const markedRelatedPlusOwnDemoHtml = `
+  <p>Sibling: <a href="${showcase}/v151/capability-elements-usermedia-mvp/" data-demo-rel="related">sibling</a></p>
+  <figure><iframe src="${showcase}/v153/capability-elements-camera-and-microphone/live-demo/"></iframe></figure>
+`;
+const ownPlusMarkedManifestDemo = pathToIdentityFields(
+  cameraMicPage,
+  markedRelatedPlusOwnDemoHtml,
+).demo;
+const ownPlusMarkedMetadataDemo = metadataFromHtml(
+  cameraMicPage,
+  markedRelatedPlusOwnDemoHtml,
+).demo;
+assert(
+  "page own showcase demo wins even when a marked related link occurs earlier",
+  ownPlusMarkedManifestDemo ===
+      `${showcase}/v153/capability-elements-camera-and-microphone/live-demo/` &&
+    ownPlusMarkedMetadataDemo ===
+      `${showcase}/v153/capability-elements-camera-and-microphone/live-demo/`,
+);
+
+// gendn-3lir/d490: pin the real page selections and colocated suites, not only synthetic markup.
+for (
+  const { id, demo, identity } of [
+    { id: "v147/web-neural-network-api-webnn", demo: null, identity: "5738583487938560" },
+    {
+      id: "v153/expose-cssstylevalue-hierarchy-to-worker-contexts",
+      demo: `${showcase}/v154/expose-cssstylevalue-hierarchy-to-worker-contexts/`,
+      identity: "5114591051907072",
+    },
+  ]
+) {
+  const pagePath = `${id}/index.html`;
+  const pageHtml = await Deno.readTextFile(new URL(`../${pagePath}`, import.meta.url));
+  const suite = JSON.parse(
+    await Deno.readTextFile(new URL(`../${id}/conformance.json`, import.meta.url)),
+  );
+  const manifestFields = pathToIdentityFields(pagePath, pageHtml);
+  const metadataFields = metadataFromHtml(pagePath, pageHtml);
+  assert(
+    `${id}: both extractors and colocated suite agree on selected demo and identity`,
+    manifestFields.demo === demo && metadataFields.demo === demo && suite.demo === demo &&
+      manifestFields.identity === identity && metadataFields.identity === identity &&
+      suite.identity === identity,
+    JSON.stringify({
+      manifestDemo: manifestFields.demo,
+      metadataDemo: metadataFields.demo,
+      suiteDemo: suite.demo,
+    }),
+  );
+}
+const webnnPageHtml = await Deno.readTextFile(
+  new URL("../v147/web-neural-network-api-webnn/index.html", import.meta.url),
+);
+assert(
+  "WebNN keeps a different-feature link marked related instead of the dead live-demo URL",
+  /data-demo-rel="related"/.test(webnnPageHtml) &&
+    webnnPageHtml.includes(`${showcase}/v147/webnn/`) &&
+    !webnnPageHtml.includes(`${showcase}/v147/web-neural-network-api-webnn/`) &&
+    webnnPageHtml.includes("different ChromeStatus feature (5176273954144256)"),
+);
+const workerPageHtml = await Deno.readTextFile(
+  new URL("../v153/expose-cssstylevalue-hierarchy-to-worker-contexts/index.html", import.meta.url),
+);
+assert(
+  "CSSStyleValue reference links the same-feature v154 demo, never the dead v153 route",
+  workerPageHtml.includes(`${showcase}/v154/expose-cssstylevalue-hierarchy-to-worker-contexts/`) &&
+    !workerPageHtml.includes(`${showcase}/v153/expose-cssstylevalue-hierarchy-to-worker-contexts/`),
+);
 
 function entry(id, overrides = {}) {
   return {
@@ -116,6 +301,10 @@ assert(
   mentions(lostDemo, "missing demo link for published route v153/foo"),
 );
 assert(
+  "demo removal is one hard failure, not a second informational warning",
+  lostDemo.failures.length === 1 && !Object.hasOwn(lostDemo, "demoDropped"),
+);
+assert(
   "demo-change migration authorizes deliberate demo removal",
   (await evaluate([withDemo], [base], [{
     id: "v153/foo",
@@ -128,6 +317,39 @@ const repointedDemo = await evaluate([withDemo], [
 assert(
   "repointing showcase demo link to another demo fails",
   mentions(repointedDemo, "demo link changed for v153/foo"),
+);
+// The durable unit is the FULL selected URL, not just the feature prefix. These two real
+// autofill concepts belong to the same feature but demonstrate different behavior.
+const autofill = entry("v147/autofill-event", {
+  identity: "5137581018841088",
+  demo: `${showcase}/v147/autofill-event/refill-flow/`,
+});
+const autofillLog = { ...autofill, demo: `${showcase}/v147/autofill-event/autofill-log/` };
+const sameFeatureSwap = await evaluate([autofill], [autofillLog]);
+assert(
+  "same-feature concept swap FAILS without migration and names the demo-change escape hatch",
+  sameFeatureSwap.failures.length === 1 &&
+    mentions(sameFeatureSwap, "refill-flow/") &&
+    mentions(sameFeatureSwap, "autofill-log/") &&
+    mentions(sameFeatureSwap, "demo-change"),
+  JSON.stringify(sameFeatureSwap.failures),
+);
+const authorizedSameFeatureSwap = await evaluate([autofill], [autofillLog], [{
+  id: autofill.id,
+  action: "demo-change",
+  from: autofill.demo,
+  to: autofillLog.demo,
+  reason: "Deliberately switch the primary concept after review",
+  evidence: "Reviewed demo and critique evidence for this behavior change",
+  date: "2026-10-07",
+}]);
+assert(
+  "same-feature concept swap PASSES with reviewed demo-change migration",
+  authorizedSameFeatureSwap.failures.length === 0 &&
+    authorizedSameFeatureSwap.migrated.some((line) =>
+      line.includes("demo link change via migration")
+    ),
+  JSON.stringify(authorizedSameFeatureSwap),
 );
 assert(
   "demo-change migration authorizes deliberate demo repointing",
@@ -453,6 +675,270 @@ try {
     "evaluateRouteContract rejects non-slash-terminated move migration",
     mentions(gateResult, "must end in '/' (path boundary invariant"),
   );
+}
+
+// gendn-ip0z: staged-then-reverted edit (git status MM) must not escape check-routes / route-manifest
+{
+  const scratch = await Deno.makeTempDir({ prefix: "ip0z-route-manifest-" });
+  const probe = "v900/probe";
+  const probePage = (featureId, extra = "") =>
+    `<!doctype html><html><head></head><body><h1>Probe</h1>` +
+    `<a href="https://chromestatus.com/feature/${featureId}">ChromeStatus</a>${extra}</body></html>`;
+  const baseFeature = "1234567890";
+  const mutatedFeature = "9999999999";
+
+  const g = async (...args) => {
+    const c = new Deno.Command("git", { args, cwd: scratch, stdout: "piped", stderr: "piped" });
+    const o = await c.output();
+    if (!o.success) {
+      throw new Error(`git ${args.join(" ")} failed: ${new TextDecoder().decode(o.stderr)}`);
+    }
+    return new TextDecoder().decode(o.stdout);
+  };
+
+  try {
+    await Deno.mkdir(`${scratch}/${probe}`, { recursive: true });
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, probePage(baseFeature));
+    await g("init", "-q", "-b", "main");
+    await g("config", "user.email", "ip0z@example.test");
+    await g("config", "user.name", "ip0z");
+    await g("add", ".");
+    await g("commit", "-qm", "baseline");
+    await g("update-ref", "refs/remotes/origin/main", "HEAD");
+
+    const baselineManifest = await buildManifest({ root: scratch });
+    assert("ip0z: baseline manifest captures 1 route", baselineManifest.length === 1);
+    assert(
+      "ip0z: baseline manifest captures feature id",
+      baselineManifest[0].identity === baseFeature,
+    );
+
+    // Case 1: Clean baseline — passes gate
+    invalidateJudgedCache();
+    let current = await buildManifest({ root: scratch });
+    let evaluated = await evaluate(baselineManifest, current);
+    assert("ip0z Case 1 (clean): route gate passes", evaluated.failures.length === 0);
+
+    // Case 2: Uncommitted edit in working tree (mutating identity) — fails gate
+    invalidateJudgedCache();
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, probePage(mutatedFeature));
+    current = await buildManifest({ root: scratch });
+    assert(
+      "ip0z Case 2 (uncommitted): manifest reflects worktree identity",
+      current[0].identity === mutatedFeature,
+    );
+    evaluated = await evaluate(baselineManifest, current);
+    assert(
+      "ip0z Case 2 (uncommitted): identity change fails gate",
+      evaluated.failures.length === 1 && mentions(evaluated, "identity changed"),
+    );
+
+    // Case 3: Staged edit — fails gate
+    invalidateJudgedCache();
+    await g("add", `${probe}/index.html`);
+    current = await buildManifest({ root: scratch });
+    assert(
+      "ip0z Case 3 (staged): manifest reflects staged identity",
+      current[0].identity === mutatedFeature,
+    );
+    evaluated = await evaluate(baselineManifest, current);
+    assert(
+      "ip0z Case 3 (staged): identity change fails gate",
+      evaluated.failures.length === 1 && mentions(evaluated, "identity changed"),
+    );
+
+    // Case 4: Staged-then-reverted (git status shows MM) — escape closed!
+    // Worktree file restored to base content: base -> worktree diff is empty,
+    // but the index holds the change, so route-manifest reads from the index.
+    invalidateJudgedCache();
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, probePage(baseFeature));
+    const statusOut = (await g("status", "--short")).trim();
+    assert(
+      "ip0z Case 4: git status shows MM for staged-then-reverted page",
+      statusOut.includes("MM") && statusOut.includes(probe),
+    );
+    current = await buildManifest({ root: scratch });
+    assert(
+      "ip0z Case 4 (staged-then-reverted): manifest reads staged index content (not reverted worktree bytes)",
+      current[0].identity === mutatedFeature,
+    );
+    evaluated = await evaluate(baselineManifest, current);
+    assert(
+      "ip0z Case 4 (staged-then-reverted): identity change fails gate (escape closed)",
+      evaluated.failures.length === 1 && mentions(evaluated, "identity changed"),
+    );
+
+    // Case 5: Committed edit — fails gate
+    invalidateJudgedCache();
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, probePage(mutatedFeature));
+    await g("commit", "-am", "commit mutated identity");
+    current = await buildManifest({ root: scratch });
+    evaluated = await evaluate(baselineManifest, current);
+    assert(
+      "ip0z Case 5 (committed): committed mutation fails gate",
+      evaluated.failures.length === 1 && mentions(evaluated, "identity changed"),
+    );
+
+    // Case 6: Resolved — passes gate
+    invalidateJudgedCache();
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, probePage(baseFeature));
+    await g("commit", "-am", "resolve identity");
+    current = await buildManifest({ root: scratch });
+    evaluated = await evaluate(baselineManifest, current);
+    assert("ip0z Case 6 (resolved): resolved route passes gate", evaluated.failures.length === 0);
+
+    // Case 7 (gendn-0n5s Scenario A): Staged identity mutation disguised by unrelated unstaged decoy edit
+    // Worktree identity reverted to base, but carries an unrelated comment (git status MM with worktree != base).
+    // The reader must still read the staged index content and fail the gate.
+    invalidateJudgedCache();
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, probePage(mutatedFeature));
+    await g("add", `${probe}/index.html`);
+    await Deno.writeTextFile(
+      `${scratch}/${probe}/index.html`,
+      probePage(baseFeature, "<!-- unrelated decoy edit -->"),
+    );
+    const decoyStatus = (await g("status", "--short")).trim();
+    assert(
+      "0n5s Case 7 (decoy): git status shows MM for staged mutation with unstaged decoy edit",
+      decoyStatus.includes("MM") && decoyStatus.includes(probe),
+    );
+    current = await buildManifest({ root: scratch });
+    assert(
+      "0n5s Case 7 (decoy): manifest reads staged index content (not worktree with decoy edit)",
+      current[0].identity === mutatedFeature,
+    );
+    evaluated = await evaluate(baselineManifest, current);
+    assert(
+      "0n5s Case 7 (decoy): disguised staged mutation fails gate (escape closed)",
+      evaluated.failures.length === 1 && mentions(evaluated, "identity changed"),
+    );
+
+    // Case 8 (gendn-0n5s non-regression): Unrelated unstaged edit ALONE (no staged mutation) must pass gate
+    invalidateJudgedCache();
+    await g("reset", "-q", "HEAD", `${probe}/index.html`);
+    const cleanStagedStatus = (await g("status", "--short")).trim();
+    assert(
+      "0n5s Case 8: git status shows plain uncommitted edit (M ) for decoy edit alone",
+      cleanStagedStatus.startsWith("M") && !cleanStagedStatus.startsWith("MM"),
+    );
+    current = await buildManifest({ root: scratch });
+    assert(
+      "0n5s Case 8: manifest reflects base identity with decoy edit",
+      current[0].identity === baseFeature,
+    );
+    evaluated = await evaluate(baselineManifest, current);
+    assert(
+      "0n5s Case 8: unrelated unstaged edit ALONE passes gate",
+      evaluated.failures.length === 0,
+    );
+
+    // Case 9 (gendn-0n5s P1-A ADV2): Staged identity mutation with tolerated status decoy
+    // Worktree reverts identity to base, but eyebrow becomes "Covered on MDN" (tolerated status drift).
+    // The reader must still read the staged index content and fail the gate.
+    invalidateJudgedCache();
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, probePage(mutatedFeature));
+    await g("add", `${probe}/index.html`);
+    const mdnStubPage =
+      `<!doctype html><html><head></head><body><p class="eyebrow">Covered on MDN</p><h1>Probe</h1>` +
+      `<a href="https://chromestatus.com/feature/${baseFeature}">ChromeStatus</a></body></html>`;
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, mdnStubPage);
+    const adv2Status = (await g("status", "--short")).trim();
+    assert(
+      "0n5s Case 9 (ADV2): git status shows MM for staged mutation with tolerated status decoy",
+      adv2Status.includes("MM") && adv2Status.includes(probe),
+    );
+    current = await buildManifest({ root: scratch });
+    assert(
+      "0n5s Case 9 (ADV2): manifest reads staged index content (not worktree with status decoy)",
+      current[0].identity === mutatedFeature,
+    );
+    evaluated = await evaluate(baselineManifest, current);
+    assert(
+      "0n5s Case 9 (ADV2): identity change with status decoy fails gate (escape closed)",
+      evaluated.failures.length === 1 && mentions(evaluated, "identity changed"),
+    );
+
+    // Clean up probe for Case 10
+    await g("checkout", "-f", "HEAD");
+
+    // Case 10 (gendn-0n5s P1-B): Staged rename with old path restored on disk
+    // git mv moves probe -> probe2 in index; old probe/index.html is restored on disk as untracked.
+    // The reader must read the index deletion for the old route, failing gate without migration,
+    // and passing gate with a reviewed move migration.
+    const probe2 = `${probe}2`;
+    await g("mv", probe, probe2);
+    await Deno.mkdir(`${scratch}/${probe}`, { recursive: true });
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, probePage(baseFeature));
+    const renameStatus = (await g("status", "--short")).trim();
+    assert(
+      "0n5s Case 10: git status shows staged rename (R ) and untracked restored old dir (??)",
+      renameStatus.includes("R") && renameStatus.includes(probe2) &&
+        renameStatus.includes(`?? ${probe}/`),
+    );
+    invalidateJudgedCache();
+    current = await buildManifest({ root: scratch });
+    assert(
+      "0n5s Case 10: current manifest does NOT contain old route (index deletion detected)",
+      !current.some((e) => e.id === probe),
+    );
+    evaluated = await evaluate(baselineManifest, current);
+    assert(
+      "0n5s Case 10: unmigrated staged rename with restored worktree fails gate",
+      evaluated.failures.length === 1 && mentions(evaluated, `missing published id ${probe}`),
+    );
+    const migrated = await evaluate(baselineManifest, current, [{
+      id: probe,
+      action: "move",
+      from: `/${probe}/`,
+      to: `/${probe2}/`,
+    }]);
+    assert(
+      "0n5s Case 10: staged rename with reviewed move migration passes gate",
+      migrated.failures.length === 0,
+    );
+
+    // Clean up probe2 for Case 11
+    await g("checkout", "-f", "HEAD");
+    await g("clean", "-fd");
+
+    // Case 11 (gendn-0n5s P0-1): Staged plain deletion with file left/restored on disk
+    // git rm deletes probe/index.html from index, but file is re-created on disk (status D + ??).
+    // The reader must read the index deletion, omit the route from current manifest, and fail gate.
+    await g("rm", "-q", `${probe}/index.html`);
+    await Deno.mkdir(`${scratch}/${probe}`, { recursive: true });
+    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, probePage(baseFeature));
+    const deleteStatus = (await g("status", "--short")).trim();
+    assert(
+      "0n5s Case 11: git status shows staged deletion (D ) and untracked file on disk (??)",
+      deleteStatus.includes("D ") && deleteStatus.includes("??"),
+    );
+    invalidateJudgedCache();
+    current = await buildManifest({ root: scratch });
+    assert(
+      "0n5s Case 11: manifest omits route for file staged-deleted in index but on disk",
+      !current.some((e) => e.id === probe),
+    );
+    evaluated = await evaluate(baselineManifest, current);
+    assert(
+      "0n5s Case 11: staged deletion with file on disk fails route gate",
+      evaluated.failures.length > 0 && mentions(evaluated, `missing published id ${probe}`),
+    );
+    let errorNamedDeletion = false;
+    try {
+      const { readJudgedFile } = await import("./lib/judged-content.mjs");
+      await readJudgedFile(`${probe}/index.html`, scratch);
+    } catch (err) {
+      errorNamedDeletion = /deleted from the git index but is still present on disk/.test(
+        err.message,
+      );
+    }
+    assert(
+      "0n5s Case 11: readJudgedFile throws explicit message naming index deletion with file on disk",
+      errorNamedDeletion,
+    );
+  } finally {
+    await Deno.remove(scratch, { recursive: true });
+  }
 }
 
 if (failures) Deno.exit(1);

@@ -12,10 +12,10 @@
 // writes suites for pages that don't have one yet (coverage grows; the contract never shrinks).
 // To grow an existing suite, add assertions by hand — never regenerate to go green.
 //
-// Usage:
-//   deno run --allow-read --allow-write scripts/gen-conformance.mjs           # write missing suites
-//   deno run --allow-read --allow-write scripts/gen-conformance.mjs --dry-run # report only
-//   deno run --allow-read --allow-write scripts/gen-conformance.mjs --page v149/webmcp
+// Usage (new suites need network access to verify CPS breadcrumbs/suite identities):
+//   deno task gen-conformance                       # write missing suites
+//   deno task gen-conformance --dry-run             # report only
+//   deno task gen-conformance --page v149/webmcp
 
 import {
   collectPublishedPages,
@@ -24,6 +24,8 @@ import {
   SHOWCASE_HOST,
   suiteHash,
 } from "./lib/artifacts.mjs";
+import { verifiedCpsConformance } from "./lib/cps-conformance.mjs";
+import { selectPublishedRootPages } from "./conformance.mjs";
 
 const GENERATED_AT = "2026-07-19T00:00:00Z"; // fixed → deterministic suiteHash across regens
 const AUTHOR = "gen-conformance/v1 (derived from page metadata)";
@@ -298,16 +300,21 @@ function deriveAssertions(meta) {
   return a;
 }
 
-function cpsFeatureRef(meta) {
+async function cpsFeatureRef(meta) {
   if (!meta.demo) return null;
-  // demo is https://<host>/v<N>/<slug>/[concept/]
-  const path = meta.demo.replace(`https://${SHOWCASE_HOST}`, "").replace(/\/$/, "");
+  // Keep the selected demo route distinct from its conformance contract. A concept demo's
+  // verified feature-parent breadcrumb may lead to a feature-root suite; joining
+  // `${meta.demo}/conformance` silently produced the 21 broken URLs in gendn-i3yx.
+  const path = new URL(meta.demo).pathname;
+  const { route, reason } = await verifiedCpsConformance(meta);
+  if (!route) console.warn(`! ${meta.id}: ${reason}; no unverified CPS conformance link`);
   return {
     host: SHOWCASE_HOST,
-    route: `${path}/`,
-    conformanceRoute: `${path}/conformance`,
-    note:
-      "The chrome-platform-showcase suite at conformanceRoute governs only the assertions it explicitly lists; it does not prove unasserted native, hardware, permission, backend, or other behavior. gendn references that listed contract without forking it.",
+    route: path,
+    conformanceRoute: route,
+    note: route
+      ? "The chrome-platform-showcase suite at conformanceRoute governs only the assertions it explicitly lists; it does not prove unasserted native, hardware, permission, backend, or other behavior. gendn references that listed contract without forking it."
+      : `No same-feature CPS conformance contract was verified (${reason}); do not claim one from the selected demo alone.`,
   };
 }
 
@@ -321,7 +328,7 @@ async function buildSuite(meta) {
     milestone: meta.milestone,
     status: meta.status,
     demo: meta.demo,
-    cpsFeature: cpsFeatureRef(meta),
+    cpsFeature: await cpsFeatureRef(meta),
     immutable: true,
     suiteHash: await suiteHash(assertions),
     generatedAt: GENERATED_AT,
@@ -334,13 +341,20 @@ async function main() {
   const args = Deno.args;
   const dryRun = args.includes("--dry-run");
   const pageIdx = args.indexOf("--page");
-  const only = pageIdx >= 0 ? args[pageIdx + 1] : null;
+  const only = pageIdx >= 0 ? args[pageIdx + 1] : undefined;
 
-  const pages = await collectPublishedPages(".");
+  // Resolve published roots before reading page contents, reaching CPS, or writing suites.
+  const selection = selectPublishedRootPages(await collectPublishedPages("."), {
+    hasSelector: pageIdx >= 0,
+    selector: only,
+  });
+  if (selection.error) {
+    console.error(`gen-conformance: ${selection.error}`);
+    Deno.exit(1);
+  }
   let written = 0, skipped = 0, total = 0;
-  for (const pagePath of pages) {
+  for (const pagePath of selection.pages) {
     const pageId = pagePath.replace(/\/index\.html$/, "");
-    if (only && pageId !== only) continue;
     total++;
     const outPath = conformancePath(pageId, ".");
     try {

@@ -18,13 +18,15 @@
 //      origins, or mismatched script hashes fail verification (proving this is a detector, not decoration).
 //
 // BOUNDS:
-// Every await is strictly bounded with AbortSignal.timeout() or Promise.race against a deadline.
-// The ephemeral port is assigned by the OS (PORT=0) and the spawned server process is unconditionally
-// terminated with SIGKILL in a finally block.
+// Every network fetch AND body read has an attempt deadline plus a 25s total retry budget; port
+// discovery and process waits also have deadlines. An HTTP response is never retried for wrong
+// status/headers. The OS assigns the ephemeral port (PORT=0), and the spawned server process is
+// unconditionally terminated with SIGKILL in a finally block.
 //
 // Run: deno task test-security-headers  (discovered automatically by `deno task test-fixtures`)
 
 import { CSP_DIRECTIVES, CSP_HEADER_VALUE, RELEASE_INERT_SCRIPT_MIME } from "../server.ts";
+import { fetchSecurityProbe, FixtureTransportError } from "./lib/security-probe.mjs";
 
 let failures = 0;
 let passed = 0;
@@ -60,7 +62,7 @@ export async function sha256Token(text) {
 }
 
 // Helper to validate security headers on any Response object
-export function validateSecurityHeaders(res, desc) {
+export function validateSecurityHeaders(res, _desc) {
   const errs = [];
   const nosniff = res.headers.get("x-content-type-options");
   if (nosniff !== "nosniff") errs.push(`missing or invalid nosniff: ${nosniff}`);
@@ -110,17 +112,32 @@ try {
   const reader = serverProc.stdout.getReader();
   const decoder = new TextDecoder();
   let capturedOutput = "";
-  const portDeadline = Date.now() + 5000;
+  const portDeadline = Date.now() + 20_000;
 
   while (Date.now() < portDeadline) {
-    const { value, done } = await Promise.race([
-      reader.read(),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Timeout reading server port")), 4000)
-      ),
-    ]);
-    if (done) break;
-    capturedOutput += decoder.decode(value, { stream: true });
+    let timer;
+    let readCompleted = false;
+    let chunk;
+    try {
+      chunk = await Promise.race([
+        reader.read().then((value) => {
+          readCompleted = true;
+          return value;
+        }),
+        new Promise((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error("Transport timeout reading server port (20s budget)")),
+            portDeadline - Date.now(),
+          );
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+      // On timeout the pending read still owns the lock; the outer finally kills the server.
+      if (!readCompleted) void reader.cancel().catch(() => {});
+    }
+    if (chunk.done) break;
+    capturedOutput += decoder.decode(chunk.value, { stream: true });
     const match = /Listening on http:\/\/localhost:(\d+)/.exec(capturedOutput);
     if (match) {
       port = Number(match[1]);
@@ -134,23 +151,20 @@ try {
 
   base = `http://127.0.0.1:${port}`;
 
-  // Poll server with bounded fetch until ready
-  let serverReady = false;
-  for (let i = 0; i < 30; i++) {
-    try {
-      const res = await fetch(`${base}/`, { signal: AbortSignal.timeout(1000) });
-      if (res.ok) {
-        await res.body?.cancel();
-        serverReady = true;
-        break;
-      }
-    } catch {
-      // waiting for socket
-    }
-    await new Promise((r) => setTimeout(r, 100));
+  // Transport retries are bounded across attempts; an HTTP response is terminal, never retried
+  // for a wrong status/header. This also consumes the response body under the request deadline.
+  const readyProbe = await fetchSecurityProbe(`${base}/`, {
+    attemptTimeoutMs: 10_000,
+    totalTimeoutMs: 25_000,
+  });
+  assert(
+    "server answers HTTP requests on ephemeral port",
+    readyProbe.response.ok,
+    `endpoint ${base}/`,
+  );
+  if (!readyProbe.response.ok) {
+    throw new Error(`server returned HTTP ${readyProbe.response.status} at ${base}/`);
   }
-  assert("server answers HTTP requests on ephemeral port", serverReady, `endpoint ${base}/`);
-  if (!serverReady) throw new Error(`server failed to answer at ${base}/`);
 
   // --- 1. Exported CSP constants structure ---
   assert(
@@ -178,7 +192,7 @@ try {
   ];
 
   for (const { path, desc, expectStatus = 200 } of routesToTest) {
-    const res = await fetch(`${base}${path}`, { signal: AbortSignal.timeout(4000) });
+    const { response: res } = await fetchSecurityProbe(`${base}${path}`);
     assert(
       `${desc} (${path}) returns HTTP ${expectStatus}`,
       res.status === expectStatus,
@@ -247,14 +261,12 @@ try {
     // Check validator helper confirms this live response
     const valid = validateSecurityHeaders(res, desc);
     assert(`${desc} passes full security header validation`, valid.ok, valid.errors.join("; "));
-
-    // Consume body
-    await res.text();
   }
 
   // --- 3. Body rendering & script hash verification on /features ---
-  const featuresRes = await fetch(`${base}/features`, { signal: AbortSignal.timeout(4000) });
-  const featuresHtml = await featuresRes.text();
+  const { response: featuresRes, text: featuresHtml } = await fetchSecurityProbe(
+    `${base}/features`,
+  );
 
   assert("/features payload contains search input #q", featuresHtml.includes('id="q"'));
   assert(
@@ -302,13 +314,9 @@ try {
   }
 
   // --- 4. Reference page iframe compatibility ---
-  const refRes = await fetch(
+  const { response: refRes, text: refHtml } = await fetchSecurityProbe(
     `${base}/v152/speculation-rules-moderate-viewport-heuristics-controls/`,
-    {
-      signal: AbortSignal.timeout(4000),
-    },
   );
-  const refHtml = await refRes.text();
   const iframeMatch = /<iframe[^>]*src="([^"]+)"/i.exec(refHtml);
   assert(
     "v152 reference page embeds showcase demo iframe",
@@ -330,8 +338,7 @@ try {
   }
 
   // --- 5. Stylesheet font-src compatibility ---
-  const cssRes = await fetch(`${base}/public/styles.css`, { signal: AbortSignal.timeout(4000) });
-  const cssText = await cssRes.text();
+  const { response: cssRes, text: cssText } = await fetchSecurityProbe(`${base}/public/styles.css`);
   const fontMatches = [...cssText.matchAll(/url\((https:\/\/[^)]+)\)/g)].map((m) => m[1]);
   assert(
     "styles.css references external font URLs",
@@ -354,12 +361,11 @@ try {
   // The detector half: a response with a script content-type on a release asset path
   // must FAIL this check, proving the pin is a detector, not decoration.
   {
-    const probeRes = await fetch(`${base}/v150/focusgroup/inert-probe.js`, {
-      signal: AbortSignal.timeout(4000),
-    });
+    const { response: probeRes, text: probeBody } = await fetchSecurityProbe(
+      `${base}/v150/focusgroup/inert-probe.js`,
+    );
     const probeCt = probeRes.headers.get("content-type") ?? "";
     const probeSniff = probeRes.headers.get("x-content-type-options") ?? "";
-    const probeBody = await probeRes.text();
     assert(
       "gt7: probe present and served (a 404 also carries text/plain + nosniff and would pass the MIME checks vacuously)",
       probeRes.status === 200 && probeBody.includes("gendn-gt7"),
@@ -399,12 +405,11 @@ try {
   // 5. RELEASE_INERT_SCRIPT_MIME maps .js, .mjs, .cjs to text/plain.
   // 6. Detector case: a script content-type on a public asset path fails the inert check.
   {
-    const probeRes = await fetch(`${base}/public/probe-inert.js`, {
-      signal: AbortSignal.timeout(4000),
-    });
+    const { response: probeRes, text: probeBody } = await fetchSecurityProbe(
+      `${base}/public/probe-inert.js`,
+    );
     const probeCt = probeRes.headers.get("content-type") ?? "";
     const probeSniff = probeRes.headers.get("x-content-type-options") ?? "";
-    const probeBody = await probeRes.text();
     assert(
       "izwu: probe present and served (a 404 also carries text/plain + nosniff and would pass the MIME checks vacuously)",
       probeRes.status === 200 && probeBody.includes("gendn-izwu"),
@@ -422,9 +427,7 @@ try {
     );
 
     // Existing styles.css must be non-script and carry nosniff
-    const cssRes = await fetch(`${base}/public/styles.css`, {
-      signal: AbortSignal.timeout(4000),
-    });
+    const { response: cssRes } = await fetchSecurityProbe(`${base}/public/styles.css`);
     const cssCt = cssRes.headers.get("content-type") ?? "";
     const cssSniff = cssRes.headers.get("x-content-type-options") ?? "";
     assert(
@@ -466,7 +469,106 @@ try {
     );
   }
 
-  // --- 6. DETECTOR CASES (verifying that missing or broken headers fail verification) ---
+  // --- 6. Transport resilience detector: slow CORRECT response vs fast WRONG header ---
+  // Reuse an actual /features response from the spawned server so the only differences are
+  // a bounded delay or one missing header. The proxy copies only content + security headers;
+  // copying content-encoding after fetch decompresses the body would corrupt the response.
+  {
+    const upstream = await fetchSecurityProbe(`${base}/features`);
+    const securityHeaders = new Headers();
+    for (
+      const name of [
+        "content-type",
+        "content-security-policy",
+        "x-content-type-options",
+        "referrer-policy",
+        "x-frame-options",
+      ]
+    ) {
+      const value = upstream.response.headers.get(name);
+      if (value) securityHeaders.set(name, value);
+    }
+    let slowRequests = 0;
+    const stub = Deno.serve(
+      { hostname: "127.0.0.1", port: 0, onListen: () => {} },
+      async (request) => {
+        const path = new URL(request.url).pathname;
+        if (path === "/slow" && ++slowRequests === 1) {
+          await new Promise((resolve) => setTimeout(resolve, 2200));
+        } else if (path === "/hang") {
+          await new Promise((resolve) => setTimeout(resolve, 900));
+        }
+        const headers = new Headers(securityHeaders);
+        if (path === "/wrong-header") headers.delete("x-frame-options");
+        return new Response(upstream.text, { status: 200, headers });
+      },
+    );
+    const stubBase = `http://127.0.0.1:${stub.addr.port}`;
+    try {
+      const slow = await fetchSecurityProbe(`${stubBase}/slow`, {
+        attemptTimeoutMs: 1200,
+        totalTimeoutMs: 7000,
+        maxAttempts: 3,
+        backoffBaseMs: 50,
+        jitterMs: 0,
+      });
+      assert(
+        "slow-but-correct server response passes after a real timeout and retry",
+        slow.attempts === 2 && slowRequests === 2 &&
+          validateSecurityHeaders(slow.response, "slow response").ok &&
+          slow.text.includes('id="q"'),
+        `attempts=${slow.attempts}; requests=${slowRequests}; elapsed=${
+          Math.ceil(slow.elapsedMs)
+        }ms`,
+      );
+
+      const wrong = await fetchSecurityProbe(`${stubBase}/wrong-header`);
+      const wrongCheck = validateSecurityHeaders(wrong.response, "wrong header");
+      assert(
+        "genuinely wrong security header still FAILS validation without a retry",
+        wrong.attempts === 1 && !wrongCheck.ok &&
+          wrongCheck.errors.some((error) => error.includes("x-frame-options")),
+        `attempts=${wrong.attempts}; errors=${wrongCheck.errors.join("; ")}`,
+      );
+
+      let exhausted;
+      try {
+        await fetchSecurityProbe(`${stubBase}/hang`, {
+          attemptTimeoutMs: 350,
+          totalTimeoutMs: 1600,
+          maxAttempts: 2,
+          backoffBaseMs: 30,
+          jitterMs: 0,
+        });
+      } catch (error) {
+        exhausted = error;
+      }
+      assert(
+        "exhausted slow transport reports TIMEOUT, not a header failure",
+        exhausted instanceof FixtureTransportError && exhausted.kind === "timeout" &&
+          exhausted.attempts === 2 && exhausted.message.includes("not a header failure"),
+        exhausted?.message ?? "no transport error",
+      );
+    } finally {
+      // Slow stub handlers finish after their finite delay; shut the socket down in every case.
+      let timer;
+      try {
+        await Promise.race([
+          stub.shutdown(),
+          new Promise((_, reject) => {
+            timer = setTimeout(
+              () => reject(new Error("Transport timeout shutting down stub server")),
+              5000,
+            );
+          }),
+        ]);
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+  }
+
+  // --- 7. DETECTOR CASES (verifying that missing or broken headers fail verification) ---
   {
     // A bare response without security headers MUST fail validation
     const bareRes = new Response("bare html", { headers: { "content-type": "text/html" } });
@@ -520,6 +622,12 @@ try {
       `tampered: ${tamperedHash} vs actual: ${actualHash}`,
     );
   }
+} catch (error) {
+  if (error instanceof FixtureTransportError || error?.message?.startsWith("Transport timeout ")) {
+    assert("fixture transport/timeout (not a security-header regression)", false, error.message);
+  } else {
+    throw error; // Programming and assertion errors must not be mislabeled as transport.
+  }
 } finally {
   // Unconditionally terminate the server process and bound the wait
   try {
@@ -527,10 +635,17 @@ try {
   } catch {
     // already exited
   }
-  await Promise.race([
-    serverProc.status,
-    new Promise((resolve) => setTimeout(resolve, 1500)),
-  ]);
+  let statusTimer;
+  try {
+    await Promise.race([
+      serverProc.status,
+      new Promise((resolve) => {
+        statusTimer = setTimeout(resolve, 1500);
+      }),
+    ]);
+  } finally {
+    clearTimeout(statusTimer);
+  }
 }
 
 if (failures > 0) {

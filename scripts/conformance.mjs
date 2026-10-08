@@ -465,15 +465,109 @@ export function scopedResultsReport({ existing = [], scanned = [], scoped = fals
   return { suites, agg, merged: scoped };
 }
 
+// Both runner modes select from the same published-root catalogue. A child path or typo must not
+// masquerade as a successful zero-page browser check or a zero-suite conformance verdict.
+function editDistance(left, right) {
+  let previous = Array.from({ length: right.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= left.length; i++) {
+    const current = [i];
+    for (let j = 1; j <= right.length; j++) {
+      current[j] = Math.min(
+        current[j - 1] + 1,
+        previous[j] + 1,
+        previous[j - 1] + (left[i - 1] === right[j - 1] ? 0 : 1),
+      );
+    }
+    previous = current;
+  }
+  return previous[right.length];
+}
+
+export function selectPublishedRootPages(
+  pages,
+  { hasSelector = false, selector, limit = Infinity, hasLimit = false, rawLimit } = {},
+) {
+  // A limit is a count of pages. Reject invalid explicit values before spawning a browser or
+  // writing reports; NaN/Infinity used to silently select every page and zero selected none.
+  if (hasLimit || Number.isFinite(limit)) {
+    const value = hasLimit ? Number(rawLimit) : limit;
+    if (
+      (hasLimit && (typeof rawLimit !== "string" || !rawLimit.trim() ||
+        rawLimit.startsWith("--"))) || !Number.isSafeInteger(value) || value < 1
+    ) {
+      return {
+        pages: [],
+        error: `--limit ${
+          JSON.stringify(hasLimit ? rawLimit ?? "<missing>" : limit)
+        } must be a positive integer (at least 1); zero or invalid limits cannot produce a trustworthy run`,
+      };
+    }
+    limit = value;
+  }
+  const rootId = (path) => path.replace(/\/index\.html$/, "");
+  const roots = pages.map(rootId);
+  if (
+    hasSelector &&
+    (typeof selector !== "string" || !selector.trim() || selector.startsWith("--"))
+  ) {
+    return {
+      pages: [],
+      error: `--page ${
+        JSON.stringify(selector ?? "<missing>")
+      } requires a published root route ID (e.g. v152/window-shape-api); only published root routes are selectable, not child paths`,
+    };
+  }
+  const selected = hasSelector ? pages.filter((path) => rootId(path) === selector) : pages;
+  if (hasSelector && selected.length === 0) {
+    const nearest = roots.map((id) => ({ id, distance: editDistance(selector, id) }))
+      .sort((a, b) => a.distance - b.distance || a.id.localeCompare(b.id))
+      .slice(0, 3).map(({ id }) => id);
+    return {
+      pages: [],
+      error: `--page ${
+        JSON.stringify(selector)
+      } matched zero published root routes; only published root routes are selectable, not child paths. Nearest published roots: ${
+        nearest.join(", ")
+      }`,
+    };
+  }
+  const considered = Number.isFinite(limit) ? selected.slice(0, limit) : selected;
+  if (considered.length === 0) {
+    return {
+      pages: [],
+      error: `No published root routes selected${
+        hasSelector ? ` for --page ${JSON.stringify(selector)}` : ""
+      }; refusing a zero-work run`,
+    };
+  }
+  return { pages: considered, error: null };
+}
+
 async function main() {
   const args = Deno.args;
   const pageIdx = args.indexOf("--page");
   const only = pageIdx >= 0 ? args[pageIdx + 1] : null;
   const limitIdx = args.indexOf("--limit");
-  const limit = limitIdx >= 0 ? Number(args[limitIdx + 1]) : Infinity;
+  const rawLimit = limitIdx >= 0 ? args[limitIdx + 1] : undefined;
+  const limit = limitIdx >= 0 ? Number(rawLimit) : Infinity;
   const responsive = args.includes("--responsive");
   const screenshots = args.includes("--screenshots");
   const updateSupport = args.includes("--update-support");
+
+  // Resolve the selector before any report writes, server spawn, or Chrome launch.
+  const pages = await collectPublishedPages(".");
+  const selection = selectPublishedRootPages(pages, {
+    hasSelector: pageIdx >= 0,
+    selector: only,
+    hasLimit: limitIdx >= 0,
+    rawLimit,
+  });
+  if (selection.error) {
+    console.error(`ERROR: ${selection.error}`);
+    Deno.exitCode = 2;
+    return;
+  }
+  const considered = selection.pages;
 
   await Deno.mkdir(OUT_DIR, { recursive: true });
   const server = await startServer();
@@ -499,13 +593,6 @@ async function main() {
   }
 
   try {
-    const pages = await collectPublishedPages(".");
-    let considered = pages.filter((p) => {
-      const id = p.replace(/\/index\.html$/, "");
-      return !only || id === only;
-    });
-    if (Number.isFinite(limit)) considered = considered.slice(0, limit);
-
     if (responsive) {
       const support = await loadSupport(".");
       const rows = [];

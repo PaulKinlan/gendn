@@ -37,9 +37,9 @@ async function checkLog(logText, extraArgs = []) {
   return checkPath(logPath, extraArgs);
 }
 
-async function checkPath(logPath, extraArgs = []) {
+async function checkPath(logPath, extraArgs = [], checker = CHECKER) {
   const cmd = new Deno.Command(Deno.execPath(), {
-    args: ["run", "--allow-read", CHECKER, logPath, ...extraArgs],
+    args: ["run", "--allow-read", checker, logPath, ...extraArgs],
     stdout: "piped",
     stderr: "piped",
   });
@@ -79,6 +79,23 @@ const RUN_ALL_GREEN = "verdict: GREEN - 0 failing assertions across 1 suites";
 const RESPONSIVE_REVIEW =
   "verdict: REVIEW-REQUIRED - 11 page(s) flagged (desktop 0 / mobile 11 REVIEW of 201 scanned), exit code unchanged";
 const RESPONSIVE_GREEN = "verdict: GREEN - all 201 scanned pages ok on both classes";
+// Byte-faithful completion/verdict lines from the historical zero-scan logs in gendn-8s8d.
+const ZERO_RUN_ALL = [
+  "run-all: 0 suite(s) scanned (merged into reports/conformance/results.json; report now 198 suites)",
+  "verdict: GREEN - 0 failing assertions across 0 suites",
+].join("\n");
+const ZERO_RESPONSIVE = [
+  "responsive-check: 0 page(s) scanned (merged into reports/conformance/responsive.json; report now 4 rows)",
+  "verdict: GREEN - all 0 scanned pages ok on both classes",
+].join("\n");
+const ZERO_FULL_RUN_ALL = [
+  "run-all: 0 suites · assertions 0 pass / 0 fail / 0 blocked (of 0)",
+  "verdict: GREEN - 0 failing assertions across 0 suites",
+].join("\n");
+const ZERO_FULL_RESPONSIVE = [
+  "responsive-check: 0 pages scanned → reports/conformance/responsive.json",
+  "verdict: GREEN - all 0 scanned pages ok on both classes",
+].join("\n");
 
 const LOGS = {
   runAllNotGreen: [
@@ -188,6 +205,29 @@ assert(
 );
 r = await checkLog(LOGS.responsiveGreen);
 assert("responsive GREEN log passes with exactly 1 emission", r.code === 0);
+for (
+  const [phase, log, unit, shape] of [
+    ["run-all", ZERO_RUN_ALL, "suites", "scoped"],
+    ["responsive", ZERO_RESPONSIVE, "pages", "scoped"],
+    ["run-all", ZERO_FULL_RUN_ALL, "suites", "full"],
+    ["responsive", ZERO_FULL_RESPONSIVE, "pages", "full"],
+  ]
+) {
+  for (const args of [["--phase", phase], []]) {
+    r = await checkLog(log, args);
+    assert(
+      `${shape} ${phase} GREEN over zero ${unit} is refused without a PASS line (${
+        args.length ? "declared" : "derived"
+      })`,
+      r.code === 1 && !r.out.includes("PASS —") && r.err.includes(`scanned zero ${unit}`),
+    );
+  }
+  assert(
+    `${shape} ${phase} derives the scanned count from the producer summary`,
+    classifyPhase(log).scanned === 0,
+  );
+}
+
 // [REAL CASE] The genuine kill probe must keep exiting 0 — a fix that also breaks the real case is
 // not a fix. The probe log cannot prove its own phase (a crash looks identical in a log), so it is
 // checked with the declaration the kill probe is documented to carry.
@@ -553,6 +593,31 @@ assert(
     /FLOW CHANGE \(gendn-3t2\)/.test(claude),
 );
 
+// Mutation proof: remove only the zero-count guard from a temporary copy, not the repo source.
+// Each refusal above then flips to the historical false-GREEN and must be reported as sabotage.
+const checkerSource = await Deno.readTextFile(CHECKER);
+const guardStart = '  if (derived.name === "run-all" || derived.name === "responsive") {';
+const guardEnd = "\n  if (!derivedKnown) {";
+const start = checkerSource.indexOf(guardStart);
+const end = checkerSource.indexOf(guardEnd, start);
+assert(
+  "sabotage guard anchors found exactly once",
+  start >= 0 && end > start &&
+    checkerSource.indexOf(guardStart, start + guardStart.length) === -1,
+);
+if (start >= 0 && end > start) {
+  const sabotaged = `${root}/sabotaged-checker.mjs`;
+  await Deno.writeTextFile(sabotaged, checkerSource.slice(0, start) + checkerSource.slice(end));
+  for (const [phase, log] of [["run-all", ZERO_RUN_ALL], ["responsive", ZERO_RESPONSIVE]]) {
+    const logPath = `${root}/sabotage-${phase}.log`;
+    await Deno.writeTextFile(logPath, log);
+    r = await checkPath(logPath, ["--phase", phase], sabotaged);
+    assert(
+      `sabotage: ${phase} zero-scan refusal flips RED (historical false PASS returns)`,
+      r.code === 0 && r.out.includes(`PASS — the ${phase} phase`),
+    );
+  }
+}
 await Deno.remove(root, { recursive: true });
 
 if (failures > 0) {
