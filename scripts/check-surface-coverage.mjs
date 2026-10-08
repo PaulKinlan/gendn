@@ -5,7 +5,7 @@
 // strict tier. A touched contract/page that retains a wrong mapping FAILS — touch time
 // is fix time (AGENTS.md's touch rule, made mechanical). Untracked files count as changed.
 //
-// --all: corpus-wide REPORT mode. Never exits non-zero. Prints counts grouped by class
+// --all: corpus-wide REPORT mode for findings; zero contracts fail rather than report success. Prints counts grouped by class
 // with representatives, per the acceptance criterion that a large count for non-defect
 // reasons is itself the finding (recorded on the bead, not iterated away).
 //
@@ -63,7 +63,19 @@ async function* contractIdsUnder(root, id) {
       if (entry.isDirectory) yield* contractIdsUnder(root, `${id}/${entry.name}`);
     }
   } catch (err) {
-    if (!(err instanceof Deno.errors.NotFound)) throw err; // deleted page/owner
+    if (err instanceof Deno.errors.NotFound && !await lstatIfPresent(`${root}/${id}`)) {
+      return; // genuinely deleted page/owner: check-routes owns removals
+    }
+    throw new Error(`${id}: cannot traverse contract directory: ${err.message}`);
+  }
+}
+
+async function lstatIfPresent(path) {
+  try {
+    return await Deno.lstat(path);
+  } catch (err) {
+    if (err instanceof Deno.errors.NotFound) return null;
+    throw err;
   }
 }
 
@@ -97,12 +109,18 @@ async function loadContract(root, id) {
     }
     return contract;
   } catch (err) {
-    if (err instanceof Deno.errors.NotFound) {
-      try {
-        await Deno.lstat(`${root}/${path}`); // a broken symlink is present but unreadable
-      } catch (statErr) {
-        if (statErr instanceof Deno.errors.NotFound) return null; // removed: route gate owns deletion
+    if (err instanceof Deno.errors.NotFound && !await lstatIfPresent(`${root}/${path}`)) {
+      // A contract can be genuinely deleted, or hidden behind a dangling symlink
+      // to its owner directory. Walk to the published owner before deferring.
+      const parts = id.split("/");
+      let dangling = false;
+      for (let n = parts.length; n >= 2; n--) {
+        if ((await lstatIfPresent(`${root}/${parts.slice(0, n).join("/")}`))?.isSymlink) {
+          dangling = true;
+          break;
+        }
       }
+      if (!dangling) return null; // genuine removal: check-routes owns it
     }
     throw new Error(`${path}: cannot read or parse touched contract: ${err.message}`);
   }
@@ -152,11 +170,16 @@ export async function runRatchet(root) {
   const vacuous = fetched.trim() === head.trim();
   const pageOwners = changedPageOwners(names);
   const ids = new Set(changedContractIds(names));
-  for (const owner of pageOwners) {
-    for await (const id of contractIdsUnder(root, owner)) ids.add(id);
-  }
   const failures = [];
+  for (const owner of pageOwners) {
+    try {
+      for await (const id of contractIdsUnder(root, owner)) ids.add(id);
+    } catch (err) {
+      failures.push(`touched page ${owner}: ${err.message}`);
+    }
+  }
   const warnings = [];
+  let inspected = 0;
   for (const id of ids) {
     let contract;
     try {
@@ -166,6 +189,7 @@ export async function runRatchet(root) {
       continue;
     }
     if (!contract) continue; // deleted in the diff; route gate owns removal
+    inspected++;
     for (const f of await surfaceCoverageFindings(contract, root, readHtml)) {
       const line =
         `${f.id}: ${f.inventoryId}.${f.dim} -> ${f.selector} maps a slice without any surface marker [${
@@ -197,10 +221,10 @@ export async function runRatchet(root) {
       `published reference-contract corpus empty: zero contracts against ${priorContracts} independent origin/main contracts`,
     );
   }
-  return { base, changed: [...ids], pageOwners, failures, warnings, vacuous };
+  return { base, changed: [...ids], inspected, pageOwners, failures, warnings, vacuous };
 }
 
-/** Corpus-wide report (--all). Report-only; never non-zero. */
+/** Corpus-wide report (--all). Findings are measurements; the CLI rejects an empty corpus. */
 export async function scanCorpus(root) {
   const byClass = {};
   let contracts = 0;
@@ -277,17 +301,17 @@ if (import.meta.main) {
     : "";
   if (r.vacuous) {
     console.log(
-      `surface-coverage ratchet: base ${r.base}; checked contracts ${r.changed.length}; page owners ${r.pageOwners.length}${unchangedNote}`,
+      `surface-coverage ratchet: base ${r.base}; checked contracts ${r.inspected}; page owners ${r.pageOwners.length}${unchangedNote}`,
     );
   }
   if (r.failures.length > 0) {
     for (const f of r.failures) console.error(`FAIL ${f}`);
     console.error(
-      `FAIL — ${r.failures.length} surface-coverage violation(s) on touched contracts/pages (base ${r.base}; checked contracts ${r.changed.length}; page owners ${r.pageOwners.length}).`,
+      `FAIL — ${r.failures.length} surface-coverage violation(s) on touched contracts/pages (base ${r.base}; checked contracts ${r.inspected}; page owners ${r.pageOwners.length}).`,
     );
     Deno.exit(1);
   }
   console.log(
-    `PASS — no wrong-surface mappings on touched contracts/pages (base ${r.base}; checked contracts ${r.changed.length}; page owners ${r.pageOwners.length}; warnings ${r.warnings.length})${unchangedNote}.`,
+    `PASS — no wrong-surface mappings on touched contracts/pages (base ${r.base}; checked contracts ${r.inspected}; page owners ${r.pageOwners.length}; warnings ${r.warnings.length})${unchangedNote}.`,
   );
 }

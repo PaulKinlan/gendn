@@ -568,6 +568,21 @@ await g4j("reset", "--hard", "HEAD");
 cli4j = await runCitationGate();
 ok(cli4j.code === 0 && cli4j.text.includes("PASS —"), "4l readable page restoration passes");
 
+// A dangling symlink for the whole touched directory yields NotFound from readDir,
+// but lstat proves the owner path exists and must not be treated as a deleted route.
+await Deno.remove(`${dir4j}/v150/focusgroup`, { recursive: true });
+await Deno.symlink("missing-dir", `${dir4j}/v150/focusgroup`);
+cli4j = await runCitationGate();
+ok(
+  cli4j.code === 1 && cli4j.text.includes("v150/focusgroup") &&
+    cli4j.text.includes("cannot inspect touched page") && !cli4j.text.includes("PASS —"),
+  "4l dangling touched DIRECTORY is a named hard failure (CLI rc1, no PASS)",
+);
+await Deno.remove(`${dir4j}/v150/focusgroup`);
+await g4j("reset", "--hard", "HEAD");
+cli4j = await runCitationGate();
+ok(cli4j.code === 0 && cli4j.text.includes("PASS —"), "4l readable directory restoration passes");
+
 // When the fetched ref is ahead of HEAD, merge-base == HEAD does NOT mean fetched == HEAD.
 await g4j("commit", "--allow-empty", "-qm", "fixture fetched-ahead ref");
 await g4j("update-ref", "refs/remotes/origin/main", "HEAD");

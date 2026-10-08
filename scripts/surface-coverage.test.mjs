@@ -468,6 +468,28 @@ const root = Deno.cwd();
       cli.text,
     );
 
+    // NotFound from the owner's readDir or the contract read is ambiguous: a dangling
+    // directory symlink exists according to lstat, unlike a genuinely deleted owner.
+    await Deno.remove(`${scratch}/${probe}`, { recursive: true });
+    await Deno.symlink("missing-dir", `${scratch}/${probe}`);
+    cli = await runSurfaceGate();
+    assert(
+      "dangling touched DIRECTORY fails by name and never claims its contract was checked",
+      cli.code === 1 && cli.text.includes(probe) &&
+        cli.text.includes("cannot traverse contract directory") &&
+        cli.text.includes(`${probe}/reference-contract.json`) &&
+        cli.text.includes("checked contracts 0") && !cli.text.includes("PASS —"),
+      cli.text,
+    );
+    await Deno.remove(`${scratch}/${probe}`);
+    await g("reset", "--hard", "HEAD");
+    cli = await runSurfaceGate();
+    assert(
+      "restored readable directory and contracts pass",
+      cli.code === 0 && cli.text.includes("PASS —"),
+      cli.text,
+    );
+
     // Fetched ref ahead of HEAD: merge-base == HEAD but fetched != HEAD.
     await g("commit", "--allow-empty", "-qm", "fixture fetched-ahead ref");
     await g("update-ref", "refs/remotes/origin/main", "HEAD");

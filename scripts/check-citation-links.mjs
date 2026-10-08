@@ -11,7 +11,7 @@
 // check-conformance.mjs enforces ok/unsupported only for TOUCHED pages). A changed
 // page that RETAINS a pre-existing unlinked label FAILS — that is AGENTS.md:103 made
 // mechanical at touch time. `--all` is a report-only mode for the separate
-// corpus-wide cleanup item; it never exits non-zero.
+// corpus-wide cleanup item; label debt is report-only, while zero pages or broken id shapes fail.
 //
 // Companion assertion (offline, non-flaky, corpus-wide in BOTH modes): every
 // chromestatus.com/feature/<id> href must carry a full-length id (>= 15 digits).
@@ -186,7 +186,15 @@ export async function runRatchet(root) {
     try {
       tree = await pageTreeHtml(root, id, true);
     } catch (err) {
-      if (err instanceof Deno.errors.NotFound) return []; // deleted route: check-routes owns removals
+      if (err instanceof Deno.errors.NotFound) {
+        try {
+          // A dangling symlink to the touched DIRECTORY also raises NotFound on readDir.
+          // Only a genuinely absent owner belongs to check-routes' deletion policy.
+          await Deno.lstat(`${root}/${id}`);
+        } catch (statErr) {
+          if (statErr instanceof Deno.errors.NotFound) return []; // genuinely deleted route
+        }
+      }
       return [`${id}: cannot inspect touched page: ${err.message}`];
     }
     const out = [];
