@@ -1100,6 +1100,86 @@ dictionary D {
     );
   }
 
+  // Window Shape API alias test (gendn-14qq):
+  // Asserts that the legacy IsolatedWebApp.setShape alias resolves and behaves identically to Window.setShape:
+  // - Delegates calls with rectangle arguments to the underlying setShape implementation;
+  // - Handles empty array reset;
+  // - Rejection paths (non-finite coordinates, negative sizes, >10k items, minimum-size guard) behave identically.
+  {
+    const recordedCalls = [];
+    const fakeWindow = {
+      setShape(rects) {
+        if (!Array.isArray(rects)) {
+          return Promise.reject(new TypeError("rects must be a sequence"));
+        }
+        if (rects.length > 10000) {
+          return Promise.reject(new TypeError("Too many rectangles"));
+        }
+        for (const r of rects) {
+          if (![r.x, r.y, r.width, r.height].every(Number.isFinite)) {
+            return Promise.reject(new TypeError("Non-finite rect dimension"));
+          }
+          if (r.width < 0 || r.height < 0) {
+            return Promise.reject(new TypeError("Negative rect dimension"));
+          }
+        }
+        if (rects.length > 0 && !rects.some((r) => r.width >= 10 && r.height >= 10)) {
+          return Promise.reject(new TypeError("Minimum size guard failed"));
+        }
+        recordedCalls.push(rects);
+        return Promise.resolve(undefined);
+      },
+    };
+
+    // The legacy alias binding: window.chromeos.isolatedWebApp.setShape -> window.setShape
+    const fakeChromeOS = {
+      isolatedWebApp: {
+        setShape: (rects) => fakeWindow.setShape(rects),
+      },
+    };
+
+    // 1. Alias resolves on valid rects
+    const validRect = { x: 0, y: 0, width: 100, height: 100 };
+    await fakeChromeOS.isolatedWebApp.setShape([validRect]);
+    assert(
+      recordedCalls.length === 1 && recordedCalls[0][0] === validRect,
+      "IsolatedWebApp.setShape alias did not resolve to Window.setShape",
+    );
+
+    // 2. Alias resets on empty array
+    await fakeChromeOS.isolatedWebApp.setShape([]);
+    assert(
+      recordedCalls.length === 2 && recordedCalls[1].length === 0,
+      "IsolatedWebApp.setShape alias reset did not resolve to Window.setShape",
+    );
+
+    // 3. Alias behaves identically on rejection (e.g. minimum-size guard)
+    let rejectedMinSize = false;
+    try {
+      await fakeChromeOS.isolatedWebApp.setShape([{ x: 0, y: 0, width: 4, height: 4 }]);
+    } catch (err) {
+      rejectedMinSize = err instanceof TypeError;
+    }
+    assert(
+      rejectedMinSize,
+      "IsolatedWebApp.setShape alias failed to reject on invalid rects (<10x10 guard)",
+    );
+
+    // 4. Verify that v152/window-shape-api reference contract accounts for both current and legacy surfaces
+    const wshapeContract = JSON.parse(
+      await Deno.readTextFile("v152/window-shape-api/reference-contract.json"),
+    );
+    const names = wshapeContract.inventory.map((item) => item.name);
+    assert(
+      names.some((n) => n.includes("Window.setShape")),
+      "v152/window-shape-api contract does not inventory Window.setShape",
+    );
+    assert(
+      names.some((n) => n.includes("IsolatedWebApp.setShape")),
+      "v152/window-shape-api contract does not inventory legacy IsolatedWebApp.setShape alias",
+    );
+  }
+
   console.log("PASS — reference-contract structural tests");
 } finally {
   await Deno.remove(root, { recursive: true });

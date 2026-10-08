@@ -258,6 +258,18 @@ assert(
     !workerPageHtml.includes(`${showcase}/v153/expose-cssstylevalue-hierarchy-to-worker-contexts/`),
 );
 
+// gendn-14qq: Window Shape API alias pin — ensure pre-154 legacy alias redirects to the canonical setshape route
+const wshapeAliasTarget = redirectTarget("/v152/window-shape-api/isolatedwebapp-setshape/");
+assert(
+  "Window Shape API legacy alias /v152/window-shape-api/isolatedwebapp-setshape/ redirects to /v152/window-shape-api/setshape/",
+  wshapeAliasTarget === "/v152/window-shape-api/setshape/",
+  `expected /v152/window-shape-api/setshape/, got ${wshapeAliasTarget}`,
+);
+assert(
+  "Window Shape API canonical setshape route serves directly (no redirect loop)",
+  redirectTarget("/v152/window-shape-api/setshape/") === null,
+);
+
 function entry(id, overrides = {}) {
   return {
     id,
