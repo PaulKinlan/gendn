@@ -24,7 +24,7 @@
     .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
     .baseline-browsers .limited { color: var(--text-muted); }
     .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
-    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--text-charcoal); display: block; margin-bottom: 0.4rem; }
     .example-embed { margin: 1.5rem 0; }
     .example-embed iframe { max-width: 100%; }
     .example-embed figcaption { font-size: 0.85rem; margin-top: 0.4rem; }
@@ -58,7 +58,7 @@
     <ul>
       <li>Always feature-detect: request <code>"subgroup-size-control"</code> only if <code>adapter.features.has("subgroup-size-control")</code> (see <a href="#examples">examples</a>).</li>
       <li>Only the bounds <code>GPUAdapterInfo.<wbr>subgroupMinSize</code>/<code>subgroupMaxSize</code> are queryable; a requested size inside that range is <strong>not guaranteed to work</strong> — pipeline creation can still fail with an <em>uncategorized error</em> (register pressure, hardware workgroup-subgroup limits). Handle <code>createComputePipelineAsync()</code> rejection with a fallback pipeline (see <a href="subgroup-size-attribute/#errors">error taxonomy</a>).</li>
-      <li>Metal has no native subgroup-size control; the proposal notes browsers may expose the feature on Metal &ldquo;at their own risk&rdquo; — test on Apple GPUs specifically.</li>
+      <li>Metal has no native size-selection API. Dawn nevertheless exposes this WebGPU feature on supported Apple GPUs <em>when the adapter has only one subgroup size</em> (<code>subgroupMinSize == subgroupMaxSize</code>); do not infer support for arbitrary requested sizes. See the backend conditions below.</li>
     </ul>
     <span class="citation">Source: <a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/subgroup-size-control.md" target="_blank" rel="noopener">subgroup-size-control proposal — Native API Availability</a>; <a href="https://github.com/gpuweb/gpuweb/issues/6241" target="_blank" rel="noopener">gpuweb issue #6241 (limits declined)</a>; <a href="https://gpuweb.github.io/gpuweb/wgsl/#attribute-subgroup_size" target="_blank" rel="noopener">WGSL — @subgroup_size</a></span>
   </div>
@@ -77,6 +77,18 @@
     </table>
     </div>
     <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/#dom-gpufeaturename-subgroup-size-control" target="_blank" rel="noopener">WebGPU spec — "subgroup-size-control"</a>; <a href="https://chromestatus.com/feature/5077657663438848" target="_blank" rel="noopener">chromestatus.com/feature/5077657663438848</a>; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a3b9721.b645f071.283bd5.06d8.GAE%40google.com" target="_blank" rel="noopener">Intent to Ship</a></span>
+  </section>
+
+  <section>
+    <h2 id="backend-coverage">backend exposure in Dawn</h2>
+    <p>The Chrome 152 browser/platform listing does not guarantee that every GPU adapter exposes this <em>optional</em> feature. In Dawn's current backend source (checked 2026-10-08), the feature is enabled conditionally:</p>
+    <ul>
+      <li><strong>Vulkan:</strong> requires base subgroup support, the subgroup-size-control extension, its <code>subgroupSizeControl</code> capability, and full-subgroup compute support; Dawn maps an explicit size to <code>requiredSubgroupSize</code> during compute pipeline creation.</li>
+      <li><strong>D3D12:</strong> requires wave operations and Shader Model 6.6 or later for HLSL <code>[WaveSize]</code>.</li>
+      <li><strong>Metal:</strong> no native choice of size; Dawn can expose the feature when subgroups are supported and its minimum and maximum subgroup sizes are equal, so only that fixed size is usable.</li>
+    </ul>
+    <p>These are source-level enablement conditions, not a measurement of which physical GPUs or drivers pass them in Chrome 152. Check <code>adapter.features.has("subgroup-size-control")</code> on the actual adapter before requesting the feature.</p>
+    <span class="citation">Source: Dawn <a href="https://github.com/google/dawn/blob/main/src/dawn/native/vulkan/PhysicalDeviceVk.cpp" target="_blank" rel="noopener">Vulkan PhysicalDeviceVk.cpp</a> and <a href="https://github.com/google/dawn/blob/main/src/dawn/native/vulkan/ComputePipelineVk.cpp" target="_blank" rel="noopener">ComputePipelineVk.cpp</a>; <a href="https://github.com/google/dawn/blob/main/src/dawn/native/d3d12/PhysicalDeviceD3D12.cpp" target="_blank" rel="noopener">D3D12 PhysicalDeviceD3D12.cpp</a>; <a href="https://github.com/google/dawn/blob/main/src/dawn/native/metal/PhysicalDeviceMTL.mm" target="_blank" rel="noopener">Metal PhysicalDeviceMTL.mm</a> (2026-10-08).</span>
   </section>
 
   <section>
@@ -214,8 +226,8 @@ fn main(@builtin(subgroup_invocation_id) sg_id : u32,
 
   <section>
     <h2 id="tests">tests</h2>
-    <p>WebGPU conformance lives in the <a href="https://github.com/gpuweb/cts" target="_blank" rel="noopener">gpuweb/cts</a> test suite rather than upstream WPT directories. A search of the CTS operation, shader-execution, and validation trees found <strong>no dedicated subgroup-size-control tests</strong> at fetch time (2026-07-29); the Intent to Ship does not record a WPT/CTS row beyond the standard process. Treat behavior as spec-defined but conformance-unverified in public test suites.</p>
-    <span class="citation">Source: <a href="https://github.com/gpuweb/cts" target="_blank" rel="noopener">gpuweb/cts repository</a> (operation/execution/validation trees searched 2026-07-29); <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a3b9721.b645f071.283bd5.06d8.GAE%40google.com" target="_blank" rel="noopener">Intent to Ship</a></span>
+    <p>WebGPU conformance lives in <a href="https://github.com/gpuweb/cts" target="_blank" rel="noopener">gpuweb/cts</a>, not upstream WPT directories. Dedicated tests are now present in two CTS files (repository tree and source checked 2026-10-08): <a href="https://github.com/gpuweb/cts/blob/main/src/webgpu/api/validation/capability_checks/features/subgroup_size_control.spec.ts" target="_blank" rel="noopener"><code>api/validation/capability_checks/features/subgroup_size_control.spec.ts</code></a> checks that enabling the feature also enables subgroups, and <a href="https://github.com/gpuweb/cts/blob/main/src/webgpu/shader/validation/extension/subgroup_size_control.spec.ts" target="_blank" rel="noopener"><code>shader/validation/extension/subgroup_size_control.spec.ts</code></a> checks the WGSL enable directive, compute-only attribute placement, constant/override types, power-of-two sizes, workgroup-size divisibility, and pipeline size bounds. Their presence does <em>not</em> establish pass rates on every adapter or backend.</p>
+    <span class="citation">Source: <a href="https://github.com/gpuweb/cts/blob/main/src/webgpu/api/validation/capability_checks/features/subgroup_size_control.spec.ts" target="_blank" rel="noopener">CTS feature-capability validation</a>; <a href="https://github.com/gpuweb/cts/blob/main/src/webgpu/shader/validation/extension/subgroup_size_control.spec.ts" target="_blank" rel="noopener">CTS WGSL extension validation</a> (checked 2026-10-08).</span>
   </section>
 
   <section>

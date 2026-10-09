@@ -26,7 +26,7 @@
     .doc-table code { background: transparent; border: none; padding: 0; }
     .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
     .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
-    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--text-charcoal); display: block; margin-bottom: 0.4rem; }
   </style>
 </head>
 <body>
@@ -48,7 +48,7 @@
       <p>This capability has no web-features / Baseline entry: the <a href="https://chromestatus.com/api/v0/features/6242687411945472" target="_blank" rel="noopener">ChromeStatus API record</a> reports <code>web_feature: &quot;Missing feature&quot;</code> and a <a href="https://api.webstatus.dev/v1/features?q=document-policy" target="_blank" rel="noopener">webstatus.dev query for <code>document-policy</code></a> returns no entry (both queried 2026-10-04). Vendor views are from the same ChromeStatus record (Firefox: No signal; Safari: No signal). Do not treat it as cross-browser; see the <a href="#compatibility">full table</a>.</p>
     </div>
 
-    <p class="lede">Chrome 147 adds developer trial support for propagating <code>Document-Policy</code> HTTP response headers into dedicated workers. When a page is loaded with a Document Policy, the same policy now applies to workers spawned by that page, enabling consistent enforcement of security and performance constraints across the main thread and its workers.</p>
+    <p class="lede">Chrome 147 adds developer trial support for <code>Document-Policy</code> in dedicated workers. A network-loaded worker reads its policy from its <em>own script response</em>, not the creating page&rsquo;s response; only local <code>blob:</code> and <code>data:</code> workers clone their creator&rsquo;s policy.</p>
   </header>
 
   <div class="warn-block">
@@ -81,7 +81,7 @@
       <li><code>oversized-images</code> — enforce a maximum image display/intrinsic size ratio</li>
       <li><code>js-profiling</code> — opt into the <a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">JS Self-Profiling API</a>; the worker use case that motivated this feature (see <a href="https://github.com/WICG/js-self-profiling/issues/33" target="_blank" rel="noopener">WICG/js-self-profiling#33</a>)</li>
     </ul>
-    <p>Previously, these policies applied only to the main document and iframes, not to workers. This extension propagates the policy to dedicated workers so that, for example, a worker that loads images or performs layout-adjacent operations respects the same constraints as the main thread.</p>
+    <p>Previously, these policies were defined for documents and iframes, not workers. In this dedicated-worker proposal, a network worker uses the policy declared by its script response and ignores the creating page&rsquo;s policy; a local <code>blob:</code> or <code>data:</code> worker instead clones its creator&rsquo;s policy. That distinction matters when configuring a server: a page response header alone cannot opt a network worker into <code>js-profiling</code>.</p>
     <span class="citation">Source: <a href="https://wicg.github.io/document-policy/" target="_blank" rel="noopener">WICG Document Policy</a>; <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/DocumentPolicy/DocumentPolicyInWorkers.md" target="_blank" rel="noopener">Document Policy in Workers explainer</a></span>
   </section>
 
@@ -121,6 +121,8 @@ enum-feature=state</code></pre>
     <h2 id="examples">examples</h2>
     <p>Serve the <em>worker script</em> (not just the page) with a <code>Document-Policy</code> header — the explainer&rsquo;s example (verbatim):</p>
     <pre><code>Document-Policy: js-profiling</code></pre>
+    <p>The page can then create that dedicated worker; this client-side call is illustrative glue, not a verbatim snippet or a runtime test from the explainer. The header above belongs on the <em>worker script response</em>, regardless of whether the page response has its own policy:</p>
+    <pre><code>const worker = new Worker("/worker.js");</code></pre>
     <p>&ldquo;If Document-Policy is enabled in the worker, developers can use the Profiler&rdquo; (explainer example, verbatim):</p>
     <pre><code>// Start a profiling session
 const profiler = new Profiler({ sampleInterval: 10, maxBufferSize: 10_000 });
@@ -135,7 +137,7 @@ console.log(JSON.stringify(trace));</code></pre>
         sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
       <figcaption>Live example from the Chrome Platform Showcase (route GET-verified 200, 2026-10-04). Sibling concept demos: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/document-policy-in-dedicated-workers/policy-headers/" target="_blank" rel="noopener">policy headers</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/document-policy-in-dedicated-workers/policy-inheritance-tester/" target="_blank" rel="noopener">policy inheritance tester</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/document-policy-in-dedicated-workers/worker-violation-probe/" target="_blank" rel="noopener">worker violation probe</a>, and <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/document-policy-in-dedicated-workers/compatibility-lab/" target="_blank" rel="noopener">compatibility lab</a>.<span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/document-policy-in-dedicated-workers/" target="_blank" rel="noopener">chrome-platform-showcase</a></span></figcaption>
     </figure>
-    <span class="citation">Source: header and Profiler snippets quoted from the <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/DocumentPolicy/DocumentPolicyInWorkers.md" target="_blank" rel="noopener">Document Policy in Workers explainer</a></span>
+    <span class="citation">Source: header and Profiler snippets quoted from the <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/DocumentPolicy/DocumentPolicyInWorkers.md" target="_blank" rel="noopener">Document Policy in Workers explainer</a>; <code>new Worker()</code> call is gendn-derived to illustrate the network-worker response model (checked 2026-10-08). The explainer does not specify a page-response example.</span>
   </section>
 
   <section>

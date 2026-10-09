@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>IsolatedWebApp.setShape() — Window Shape API — Chrome 152 — gendn</title>
+  <title>Window.setShape() — Window Shape API — Chrome 152 — gendn</title>
   <link rel="stylesheet" href="/public/styles.css">
   <style>
     h1, .lede { overflow-wrap: anywhere; }
@@ -25,7 +25,7 @@
     .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
     .baseline-browsers .limited { color: var(--text-muted); }
     .warn-block { border: 2px solid var(--accent-amber); background: var(--bg-paper); padding: 1rem 1.2rem; margin: 1.5rem 0; box-shadow: var(--thin-shadow); }
-    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--accent-amber); display: block; margin-bottom: 0.4rem; }
+    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--text-charcoal); display: block; margin-bottom: 0.4rem; }
   </style>
 </head>
 <body>
@@ -33,8 +33,8 @@
   <p class="crumbs"><a href="/v152/window-shape-api/">&larr; Window Shape API</a></p>
 
   <header class="lede-block">
-    <p class="eyebrow">v152 · window shape api · method</p>
-    <h1>IsolatedWebApp.set<wbr>Shape()</h1>
+    <p class="eyebrow">v152 · window shape api · method (migrated to Window.setShape at M154)</p>
+    <h1>Window.set<wbr>Shape()</h1>
 
     <div class="baseline-banner" role="note" aria-label="Baseline status">
       <p class="baseline-status">Limited availability</p>
@@ -47,11 +47,17 @@
       <p>ChromeOS Blink extension, allowlisted Isolated Web Apps only &mdash; not a Baseline feature and not intended for other browsers (<a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a4e81a6.cff415cc.4a68.05cd.GAE%40google.com" target="_blank" rel="noopener">Intent to Ship</a>).</p>
     </div>
 
-    <p class="lede">Sets the shape of the calling IWA&rsquo;s window to the <strong>union of the given rectangles</strong>, in Device Independent Pixels. Only areas covered by at least one rectangle stay visible and interactive. Pass an empty array to restore the default rectangular window.</p>
+    <p class="lede">Sets the shape of the calling IWA&rsquo;s window to the <strong>union of the given rectangles</strong>, in Device Independent Pixels. Shipped as <code>window.setShape()</code> from Chrome 154; pre-154 versions exposed this as <code>window.chromeos.isolatedWebApp.setShape()</code>. Only areas covered by at least one rectangle stay visible and interactive. Pass an empty array to restore the default rectangular window.</p>
   </header>
+
+  <div class="warn-block" id="api-migration">
+    <strong>API migration note &mdash; Chrome 154 rename (October 2026)</strong>
+    <p>At Chrome 154 (October 2026), this method was moved directly to the <code>Window</code> interface (<code>window.setShape(rects)</code>). The previous interface binding, <code>IsolatedWebApp.setShape(rects)</code> (accessed via <code>window.chromeos.isolatedWebApp.setShape(rects)</code>), is the pre-154 legacy name and is retained as a tested alias for backwards compatibility. In Chromium source, the Blink feature flag was renamed from <code>BlinkExtensionChromeOSIsolatedWebAppSetShape</code> to <code>SetShape</code> (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>).</p>
+  </div>
 
   <div class="warn-block" id="requirements">
     <strong>Prerequisites &mdash; all three are enforced</strong>
+    <p>The calling context can invoke <code>window.setShape(rects)</code> directly or via the legacy <code>window.chromeos.isolatedWebApp.setShape(rects)</code> alias; all three prerequisites are enforced:</p>
     <ul>
       <li>The calling context must be an <strong>allowlisted Isolated Web App</strong> on ChromeOS &mdash; otherwise <code>window.chromeos</code> is <code>null</code> and this method is unreachable.</li>
       <li>The window must be in the <a href="https://wicg.github.io/manifest-incubations/" target="_blank" rel="noopener"><code>unframed</code> display mode</a> &mdash; otherwise the returned promise rejects with <code>InvalidStateError</code>.</li>
@@ -62,12 +68,21 @@
 
   <section>
     <h2 id="syntax">Syntax</h2>
-<pre><code>// WebIDL (specification):
+<pre><code>// WebIDL (current shipped specification — Window.setShape):
+partial interface Window {
+  Promise&lt;undefined&gt; setShape(sequence&lt;DOMRectReadOnly&gt; rects);
+};
+
+// Current call form:
+await window.setShape(rects);</code></pre>
+
+    <h3 id="legacy-syntax">Pre-154 legacy syntax (alias)</h3>
+<pre><code>// WebIDL (pre-154 legacy interface):
 partial interface IsolatedWebApp {
   Promise&lt;undefined&gt; setShape(sequence&lt;DOMRectReadOnly&gt; rects);
 };
 
-// Call form:
+// Pre-154 call form:
 await window.chromeos.isolatedWebApp.setShape(rects);</code></pre>
     <span class="citation">Source: <a href="https://explainers-by-googlers.github.io/chromeos-iwa-apis/#api-extension" target="_blank" rel="noopener">spec &sect;3.3 API Extension</a>.</span>
   </section>
@@ -100,7 +115,7 @@ await window.chromeos.isolatedWebApp.setShape(rects);</code></pre>
 
   <section>
     <h2 id="exceptions">Exceptions</h2>
-    <p>All failure modes are promise rejections (no synchronous throw):</p>
+    <p>All failure modes of <code>setShape()</code> are promise rejections (no synchronous throw):</p>
     <div class="table-wrap">
     <table class="doc-table">
       <thead><tr><th>Rejection</th><th>Condition</th></tr></thead>
@@ -147,26 +162,41 @@ await window.chromeos.isolatedWebApp.setShape(rects);</code></pre>
 
   <section>
     <h2 id="examples">Examples</h2>
-    <p>A donut-style overlay panel anchored to the window&rsquo;s bottom edge, with the required minimum-size rectangle:</p>
-<pre><code>const iwa = window.chromeos?.isolatedWebApp;
-if (!iwa) throw new Error("Not an allowlisted IWA");
-
-// Window is 800x600 DIPs. Show only a 800x120 strip at the bottom
+    <p>A donut-style overlay panel anchored to the window&rsquo;s bottom edge using current <code>window.setShape()</code>:</p>
+<pre><code>// Window is 800x600 DIPs. Show only a 800x120 strip at the bottom
 // and a 200x200 floating badge at the top-right.
-await iwa.setShape([
+await window.setShape([
   new DOMRect(0, 480, 800, 120),   // main strip (>= 10x10 ✓)
   new DOMRect(600, 0, 200, 200),   // floating badge
 ]);</code></pre>
     <p>Resetting to the default rectangular window:</p>
-<pre><code>await window.chromeos.isolatedWebApp.setShape([]);</code></pre>
+<pre><code>await window.setShape([]);</code></pre>
+
+    <h3 id="legacy-examples">Pre-154 legacy alias example</h3>
+<pre><code>// Pre-154 alias invocation:
+const iwa = window.chromeos?.isolatedWebApp;
+if (iwa) {
+  await iwa.setShape([
+    new DOMRect(0, 480, 800, 120),
+    new DOMRect(600, 0, 200, 200),
+  ]);
+  await window.chromeos.isolatedWebApp.setShape([]);
+}
+
+// Backward-compatibility shim delegating the legacy alias to Window.setShape:
+if (typeof window.setShape === "function" && !window.chromeos?.isolatedWebApp?.setShape) {
+  window.chromeos ??= {};
+  window.chromeos.isolatedWebApp ??= {};
+  window.chromeos.isolatedWebApp.setShape = (rects) => window.setShape(rects);
+}</code></pre>
     <p>Handling the documented rejection paths:</p>
 <pre><code>try {
-  await iwa.setShape([{ x: 0, y: 0, width: 4, height: 4 }]);
+  await window.setShape([{ x: 0, y: 0, width: 4, height: 4 }]);
 } catch (e) {
   // TypeError: no rectangle meets the 10x10 minimum-size guard.
 }
 try {
-  await iwa.setShape(new Array(10_001).fill(new DOMRect(0, 0, 10, 10)));
+  await window.setShape(new Array(10_001).fill(new DOMRect(0, 0, 10, 10)));
 } catch (e) {
   // TypeError: more than 10,000 rectangles.
 }</code></pre>
@@ -179,7 +209,7 @@ try {
     <div class="table-wrap">
     <table class="doc-table compat-table">
       <thead><tr><th>Browser</th><th>Support</th><th>Evidence</th></tr></thead>
-      <tr><td>Chrome (ChromeOS)</td><td>152+, allowlisted IWAs only</td><td><a href="https://chromestatus.com/api/v0/features?milestone=152" target="_blank" rel="noopener">milestone=152 listing</a>; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a4e81a6.cff415cc.4a68.05cd.GAE%40google.com" target="_blank" rel="noopener">Intent to Ship</a></td></tr>
+      <tr><td>Chrome (ChromeOS)</td><td>152+ (as <code>IsolatedWebApp.setShape</code>); 154+ (as <code>Window.setShape</code>); allowlisted IWAs only</td><td><a href="https://chromestatus.com/api/v0/features?milestone=152" target="_blank" rel="noopener">milestone=152 listing</a>; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a4e81a6.cff415cc.4a68.05cd.GAE%40google.com" target="_blank" rel="noopener">Intent to Ship</a></td></tr>
       <tr><td>Chrome (other platforms)</td><td>Not available</td><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a4e81a6.cff415cc.4a68.05cd.GAE%40google.com" target="_blank" rel="noopener">Intent to Ship</a> (&ldquo;not available in any other platform&rdquo;)</td></tr>
       <tr><td>Edge</td><td>Not available</td><td>ChromeOS-only Blink extension (<a href="https://github.com/explainers-by-googlers/chromeos-iwa-apis/blob/main/window-shape-explainer.md#why-restrict-to-chromeos" target="_blank" rel="noopener">explainer</a>)</td></tr>
       <tr><td>Firefox / Safari</td><td>No signal</td><td><a href="https://chromestatus.com/api/v0/features/5075144470036480" target="_blank" rel="noopener">ChromeStatus record</a> vendor views</td></tr>
@@ -204,6 +234,11 @@ try {
     <ul>
       <li><a href="https://explainers-by-googlers.github.io/chromeos-iwa-apis/" target="_blank" rel="noopener">ChromeOS APIs for Isolated Web Apps</a> &mdash; the specification defining this method (&sect;3.4)</li>
       <li><a href="https://github.com/explainers-by-googlers/chromeos-iwa-apis/blob/main/window-shape-explainer.md" target="_blank" rel="noopener">Window Shape API explainer</a> &mdash; requirements, security analysis, and example usage</li>
+      <li><a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium runtime_enabled_features.json5</a> &mdash; <code>SetShape</code> runtime feature record</li>
+      <li><a href="https://chromestatus.com/feature/5075144470036480" target="_blank" rel="noopener">ChromeStatus feature record 5075144470036480 &mdash; Window Shape API</a> (<a href="https://chromestatus.com/api/v0/features/5075144470036480" target="_blank" rel="noopener">API record</a>)</li>
+      <li><a href="https://chromestatus.com/api/v0/features?milestone=152" target="_blank" rel="noopener">ChromeStatus milestone=152 listing</a></li>
+      <li><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a4e81a6.cff415cc.4a68.05cd.GAE%40google.com" target="_blank" rel="noopener">blink-dev &mdash; Intent to Ship: Window shape API</a></li>
+      <li><a href="https://wicg.github.io/manifest-incubations/" target="_blank" rel="noopener">WICG Manifest Incubations &mdash; unframed display mode</a></li>
       <li><a href="https://www.w3.org/TR/geometry-1/#domrectreadonly" target="_blank" rel="noopener">Geometry Interfaces &mdash; <code>DOMRectReadOnly</code></a> &mdash; the input rectangle type</li>
       <li><a href="https://w3c.github.io/window-management/" target="_blank" rel="noopener">Window Management API</a> &mdash; the <code>window-management</code> permission this method requires</li>
       <li><a href="https://github.com/paulinagacek/Set-Shape-demo" target="_blank" rel="noopener">Set-Shape-demo</a> &mdash; official demo IWA using this method</li>
