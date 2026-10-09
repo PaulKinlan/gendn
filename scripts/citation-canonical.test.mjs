@@ -3,12 +3,12 @@
 //
 // WHY THIS FILE EXISTS: every assertion here is a pure string comparison over canonicalCitationUrl
 // and hasHref — no browser, no network, sub-millisecond. They used to live in
-// reference-contract.test.mjs, which is reached only by `deno task test-reference-contract`: ci.yml
-// does not invoke it and gendn-cp7's aggregate EXCLUDES it as browser-backed. So the rule's POSITIVE
-// behaviour was CI-guarded (check-conformance runs the validator over the real catalogue) while the
-// assertions proving it does not OVER-COLLAPSE were guarded by nothing but someone remembering a task
-// name. A `test-*` task is discovered by the aggregate, which CI runs, so moving them here gives them
-// automated reach; only the genuinely DOM-backed visibility checks stay behind the landing gate.
+// reference-contract.test.mjs, which was reached only by `deno task test-reference-contract`:
+// ci.yml did not invoke it and gendn-cp7's aggregate excluded it as browser-backed. So the rule's
+// POSITIVE behaviour was CI-guarded (check-conformance runs the validator over the real catalogue)
+// while assertions proving it does not OVER-COLLAPSE relied on someone remembering a task name.
+// A `test-*` task is discovered by the aggregate, which CI runs, so moving them here gave them
+// automated reach. The DOM-backed visibility suite now has its own dedicated CI step.
 //
 // Run: deno task test-citation-canonical  (discovered by `deno task test-fixtures`)
 

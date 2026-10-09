@@ -43,8 +43,8 @@
 // `deno task` for every fixture), which is arbitrary code execution as this user, and Deno permissions
 // are per-process, so a fixture keeps exactly the flags its own deno.json task declares.
 //
-// EXCLUSIONS are explicit and printed, never silent (see EXCLUDED below): browser-backed suites run
-// at the landing gate, where a Chrome is available.
+// EXCLUSIONS are explicit and printed, never silent (see EXCLUDED below): the browser-backed
+// reference suite runs as a dedicated CI step, where Chrome is available.
 //
 // USAGE
 //   deno task test-fixtures                     # run every discovered fixture
@@ -74,7 +74,7 @@ const EXCLUDED = new Map([
   ],
   [
     "test-reference-contract",
-    "browser-backed (spawns Chrome); the landing gate runs it with a browser",
+    "browser-backed (spawns Chrome); CI runs it as a dedicated browser regression step",
   ],
 ]);
 
