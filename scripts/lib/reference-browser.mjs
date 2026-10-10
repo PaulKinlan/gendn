@@ -11,44 +11,89 @@ const VIEWPORTS = [
   ["mobile", { width: 390, height: 844, mobile: true, deviceScaleFactor: 3 }],
 ];
 
-async function spawnServer() {
-  const port = 3600 + Math.floor(Math.random() * 300);
+// The port is assigned by the OS, and readiness comes from THIS child's own startup line.
+// Probing a guessed port could otherwise accept another lane's healthy server while this child
+// has already failed; discarding its stderr hid the actual startup cause (gendn-4ok7).
+export async function spawnServer({ script = "server.ts", startupTimeoutMs = 30_000 } = {}) {
   const child = new Deno.Command("deno", {
-    args: ["run", "--allow-net", "--allow-read", "--allow-env", "server.ts"],
-    env: { ...Deno.env.toObject(), PORT: String(port) },
-    stdout: "null",
-    stderr: "null",
+    args: ["run", "--allow-net", "--allow-read", "--allow-env", script],
+    env: { ...Deno.env.toObject(), PORT: "0" },
+    stdout: "piped",
+    stderr: "piped",
   }).spawn();
-  const base = `http://localhost:${port}`;
-  for (let attempt = 0; attempt < 120; attempt++) {
-    try {
-      const response = await fetch(`${base}/`);
-      const ok = response.ok;
-      await response.body?.cancel();
-      if (ok) return { child, base };
-    } catch {
-      // Server is still starting.
-    }
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
+  let stdout = "", stderr = "", resolveReady;
+  const ready = new Promise((resolve) => resolveReady = resolve);
+  const capture = (stream, onText) => {
+    const decoder = new TextDecoder();
+    return stream.pipeTo(
+      new WritableStream({
+        write(bytes) {
+          onText(decoder.decode(bytes, { stream: true }));
+        },
+      }),
+    ).catch(() => {});
+  };
+  const stdoutDone = capture(child.stdout, (text) => {
+    stdout = (stdout + text).slice(-4096);
+    const match = stdout.match(/Listening on http:\/\/localhost:(\d+)/);
+    if (match) resolveReady(Number(match[1]));
+  });
+  const stderrDone = capture(child.stderr, (text) => stderr = (stderr + text).slice(-4096));
+  let exited = null;
+  const status = child.status.then((value) => exited = value);
+  let timer;
   try {
-    child.kill();
-  } catch {
-    // Already gone.
+    const first = await Promise.race([
+      ready.then((port) => ({ port })),
+      status.then((exit) => ({ exit })),
+      new Promise((resolve) => {
+        timer = setTimeout(() => resolve({ timeout: true }), startupTimeoutMs);
+      }),
+    ]);
+    if (!first.port) {
+      throw new Error(
+        first.timeout
+          ? `startup timed out after ${startupTimeoutMs}ms`
+          : "child exited before listening",
+      );
+    }
+    const base = `http://localhost:${first.port}`;
+    const response = await fetch(`${base}/`, { signal: AbortSignal.timeout(15_000) });
+    const ok = response.ok;
+    await response.body?.cancel();
+    if (!ok) throw new Error(`readiness GET / returned HTTP ${response.status}`);
+    return { child, base };
+  } catch (error) {
+    if (!exited) {
+      try {
+        child.kill("SIGKILL");
+      } catch {
+        // Already stopped.
+      }
+    }
+    await status;
+    await Promise.all([stdoutDone, stderrDone]);
+    throw new Error(
+      `gendn server did not start for reference visibility validation: ${error.message}; ` +
+        `child ${exited?.signal ? `signal ${exited.signal}` : `exit ${exited?.code}`}; ` +
+        `stderr: ${stderr.trim() || "(empty)"}; stdout: ${stdout.trim() || "(empty)"}`,
+    );
+  } finally {
+    clearTimeout(timer);
   }
-  throw new Error("gendn server did not start for reference visibility validation");
 }
 
 export async function validateReferenceContractsInBrowser(records) {
   if (records.length === 0) return [];
   const errors = [];
   const server = await spawnServer();
-  const browser = await launch();
-  const pages = await Promise.all(VIEWPORTS.map(async ([name, viewport]) => ({
-    name,
-    page: await browser.newPage(viewport),
-  })));
+  let browser;
+  const pages = [];
   try {
+    browser = await launch();
+    for (const [name, viewport] of VIEWPORTS) {
+      pages.push({ name, page: await browser.newPage(viewport) });
+    }
     for (const { ownerId, contract } of records) {
       for (const doc of contract.documentation ?? []) {
         const route = documentationRoute(ownerId, doc.href);
@@ -110,9 +155,15 @@ export async function validateReferenceContractsInBrowser(records) {
       }
     }
   } finally {
+    for (const { page } of pages) {
+      try {
+        await page.close();
+      } catch {
+        // Continue closing the other page and browser.
+      }
+    }
     try {
-      for (const { page } of pages) await page.close();
-      await browser.close();
+      await browser?.close();
     } catch {
       // Best-effort cleanup.
     }
