@@ -416,7 +416,7 @@ export function isLocalNavigation(url) {
 // namespaces are commonly unavailable and the sandboxed launch fails outright. Enabling it by
 // default would trade a hard gate failure for marginal protection given the whitelist above.
 // Chrome writes this file inside its unique profile only after --remote-debugging-port=0
-// successfully binds. Unlike freePort() followed by close/rebind, it names THIS child's port.
+// successfully binds. Unlike a probe-and-close followed by rebind, it names THIS child's port.
 export async function ownedDevToolsPort(userDataDir) {
   let content;
   try {
