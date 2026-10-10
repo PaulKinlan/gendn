@@ -1,4 +1,10 @@
-import { captureExpression, compareSnapshots, selectRoutes, VIEWPORTS } from "./lib/css-drift.mjs";
+import {
+  captureExpression,
+  compareSnapshots,
+  selectChangedRoutes,
+  selectRoutes,
+  VIEWPORTS,
+} from "./lib/css-drift.mjs";
 
 function assert(ok, reason) {
   if (!ok) throw new Error(reason);
@@ -14,6 +20,36 @@ assert(
   "absolute route selection",
 );
 assert(captureExpression().includes("getComputedStyle"), "browser collects computed CSS");
+const nested = ["/v147/a/", "/v147/a/member/", "/v148/b/"];
+assert(
+  JSON.stringify(selectChangedRoutes(nested, ["v147/a/index.html"])) ===
+    JSON.stringify(nested.slice(0, 1)),
+  "changed leaf selects only its route",
+);
+assert(
+  JSON.stringify(selectChangedRoutes(nested, ["v147/a/local.css"])) ===
+    JSON.stringify(nested.slice(0, 2)),
+  "changed parent asset includes nested routes",
+);
+assert(
+  JSON.stringify(selectChangedRoutes(nested, ["v147/a/member/index.html", "v148/b/index.html"])) ===
+    JSON.stringify([nested[1], nested[2]]),
+  "changed member and another leaf select their exact routes",
+);
+for (
+  const paths of [[], ["public/styles.css"], ["v149/new/index.html"], [
+    "v147/a/index.html",
+    "server.ts",
+  ]]
+) {
+  let refused = false;
+  try {
+    selectChangedRoutes(nested, paths);
+  } catch {
+    refused = true;
+  }
+  assert(refused, `unsafe changed set must fail closed: ${JSON.stringify(paths)}`);
+}
 for (const pattern of ["", "v199/*", "../*"]) {
   let refused = false;
   try {
@@ -85,6 +121,13 @@ try {
   if (!(error instanceof Deno.errors.NotFound)) throw error;
 }
 try {
+  const unsafe = await run("--record", name, "--changed");
+  assert(
+    unsafe.code === 2 &&
+      (unsafe.err.includes("cannot scope shared change") ||
+        unsafe.err.includes("--changed found no changed files")),
+    "--changed refuses shared changes or an empty diff before browser launch",
+  );
   const recorded = await run("--record", name, "--routes", route);
   assert(recorded.code === 0, `real browser record: ${JSON.stringify(recorded)}`);
   const snapshot = JSON.parse(await Deno.readTextFile(file));

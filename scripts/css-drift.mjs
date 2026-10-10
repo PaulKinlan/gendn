@@ -1,12 +1,20 @@
 // On-demand computed-style regression sweep. Baselines are uncommitted per-wave artifacts.
 // deno task css-drift --record wave-1 --routes 'v147/*'
 // deno task css-drift --compare wave-1 --routes 'v147/*'
-// Use --all instead of --routes for an explicit full-corpus run (several minutes).
+// --changed scopes to reference files changed against origin/main (including uncommitted files).
+// Use --all instead of --routes/--changed for an explicit full-corpus run (several minutes).
 // The corpus includes both published roots and nested member references: v*/**/index.html.
 // Capture the baseline on the pre-wave tree, then compare in the SAME worktree/Chrome version
 // after editing. Uncommitted reports/css-drift/ must be preserved across those two runs.
 import { launch } from "./lib/cdp.mjs";
-import { captureExpression, compareSnapshots, selectRoutes, VIEWPORTS } from "./lib/css-drift.mjs";
+import { runGit } from "./lib/bounded-git.mjs";
+import {
+  captureExpression,
+  compareSnapshots,
+  selectChangedRoutes,
+  selectRoutes,
+  VIEWPORTS,
+} from "./lib/css-drift.mjs";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const OUTPUT = `${ROOT}reports/css-drift`;
@@ -15,8 +23,10 @@ function options(args) {
   const result = {};
   for (let i = 0; i < args.length; i++) {
     const flag = args[i];
-    if (flag === "--all") result.all = true;
-    else if (["--record", "--compare", "--routes"].includes(flag)) {
+    if (flag === "--all" || flag === "--changed") {
+      if (result[flag.slice(2)]) throw new Error(`duplicate ${flag}`);
+      result[flag.slice(2)] = true;
+    } else if (["--record", "--compare", "--routes"].includes(flag)) {
       if (!args[i + 1] || args[i + 1].startsWith("--")) throw new Error(`${flag} requires a value`);
       if (result[flag.slice(2)]) throw new Error(`duplicate ${flag}`);
       result[flag.slice(2)] = args[++i];
@@ -25,8 +35,8 @@ function options(args) {
   if (!!result.record === !!result.compare) {
     throw new Error("choose exactly one of --record or --compare");
   }
-  if (!!result.all === !!result.routes) {
-    throw new Error("choose exactly one of --routes <glob/list> or --all");
+  if ([result.all, result.routes, result.changed].filter(Boolean).length !== 1) {
+    throw new Error("choose exactly one of --routes <glob/list>, --changed or --all");
   }
   const name = result.record ?? result.compare;
   if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/.test(name)) {
@@ -56,6 +66,28 @@ async function stopServer(server) {
     } catch { /* already stopped */ }
     await server.status.catch(() => {});
   }
+}
+
+async function gitOutput(args) {
+  const result = await runGit(args, { cwd: ROOT, stdout: "piped", stderr: "piped" });
+  if (result.code !== 0) throw new Error(`git ${args.join(" ")} failed: ${result.stderr.trim()}`);
+  return result.stdout;
+}
+
+async function changedPaths() {
+  // Compare the full branch plus staged/worktree edits against the PR merge-base.
+  const base = (await gitOutput(["merge-base", "origin/main", "HEAD"])).trim();
+  if (!base) throw new Error("origin/main merge-base is missing; fetch origin first");
+  const tracked = await gitOutput([
+    "diff",
+    "--name-only",
+    "--diff-filter=ACMRTD",
+    "-z",
+    base,
+    "--",
+  ]);
+  const untracked = await gitOutput(["ls-files", "--others", "--exclude-standard", "-z", "--"]);
+  return [...new Set([...tracked.split("\0"), ...untracked.split("\0")].filter(Boolean))];
 }
 
 async function discoverRoutes() {
@@ -158,9 +190,12 @@ async function sweep(routes, screenshotPrefix) {
 
 async function main() {
   const config = options(Deno.args);
+  const published = await discoverRoutes();
   const routes = config.all
-    ? await discoverRoutes()
-    : selectRoutes(await discoverRoutes(), config.routes);
+    ? published
+    : config.changed
+    ? selectChangedRoutes(published, await changedPaths())
+    : selectRoutes(published, config.routes);
   if (!routes.length) throw new Error("no published pages found; refusing an empty green sweep");
   const name = config.record ?? config.compare;
   const file = `${OUTPUT}/${name}.json`;
@@ -170,7 +205,7 @@ async function main() {
     const baselineRoutes = Object.keys(baseline.pages ?? {}).sort();
     if (JSON.stringify(baselineRoutes) !== JSON.stringify(routes)) {
       throw new Error(
-        `baseline route set differs (${baselineRoutes.length} baseline / ${routes.length} requested); use the same --routes/--all for both passes`,
+        `baseline route set differs (${baselineRoutes.length} baseline / ${routes.length} requested); use the same route set for both passes`,
       );
     }
   } else {
