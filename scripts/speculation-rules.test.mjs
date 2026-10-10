@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read --allow-env --allow-net=127.0.0.1,localhost
 // scripts/speculation-rules.test.mjs — unit tests for same-origin speculation-rules prefetch (gendn-xdw).
 //
 // Verifies:

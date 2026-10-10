@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-net=127.0.0.1 --allow-read
 // scripts/fetch-bounded.test.mjs — fixtures for the bounded upstream fetch (gendn-snd).
 //
 // Proves the two guards are real rather than paper, against a LOCAL server (no network):
@@ -17,7 +18,7 @@
 //     that bound is enforced BEFORE the hop: an off-allowlist destination receives ZERO
 //     requests (gendn-lr61 - the destination hit counter is the discriminating assertion)
 //
-// Run: deno task test-fetch-bounded  (or: deno run scripts/fetch-bounded.test.mjs)
+// Run: deno task test-fixtures --tasks test-fetch-bounded  (or: deno run --allow-net=127.0.0.1 --allow-read scripts/fetch-bounded.test.mjs)
 
 import { ALLOWED_ORIGINS, fetchBounded, readCapped } from "../lib/chromestatus.ts";
 

@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read --allow-write --allow-run --allow-net --allow-env
 // Force failures before the conformance runner opens Chrome. The gate must name its child
 // process error or startup timeout, and never mistake another server's port for readiness.
 import { spawnServer } from "./conformance.mjs";

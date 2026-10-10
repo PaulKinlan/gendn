@@ -1,4 +1,5 @@
 #!/usr/bin/env -S deno run --allow-read --allow-write
+// @fixture-permissions --allow-read --allow-write --allow-run=deno
 // scripts/conformance-report.test.mjs — the tracked responsive report must not be TRUNCATED by a
 // scoped run (gendn-jvh).
 //
@@ -14,7 +15,7 @@
 // also get a real subprocess assertion because they fail before browser boot. Importing the runner
 // is side-effect-free (`if (import.meta.main) await main()`).
 //
-// Run: deno task test-conformance-report
+// Run: deno task test-fixtures --tasks test-conformance-report
 //
 // PERMISSIONS: --allow-read for the imports and --allow-write for the temp files that pin the
 // tolerant reader's contract (a missing report, a corrupt one, and junk rows). The alternative was

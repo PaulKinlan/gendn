@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read
 // gendn-i3yx: a concept's selected URL does not imply a same-path conformance suite.
 // All replies are in-memory; failures demonstrate that missing/unrelated breadcrumbs cannot
 // silently become invented feature-root links. No live network or immutable suite rewrites.

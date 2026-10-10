@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read --allow-write --allow-run
 // gendn-8krx: a support-only edit must fail the REAL validator when an unsupported claim
 // lacks class-specific evidence. The minimal schema engine ignores if/then conditionals.
 import { loadSchema, validate } from "./lib/artifacts.mjs";

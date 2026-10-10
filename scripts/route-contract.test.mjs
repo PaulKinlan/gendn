@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read --allow-write --allow-run
 // Fast, aggregate-discovered detectors for gendn's published-route identity and gate decisions.
 // These synthetic manifests exercise both failure and harmless-change directions without git or pages
 // - with ONE exception at the end (gendn-r1q), which calls git locally against a ref that cannot

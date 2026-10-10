@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read --allow-write --allow-run --allow-net=127.0.0.1,localhost --allow-env
 // Hold a real local port while Chrome starts: port=0 must use the port THIS child bound,
 // not a close-and-rebind guess that could collide with the occupied socket.
 import { launch, ownedDevToolsPort } from "./lib/cdp.mjs";

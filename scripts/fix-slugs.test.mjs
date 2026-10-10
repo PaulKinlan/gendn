@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read --allow-write --allow-run=python3
 // scripts/fix-slugs.test.mjs — scratch-catalogue coverage for the DESTRUCTIVE maintenance
 // script .claude/fix-slugs.py (gendn-9ec).
 //
@@ -26,7 +27,7 @@
 // script diff. A suite that has never been shown to fail on a plausible wrong implementation
 // is a claim, not a detector.
 //
-// Run: deno task test-fix-slugs
+// Run: deno task test-fixtures --tasks test-fix-slugs
 
 const REPO = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
 const SCRIPT = `${REPO}/.claude/fix-slugs.py`;

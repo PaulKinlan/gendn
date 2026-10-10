@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read --allow-write --allow-run --allow-net --allow-env
 // scripts/check-conformance.test.mjs — staged-then-reverted declared-surface checks in check-conformance (gendn-rtvp).
 //
 // When an HTML surface change is staged and the working tree is reverted to baseline (git status MM),

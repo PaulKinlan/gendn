@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read --allow-net=127.0.0.1
 // scripts/mdn-has.test.mjs — the gendn-5fk acceptance fixture.
 //
 // The finding: lib/mdn.ts issued `fetch(url, { method: "HEAD" })` with no timeout and no size
@@ -19,7 +20,7 @@
 //      are hardcoded hrefs, and the routine prompt writes its MDN URLs by hand. See the gendn-76k
 //      note beside the pins for why that matters.)
 //
-// Run: deno task test-mdn-has   (or: deno run --allow-read scripts/mdn-has.test.mjs)
+// Run: deno task test-fixtures --tasks test-mdn-has (includes deno check lib/mdn.ts first)
 
 import { mdnApiUrl, mdnCssUrl, mdnHas } from "../lib/mdn.ts";
 

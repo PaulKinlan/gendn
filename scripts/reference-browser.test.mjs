@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read --allow-write --allow-run --allow-net --allow-env
 import { validateReferenceContractsInBrowser } from "./lib/reference-browser.mjs";
 import { REQUIRED_DIMENSIONS } from "./lib/reference-contract.mjs";
 

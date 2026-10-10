@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-env=CHROMESTATUS_BASE,PORT --allow-net=127.0.0.1 --allow-read --allow-run=python3 --allow-write=v141
 // scripts/chromestatus-units.test.mjs — direct unit coverage for lib/chromestatus.ts (gendn-14o).
 //
 // THE GAP: fetchBounded/readCapped already have the fetch-bounded fixture, but getJson's XSSI
@@ -30,7 +31,7 @@
 // would rename published routes, so the divergence is recorded, tested as-is, and reported on the
 // bead rather than "fixed" here.
 //
-// Run: deno task test-chromestatus-units
+// Run: deno task test-fixtures --tasks test-chromestatus-units
 
 const REPO = new URL("..", import.meta.url).pathname;
 
