@@ -45,13 +45,6 @@ function options(args) {
   return result;
 }
 
-function freePort() {
-  const listener = Deno.listen({ hostname: "127.0.0.1", port: 0 });
-  const port = listener.addr.port;
-  listener.close();
-  return port;
-}
-
 async function stopServer(server) {
   try {
     server.kill("SIGTERM");
@@ -114,8 +107,8 @@ async function discoverRoutes() {
   return routes.sort();
 }
 
-// A guessed port can collide with another lane, misreport its startup failure as CSS drift, or
-// silently sample that other server. PORT=0 and this child's own listening line establish ownership.
+// A guessed server port can collide with another lane or silently sample the wrong server.
+// PORT=0 and this child's own listening line establish ownership (gendn-f0o3).
 export async function spawnCssServer({ script = "server.ts", startupTimeoutMs = 30_000 } = {}) {
   const child = new Deno.Command(Deno.execPath(), {
     args: ["run", "--allow-net", "--allow-read", "--allow-env", script],
@@ -187,7 +180,6 @@ export async function spawnCssServer({ script = "server.ts", startupTimeoutMs = 
 }
 
 async function sweep(routes, screenshotPrefix) {
-  const cdpPort = freePort();
   const { child: server, base, port: serverPort } = await spawnCssServer();
   let browser;
   let viewPages = {};
@@ -198,7 +190,7 @@ async function sweep(routes, screenshotPrefix) {
       // Recycle Chrome every 40 routes, as the conformance sweep does, to bound long-run memory.
       if (index % 40 === 0) {
         await browser?.close();
-        browser = await launch({ port: cdpPort });
+        browser = await launch({ port: 0 });
         await browser.connect();
         const version = (await browser.conn.send("Browser.getVersion")).product;
         if (chromeVersion && version !== chromeVersion) {
