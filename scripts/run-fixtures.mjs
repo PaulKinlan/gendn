@@ -291,7 +291,12 @@ export function isAggregateTaskCommand(command) {
 export function discoverFixtures(files, tasks) {
   const fixtures = new Map();
   for (const file of files) {
-    if (!/^[a-z0-9][a-z0-9-]*\.test\.mjs$/.test(file)) continue;
+    if (!file.endsWith(".test.mjs")) continue;
+    if (!/^[a-z0-9][a-z0-9-]*\.test\.mjs$/.test(file)) {
+      throw new Error(
+        `invalid fixture filename ${file}; use lowercase letters, digits and hyphens`,
+      );
+    }
     const stem = file.slice(0, -".test.mjs".length);
     // CI's historical direct task name differs from its checker fixture filename.
     const name = stem === "check-verdict-emission" ? "test-verdict-emission" : `test-${stem}`;

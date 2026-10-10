@@ -194,6 +194,17 @@ try {
         "deno task test-reference-contract",
   );
   assert(
+    "a .test.mjs file with an invalid task name fails closed rather than disappearing",
+    (() => {
+      try {
+        discoverFixtures(["oops_name.test.mjs"], {});
+        return false;
+      } catch (error) {
+        return error.message.includes("oops_name.test.mjs");
+      }
+    })(),
+  );
+  assert(
     "missing and invalid per-file permission metadata refuse a permissive default",
     fixturePermissions("// @fixture-permissions --allow-read\n", "good.test.mjs") ===
         "--allow-read" &&
