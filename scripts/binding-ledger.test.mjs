@@ -174,6 +174,7 @@ try {
       "lib/artifacts.mjs",
       "lib/plain-corpus-path.mjs",
       "lib/bounded-git.mjs",
+      "lib/map-pool.mjs",
       "lib/judged-content.mjs",
       "lib/binding-ledger.mjs",
     ]

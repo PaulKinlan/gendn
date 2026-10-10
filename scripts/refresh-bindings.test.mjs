@@ -153,6 +153,9 @@ try {
   const boundedGitSource = await Deno.readTextFile(
     new URL("./lib/bounded-git.mjs", import.meta.url),
   );
+  const mapPoolSource = await Deno.readTextFile(
+    new URL("./lib/map-pool.mjs", import.meta.url),
+  );
   const judgedContentSource = await Deno.readTextFile(
     new URL("./lib/judged-content.mjs", import.meta.url),
   );
@@ -171,6 +174,7 @@ try {
   await Deno.writeTextFile(`${tempLibDir}/artifacts.mjs`, artifactsSource);
   await Deno.writeTextFile(`${tempLibDir}/plain-corpus-path.mjs`, plainCorpusPathSource);
   await Deno.writeTextFile(`${tempLibDir}/bounded-git.mjs`, boundedGitSource);
+  await Deno.writeTextFile(`${tempLibDir}/map-pool.mjs`, mapPoolSource);
   await Deno.writeTextFile(`${tempLibDir}/judged-content.mjs`, judgedContentSource);
 
   // Set up synthetic test pages

@@ -19,6 +19,7 @@
 
 import { launch } from "./lib/cdp.mjs";
 import { PENDING_HARDENING } from "./lib/iframe-posture.mjs";
+import { mapPool, PAGE_CONCURRENCY } from "./lib/map-pool.mjs";
 
 const REPO = new URL("..", import.meta.url).pathname;
 const SHOWCASE = "https://chrome-platform-showcase.paulkinlan-ea.deno.net";
@@ -75,21 +76,31 @@ for await (const e of Deno.readDir(REPO)) {
     for await (const rel of walkHtml(`${REPO}${e.name}`, e.name)) pages.push(rel);
   }
 }
-const embeds = []; // { route, src, file, pending }
 const pendingFiles = new Set(PENDING_HARDENING.map((p) => p.file));
-for (const rel of pages) {
-  const text = await Deno.readTextFile(`${REPO}${rel}`);
-  for (const m of text.matchAll(/<iframe\b[^>]*>/gs)) {
-    const src = /src="([^"]+)"/.exec(m[0])?.[1];
-    if (src) {
-      embeds.push({
-        route: `/${rel.replace(/index\.html$/, "")}`,
-        src,
-        file: rel,
-        pending: pendingFiles.has(rel),
-      });
+const perPage = await mapPool(pages, PAGE_CONCURRENCY, async (rel) => {
+  try {
+    const text = await Deno.readTextFile(`${REPO}${rel}`);
+    const embeds = [];
+    for (const m of text.matchAll(/<iframe\b[^>]*>/gs)) {
+      const src = /src="([^"]+)"/.exec(m[0])?.[1];
+      if (src) {
+        embeds.push({
+          route: `/${rel.replace(/index\.html$/, "")}`,
+          src,
+          file: rel,
+          pending: pendingFiles.has(rel),
+        });
+      }
     }
+    return { embeds };
+  } catch (error) {
+    return { error };
   }
+});
+const embeds = []; // { route, src, file, pending } — preserve page and iframe source order
+for (const result of perPage) {
+  if (result.error) throw result.error;
+  embeds.push(...result.embeds);
 }
 const deferred = embeds.filter((e) => e.pending);
 const hardened = embeds.filter((e) => !e.pending);
