@@ -14,10 +14,11 @@ const VIEWPORTS = [
 // The port is assigned by the OS, and readiness comes from THIS child's own startup line.
 // Probing a guessed port could otherwise accept another lane's healthy server while this child
 // has already failed; discarding its stderr hid the actual startup cause (gendn-4ok7).
-export async function spawnServer({ script = "server.ts", startupTimeoutMs = 30_000 } = {}) {
+export async function spawnServer({ script = "server.ts", startupTimeoutMs = 30_000, cwd } = {}) {
   const child = new Deno.Command("deno", {
     args: ["run", "--allow-net", "--allow-read", "--allow-env", script],
     env: { ...Deno.env.toObject(), PORT: "0" },
+    ...(cwd ? { cwd } : {}),
     stdout: "piped",
     stderr: "piped",
   }).spawn();
