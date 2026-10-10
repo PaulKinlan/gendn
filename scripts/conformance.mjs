@@ -48,37 +48,88 @@ function sameOrigin(url, origin) {
 
 // ---------- server boot ----------
 
-async function spawnServer(port) {
-  const cmd = new Deno.Command("deno", {
-    args: ["run", "--allow-net", "--allow-read", "--allow-env", "server.ts"],
+// PORT=0 lets the OS choose a unique port on the first boot. A restart intentionally reuses the
+// same assigned port: ctx.base/origin are already held by the ongoing browser run. Readiness must
+// be announced by THIS child, not inferred by probing another lane's server on a guessed port.
+export async function spawnServer(
+  port = 0,
+  { script = "server.ts", startupTimeoutMs = 30_000 } = {},
+) {
+  const child = new Deno.Command("deno", {
+    args: ["run", "--allow-net", "--allow-read", "--allow-env", script],
     env: { ...Deno.env.toObject(), PORT: String(port) },
-    stdout: "null",
-    stderr: "null",
+    stdout: "piped",
+    stderr: "piped",
+  }).spawn();
+  let stdout = "", stderr = "", resolveReady;
+  const ready = new Promise((resolve) => resolveReady = resolve);
+  const capture = (stream, onText) => {
+    const decoder = new TextDecoder();
+    return stream.pipeTo(
+      new WritableStream({
+        write(bytes) {
+          onText(decoder.decode(bytes, { stream: true }));
+        },
+      }),
+    ).catch(() => {});
+  };
+  const stdoutDone = capture(child.stdout, (text) => {
+    stdout = (stdout + text).slice(-4096);
+    const match = stdout.match(/Listening on http:\/\/localhost:(\d+)/);
+    if (match) resolveReady(Number(match[1]));
   });
-  const child = cmd.spawn();
-  const base = `http://localhost:${port}`;
-  for (let i = 0; i < 120; i++) {
-    try {
-      const res = await fetch(`${base}/`);
-      const ok = res.ok;
-      await res.body?.cancel();
-      if (ok) return { child, base, origin: base, port };
-    } catch {
-      // not ready
-    }
-    await new Promise((r) => setTimeout(r, 100));
-  }
+  const stderrDone = capture(child.stderr, (text) => stderr = (stderr + text).slice(-4096));
+  let exited = null;
+  const status = child.status.then((value) => exited = value);
+  let timer;
   try {
-    child.kill();
-  } catch {
-    // ignore
+    const first = await Promise.race([
+      ready.then((listeningPort) => ({ listeningPort })),
+      status.then((exit) => ({ exit })),
+      new Promise((resolve) => {
+        timer = setTimeout(() => resolve({ timeout: true }), startupTimeoutMs);
+      }),
+    ]);
+    if (!first.listeningPort) {
+      throw new Error(
+        first.timeout
+          ? `startup timed out after ${startupTimeoutMs}ms`
+          : "child exited before listening",
+      );
+    }
+    if (port && first.listeningPort !== port) {
+      throw new Error(
+        `child listened on port ${first.listeningPort}, expected restart port ${port}`,
+      );
+    }
+    const base = `http://localhost:${first.listeningPort}`;
+    const res = await fetch(`${base}/`, { signal: AbortSignal.timeout(15_000) });
+    const ok = res.ok;
+    await res.body?.cancel();
+    if (!ok) throw new Error(`readiness GET / returned HTTP ${res.status}`);
+    return { child, base, origin: base, port: first.listeningPort };
+  } catch (error) {
+    if (!exited) {
+      try {
+        child.kill("SIGKILL");
+      } catch {
+        // Already stopped.
+      }
+    }
+    await status;
+    await Promise.all([stdoutDone, stderrDone]);
+    throw new Error(
+      `gendn server did not start: ${error.message}; ` +
+        `child ${exited?.signal ? `signal ${exited.signal}` : `exit ${exited?.code}`}; ` +
+        `stderr: ${stderr.trim() || "(empty)"}; stdout: ${stdout.trim() || "(empty)"}`,
+    );
+  } finally {
+    clearTimeout(timer);
   }
-  throw new Error("gendn server did not start");
 }
 
 async function startServer() {
-  const port = 3200 + Math.floor(Math.random() * 400);
-  return await spawnServer(port);
+  return await spawnServer();
 }
 
 // Health-check the long-lived server; if it died (cumulative resource pressure over a full 155-page
