@@ -270,6 +270,9 @@ try {
     }
     await server.status.catch(() => {});
   }
+  if (cdpPort === null) {
+    console.error("teardown: Chrome never assigned a DevTools port; launch failure remains fatal");
+  }
   let listenersLeft = 0;
   for (const port of [serverPort, cdpPort].filter(Number.isInteger)) {
     try {
