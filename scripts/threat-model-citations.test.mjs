@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read
 // scripts/threat-model-citations.test.mjs — the citation-resolution guard for THREAT_MODEL.md
 // (gendn-zoq).
 //
@@ -31,7 +32,7 @@
 // Cwd-independent: the repo root is resolved from import.meta.url, so the fixture proves the
 // same thing from any working directory (the 4l6/6q3 lesson).
 //
-// Run: deno task test-threat-model-citations  (or: deno run --allow-read scripts/threat-model-citations.test.mjs)
+// Run: deno task test-fixtures --tasks test-threat-model-citations  (or: deno run --allow-read scripts/threat-model-citations.test.mjs)
 
 const ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
 const join = (...p) => `${ROOT}/${p.join("/")}`;

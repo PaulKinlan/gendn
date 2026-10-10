@@ -415,6 +415,27 @@ export function isLocalNavigation(url) {
 // (verified as uid 1000), but the gates also run in CI/containers where unprivileged user
 // namespaces are commonly unavailable and the sandboxed launch fails outright. Enabling it by
 // default would trade a hard gate failure for marginal protection given the whitelist above.
+// Chrome writes this file inside its unique profile only after --remote-debugging-port=0
+// successfully binds. Unlike a probe-and-close followed by rebind, it names THIS child's port.
+export async function ownedDevToolsPort(userDataDir) {
+  let content;
+  try {
+    content = await Deno.readTextFile(`${userDataDir}/DevToolsActivePort`);
+  } catch (error) {
+    if (error instanceof Deno.errors.NotFound) return null;
+    throw error;
+  }
+  const [portText, path] = content.trim().split(/\r?\n/);
+  if (!path) return null; // Chrome may still be writing the file; retry on the next probe.
+  const port = Number(portText);
+  if (
+    !Number.isInteger(port) || port < 1 || port > 65535 || !path.startsWith("/devtools/browser/")
+  ) {
+    throw new Error(`Chrome wrote an invalid DevToolsActivePort in ${userDataDir}`);
+  }
+  return port;
+}
+
 export async function launch({ port = 9333 } = {}) {
   const bins = findChrome();
   await sweepStaleProfileDirs();
@@ -454,26 +475,59 @@ export async function launch({ port = 9333 } = {}) {
     throw new Error(`could not launch Chrome (tried ${bins.join(", ")}): ${lastErr}`);
   }
 
-  // Wait for the debugging endpoint.
+  // For port=0, obtain the actual bound port from THIS Chrome profile, never a guessed socket.
+  // Explicit fixed ports retain their existing behavior for callers that deliberately request one.
   let wsUrl = null;
-  for (let i = 0; i < 100; i++) {
-    try {
-      const res = await fetch(`http://127.0.0.1:${port}/json/version`);
-      if (res.ok) {
-        wsUrl = (await res.json()).webSocketDebuggerUrl;
+  let actualPort = port;
+  let exited = null;
+  child.status.then((status) => exited = status).catch(() => {});
+  let lastFailure = "endpoint not ready";
+  try {
+    for (let i = 0; i < (port === 0 ? 300 : 100); i++) {
+      if (port === 0) {
+        const owned = await ownedDevToolsPort(userDataDir);
+        if (owned) actualPort = owned;
+        else if (exited) {
+          lastFailure = `Chrome exited before announcing its DevTools port (exit ${exited.code})`;
+          break;
+        }
+      }
+      if (port === 0 && exited) {
+        lastFailure = `Chrome exited before DevTools was ready (exit ${exited.code})`;
         break;
       }
-    } catch {
-      // not ready yet
+      if (actualPort !== 0) {
+        try {
+          const res = await fetch(`http://127.0.0.1:${actualPort}/json/version`, {
+            signal: AbortSignal.timeout(2_000),
+          });
+          if (res.ok) {
+            wsUrl = (await res.json()).webSocketDebuggerUrl;
+            break;
+          }
+          lastFailure = `DevTools HTTP ${res.status} on port ${actualPort}`;
+        } catch (error) {
+          lastFailure = `DevTools port ${actualPort} not ready: ${error.message}`;
+        }
+      }
+      await new Promise((r) => setTimeout(r, 100));
     }
-    await new Promise((r) => setTimeout(r, 100));
+  } catch (error) {
+    await terminateChild(child);
+    await removeProfileDir(userDataDir);
+    throw error;
   }
   if (!wsUrl) {
     await terminateChild(child);
     await removeProfileDir(userDataDir);
-    throw new Error("Chrome DevTools endpoint did not come up");
+    throw new Error(
+      port === 0
+        ? `Chrome did not establish its own DevTools port: ${lastFailure}; ` +
+          `DevToolsActivePort in ${userDataDir}`
+        : `Chrome DevTools endpoint did not come up on requested port ${port}: ${lastFailure}`,
+    );
   }
-  return new Browser(child, wsUrl, userDataDir, port);
+  return new Browser(child, wsUrl, userDataDir, actualPort);
 }
 
 export class Conn {

@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read --allow-write --allow-run
 // gendn-m7e fixture — SURFACE-COVERAGE ASSERTION. The defect class: a contract can pass
 // every gate while mapping a dimension to the WRONG surface (id exists, slice 40+ chars,
 // but the claimed surface is not in the slice). Origin instance: gendn-5ao's css-scroll-state
@@ -216,8 +217,8 @@ const root = Deno.cwd();
     ids.join(","),
   );
   // The ratchet must run clean on the current tree, and its vacuous flag must MATCH the
-  // git state rather than assert one state (this fixture runs pre-commit AND post-commit:
-  // base==HEAD only before the branch has commits of its own).
+  // fetched ref rather than assert one state (this fixture runs pre-commit AND post-commit:
+  // origin/main==HEAD only while the checkout is at the fetched baseline).
   const r = await runRatchet(root);
   assert(
     "ratchet: runs without error on the current tree, zero failures",
@@ -229,13 +230,13 @@ const root = Deno.cwd();
     const o = await c.output();
     return o.success ? new TextDecoder().decode(o.stdout).trim() : null;
   };
-  const mb = await gitOut(["merge-base", "origin/main", "HEAD"]);
-  const head = await gitOut(["rev-parse", "HEAD"]);
-  const expectedVacuous = mb !== null && head !== null && mb === head;
+  const fetched = await gitOut(["rev-parse", "--verify", "refs/remotes/origin/main^{commit}"]);
+  const head = await gitOut(["rev-parse", "HEAD^{commit}"]);
+  const expectedVacuous = fetched !== null && head !== null && fetched === head;
   assert(
-    "ratchet: the vacuous flag matches the git state (base==HEAD iff vacuous) - honest in both the pre-commit and post-commit tree",
+    "ratchet: the vacuous flag matches the fetched ref (origin/main==HEAD iff vacuous) - honest in both the pre-commit and post-commit tree",
     r.vacuous === expectedVacuous,
-    JSON.stringify({ vacuous: r.vacuous, expected: expectedVacuous, mb, head }),
+    JSON.stringify({ vacuous: r.vacuous, expected: expectedVacuous, fetched, head }),
   );
 }
 

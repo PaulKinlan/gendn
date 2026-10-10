@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read --allow-env=PORT
 // scripts/vary-merge.test.mjs — vary-header merging unit tests for withRevalidation (gendn-a3q).
 //
 // WHY THIS FILE EXISTS:
@@ -13,7 +14,7 @@
 // existing Vary values (e.g. "Accept-Language") and fails the assertion that checks for merged
 // "Accept-Language, accept-encoding".
 //
-// Run: deno task test-vary-merge
+// Run: deno task test-fixtures --tasks test-vary-merge
 
 import { withRevalidation } from "../server.ts";
 

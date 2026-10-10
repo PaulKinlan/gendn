@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read --allow-write --allow-run --allow-net=127.0.0.1,localhost --allow-env
 // gendn-7xq: route-derived values are escaped at interpolation; malformed request URLs are handled.
 
 // Local stub of the chromestatus API (gendn-x53) so renderFeaturesCatalogue can fetch real rows

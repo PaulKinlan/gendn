@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read --allow-write --allow-run
 // gendn-vt28: exercise the REAL validate-artifacts CLI against colocated page/suite pairs.
 // suiteHash covers assertions only; changing suite identity alone must still fail this gate.
 import { suiteHash } from "./lib/artifacts.mjs";

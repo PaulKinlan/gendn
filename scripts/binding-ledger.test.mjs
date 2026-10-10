@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read --allow-write --allow-run
 // A real check-routes subprocess in a tiny /tmp Git repo: both baseline and current manifests
 // re-use the same mutated extractor. Only the independent committed ledger can catch the shift.
 import { BINDING_LEDGER, evaluateBindingLedger } from "./lib/binding-ledger.mjs";
@@ -174,6 +175,7 @@ try {
       "lib/artifacts.mjs",
       "lib/plain-corpus-path.mjs",
       "lib/bounded-git.mjs",
+      "lib/map-pool.mjs",
       "lib/judged-content.mjs",
       "lib/binding-ledger.mjs",
     ]

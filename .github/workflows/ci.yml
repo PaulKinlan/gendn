@@ -15,7 +15,7 @@ jobs:
 
     steps:
       - name: Clone repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Deno
         uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
@@ -36,7 +36,7 @@ jobs:
 
     steps:
       - name: Clone repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # need origin/main history to derive the published baseline
 
@@ -59,7 +59,7 @@ jobs:
 
     steps:
       - name: Clone repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # need origin/main to diff assertions for the immutability check
 
@@ -77,13 +77,18 @@ jobs:
       - name: Conformance + coverage gate
         run: deno task check-conformance
 
+      # Browser-backed visibility checks are excluded from test-fixtures; run them explicitly
+      # so a hidden reference contract cannot pass every automatic gate.
+      - name: Reference-contract browser regression suite
+        run: deno task test-reference-contract
+
       # This step validates the CHECKER against synthetic logs; it is not evidence about the runner,
       # whose real output is only read at the landing gate (`deno task check-verdict-emission <log>`).
       - name: Verdict-emission checker self-test (validates the checker, not the runner)
         run: deno task test-verdict-emission
 
-      # Every fixture task deno.json declares (discovered, so a NEW fixture is enrolled
-      # automatically): see scripts/run-fixtures.mjs and the gendn-cp7 reach finding. Before this
-      # step existed, the fixture tasks were green when typed and invoked by nothing.
-      - name: Fixture suite (all discovered test-* tasks)
+      # Every scripts/*.test.mjs fixture is file-discovered with narrow per-file permission
+      # metadata; browser-backed files are listed as exclusions (the reference suite runs above).
+      # Adding a fixture file enrolls it without touching deno.json.
+      - name: Fixture suite (all discovered fixture files)
         run: deno task test-fixtures

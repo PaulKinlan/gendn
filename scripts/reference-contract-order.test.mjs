@@ -1,16 +1,16 @@
+// @fixture-permissions --allow-read --allow-write
 // Guards collectReferenceContracts' INPUT-ORDER error reporting (gendn-kq4).
 //
 // WHY THIS IS NOT JUST A BLOCK INSIDE reference-contract.test.mjs (gendn-kq4 review P1). That file is
 // chained into `test-reference-contract`, which scripts/run-fixtures.mjs EXCLUDES as browser-backed,
-// because the chain also runs cdp.test.mjs and reference-browser.test.mjs. A guard written there is
-// reached by nothing that runs automatically: .github/workflows/ci.yml never invokes that task, and the
-// aggregate fixture runner excludes it. So a revert of the behaviour guarded here would pass every gate
-// in the repo. This file is browser-free - its task needs only --allow-read/--allow-write - so it carries
-// no exclusion, and run-fixtures' auto-discovery enrols it from its `test-` task name. Same reasoning
+// because the chain also runs cdp.test.mjs and reference-browser.test.mjs. Before the dedicated CI
+// browser step was added, a guard written there was reached by nothing automatic: CI did not invoke
+// that task, and the aggregate excluded it. This file remains browser-free and aggregate-discovered
+// so its input-order guard runs without Chrome as well. Same reasoning
 // that moved the pure citation assertions into citation-canonical.test.mjs (gendn-4ck).
 //
 // THE CONTROL FOR THIS FILE IS THE RUNNER'S EXIT CODE, NOT A COUNT OF ITS PASS LINES (gendn-ijf).
-//     deno task test-reference-contract-order; echo "exit=$?"      <- the verdict is the exit code
+//     deno task test-fixtures --tasks test-reference-contract-order; echo "exit=$?"      <- the verdict is the exit code
 //
 // WHAT IT LOCKS IN. collectReferenceContracts() used to await readJson() one ownerId at a time and report
 // the FIRST failing ownerId in INPUT order. Its first concurrent form used Promise.all, which reports

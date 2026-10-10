@@ -32,6 +32,7 @@ import {
   isMdnStubHtml,
 } from "./lib/artifacts.mjs";
 import { runGit } from "./lib/bounded-git.mjs";
+import { GIT_CONCURRENCY, mapPool } from "./lib/map-pool.mjs";
 import { readJudgedFile } from "./lib/judged-content.mjs";
 
 export const PAGE_RE = /^v\d+\/[^/]+\/index\.html$/;
@@ -74,12 +75,18 @@ async function runGitChecked(args) {
 async function collectFromRef(ref) {
   const tree = await runGitChecked(["ls-tree", "-r", "--name-only", ref]);
   const pages = tree.split("\n").filter((p) => PAGE_RE.test(p)).sort();
-  const entries = [];
-  for (const pagePath of pages) {
-    const html = await runGitChecked(["show", `${ref}:${pagePath}`]);
-    entries.push(pathToIdentityFields(pagePath, html));
-  }
-  return entries;
+  // mapPool returns input order; capture failures per page and report the first by that same
+  // order rather than whichever concurrent git show happened to reject first.
+  const results = await mapPool(pages, GIT_CONCURRENCY, async (pagePath) => {
+    try {
+      const html = await runGitChecked(["show", `${ref}:${pagePath}`]);
+      return { entry: pathToIdentityFields(pagePath, html) };
+    } catch (error) {
+      return { error };
+    }
+  });
+  for (const result of results) if (result.error) throw result.error;
+  return results.map(({ entry }) => entry);
 }
 
 async function collectFromWorkingTree(root = ".") {

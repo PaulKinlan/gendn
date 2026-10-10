@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read --allow-write --allow-net --allow-run
 // scripts/vendor-fonts.test.mjs — the gendn-dmz acceptance fixture.
 //
 // THE DEFECT: vendor-fonts.mjs accepted any HTTP 200 from the css2 endpoint, so a degenerate
@@ -19,7 +20,7 @@
 // byte-unchanged — never a partial install — and a static sweep backstops the invariant so a
 // new bare `fetch(` cannot land in the repo's scripts quietly.
 //
-// Run: deno task test-vendor-fonts
+// Run: deno task test-fixtures --tasks test-vendor-fonts
 
 const REPO = new URL("..", import.meta.url).pathname;
 const REAL_SHEET = `${REPO}public/styles.css`;
@@ -766,7 +767,7 @@ try {
   );
 
   // 6b. LIVE (the INTERNET's state, opt-in): compares the repo sheet to Google Fonts right now.
-  // Run `deno task test-vendor-fonts --live` deliberately. A red here means UPSTREAM CHANGED (run
+  // Run `deno run --allow-read --allow-write --allow-net --allow-run scripts/vendor-fonts.test.mjs --live` deliberately. A red here means UPSTREAM CHANGED (run
   // `deno task vendor-fonts` to re-vendor), not that the repo is broken; it is not in the aggregate
   // because a transient upstream mismatch must not red every lane (gendn-c6w).
   if (!Deno.args.includes("--live")) {

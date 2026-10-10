@@ -19,6 +19,7 @@
 
 import { launch } from "./lib/cdp.mjs";
 import { PENDING_HARDENING } from "./lib/iframe-posture.mjs";
+import { mapPool, PAGE_CONCURRENCY } from "./lib/map-pool.mjs";
 
 const REPO = new URL("..", import.meta.url).pathname;
 const SHOWCASE = "https://chrome-platform-showcase.paulkinlan-ea.deno.net";
@@ -54,13 +55,6 @@ function assert(name, ok, detail = "") {
   }
 }
 
-function freePort() {
-  const l = Deno.listen({ port: 0 });
-  const { port } = l.addr;
-  l.close();
-  return port;
-}
-
 // --- discover the pages that embed iframes (same tree walk as the guard fixture) -------
 async function* walkHtml(dir, prefix) {
   for await (const e of Deno.readDir(dir)) {
@@ -75,21 +69,31 @@ for await (const e of Deno.readDir(REPO)) {
     for await (const rel of walkHtml(`${REPO}${e.name}`, e.name)) pages.push(rel);
   }
 }
-const embeds = []; // { route, src, file, pending }
 const pendingFiles = new Set(PENDING_HARDENING.map((p) => p.file));
-for (const rel of pages) {
-  const text = await Deno.readTextFile(`${REPO}${rel}`);
-  for (const m of text.matchAll(/<iframe\b[^>]*>/gs)) {
-    const src = /src="([^"]+)"/.exec(m[0])?.[1];
-    if (src) {
-      embeds.push({
-        route: `/${rel.replace(/index\.html$/, "")}`,
-        src,
-        file: rel,
-        pending: pendingFiles.has(rel),
-      });
+const perPage = await mapPool(pages, PAGE_CONCURRENCY, async (rel) => {
+  try {
+    const text = await Deno.readTextFile(`${REPO}${rel}`);
+    const embeds = [];
+    for (const m of text.matchAll(/<iframe\b[^>]*>/gs)) {
+      const src = /src="([^"]+)"/.exec(m[0])?.[1];
+      if (src) {
+        embeds.push({
+          route: `/${rel.replace(/index\.html$/, "")}`,
+          src,
+          file: rel,
+          pending: pendingFiles.has(rel),
+        });
+      }
     }
+    return { embeds };
+  } catch (error) {
+    return { error };
   }
+});
+const embeds = []; // { route, src, file, pending } — preserve page and iframe source order
+for (const result of perPage) {
+  if (result.error) throw result.error;
+  embeds.push(...result.embeds);
 }
 const deferred = embeds.filter((e) => e.pending);
 const hardened = embeds.filter((e) => !e.pending);
@@ -117,45 +121,26 @@ if (checkCorpus) {
   Deno.exit(0);
 }
 
-const serverPort = freePort();
-const cdpPort = freePort();
 await Deno.mkdir(OUT, { recursive: true });
 try {
   Deno.removeSync(RESULTS);
 } catch {
   // absent is fine
 }
-const server = new Deno.Command(Deno.execPath(), {
-  args: ["run", "--allow-net", "--allow-read", "--allow-env", "server.ts"],
-  env: { ...Deno.env.toObject(), PORT: String(serverPort) },
-  cwd: REPO,
-  stdout: "null",
-  stderr: "null",
-}).spawn();
-const base = `http://localhost:${serverPort}`;
+// Import only after the Chrome-free corpus preflight; its copied fixture does not need the
+// browser/contract module graph. Reuse the gate's child-owned PORT=0 startup and diagnostics.
+const { spawnServer } = await import("./lib/reference-browser.mjs");
+const started = await spawnServer({ cwd: REPO });
+const server = started.child;
+const base = started.base;
+const serverPort = Number(new URL(base).port);
 
 let browser = null;
+let cdpPort = null;
 const frameErrors = new Map(); // sessionId -> string[]
 try {
-  // readiness poll of the server THIS script spawned (loopback, bounded by the attempt count)
-  let up = false;
-  for (let i = 0; i < 120; i++) {
-    try {
-      const r = await fetch(`${base}/`, { signal: AbortSignal.timeout(2000) });
-      if (r.ok) {
-        up = true;
-        await r.body?.cancel();
-        break;
-      }
-      await r.body?.cancel();
-    } catch {
-      // not ready
-    }
-    await new Promise((r) => setTimeout(r, 250));
-  }
-  if (!up) throw new Error("gendn server did not come up");
-
-  browser = await launch({ port: cdpPort });
+  browser = await launch({ port: 0 });
+  cdpPort = browser.port;
   await browser.connect();
   // Global listener: collect uncaught exceptions/console errors per CDP session (incl. OOPIFs).
   browser.conn.on((msg) => {
@@ -285,8 +270,11 @@ try {
     }
     await server.status.catch(() => {});
   }
+  if (cdpPort === null) {
+    console.error("teardown: Chrome never assigned a DevTools port; launch failure remains fatal");
+  }
   let listenersLeft = 0;
-  for (const port of [serverPort, cdpPort]) {
+  for (const port of [serverPort, cdpPort].filter(Number.isInteger)) {
     try {
       const c = await Deno.connect({ port, hostname: "127.0.0.1" });
       c.close();
@@ -296,9 +284,9 @@ try {
     }
   }
   console.log(
-    `teardown: server child exited=${
-      status !== "timeout"
-    }, ports ${serverPort}/${cdpPort} still listening=${listenersLeft}`,
+    `teardown: server child exited=${status !== "timeout"}, ports ${serverPort}/${
+      cdpPort ?? "not-assigned"
+    } still listening=${listenersLeft}`,
   );
   if (listenersLeft > 0) {
     failures++;

@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read
 // gendn-r3m — EXECUTABLE CHECK FOR SOURCE-DISAGREEMENT HANDLING (rule 92's third shape).
 //
 // The campaign distinguishes three contradiction shapes: a document contradicting ITSELF
@@ -63,7 +64,7 @@
 // Each restored to green. A check that cannot fail on a silently dropped side is a claim, not
 // a detector (rule 64: the signal must be shown to fire on the shape it was added for).
 //
-// Run: deno task test-source-disagreement
+// Run: deno task test-fixtures --tasks test-source-disagreement
 
 const PAGES = [
   {

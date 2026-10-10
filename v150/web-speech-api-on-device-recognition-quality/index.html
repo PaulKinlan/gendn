@@ -6,12 +6,10 @@
   <title>Web Speech API: On-Device Recognition Quality — Chrome 150 — gendn</title>
   <link rel="stylesheet" href="/public/styles.css">
   <style>
-    .doc-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; }
-    .doc-table th, .doc-table td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
+    .doc-table { margin: 1rem 0; font-size: 0.85rem; }
     .doc-table th { background: var(--bg-stone); font-weight: 600; }
     .doc-table tr:last-child td { border-bottom: none; }
     .doc-table code { background: transparent; border: none; padding: 0; }
-    .citation { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: -0.25rem; margin-bottom: 1.5rem; display: block; }
   </style>
 </head>
 <body>
@@ -21,7 +19,7 @@
   <header class="lede-block">
     <p class="eyebrow">v150 · web api · shipped</p>
     <h1>Web Speech API: On-Device Recognition Quality</h1>
-    <p class="lede">A new <code>quality</code> property on <code>SpeechRecognitionOptions</code> that lets developers declare the semantic complexity of their use case — command, dictation, or conversation — so the browser can match the on-device speech model to the task and report whether a model of sufficient quality is available. Ships in Chrome 150 on desktop.</p>
+    <p class="lede">A new <code>quality</code> member of the <code>SpeechRecognitionOptions</code> dictionary that lets developers request the semantic capability of an on-device speech model — command, dictation, or conversation — when checking availability or installing language packs. Ships in Chrome 150 on desktop.</p>
   </header>
 
   <section>
@@ -42,12 +40,15 @@
   </section>
 
   <section>
-    <h2>the quality property</h2>
+    <h2>the quality option</h2>
 
     <h3 id="syntax">syntax</h3>
-<pre><code>const recognition = new SpeechRecognition();
-recognition.processLocally = true;     // required for quality to apply
-recognition.quality = "command";       // "command" | "dictation" | "conversation"</code></pre>
+<pre><code>const availability = await SpeechRecognition.available({
+  langs: ["en-US"],
+  processLocally: true,
+  quality: "command", // "command" | "dictation" | "conversation"
+});</code></pre>
+    <p><code>quality</code> belongs to the <code>SpeechRecognitionOptions</code> argument of <code>SpeechRecognition.available()</code> and <code>SpeechRecognition.install()</code>, not to a <code>SpeechRecognition</code> instance. The dictionary defaults to <code>"command"</code> when quality is omitted. <a href="https://webaudio.github.io/web-speech-api/#dictdef-speechrecognitionoptions" target="_blank" rel="noopener">Source: Web Speech API, SpeechRecognitionOptions dictionary</a>.</p>
 
     <h3>quality values</h3>
     <table class="doc-table">
@@ -56,7 +57,7 @@ recognition.quality = "command";       // "command" | "dictation" | "conversatio
       <tr><td><code>"dictation"</code></td><td>Free-form text entry — composing messages, notes, form fields</td><td>Medium; handles full vocabulary</td></tr>
       <tr><td><code>"conversation"</code></td><td>Extended back-and-forth dialogue — meeting transcription, interviews</td><td>Heaviest; context-aware, most accurate</td></tr>
     </table>
-    <p>When <code>processLocally</code> is <code>false</code> or unset, the <code>quality</code> property is ignored — quality selection for cloud models is handled by the service.</p>
+    <p>Set <code>processLocally: true</code> in an availability check to require on-device recognition. <code>quality</code> sets the requested model capability floor; it does not configure the recognition instance. <a href="https://webaudio.github.io/web-speech-api/#dom-speechrecognition-available" target="_blank" rel="noopener">Source: Web Speech API, available(options)</a>.</p>
     <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/69694ed0.050a0220.f8796.0337.GAE%40google.com" target="_blank" rel="noopener">Intent to Prototype thread, blink-dev, January 2026</a>.</span>
   </section>
 
@@ -64,45 +65,40 @@ recognition.quality = "command";       // "command" | "dictation" | "conversatio
     <h2>checking model availability</h2>
     <p>The static <code>SpeechRecognition.available()</code> method (shipping Chrome 150) accepts quality options so sites can confirm a suitable model is installed before starting recognition:</p>
 <pre><code>const availability = await SpeechRecognition.available({
-  lang: "en-US",
+  langs: ["en-US"],
   processLocally: true,
   quality: "dictation",
 });
 
-if (availability === "no") {
-  // No local dictation-quality model. Offer to install or fall back.
-  await SpeechRecognition.install({ lang: "en-US", quality: "dictation" });
+if (availability === "downloadable") {
+  // Offer an install control; only after user consent, call:
+  // await SpeechRecognition.install({ langs: ["en-US"], quality: "dictation" });
+  // Recheck availability after installation.
 } else if (availability === "available") {
-  // Model ready — start recognition.
-  recognition.start();
+  // A local model matching the requested quality is ready.
 }</code></pre>
-    <p>The returned value is one of <code>"readily"</code>, <code>"available"</code> (download needed), or <code>"no"</code> (device cannot support this quality).</p>
+    <p>The spec defines <code>"unavailable"</code>, <code>"downloadable"</code>, <code>"downloading"</code>, and <code>"available"</code>. <a href="https://webaudio.github.io/web-speech-api/#availability-status-values" target="_blank" rel="noopener">Source: Web Speech API, AvailabilityStatus values</a>.</p>
   </section>
 
   <section>
     <h2>example: falling back gracefully</h2>
-<pre><code>const recognition = new SpeechRecognition();
-recognition.lang = "en-US";
-recognition.processLocally = true;
-recognition.quality = "dictation";
-
-const avail = await SpeechRecognition.available({
-  lang: "en-US",
-  processLocally: true,
-  quality: "dictation",
+<pre><code>const availability = await SpeechRecognition.available({
+  langs: ["en-US"], processLocally: true, quality: "dictation",
 });
 
-if (avail === "no") {
-  // Device cannot support dictation-quality locally.
-  // Fall back to cloud or command-quality model.
-  recognition.processLocally = false;
-  recognition.quality = "command";
-}
-
-recognition.onresult = (e) => {
-  textarea.value += e.results[0][0].transcript;
-};
-recognition.start();</code></pre>
+if (availability === "available") {
+  const recognition = new SpeechRecognition();
+  recognition.lang = "en-US";
+  recognition.processLocally = true;
+  recognition.onresult = (event) => {
+    console.log(event.results[0][0].transcript);
+  };
+  recognition.start();
+} else {
+  // Explain unavailable/downloading/downloadable status; ask before installing
+  // a language pack or using a remote speech service.
+  console.log(`Local dictation: ${availability}`);
+}</code></pre>
   </section>
 
   <section>

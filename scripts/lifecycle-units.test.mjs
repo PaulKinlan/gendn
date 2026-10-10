@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read --allow-write --allow-run=deno
 // scripts/lifecycle-units.test.mjs — direct renderer coverage for lib/lifecycle.ts (gendn-lny).
 //
 // THE GAP: /conformance, /conformance/run-all, /v<N>/<slug>/conformance and .../critique
@@ -38,7 +39,7 @@
 // one level up. It is now the s-status ROW alone, and the suite-wide check is a separate assertion
 // whose name says AGGREGATE.
 //
-// Run: deno task test-lifecycle-units
+// Run: deno task test-fixtures --tasks test-lifecycle-units
 
 const REPO = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
 const LIB = `file://${REPO}/lib/lifecycle.ts`;
@@ -74,15 +75,15 @@ await Deno.writeTextFile(
   `${tmp}/v900/evil/conformance.json`,
   j({
     id: "v900/evil",
-    route: "/v900/evil/",
+    route: "javascript:alert(4)//",
     identity: `1234${EVIL}`,
     milestone: 900,
     status: `built${EVIL}`,
     demo: null,
     cpsFeature: {
-      host: `showcase.test${EVIL_ATTR}`,
+      host: `chrome-platform-showcase.paulkinlan-ea.deno.net.evil.test`,
       route: "/x/",
-      conformanceRoute: `/x/conformance/${EVIL}`,
+      conformanceRoute: "/v900/evil/conformance",
       note: "n",
     },
     suiteHash: "ab".repeat(32),
@@ -114,7 +115,7 @@ await Deno.writeTextFile(
   `${tmp}/v900/evil/_questions.json`,
   j({
     id: `v900/evil${EVIL}`,
-    route: `/v900/evil/${EVIL_ATTR}`,
+    route: `//evil.test/${EVIL_ATTR}`,
     identity: "1234",
     status: "critiqued",
     revision: 1,
@@ -148,7 +149,12 @@ await Deno.writeTextFile(
     milestone: 900,
     status: "built",
     demo: null,
-    cpsFeature: null,
+    cpsFeature: {
+      host: "chrome-platform-showcase.paulkinlan-ea.deno.net",
+      route: "/v900/ok/",
+      conformanceRoute: "/v900/ok/conformance",
+      note: "verified",
+    },
     suiteHash: "cd".repeat(32),
     generatedAt: "2026-01-01",
     author: "gendn",
@@ -423,6 +429,34 @@ assert(
   R.index.includes('href="https://chromestatus.com/feature/4321"'),
 );
 
+// ---------- link narrowing: malicious artifacts degrade to text, valid routes still link ------
+assert(
+  "hostile suite route is plain text in the index, never a navigable javascript: href",
+  R.index.includes("v900/evil</td>") && !R.index.includes('href="javascript:') &&
+    R.index.includes('href="/v900/ok/conformance"'),
+);
+assert(
+  "hostile suite route is plain text in both crumbs; benign suite retains both links",
+  R.suiteEvil.includes("&larr; v900/evil") && !R.suiteEvil.includes('href="javascript:') &&
+    R.suiteEvil.includes(" &middot; critique &middot; ") &&
+    R.suiteOk.includes('href="/v900/ok/"') &&
+    R.suiteOk.includes('href="/v900/ok/critique"'),
+);
+assert(
+  "protocol-relative critique route is plain text in both crumbs",
+  R.critiqueEvil.includes("&larr; v900/evil") &&
+    !R.critiqueEvil.includes('href="//evil.test') &&
+    R.critiqueEvil.includes(" &middot; conformance</p>"),
+);
+assert(
+  "hostile CPS host is plain text despite a plausible path; verified host retains its link",
+  R.suiteEvil.includes("/v900/evil/conformance (referenced, not forked)") &&
+    !R.suiteEvil.includes('href="https://chrome-platform-showcase.') &&
+    R.suiteOk.includes(
+      'href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v900/ok/conformance"',
+    ),
+);
+
 // ---------- verdicts: the class-attribute injection + whitelist --------------------------------
 assert(
   "results.json status CANNOT inject the class attribute (the gendn-lny fix: whitelisted states only; escaped occurrences of the payload text elsewhere are inert and fine)",
@@ -480,8 +514,8 @@ assert(
 );
 assert(
   "cpsFeature block renders only when present",
-  R.suiteEvil.includes("showcase.test") &&
-    !R.suiteOk.includes("showcase.test"),
+  R.suiteEvil.includes("Chrome-platform-showcase conformance (listed assertions only):") &&
+    R.suiteOk.includes("chrome-platform-showcase.paulkinlan-ea.deno.net"),
 );
 assert(
   "CPS contract copy does not claim every linked demo is embedded",

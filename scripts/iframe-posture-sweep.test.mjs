@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read --allow-write --allow-run
 // Chrome-free preflight: zero embeds must not be reported as browser acceptance.
 import assert from "node:assert/strict";
 
@@ -6,9 +7,9 @@ const source = await Deno.readTextFile(`${repo}scripts/iframe-posture-sweep.mjs`
 const root = await Deno.makeTempDir({ prefix: "gendn-iframe-sweep-preflight-" });
 const script = `${root}/scripts/iframe-posture-sweep.mjs`;
 let assertions = 0;
-async function run(args) {
+async function run(args, permissions = ["--allow-read"]) {
   const result = await new Deno.Command(Deno.execPath(), {
-    args: ["run", "--allow-read", script, ...args],
+    args: ["run", ...permissions, script, ...args],
     stdout: "piped",
     stderr: "piped",
   }).output();
@@ -26,10 +27,24 @@ assert(start >= 0 && end > start, "sabotage must locate the real refusal block")
 try {
   await Deno.mkdir(`${root}/scripts/lib`, { recursive: true });
   await Deno.symlink(`${repo}scripts/lib/cdp.mjs`, `${root}/scripts/lib/cdp.mjs`);
+  await Deno.symlink(`${repo}scripts/lib/map-pool.mjs`, `${root}/scripts/lib/map-pool.mjs`);
   await Deno.symlink(
     `${repo}scripts/lib/iframe-posture.mjs`,
     `${root}/scripts/lib/iframe-posture.mjs`,
   );
+  // The real-run path lazily imports this startup helper and its read-only module graph.
+  for (
+    const name of [
+      "reference-browser.mjs",
+      "reference-contract.mjs",
+      "artifacts.mjs",
+      "judged-content.mjs",
+      "plain-corpus-path.mjs",
+      "bounded-git.mjs",
+    ]
+  ) {
+    await Deno.symlink(`${repo}scripts/lib/${name}`, `${root}/scripts/lib/${name}`);
+  }
   // Never touch the shared manual evidence directory, even if a future regression boots.
   await Deno.writeTextFile(
     script,
@@ -58,6 +73,43 @@ try {
   assert.match(valid.out, /preflight: 1 hardened embed\(s\) eligible; NOT browser-verified/);
   assert.doesNotMatch(valid.out, /iframe-posture sweep: all .* assertions passed/);
   assertions += 4;
+
+  // Force the shared child-owned server path to exit before binding, rather than probing
+  // an unrelated healthy port. The copied script's REPO is this isolated root.
+  const missingScript = "scripts/__missing_iframe_sweep_fixture__.ts";
+  const patched = source.replace(
+    "spawnServer({ cwd: REPO })",
+    `spawnServer({ cwd: REPO, script: "${missingScript}" })`,
+  );
+  assert.notEqual(patched, source, "forced startup fixture must patch the real launch site");
+  await Deno.writeTextFile(
+    script,
+    patched.replace('const OUT = "/tmp/kjq-sweep";', `const OUT = "${root}/evidence";`),
+  );
+  const failedStartup = await run([], [
+    "--allow-read",
+    "--allow-write",
+    "--allow-run",
+    "--allow-env",
+    "--allow-net=127.0.0.1,localhost",
+  ]);
+  assert.notEqual(failedStartup.code, 0);
+  assert.match(failedStartup.err, /gendn server did not start for reference visibility validation/);
+  assert.match(failedStartup.err, /__missing_iframe_sweep_fixture__\.ts/);
+  assert.match(failedStartup.err, /Module not found/);
+  assert.match(failedStartup.err, /child exit 1/);
+  assert.doesNotMatch(failedStartup.out, /PASS:|all .* assertions passed/);
+  assert.equal(
+    (await Array.fromAsync(Deno.readDir(`${root}/evidence`))).length,
+    0,
+    "failed startup must not emit browser evidence",
+  );
+  assertions += 7;
+  await Deno.remove(`${root}/evidence`, { recursive: true });
+  await Deno.writeTextFile(
+    script,
+    source.replace('const OUT = "/tmp/kjq-sweep";', `const OUT = "${root}/evidence";`),
+  );
 
   // A corpus containing only deferred embeds also performed no acceptance work.
   await Deno.remove(`${root}/scripts/lib/iframe-posture.mjs`);

@@ -15,6 +15,7 @@
 // 'next h2' produced gendn-5ao's self-confirming probe; the fixture replays that trap.
 import { surfaceCoverageFindings } from "./lib/surface-coverage.mjs";
 import { plainCorpusPath } from "./lib/plain-corpus-path.mjs";
+import { mapPool, PAGE_CONCURRENCY } from "./lib/map-pool.mjs";
 
 const CONTRACT_RE = /^(v\d+\/[^/]+(?:\/[^/]+)*)\/reference-contract\.json$/;
 const PAGE_RE = /^(v\d+\/[^/]+)(?:\/[^/]+)*\/index\.html$/;
@@ -178,12 +179,21 @@ export async function runRatchet(root) {
   const pageOwners = changedPageOwners(names);
   const ids = new Set(changedContractIds(names));
   const failures = [];
-  for (const owner of pageOwners) {
+  // Set iteration feeds report ordering: collect concurrently, insert ids/errors in the
+  // original page-owner order, not the order in which directory walks finish.
+  const ownerWalks = await mapPool(pageOwners, PAGE_CONCURRENCY, async (owner) => {
+    const found = [];
     try {
-      for await (const id of contractIdsUnder(root, owner)) ids.add(id);
-    } catch (err) {
-      failures.push(`touched page ${owner}: ${err.message}`);
+      for await (const id of contractIdsUnder(root, owner)) found.push(id);
+      return { found };
+    } catch (error) {
+      return { found, error };
     }
+  });
+  for (const [index, owner] of pageOwners.entries()) {
+    const { found, error } = ownerWalks[index];
+    for (const id of found) ids.add(id);
+    if (error) failures.push(`touched page ${owner}: ${error.message}`);
   }
   const warnings = [];
   let inspected = 0;

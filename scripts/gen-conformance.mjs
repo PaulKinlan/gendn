@@ -26,6 +26,7 @@ import {
 } from "./lib/artifacts.mjs";
 import { verifiedCpsConformance } from "./lib/cps-conformance.mjs";
 import { selectPublishedRootPages } from "./conformance.mjs";
+import { mapPool, PAGE_CONCURRENCY } from "./lib/map-pool.mjs";
 
 const GENERATED_AT = "2026-07-19T00:00:00Z"; // fixed → deterministic suiteHash across regens
 const AUTHOR = "gen-conformance/v1 (derived from page metadata)";
@@ -352,19 +353,33 @@ async function main() {
     console.error(`gen-conformance: ${selection.error}`);
     Deno.exit(1);
   }
-  let written = 0, skipped = 0, total = 0;
-  for (const pagePath of selection.pages) {
+  // Only prefetch independent disk reads. Keep suite generation (live CPS requests, warning
+  // lines), writes, immutable skips, and the first error in input order as before.
+  const inputs = await mapPool(selection.pages, PAGE_CONCURRENCY, async (pagePath) => {
     const pageId = pagePath.replace(/\/index\.html$/, "");
-    total++;
     const outPath = conformancePath(pageId, ".");
     try {
       await Deno.stat(outPath);
+      return { outPath, exists: true };
+    } catch {
+      // Existing behaviour treats any stat error as an absent suite.
+    }
+    try {
+      return { outPath, html: await Deno.readTextFile(`./${pagePath}`) };
+    } catch (error) {
+      return { error };
+    }
+  });
+  let written = 0, skipped = 0, total = 0;
+  for (const [index, pagePath] of selection.pages.entries()) {
+    const pageId = pagePath.replace(/\/index\.html$/, "");
+    total++;
+    const { outPath, exists, html, error } = inputs[index];
+    if (exists) {
       skipped++;
       continue; // immutable: never overwrite an existing suite
-    } catch {
-      // absent — generate
     }
-    const html = await Deno.readTextFile(`./${pagePath}`);
+    if (error) throw error;
     const meta = metadataFromHtml(pagePath, html);
     if (!meta.identity) {
       console.error(`! ${pageId}: no chromestatus identity — skipping (fix the page first)`);

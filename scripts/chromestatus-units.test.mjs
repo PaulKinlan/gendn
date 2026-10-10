@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-env=CHROMESTATUS_BASE,PORT --allow-net=127.0.0.1 --allow-read --allow-run=python3 --allow-write=v141
 // scripts/chromestatus-units.test.mjs — direct unit coverage for lib/chromestatus.ts (gendn-14o).
 //
 // THE GAP: fetchBounded/readCapped already have the fetch-bounded fixture, but getJson's XSSI
@@ -30,7 +31,7 @@
 // would rename published routes, so the divergence is recorded, tested as-is, and reported on the
 // bead rather than "fixed" here.
 //
-// Run: deno task test-chromestatus-units
+// Run: deno task test-fixtures --tasks test-chromestatus-units
 
 const REPO = new URL("..", import.meta.url).pathname;
 
@@ -83,6 +84,9 @@ const server = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
   if (url.pathname === "/features/7") return json(`${XSSI}\n{"id":7,"name":"Cached"}`);
   if (url.pathname === "/features/71") return json(`${XSSI}\n{"id":71,"name":"Iso A"}`);
   if (url.pathname === "/features/72") return json(`${XSSI}\n{"id":72,"name":"Iso B"}`);
+  if (url.pathname === "/features/73") {
+    return new Response(null, { status: 302, headers: { location: "http://[" } });
+  }
   if (url.pathname === "/features" && url.searchParams.get("milestone") === "111") {
     return json(
       `${XSSI}\n${
@@ -204,6 +208,14 @@ try {
   assert(
     "non-ok 500 REJECTS with the status in the message",
     srv !== null && /500/.test(String(srv.message)),
+  );
+  const badRedirect = await rejects(() => getFeature(73));
+  assert(
+    "malformed redirect Location is classified with status and source origin, not a raw URL TypeError",
+    badRedirect instanceof Error && !(badRedirect instanceof TypeError) &&
+      badRedirect.message === `fetchBounded: malformed 302 redirect Location from ${base}` &&
+      reqCount.get("/features/73") === 1,
+    String(badRedirect?.message ?? badRedirect).slice(0, 120),
   );
 
   // --- cache: hit within TTL, expiry across it, per-path isolation ----------------------

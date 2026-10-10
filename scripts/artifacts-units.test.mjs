@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read --allow-write
 // scripts/artifacts-units.test.mjs — direct unit coverage for scripts/lib/artifacts.mjs (gendn-dd7).
 //
 // THE GAP: the shared helpers derive published-page identity/status/demo, the immutable suite
@@ -19,7 +20,7 @@
 // suite returned to 54/54 with an empty git diff of the module. A suite that has never been
 // shown to fail on a plausible wrong implementation is a claim, not a detector.
 //
-// Run: deno task test-artifacts-units
+// Run: deno task test-fixtures --tasks test-artifacts-units
 
 import {
   collectCritiques,

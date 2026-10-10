@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read --allow-write --allow-run
 // Chrome-free CLI contract: malformed/zero-match page selectors cannot produce a green no-op.
 import assert from "node:assert/strict";
 const assertEquals = assert.equal;

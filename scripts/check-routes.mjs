@@ -91,17 +91,21 @@ async function bootstrapExtractorChanges(ref) {
     "scripts/lib/bounded-git.mjs",
   ];
   const changed = new Set();
-  for (
-    const args of [["diff", "--name-only", ref, "--", ...files], [
-      "diff",
-      "--cached",
-      "--name-only",
-      ref,
-      "--",
-      ...files,
-    ]]
-  ) {
-    const result = await runGit(args, { stdout: "piped", stderr: "piped" });
+  const commands = [["diff", "--name-only", ref, "--", ...files], [
+    "diff",
+    "--cached",
+    "--name-only",
+    ref,
+    "--",
+    ...files,
+  ]];
+  const results = await Promise.allSettled(
+    commands.map((args) => runGit(args, { stdout: "piped", stderr: "piped" })),
+  );
+  for (const [index, outcome] of results.entries()) {
+    if (outcome.status === "rejected") throw outcome.reason;
+    const result = outcome.value;
+    const args = commands[index];
     if (result.code !== 0) throw new Error(`git ${args.join(" ")} failed: ${result.stderr.trim()}`);
     for (const file of result.stdout.trim().split("\n").filter(Boolean)) changed.add(file);
   }

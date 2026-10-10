@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read --allow-run --allow-net=127.0.0.1,localhost --allow-env
 // scripts/transport-headers.test.mjs — transport-header fixtures (gendn-3ux).
 //
 // WHY THIS FILE EXISTS:
@@ -17,14 +18,14 @@
 // The page used is DISCOVERED at run time (first v<N>/<slug>/index.html in the tree) rather than pinned,
 // so a milestone rename cannot turn this fixture into a stale literal.
 //
-// This file is BROWSER-FREE and named `test-*`, so `deno task test-fixtures` discovers and enrols it
+// This file is BROWSER-FREE and named `*.test.mjs`, so `deno task test-fixtures` discovers and enrols it
 // automatically — the policy scripts/run-fixtures.mjs states in its own header, and why the equivalent
 // guard was moved out of the browser-backed chain (gendn-4ck / gendn-kq4).
 //
 // BOUNDS: the server is spawned on an OS-assigned port (PORT=0), every await is bounded, and the process
 // is unconditionally killed in a finally block.
 //
-// Run: deno task test-transport-headers
+// Run: deno task test-fixtures --tasks test-transport-headers
 // The control is the runner's EXIT CODE, not a count of PASS lines (gendn-ijf).
 import { brotliDecompressSync, gunzipSync } from "node:zlib";
 

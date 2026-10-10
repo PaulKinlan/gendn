@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read
 // scripts/example-adjacency.test.mjs — published-example invariants that are about POSITION, not
 // existence (gendn-rl0 bounce).
 //
@@ -12,7 +13,7 @@
 // then proves it is a detector by running the same assertion against a synthesized copy with the
 // exact defect this bead introduced — it must fail there and pass on the real file.
 //
-// Run: deno task test-example-adjacency
+// Run: deno task test-fixtures --tasks test-example-adjacency
 
 const REPO = new URL("..", import.meta.url).pathname;
 const EXAMPLE = "v152/notification-attribution-for-pwas-on-macos/requireinteraction/index.html";
