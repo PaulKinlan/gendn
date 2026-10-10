@@ -77,6 +77,13 @@ async function run(...args) {
     err: new TextDecoder().decode(result.stderr),
   };
 }
+// A previous run may have been SIGKILLed before its finally block. Clear the
+// fixture-only milestone before creating a new page, so the next run heals it.
+try {
+  await Deno.remove(`${root}v9998`, { recursive: true });
+} catch (error) {
+  if (!(error instanceof Deno.errors.NotFound)) throw error;
+}
 try {
   const recorded = await run("--record", name, "--routes", route);
   assert(recorded.code === 0, `real browser record: ${JSON.stringify(recorded)}`);
