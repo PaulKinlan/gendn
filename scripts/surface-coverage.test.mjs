@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read --allow-write --allow-run
 // gendn-m7e fixture — SURFACE-COVERAGE ASSERTION. The defect class: a contract can pass
 // every gate while mapping a dimension to the WRONG surface (id exists, slice 40+ chars,
 // but the claimed surface is not in the slice). Origin instance: gendn-5ao's css-scroll-state

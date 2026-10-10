@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read
 // scripts/external-url.test.mjs — the gendn-0cu acceptance test.
 //
 // The finding: server.ts stored `html_url` verbatim from api.github.com and interpolated
@@ -8,7 +9,7 @@
 // resulting HTML: no dangerous href may appear), plus a control proving a real GitHub commit URL
 // still renders as a working link, unchanged.
 //
-// Run: deno task test-external-url   (or: deno run scripts/external-url.test.mjs)
+// Run: deno task test-fixtures --tasks test-external-url   (or: deno run --allow-read scripts/external-url.test.mjs)
 
 import { renderCommitAnchor, safeExternalUrl } from "../lib/external-url.ts";
 

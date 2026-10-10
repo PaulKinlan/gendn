@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read --allow-write --allow-run
 // scripts/refresh-bindings.test.mjs
 // Focused tests for refresh-bindings guard behaviour.
 // Covers without Chrome:

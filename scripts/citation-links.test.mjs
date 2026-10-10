@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read --allow-write --allow-run
 // scripts/citation-links.test.mjs — fixture for the unlinked-citation ratchet (gendn-t7h).
 //
 // WHAT MUST NOT REGRESS:

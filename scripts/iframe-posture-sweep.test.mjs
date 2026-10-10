@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read --allow-write --allow-run
 // Chrome-free preflight: zero embeds must not be reported as browser acceptance.
 import assert from "node:assert/strict";
 

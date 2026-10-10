@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read --allow-write --allow-run --allow-net=127.0.0.1,localhost --allow-env
 // Startup diagnostics are a separate, browser-free fixture: the real CSS-drift fixture still
 // drives the normal browser sweep and compares computed styles.
 import { spawnCssServer } from "./css-drift.mjs";

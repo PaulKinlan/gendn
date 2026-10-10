@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read
 // scripts/iframe-posture.test.mjs — the gendn-kjq guard fixture.
 //
 // THE FINDING: 36 published pages embedded the cross-origin Chrome Platform Showcase demo in
@@ -54,7 +55,7 @@
 //     showcase embed pages carry deliberate postures. The deferral mechanism remains in place
 //     for future deferrals if needed.
 //
-// Run: deno task test-iframe-posture
+// Run: deno task test-fixtures --tasks test-iframe-posture
 
 import { PENDING_HARDENING, SANCTIONED_SANDBOX } from "./lib/iframe-posture.mjs";
 

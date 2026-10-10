@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read --allow-write --allow-run --allow-env
 // scripts/run-fixtures.test.mjs — the fixture for the fixture RUNNER (gendn-cp7 review).
 //
 // WHY: the first version of run-fixtures.mjs detected a timed-out fixture and then hung on it. It
@@ -11,14 +12,17 @@
 // TIMEOUT, the runner EXITS promptly, and NOTHING is left behind. A second case pins the naming
 // decision that keeps the probe out of the aggregate.
 //
-// Run: deno task test-run-fixtures
+// Run: deno task test-fixtures --tasks test-run-fixtures
 
 import {
   aggregateExitCode,
   appendSweepToken,
   depthRefusal,
+  discoverFixtures,
   environHasToken,
+  fixtureCommand,
   fixtureEnvironment,
+  fixturePermissions,
   incomingDepth,
   isAggregateTaskCommand,
   MAX_NESTING_DEPTH,
@@ -110,6 +114,10 @@ async function scratchTree({ stripMarkerGuard }) {
   }
   await Deno.writeTextFile(`${dir}/scripts/run-fixtures.mjs`, runner);
   await Deno.writeTextFile(`${dir}/scripts/noop.mjs`, 'console.log("noop fixture ok");\n');
+  await Deno.writeTextFile(
+    `${dir}/scripts/noop.test.mjs`,
+    '// @fixture-permissions --allow-read\nconsole.log("noop fixture ok");\n',
+  );
   // The aggregate is deliberately named something ELSE: that is the whole point.
   await Deno.writeTextFile(
     `${dir}/deno.json`,
@@ -140,7 +148,8 @@ function runIn(dir, args) {
   }).output();
 }
 
-const discoveryBanners = (text) => (text.match(/discovered \d+ test-\* task\(s\)/g) ?? []).length;
+const discoveryBanners = (text) =>
+  (text.match(/discovered \d+ file-backed\/retained test fixture\(s\)/g) ?? []).length;
 
 function runRunner(args, env = {}, flags = RUNNER_FLAGS) {
   return new Deno.Command(Deno.execPath(), {
@@ -158,6 +167,62 @@ function runRunner(args, env = {}, flags = RUNNER_FLAGS) {
 }
 
 try {
+  const discovered = discoverFixtures(
+    ["alpha.test.mjs", "check-verdict-emission.test.mjs", "reference-browser.test.mjs"],
+    { "test-fixtures": "deno run --allow-all scripts/run-fixtures.mjs" },
+  );
+  assert(
+    "new test file enrolls without a deno.json task; CI alias and retained aggregate stay distinct",
+    discovered.get("test-alpha") === "scripts/alpha.test.mjs" &&
+      discovered.get("test-verdict-emission") === "scripts/check-verdict-emission.test.mjs" &&
+      discovered.get("test-reference-browser") === "scripts/reference-browser.test.mjs" &&
+      discovered.get("test-fixtures") === null && discovered.size === 4,
+  );
+  assert(
+    "MDN fixture retains its preceding typecheck, browser composite retains its direct task",
+    fixtureCommand(
+          "test-mdn-has",
+          "scripts/mdn-has.test.mjs",
+          "--allow-read --allow-net=127.0.0.1",
+        ) ===
+        "deno check lib/mdn.ts && deno run --allow-read --allow-net=127.0.0.1 scripts/mdn-has.test.mjs" &&
+      fixtureCommand(
+          "test-reference-contract",
+          "scripts/reference-contract.test.mjs",
+          "--allow-read --allow-write",
+        ) ===
+        "deno task test-reference-contract",
+  );
+  assert(
+    "a .test.mjs file with an invalid task name fails closed rather than disappearing",
+    (() => {
+      try {
+        discoverFixtures(["oops_name.test.mjs"], {});
+        return false;
+      } catch (error) {
+        return error.message.includes("oops_name.test.mjs");
+      }
+    })(),
+  );
+  assert(
+    "missing and invalid per-file permission metadata refuse a permissive default",
+    fixturePermissions("// @fixture-permissions --allow-read\n", "good.test.mjs") ===
+        "--allow-read" &&
+      [
+        "console.log(1)",
+        "// @fixture-permissions --allow-all",
+        "// @fixture-permissions --allow-read --allow-read",
+      ].every(
+        (source) => {
+          try {
+            fixturePermissions(source, "bad.test.mjs");
+            return false;
+          } catch (error) {
+            return error.message.includes("bad.test.mjs");
+          }
+        },
+      ),
+  );
   await Deno.remove(pidFile).catch(() => {});
 
   // 1. A fixture that sleeps past a shortened bound: reported TIMEOUT, runner exits promptly.
@@ -205,8 +270,8 @@ try {
     pid === null ? "probe never started" : `pid ${pid} alive=${alive(pid)}`,
   );
 
-  // 3. The probe is deliberately NOT a `test-*` task, so discovery never enrols it into the
-  //    aggregate (which would sleep in CI). --list is the cheap way to pin that.
+  // 3. The probe is neither a *.test.mjs file nor a test-* task, so discovery never enrols it
+  //    into the aggregate (which would sleep in CI). --list is the cheap way to pin that.
   const listed = await runRunner(["--list"]);
   const listOut = new TextDecoder().decode(listed.stdout);
   assert(
@@ -219,6 +284,37 @@ try {
     /test-vendor-fonts/.test(listOut) && /test-fetch-bounded/.test(listOut),
     "",
   );
+
+  // A scratch test file enrolls automatically with no deno.json task, and missing permissions
+  // refuse the WHOLE run before any fixture executes (the union-merge fail-closed property).
+  {
+    const tree = await scratchTree({ stripMarkerGuard: false });
+    try {
+      const novel = `${tree}/scripts/zz-new.test.mjs`;
+      const before = new TextDecoder().decode((await runIn(tree, ["--list"])).stdout);
+      await Deno.writeTextFile(
+        novel,
+        '// @fixture-permissions --allow-read\nconsole.log("new");\n',
+      );
+      const added = await runIn(tree, ["--list"]);
+      const withFile = new TextDecoder().decode(added.stdout);
+      assert(
+        "file discovery enrolls a new fixture absent from deno.json",
+        !before.includes("test-zz-new") && added.code === 0 && withFile.includes("test-zz-new"),
+      );
+      await Deno.writeTextFile(novel, 'console.log("no permissions");\n');
+      const missing = await runIn(tree, ["--list"]);
+      const failure = new TextDecoder().decode(missing.stderr);
+      assert(
+        "file discovery refuses missing permissions before reporting a runnable suite",
+        missing.code !== 0 && failure.includes("zz-new.test.mjs") &&
+          failure.includes("missing @fixture-permissions") &&
+          !new TextDecoder().decode(missing.stdout).includes("running  ("),
+      );
+    } finally {
+      await Deno.remove(tree, { recursive: true }).catch(() => {});
+    }
+  }
 
   // ---- gendn-0bm: recursion is refused by ACT, not by name -------------------------------------
 

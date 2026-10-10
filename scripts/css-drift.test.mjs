@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read --allow-write --allow-run --allow-net=127.0.0.1,localhost --allow-env
 import {
   captureExpression,
   compareSnapshots,

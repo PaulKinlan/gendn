@@ -1,4 +1,5 @@
 #!/usr/bin/env -S deno run --allow-read --allow-write --allow-run
+// @fixture-permissions --allow-read --allow-write --allow-run
 // check-verdict-emission.test.mjs — fail-closed regression tests for the verdict-emission check
 // (gendn-aj6). Runs as `deno task test-verdict-emission` and as a CI step, so the check cannot
 // silently stop failing: every FAIL case below asserts the exit code a landing gate would read.

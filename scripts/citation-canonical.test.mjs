@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read
 // scripts/citation-canonical.test.mjs — the citation-canonicalisation RULE and its negatives
 // (gendn-4ck; moved out of reference-contract.test.mjs).
 //
@@ -10,7 +11,7 @@
 // A `test-*` task is discovered by the aggregate, which CI runs, so moving them here gave them
 // automated reach. The DOM-backed visibility suite now has its own dedicated CI step.
 //
-// Run: deno task test-citation-canonical  (discovered by `deno task test-fixtures`)
+// Run: deno task test-fixtures --tasks test-citation-canonical (file-discovered automatically)
 
 import { canonicalCitationUrl, hasHref } from "./lib/reference-contract.mjs";
 

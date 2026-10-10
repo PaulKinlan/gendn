@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read --allow-write --allow-run
 // A fast gate without an executable mutation proof can quietly stop checking types.
 // Keep the production worktree clean: run the task in an isolated clone and introduce one
 // deliberate server.ts type error there only.

@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read --allow-run --allow-net=127.0.0.1,localhost --allow-env
 // scripts/security-headers.test.mjs — fixtures for defensive browser security headers (gendn-5tk).
 //
 // WHY THIS FILE EXISTS:
@@ -23,7 +24,7 @@
 // status/headers. The OS assigns the ephemeral port (PORT=0), and the spawned server process is
 // unconditionally terminated with SIGKILL in a finally block.
 //
-// Run: deno task test-security-headers  (discovered automatically by `deno task test-fixtures`)
+// Run: deno task test-fixtures --tasks test-security-headers  (file-discovered automatically)
 
 import { CSP_DIRECTIVES, CSP_HEADER_VALUE, RELEASE_INERT_SCRIPT_MIME } from "../server.ts";
 import { fetchSecurityProbe, FixtureTransportError } from "./lib/security-probe.mjs";

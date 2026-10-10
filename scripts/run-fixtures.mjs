@@ -1,15 +1,12 @@
 #!/usr/bin/env -S deno run --allow-all
-// run-fixtures.mjs — run EVERY fixture task this repo declares, so a new fixture cannot be added
-// and then forgotten (gendn-cp7, the reach question).
+// run-fixtures.mjs — run EVERY scripts/*.test.mjs fixture without registering a deno.json task
+// for each file. New fixtures join the suite by filename, avoiding deno.json merge collisions.
 //
-// WHY THIS EXISTS, measured rather than assumed: `deno task X` is only enforced if something CALLS
-// it. When the vendor-fonts guard was added, `grep -rn test-vendor-fonts` across the repo returned
-// exactly two hits — deno.json and the fixture's own header comment. CI ran six gates and NO fixture
-// task except test-verdict-emission, and the other fixture tasks were in the same position: present,
-// green when typed, and invoked by nothing. A guard no gate invokes is one commit away from being
-// deleted by accident, so this task makes enrolment AUTOMATIC: it discovers every `test-*` task from
-// deno.json and runs it, which means forgetting a fixture requires deleting a task, not merely
-// failing to remember it.
+// The aggregate and CI browser task remain stable deno.json entry points. The browser-backed
+// reference-contract and reference-browser files are explicitly excluded from this aggregate and
+// run through `deno task test-reference-contract` in CI. `test-mdn-has` retains its preceding
+// `deno check lib/mdn.ts`. Each standalone fixture declares its former narrow Deno permissions
+// in a first-block @fixture-permissions comment; missing/invalid metadata refuses the run.
 //
 // THE RECURSION GUARD IS NAME-INDEPENDENT (gendn-0bm/r3b): GENDN_FIXTURE_RUN carries the
 // originating runner pid AND a depth. Discovery inside a fixture is refused; narrowed --tasks is
@@ -39,9 +36,9 @@
 // --allow-read --allow-sys; the permission gate requires --allow-all (measured on deno 2.9.7: any
 // narrower flag yields `NotCapable: Requires all access to "/proc"`). Reading a descendant's
 // environment is the identity mechanism the sweep depends on, so the runner process needs it. This is
-// NOT a capability widening in practice: the aggregate already holds --allow-run (it spawns
-// `deno task` for every fixture), which is arbitrary code execution as this user, and Deno permissions
-// are per-process, so a fixture keeps exactly the flags its own deno.json task declares.
+// NOT a capability widening: the aggregate already holds --allow-run (it spawns fixtures),
+// which is arbitrary code execution as this user; each fixture retains its former narrow flags
+// through its own mandatory @fixture-permissions declaration.
 //
 // EXCLUSIONS are explicit and printed, never silent (see EXCLUDED below): the browser-backed
 // reference suite runs as a dedicated CI step, where Chrome is available.
@@ -49,7 +46,7 @@
 // USAGE
 //   deno task test-fixtures                     # run every discovered fixture
 //   deno task test-fixtures --list               # print what would run, and what is excluded
-//   deno task test-fixtures --tasks a,b          # run only these (used by the timeout fixture)
+//   deno task test-fixtures --tasks a,b          # run only these fixture names or retained tasks
 //
 // BOUNDS: each fixture gets FIXTURE_TIMEOUT_MS (GENDN_FIXTURE_TIMEOUT_MS overrides it, for tests).
 // A fixture that exceeds it is reported FAILED and the runner KEEPS GOING — see the kill below for
@@ -75,6 +72,10 @@ const EXCLUDED = new Map([
   [
     "test-reference-contract",
     "browser-backed (spawns Chrome); CI runs it as a dedicated browser regression step",
+  ],
+  [
+    "test-reference-browser",
+    "browser-backed component of test-reference-contract; CI runs it through that task",
   ],
 ]);
 
@@ -286,6 +287,52 @@ export function isAggregateTaskCommand(command) {
   return typeof command === "string" && /run-fixtures\.mjs/.test(command);
 }
 
+/** Discover standalone files; retained composite/aggregate tasks fill only names with no file. */
+export function discoverFixtures(files, tasks) {
+  const fixtures = new Map();
+  for (const file of files) {
+    if (!file.endsWith(".test.mjs")) continue;
+    if (!/^[a-z0-9][a-z0-9-]*\.test\.mjs$/.test(file)) {
+      throw new Error(
+        `invalid fixture filename ${file}; use lowercase letters, digits and hyphens`,
+      );
+    }
+    const stem = file.slice(0, -".test.mjs".length);
+    // CI's historical direct task name differs from its checker fixture filename.
+    const name = stem === "check-verdict-emission" ? "test-verdict-emission" : `test-${stem}`;
+    if (fixtures.has(name)) throw new Error(`fixture name collision: ${name}`);
+    fixtures.set(name, `scripts/${file}`);
+  }
+  for (const name of Object.keys(tasks)) {
+    if (name.startsWith("test-") && !fixtures.has(name)) fixtures.set(name, null);
+  }
+  return new Map([...fixtures].sort(([a], [b]) => a.localeCompare(b)));
+}
+
+export function fixturePermissions(source, file) {
+  const banner = source.split("\n").slice(0, 12).find((line) =>
+    line.startsWith("// @fixture-permissions ")
+  );
+  if (!banner) throw new Error(`${file}: missing @fixture-permissions in the first 12 lines`);
+  const flags = banner.slice("// @fixture-permissions ".length).trim().split(/\s+/);
+  if (
+    flags.length === 0 ||
+    flags.some((flag) =>
+      !/^--allow-(?:read|write|run|net|env)(?:=[A-Za-z0-9_.,/:=-]+)?$/.test(flag)
+    ) || new Set(flags).size !== flags.length
+  ) {
+    throw new Error(`${file}: invalid @fixture-permissions: ${banner}`);
+  }
+  return flags.join(" ");
+}
+
+/** Preserve the historical MDN typecheck and the retained CI browser-composite task. */
+export function fixtureCommand(name, file, permissions) {
+  if (!file || name === "test-reference-contract") return `deno task ${name}`;
+  const run = `deno run ${permissions} ${file}`;
+  return name === "test-mdn-has" ? `deno check lib/mdn.ts && ${run}` : run;
+}
+
 // Everything below runs only when this file IS the program: the pure guards above are imported
 // by the fixture, and top-level code here would otherwise execute the whole suite on import
 // (measured: the fixture died instantly because importing the runner refused and exited).
@@ -327,14 +374,32 @@ if (import.meta.main) {
     }
   }
 
-  const discovered = Object.keys(tasks)
-    .filter((name) => name.startsWith("test-"))
-    .sort();
-  const runnable = requested ??
-    discovered.filter((name) => !EXCLUDED.has(name));
+  const files = [];
+  for await (const entry of Deno.readDir(`${repoRoot}scripts`)) {
+    if (entry.isFile) files.push(entry.name);
+  }
+  const fixtures = discoverFixtures(files, tasks);
+  const permissions = new Map();
+  try {
+    for (const [name, file] of fixtures) {
+      if (file) {
+        permissions.set(
+          name,
+          fixturePermissions(await Deno.readTextFile(`${repoRoot}${file}`), file),
+        );
+      }
+    }
+  } catch (error) {
+    console.error(`test-fixtures: REFUSING — ${error.message}`);
+    Deno.exit(1);
+  }
+  const discovered = [...fixtures.keys()];
+  const runnable = requested ?? discovered.filter((name) => !EXCLUDED.has(name));
   const excluded = discovered.filter((name) => EXCLUDED.has(name));
 
-  console.log(`test-fixtures: discovered ${discovered.length} test-* task(s) in deno.json`);
+  console.log(
+    `test-fixtures: discovered ${discovered.length} file-backed/retained test fixture(s)`,
+  );
   console.log(`  running  (${runnable.length}): ${runnable.join(", ") || "none"}`);
   for (const name of excluded) console.log(`  excluded (${name}): ${EXCLUDED.get(name)}`);
 
@@ -370,7 +435,13 @@ if (import.meta.main) {
     const logPath = await Deno.makeTempFile({ prefix: `fixture-${name.replace(/\W+/g, "_")}-` });
     try {
       const child = new Deno.Command("setsid", {
-        args: ["sh", "-c", `deno task ${name} > ${JSON.stringify(logPath)} 2>&1`],
+        args: [
+          "sh",
+          "-c",
+          `${fixtureCommand(name, fixtures.get(name), permissions.get(name))} > ${
+            JSON.stringify(logPath)
+          } 2>&1`,
+        ],
         cwd: repoRoot,
         stdout: "null",
         stderr: "null",

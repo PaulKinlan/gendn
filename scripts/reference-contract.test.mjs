@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read --allow-write
 // THE CONTROL FOR THIS FILE IS THE RUNNER'S EXIT CODE, NOT A COUNT OF ITS PASS LINES (gendn-ijf).
 //
 // This is written here rather than in a bead because a rule survives only if it is in the artefact the

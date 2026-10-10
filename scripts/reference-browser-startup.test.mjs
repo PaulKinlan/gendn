@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read --allow-write --allow-run --allow-net --allow-env
 // Force a server startup failure without Chrome or an occupied shared port. The gate must
 // report the actual child error, not just an exhausted readiness probe.
 import { spawnServer } from "./lib/reference-browser.mjs";

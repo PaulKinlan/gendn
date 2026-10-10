@@ -1,3 +1,4 @@
+// @fixture-permissions --allow-read --allow-write --allow-run=deno
 // scripts/lifecycle-units.test.mjs — direct renderer coverage for lib/lifecycle.ts (gendn-lny).
 //
 // THE GAP: /conformance, /conformance/run-all, /v<N>/<slug>/conformance and .../critique
@@ -38,7 +39,7 @@
 // one level up. It is now the s-status ROW alone, and the suite-wide check is a separate assertion
 // whose name says AGGREGATE.
 //
-// Run: deno task test-lifecycle-units
+// Run: deno task test-fixtures --tasks test-lifecycle-units
 
 const REPO = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
 const LIB = `file://${REPO}/lib/lifecycle.ts`;
