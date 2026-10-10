@@ -1,6 +1,7 @@
 // lifecycle.ts — server-side rendering for gendn's critique + conformance lifecycle browsing.
 //
 import { chromeStatusUrl } from "./chromestatus.ts";
+import { safeExternalUrl } from "./external-url.ts";
 //
 // Additive, read-only views over the colocated artifacts (v<N>/<slug>/conformance.json and
 // _questions.json) plus the run-all rollup the runner writes to reports/conformance/. No article
@@ -79,6 +80,26 @@ function esc(s: unknown): string {
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
+// Artifact routes are untrusted strings. Only the page's own canonical local route may become
+// navigation; escaping alone cannot prevent javascript: links or protocol-relative redirects.
+function safePageRoute(route: unknown, id: unknown): string | null {
+  if (
+    typeof route !== "string" || typeof id !== "string" ||
+    !/^v\d+\/[a-z0-9-]+$/.test(id) || route !== `/${id}/`
+  ) return null;
+  return route;
+}
+
+function safeCpsConformanceUrl(host: unknown, route: unknown): string | null {
+  if (
+    host !== "chrome-platform-showcase.paulkinlan-ea.deno.net" ||
+    typeof route !== "string" || !/^\/v\d+\/[a-z0-9-]+\/conformance\/?$/.test(route)
+  ) {
+    return null;
+  }
+  return safeExternalUrl(`https://${host}${route}`);
+}
+
 async function readJson<T>(path: string): Promise<T | null> {
   try {
     return JSON.parse(await Deno.readTextFile(path)) as T;
@@ -126,9 +147,10 @@ export async function renderConformanceIndex(): Promise<string> {
     // colocated artifacts; a non-canonical value renders plain text instead of a link.
     // THREAT_MODEL.md invariant #4.
     const csHref = chromeStatusUrl(s.identity);
-    return `<tr><td><a href="${esc(s.route)}conformance">${esc(s.id)}</a></td><td>${
-      esc(s.status)
-    }</td><td>${s.assertions.length}</td><td>${
+    const route = safePageRoute(s.route, s.id);
+    return `<tr><td>${
+      route ? `<a href="${esc(route)}conformance">${esc(s.id)}</a>` : esc(s.id)
+    }</td><td>${esc(s.status)}</td><td>${s.assertions.length}</td><td>${
       csHref
         ? `<a href="${csHref}" target="_blank" rel="noopener">#${esc(s.identity)}</a>`
         : `#${esc(s.identity)}`
@@ -176,21 +198,24 @@ export async function renderSuite(release: string, slug: string): Promise<string
     }</td></tr>`;
   }).join("");
 
-  const cps = suite.cpsFeature?.conformanceRoute
-    ? `<p class="meta">Chrome-platform-showcase conformance (listed assertions only): <a href="https://${
-      esc(suite.cpsFeature.host)
-    }${esc(suite.cpsFeature.conformanceRoute)}" target="_blank" rel="noopener">${
-      esc(suite.cpsFeature.conformanceRoute)
-    }</a> (referenced, not forked).</p>`
+  const cpsRoute = suite.cpsFeature?.conformanceRoute;
+  const cpsHref = safeCpsConformanceUrl(suite.cpsFeature?.host, cpsRoute);
+  const cps = cpsRoute
+    ? `<p class="meta">Chrome-platform-showcase conformance (listed assertions only): ${
+      cpsHref
+        ? `<a href="${esc(cpsHref)}" target="_blank" rel="noopener">${esc(cpsRoute)}</a>`
+        : esc(cpsRoute)
+    } (referenced, not forked).</p>`
     : suite.cpsFeature
     ? `<p class="meta">No independently verified same-feature Chrome-platform-showcase conformance suite is linked for this demo.</p>`
     : "";
+  const route = safePageRoute(suite.route, suite.id);
   return HEAD(`conformance — ${suite.id}`) +
-    `<p class="crumbs"><a href="${esc(suite.route)}">&larr; ${
-      esc(suite.id)
-    }</a> &middot; <a href="${
-      esc(suite.route)
-    }critique">critique</a> &middot; <a href="/conformance">all suites</a></p>
+    `<p class="crumbs">${
+      route ? `<a href="${esc(route)}">&larr; ${esc(suite.id)}</a>` : `&larr; ${esc(suite.id)}`
+    } &middot; ${
+      route ? `<a href="${esc(route)}critique">critique</a>` : "critique"
+    } &middot; <a href="/conformance">all suites</a></p>
     <header class="lede-block"><p class="eyebrow">conformance · ${esc(suite.status)}</p>
     <h1>${esc(suite.id)}</h1>
     <p class="lede">${suite.assertions.length} immutable assertions. Verdicts shown are from the last headless-Chrome runner pass${
@@ -220,10 +245,11 @@ export async function renderCritique(release: string, slug: string): Promise<str
     `<li>[${esc(g.priority)} · ${esc(g.kind)}] ${esc(g.goal)}</li>`
   ).join("");
   const questions = c.openQuestions.map((q) => `<li>${esc(q)}</li>`).join("");
+  const route = safePageRoute(c.route, c.id);
   return HEAD(`critique — ${c.id}`) +
-    `<p class="crumbs"><a href="${esc(c.route)}">&larr; ${esc(c.id)}</a> &middot; <a href="${
-      esc(c.route)
-    }conformance">conformance</a></p>
+    `<p class="crumbs">${
+      route ? `<a href="${esc(route)}">&larr; ${esc(c.id)}</a>` : `&larr; ${esc(c.id)}`
+    } &middot; ${route ? `<a href="${esc(route)}conformance">conformance</a>` : "conformance"}</p>
     <header class="lede-block"><p class="eyebrow">critique · rev ${esc(c.revision)}</p>
     <h1>${esc(c.id)}</h1>${c.summary ? `<p class="lede">${esc(c.summary)}</p>` : ""}
     <p class="meta">reviewed ${esc(c.reviewedAt)} by ${esc(c.reviewer)}</p></header>
