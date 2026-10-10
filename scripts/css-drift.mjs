@@ -114,33 +114,86 @@ async function discoverRoutes() {
   return routes.sort();
 }
 
-async function sweep(routes, screenshotPrefix) {
-  const serverPort = freePort();
-  const cdpPort = freePort();
-  const server = new Deno.Command(Deno.execPath(), {
-    args: ["run", "--allow-net", "--allow-read", "--allow-env", "server.ts"],
-    env: { ...Deno.env.toObject(), PORT: String(serverPort) },
+// A guessed port can collide with another lane, misreport its startup failure as CSS drift, or
+// silently sample that other server. PORT=0 and this child's own listening line establish ownership.
+export async function spawnCssServer({ script = "server.ts", startupTimeoutMs = 30_000 } = {}) {
+  const child = new Deno.Command(Deno.execPath(), {
+    args: ["run", "--allow-net", "--allow-read", "--allow-env", script],
+    env: { ...Deno.env.toObject(), PORT: "0" },
     cwd: ROOT,
-    stdout: "null",
-    stderr: "null",
+    stdout: "piped",
+    stderr: "piped",
   }).spawn();
-  const base = `http://127.0.0.1:${serverPort}`;
+  let stdout = "", stderr = "", resolveReady;
+  const ready = new Promise((resolve) => resolveReady = resolve);
+  const capture = (stream, onText) => {
+    const decoder = new TextDecoder();
+    return stream.pipeTo(
+      new WritableStream({
+        write(bytes) {
+          onText(decoder.decode(bytes, { stream: true }));
+        },
+      }),
+    ).catch(() => {});
+  };
+  const stdoutDone = capture(child.stdout, (text) => {
+    stdout = (stdout + text).slice(-4096);
+    const match = stdout.match(/Listening on http:\/\/localhost:(\d+)/);
+    if (match) resolveReady(Number(match[1]));
+  });
+  const stderrDone = capture(child.stderr, (text) => stderr = (stderr + text).slice(-4096));
+  let exited = null;
+  const status = child.status.then((value) => exited = value);
+  let timer;
+  try {
+    const first = await Promise.race([
+      ready.then((port) => ({ port })),
+      status.then((exit) => ({ exit })),
+      new Promise((resolve) => {
+        timer = setTimeout(() => resolve({ timeout: true }), startupTimeoutMs);
+      }),
+    ]);
+    if (!first.port) {
+      throw new Error(
+        first.timeout
+          ? `startup timed out after ${startupTimeoutMs}ms`
+          : "child exited before listening",
+      );
+    }
+    const base = `http://127.0.0.1:${first.port}`;
+    const response = await fetch(`${base}/`, { signal: AbortSignal.timeout(15_000) });
+    const ok = response.ok;
+    await response.body?.cancel();
+    if (!ok) throw new Error(`readiness GET / returned HTTP ${response.status}`);
+    return { child, base, port: first.port };
+  } catch (error) {
+    if (!exited) {
+      try {
+        child.kill("SIGKILL");
+      } catch {
+        // Already stopped.
+      }
+    }
+    await status;
+    await Promise.all([stdoutDone, stderrDone]);
+    throw new Error(
+      `gendn server did not start for CSS drift: ${error.message}; ` +
+        `child ${exited?.signal ? `signal ${exited.signal}` : `exit ${exited?.code}`}; ` +
+        `stderr: ${stderr.trim() || "(empty)"}; stdout: ${stdout.trim() || "(empty)"}`,
+    );
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function sweep(routes, screenshotPrefix) {
+  const cdpPort = freePort();
+  const { child: server, base, port: serverPort } = await spawnCssServer();
   let browser;
   let viewPages = {};
   let chromeVersion;
   const pages = {};
   try {
-    let ready = false;
-    for (let attempt = 0; attempt < 120; attempt++) {
-      try {
-        const response = await fetch(`${base}/`, { signal: AbortSignal.timeout(2000) });
-        ready = response.ok;
-        await response.body?.cancel();
-        if (ready) break;
-      } catch { /* server still starting */ }
-      await new Promise((resolve) => setTimeout(resolve, 250));
-    }
-    if (!ready) throw new Error("gendn server did not start");
     for (const [index, route] of routes.entries()) {
       // Recycle Chrome every 40 routes, as the conformance sweep does, to bound long-run memory.
       if (index % 40 === 0) {
