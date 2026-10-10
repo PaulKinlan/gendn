@@ -5,6 +5,7 @@ import {
   selectRoutes,
   VIEWPORTS,
 } from "./lib/css-drift.mjs";
+import { runGit } from "./lib/bounded-git.mjs";
 
 function assert(ok, reason) {
   if (!ok) throw new Error(reason);
@@ -99,10 +100,10 @@ const mutationDir = `${root}v9998/${mutationName}`;
 const mutationRoute = `/v9998/${mutationName}/`;
 const mutationFile = `${root}reports/css-drift/${mutationName}.json`;
 const mutationReport = `${root}reports/css-drift/${mutationName}.diff.json`;
-async function run(...args) {
+async function runAt(cwd, ...args) {
   const command = new Deno.Command(Deno.execPath(), {
     args: ["task", "css-drift", ...args],
-    cwd: root,
+    cwd,
     stdout: "piped",
     stderr: "piped",
   });
@@ -113,6 +114,65 @@ async function run(...args) {
     err: new TextDecoder().decode(result.stderr),
   };
 }
+const run = (...args) => runAt(root, ...args);
+async function git(...args) {
+  const result = await runGit(args, { stdout: "piped", stderr: "piped" });
+  assert(result.code === 0, `git ${args.join(" ")} failed: ${result.stderr}`);
+  return result.stdout.trim();
+}
+
+// --changed must see a controlled git tree, not whatever route edits the caller's branch has.
+// A disposable local clone shares objects but never edits the source worktree or its git index.
+// The clean case must refuse before Chrome starts; a single tracked page edit must then select
+// exactly that published route and produce a real browser snapshot.
+const changedRoot = await Deno.makeTempDir({ prefix: "gendn-css-drift-changed-" });
+try {
+  const base = await git("-C", root, "rev-parse", "origin/main");
+  await git("clone", "--quiet", "--shared", "--no-checkout", root, changedRoot);
+  await git("-C", changedRoot, "checkout", "--quiet", "--detach", base);
+  await git("-C", changedRoot, "update-ref", "refs/remotes/origin/main", base);
+  const empty = await runAt(changedRoot, "--record", name, "--changed");
+  assert(
+    empty.code === 2 && empty.err.includes("--changed found no changed files"),
+    `--changed clean tree refuses an empty diff: ${JSON.stringify(empty)}`,
+  );
+  let emptySnapshotExists = true;
+  try {
+    await Deno.stat(`${changedRoot}/reports/css-drift/${name}.json`);
+  } catch (error) {
+    if (!(error instanceof Deno.errors.NotFound)) throw error;
+    emptySnapshotExists = false;
+  }
+  assert(!emptySnapshotExists, "empty --changed run writes no misleading baseline");
+  const page = `${changedRoot}${route}index.html`;
+  await Deno.writeTextFile(
+    page,
+    (await Deno.readTextFile(page)) + "\n<!-- css-drift changed-route fixture -->\n",
+  );
+  const scoped = await runAt(changedRoot, "--record", name, "--changed");
+  assert(scoped.code === 0, `--changed records the edited route: ${JSON.stringify(scoped)}`);
+  const selected = JSON.parse(
+    await Deno.readTextFile(`${changedRoot}/reports/css-drift/${name}.json`),
+  );
+  assert(
+    JSON.stringify(Object.keys(selected.pages)) === JSON.stringify([route]) &&
+      Object.keys(selected.pages[route].mobile).length > 0 &&
+      Object.keys(selected.pages[route].desktop).length > 0,
+    "--changed selected ONLY the edited route and captured both widths",
+  );
+  await Deno.writeTextFile(
+    `${changedRoot}/public/styles.css`,
+    (await Deno.readTextFile(`${changedRoot}/public/styles.css`)) + "\n/* shared fixture */\n",
+  );
+  const shared = await runAt(changedRoot, "--record", `shared-${name}`, "--changed");
+  assert(
+    shared.code === 2 && shared.err.includes("cannot scope shared change public/styles.css"),
+    `--changed refuses a shared edit despite the scoped route: ${JSON.stringify(shared)}`,
+  );
+} finally {
+  await Deno.remove(changedRoot, { recursive: true });
+}
+
 // A previous run may have been SIGKILLed before its finally block. Clear the
 // fixture-only milestone before creating a new page, so the next run heals it.
 try {
@@ -121,13 +181,6 @@ try {
   if (!(error instanceof Deno.errors.NotFound)) throw error;
 }
 try {
-  const unsafe = await run("--record", name, "--changed");
-  assert(
-    unsafe.code === 2 &&
-      (unsafe.err.includes("cannot scope shared change") ||
-        unsafe.err.includes("--changed found no changed files")),
-    "--changed refuses shared changes or an empty diff before browser launch",
-  );
   const recorded = await run("--record", name, "--routes", route);
   assert(recorded.code === 0, `real browser record: ${JSON.stringify(recorded)}`);
   const snapshot = JSON.parse(await Deno.readTextFile(file));
