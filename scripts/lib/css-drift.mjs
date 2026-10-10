@@ -125,7 +125,11 @@ export function selectRoutes(allRoutes, pattern) {
 // Only leaf reference edits can be scoped safely. Shared CSS, server rendering, or
 // tooling changes require an explicit --all sweep rather than a misleading partial pass.
 export function selectChangedRoutes(allRoutes, paths) {
-  if (!paths.length) throw new Error("--changed found no changed files; pass --routes or --all");
+  if (!paths.length) {
+    throw new Error(
+      "--changed found no changed files; BEFORE the first edit, record with --routes and compare with the same --routes (or use --changed on both passes only if the branch already has a stable route diff)",
+    );
+  }
   const selected = new Set();
   for (const path of paths) {
     if (!/^v\d+\//.test(path)) {

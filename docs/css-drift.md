@@ -4,6 +4,10 @@
 360×740 mobile (DPR 3), using the repo's CDP browser. It is **not** the responsive
 or conformance gate and does not replace browser interaction/accessibility review.
 
+> **Record BEFORE editing.** `--compare` requires the uncommitted baseline from the
+> unmodified page in the same worktree/Chrome version. A missing baseline fails;
+> recording after the edit cannot measure the change that already happened.
+>
 1. Before a CSS convergence wave, record a baseline from the unmodified tree:
    `deno task css-drift --record wave-name --routes 'v147/*'`
 2. After the edit, with the same worktree and Chrome version:
@@ -14,12 +18,14 @@ or conformance gate and does not replace browser interaction/accessibility revie
 
 `--routes` accepts a comma-separated list of exact routes or `*` globs, including
 nested reference routes. For a fast lane check of **leaf reference edits**, use
-`--changed` in both commands: it selects published routes touched since the merge-base
-of fetched `origin/main` and `HEAD`, including staged and untracked edits. For example,
-record with `deno task css-drift --record pr-42 --changed`, make the CSS edit, then
-compare with `deno task css-drift --compare pr-42 --changed`. Alternatively, record
-with explicit `--routes` **before** editing, then compare using that same explicit
-route list; before the first edit, `--changed` has no routes to select. Keep the
+`--changed` in both commands **only if the branch already has a stable leaf-route
+diff before the CSS edit**: it selects published routes touched since the merge-base
+of fetched `origin/main` and `HEAD`, including staged and untracked edits. Record
+with `deno task css-drift --record pr-42 --changed` **before the CSS edit**,
+then compare with `deno task css-drift --compare pr-42 --changed` after it.
+On a clean tree before the first edit, `--changed` has no routes: instead record
+with explicit `--routes` **before** editing and compare with that same explicit
+route list. Never record a baseline after the edit to make `--changed` work. Keep the
 selected routes identical across passes: changes to the diff between record and
 compare may require starting a new baseline. The gate refuses an empty diff, unknown
 or deleted routes, missing `origin/main`, and shared changes (e.g. `public/styles.css`

@@ -38,6 +38,18 @@ See [the reference-contract authoring guide](docs/reference-contract.md). Direct
 on each page so reviewers can verify the inventory and prose; structural checks cannot replace that
 independent source review.
 
+## On-demand CSS drift checks
+
+Before a CSS edit, [record a computed-style baseline](docs/css-drift.md) with
+`deno task css-drift --record wave-name --routes 'v147/example'`. After editing,
+compare with the **same routes** using `--compare wave-name`; the baseline is
+uncommitted and must be kept in the same worktree. `--changed` may replace
+`--routes` on **both** passes only when the branch already has a stable changed-page
+diff before the CSS edit. A clean pre-edit tree has no changed routes, so record
+with `--routes` instead. Never record the baseline after editing: it cannot detect
+that edit. Shared CSS changes require an explicit `--all` or an honestly partial
+`--routes` sample. This is not an automated CI gate.
+
 ## Layout
 
 ```
