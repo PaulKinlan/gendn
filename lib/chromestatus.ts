@@ -136,7 +136,14 @@ export async function fetchBounded(
       if (!location) {
         throw new Error(`fetchBounded: ${res.status} redirect without a Location header`);
       }
-      const next = new URL(location, current);
+      let next: URL;
+      try {
+        next = new URL(location, current);
+      } catch {
+        throw new Error(
+          `fetchBounded: malformed ${res.status} redirect Location from ${new URL(current).origin}`,
+        );
+      }
       if (!ALLOWED_ORIGINS.has(next.origin)) {
         throw new Error(`fetchBounded: redirected off-allowlist to ${next.origin}`);
       }
