@@ -32,7 +32,7 @@ import {
   isMdnStubHtml,
 } from "./lib/artifacts.mjs";
 import { runGit } from "./lib/bounded-git.mjs";
-import { mapPool, PAGE_CONCURRENCY } from "./check-citation-links.mjs";
+import { GIT_CONCURRENCY, mapPool } from "./lib/map-pool.mjs";
 import { readJudgedFile } from "./lib/judged-content.mjs";
 
 export const PAGE_RE = /^v\d+\/[^/]+\/index\.html$/;
@@ -77,7 +77,7 @@ async function collectFromRef(ref) {
   const pages = tree.split("\n").filter((p) => PAGE_RE.test(p)).sort();
   // mapPool returns input order; capture failures per page and report the first by that same
   // order rather than whichever concurrent git show happened to reject first.
-  const results = await mapPool(pages, PAGE_CONCURRENCY, async (pagePath) => {
+  const results = await mapPool(pages, GIT_CONCURRENCY, async (pagePath) => {
     try {
       const html = await runGitChecked(["show", `${ref}:${pagePath}`]);
       return { entry: pathToIdentityFields(pagePath, html) };

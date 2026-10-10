@@ -29,35 +29,12 @@
 //     "Source:" without a source-like token are not flagged.
 
 import { plainCorpusPath } from "./lib/plain-corpus-path.mjs";
+import { mapPool, PAGE_CONCURRENCY } from "./lib/map-pool.mjs";
+export { mapPool, PAGE_CONCURRENCY } from "./lib/map-pool.mjs";
 
 const PAGE_RE = /^(v\d+\/[^/]+)\//; // any file in the page tree: member routes included,
 // matching check-conformance.mjs touched-page mapping (a member-only diff must not bypass the gate)
 const CS_ID_MIN_LEN = 15;
-
-// Bounded concurrency cap for parallel per-page directory walks.
-// A cap of 8 balances saturating asynchronous filesystem I/O on SSD/NVMe storage
-// and matching typical VM/container vCPU threads without exhausting file descriptors
-// or causing thread pool contention on large waves/diffs (100+ pages).
-export const PAGE_CONCURRENCY = 8;
-
-/**
- * Run `fn` over `items` with at most `limit` in flight, returning results in INPUT ORDER
- * so failure reporting order is strictly deterministic and matches input iteration order.
- */
-export async function mapPool(items, limit, fn) {
-  const out = new Array(items.length);
-  let next = 0;
-  await Promise.all(
-    Array.from({ length: Math.min(limit, items.length) }, async () => {
-      for (;;) {
-        const i = next++;
-        if (i >= items.length) break;
-        out[i] = await fn(items[i], i);
-      }
-    }),
-  );
-  return out;
-}
 
 async function runGit(args, cwd = ".") {
   const cmd = new Deno.Command("git", {

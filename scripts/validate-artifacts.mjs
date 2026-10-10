@@ -35,6 +35,7 @@ import {
   validateReferenceContract,
 } from "./lib/reference-contract.mjs";
 import { readJudgedFile } from "./lib/judged-content.mjs";
+import { mapPool, PAGE_CONCURRENCY } from "./lib/map-pool.mjs";
 
 const FRONTEND_DIMENSIONS = new Set(["responsive-ux", "accessibility", "examples"]);
 
@@ -67,11 +68,22 @@ async function main() {
   const pageMeta = new Map();
   const metadataNotes = { status: [], demo: [], cpsFeatureRoute: [] };
   let suiteCount = 0;
-  for (const pagePath of pages) {
+  // Prefetch independent page/suite pairs, then keep all validation and diagnostics in page order.
+  const pageReads = await mapPool(pages, PAGE_CONCURRENCY, async (pagePath) => {
     const ownerId = pagePath.replace(/\/index\.html$/, "");
-    const meta = await pageMetadata(pagePath);
+    try {
+      const meta = await pageMetadata(pagePath);
+      const suite = await readJson(`./${ownerId}/conformance.json`);
+      return { meta, suite };
+    } catch (error) {
+      return { error };
+    }
+  });
+  for (const [index, pagePath] of pages.entries()) {
+    const ownerId = pagePath.replace(/\/index\.html$/, "");
+    const { meta, suite: s, error } = pageReads[index];
+    if (error) throw error;
     pageMeta.set(ownerId, meta);
-    const s = await readJson(`./${ownerId}/conformance.json`);
     if (!s) continue;
     suiteCount++;
     const tag = `conformance ${ownerId}/conformance.json`;

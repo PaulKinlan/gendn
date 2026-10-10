@@ -26,6 +26,7 @@ assert(start >= 0 && end > start, "sabotage must locate the real refusal block")
 try {
   await Deno.mkdir(`${root}/scripts/lib`, { recursive: true });
   await Deno.symlink(`${repo}scripts/lib/cdp.mjs`, `${root}/scripts/lib/cdp.mjs`);
+  await Deno.symlink(`${repo}scripts/lib/map-pool.mjs`, `${root}/scripts/lib/map-pool.mjs`);
   await Deno.symlink(
     `${repo}scripts/lib/iframe-posture.mjs`,
     `${root}/scripts/lib/iframe-posture.mjs`,

@@ -17,6 +17,7 @@ import {
   stagedRevertedPaths,
 } from "./judged-content.mjs";
 import { plainCorpusPath } from "./plain-corpus-path.mjs";
+import { mapPool, PAGE_CONCURRENCY } from "./map-pool.mjs";
 
 export const SHOWCASE_HOST = "chrome-platform-showcase.paulkinlan-ea.deno.net";
 
@@ -105,10 +106,21 @@ export async function collectPublishedPages(root = ".") {
   // Staged-reverted pages may be absent on disk yet present in the git index.
   // Still reject an invalid component before judging their staged contents.
   const staged = await stagedRevertedPaths(root);
-  for (const p of staged) {
-    if (!PAGE_RE.test(p)) continue;
-    await plainCatalogueEntry(root, p, "file");
-    if (await judgedFileExists(p, root)) pages.add(p);
+  const stagedPages = await mapPool(
+    [...staged].filter((p) => PAGE_RE.test(p)),
+    PAGE_CONCURRENCY,
+    async (p) => {
+      try {
+        await plainCatalogueEntry(root, p, "file");
+        return { path: p, exists: await judgedFileExists(p, root) };
+      } catch (error) {
+        return { error };
+      }
+    },
+  );
+  for (const item of stagedPages) {
+    if (item.error) throw item.error;
+    if (item.exists) pages.add(item.path);
   }
 
   return [...pages].sort();

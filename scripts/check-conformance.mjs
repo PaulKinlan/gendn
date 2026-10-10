@@ -32,7 +32,7 @@ import {
 import { validateReferenceContractsInBrowser } from "./lib/reference-browser.mjs";
 import { readJudgedFile } from "./lib/judged-content.mjs";
 import { gitRefExists, runGit } from "./lib/bounded-git.mjs";
-import { mapPool, PAGE_CONCURRENCY } from "./check-citation-links.mjs";
+import { GIT_CONCURRENCY, mapPool } from "./lib/map-pool.mjs";
 import {
   collectReferenceContracts,
   declaredSurfaceMembers,
@@ -139,7 +139,7 @@ async function main() {
   if (baselineRef) {
     // Fetch independent suite blobs concurrently, but consume results in suite order. In
     // particular baselineChecked, failures, and the first thrown git error retain their old order.
-    const baselineReads = await mapPool(suites, PAGE_CONCURRENCY, async (s) => {
+    const baselineReads = await mapPool(suites, GIT_CONCURRENCY, async (s) => {
       try {
         return { raw: await git(["show", `${baselineRef}:${s.id}/conformance.json`]) };
       } catch (error) {
