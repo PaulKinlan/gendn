@@ -13,9 +13,21 @@ or conformance gate and does not replace browser interaction/accessibility revie
    exits 0; computed-style differences exit 1; incomplete scans/invalid state exit 2.
 
 `--routes` accepts a comma-separated list of exact routes or `*` globs, including
-nested reference routes. For a deliberate full corpus run, substitute `--all` in
-**both** commands (about 300 pages × 2 widths; several minutes). Neither mode
-runs by default. Snapshots are uncommitted per-wave artifacts ignored under
+nested reference routes. For a fast lane check of **leaf reference edits**, use
+`--changed` in both commands: it selects published routes touched since the merge-base
+of fetched `origin/main` and `HEAD`, including staged and untracked edits. For example,
+record with `deno task css-drift --record pr-42 --changed`, make the CSS edit, then
+compare with `deno task css-drift --compare pr-42 --changed`. Alternatively, record
+with explicit `--routes` **before** editing, then compare using that same explicit
+route list; before the first edit, `--changed` has no routes to select. Keep the
+selected routes identical across passes: changes to the diff between record and
+compare may require starting a new baseline. The gate refuses an empty diff, unknown
+or deleted routes, missing `origin/main`, and shared changes (e.g. `public/styles.css`
+or `server.ts`) rather than reporting a misleading partial pass. For shared CSS,
+use `--all` in **both** commands (about 300 pages × 2 widths; several minutes),
+or select representative routes explicitly with `--routes` and label the result as
+partial. No CI comparison runs automatically: the baseline is an uncommitted,
+pre-edit artifact that must be captured by the lane. Neither mode runs by default. Snapshots are uncommitted per-wave artifacts ignored under
 `reports/css-drift/`; preserve the baseline across the edit, and choose a new
 name for a new wave. The tool never overwrites a baseline, never silently compares
 against a different route set or Chrome version, and aborts on failed local loads.

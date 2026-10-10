@@ -122,6 +122,31 @@ export function selectRoutes(allRoutes, pattern) {
   return selected;
 }
 
+// Only leaf reference edits can be scoped safely. Shared CSS, server rendering, or
+// tooling changes require an explicit --all sweep rather than a misleading partial pass.
+export function selectChangedRoutes(allRoutes, paths) {
+  if (!paths.length) throw new Error("--changed found no changed files; pass --routes or --all");
+  const selected = new Set();
+  for (const path of paths) {
+    if (!/^v\d+\//.test(path)) {
+      throw new Error(
+        `--changed cannot scope shared change ${path}; use --all or --routes explicitly`,
+      );
+    }
+    const directory = path.slice(0, path.lastIndexOf("/") + 1);
+    const affected = allRoutes.filter((route) =>
+      path.endsWith("/index.html")
+        ? path === `${route.slice(1)}index.html`
+        : path.startsWith(route.slice(1)) || route.slice(1).startsWith(directory)
+    );
+    if (!affected.length) {
+      throw new Error(`--changed has no published route for ${path}; use --routes explicitly`);
+    }
+    for (const route of affected) selected.add(route);
+  }
+  return allRoutes.filter((route) => selected.has(route));
+}
+
 export function compareSnapshots(baseline, current) {
   if (baseline?.version !== 1 || current?.version !== 1) {
     throw new Error("unsupported css-drift snapshot version");
