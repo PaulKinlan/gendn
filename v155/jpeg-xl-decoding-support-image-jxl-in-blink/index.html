@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>JPEG XL decoding support (image/jxl) in blink — Chrome 155 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code, figcaption code { overflow-wrap: anywhere; }
+    .table-wrap { max-inline-size: 100%; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    .example-embed { margin: 1.5rem 0; }
+    .example-embed iframe { max-width: 100%; }
+    .example-embed figcaption { font-size: 0.85rem; margin-top: 0.4rem; }
+    .doc-table { margin: 1rem 0; font-size: 0.85rem; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table th[scope="row"] { overflow-wrap: normal; white-space: nowrap; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v155/">&larr; Chrome 155 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v155 &middot; multimedia &middot; enabled by default</p>
+    <h1>JPEG XL decoding support (image/jxl) in blink</h1>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; not Baseline</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 155 (2026-10-06)</li>
+        <li>Edge &middot; Chromium-based; no own record yet</li>
+        <li class="limited">Firefox &middot; Nightly-only (default-on in 153 Nightly)</li>
+        <li>Safari &middot; 17 (2023-09-18)</li>
+      </ul>
+      <p>The <a href="https://api.webstatus.dev/v1/features/jpegxl" target="_blank" rel="noopener">webstatus.dev <code>jpegxl</code> web feature</a> (the Intent&rsquo;s own Web Feature ID; queried 2026-10-11) is <strong>Limited availability</strong>: Chrome/Chrome&nbsp;Android available since 155 (2026-10-06), Safari/Safari&nbsp;iOS since 17 (2023-09-18), and no Firefox release recorded &mdash; the <a href="https://developer.mozilla.org/en-US/docs/Mozilla/Firefox/Releases/153" target="_blank" rel="noopener">Firefox 153 release notes</a> list the Rust JPEG XL decoder as &ldquo;enabled by default in <em>Nightly</em>&rdquo; behind <code>image.jxl.enabled</code> (<a href="https://bugzilla.mozilla.org/show_bug.cgi?id=2040074" target="_blank" rel="noopener">Firefox bug 2040074</a>). Serve JPEG XL with a fallback; see <a href="#examples">examples</a>.</p>
+    </div>
+
+    <p class="lede">From Chrome 155, Blink decodes JPEG XL (<code>image/jxl</code>) images, using <a href="https://github.com/libjxl/jxl-rs" target="_blank" rel="noopener">jxl-rs</a>, a memory-safe pure-Rust decoder. JPEG XL is a modern image format standardized as ISO/IEC 18181 that offers progressive decoding for improved perceived loading performance, support for wide color gamut, HDR, and high bit depth, and support for animation. This entry adds <em>decoding</em> &mdash; no new JavaScript API surface; <code>.jxl</code> resources simply work wherever Blink decodes images.</p>
+  </header>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Shipped in</th><td>Chrome 155 (desktop, Android, Android WebView, iOS) &mdash; filed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=155" target="_blank" rel="noopener">milestone=155 listing</a> (fetched 2026-10-11); per-platform milestones from the <a href="https://chromestatus.com/api/v0/features/5114042131808256" target="_blank" rel="noopener">ChromeStatus API record</a>. &ldquo;Will ship enabled for all users&rdquo; per the Intent</td></tr>
+      <tr><th scope="row">Flags</th><td><code>about://flags</code> entry <code>enable-jxl-image-format</code>; Finch feature name <code>JXLImageFormat</code> (both from the <a href="https://www.mail-archive.com/blink-dev@chromium.org/msg17256.html" target="_blank" rel="noopener">Intent to Ship</a>). This is an image-codec feature (blink component <code>Internals&gt;Images&gt;Codecs&gt;JPEG&nbsp;XL</code>); no entry exists for it in Blink&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a> (searched 2026-10-11)</td></tr>
+      <tr><th scope="row">Specification</th><td>ISO/IEC 18181 (JPEG XL) &mdash; the <a href="https://www.iso.org/standard/85066.html" target="_blank" rel="noopener">ISO standard page linked by the ChromeStatus record</a> (also <a href="https://www.iso.org/standard/85253.html" target="_blank" rel="noopener">the edition linked by webstatus.dev</a>; ISO pages are paywalled). Media type: <a href="https://www.iana.org/assignments/media-types/image/jxl" target="_blank" rel="noopener">IANA registration <code>image/jxl</code></a></td></tr>
+      <tr><th scope="row">Decoder</th><td><a href="https://github.com/libjxl/jxl-rs" target="_blank" rel="noopener">libjxl/jxl-rs</a> &mdash; &ldquo;a memory-safe pure Rust decoder&rdquo; (ChromeStatus summary). The Intent notes the C++ and Rust decoders &ldquo;are both tested against the same conformance test corpus&rdquo;</td></tr>
+      <tr><th scope="row">Intent to Ship</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a8c2618.f0bac957.7b6f1.087d.GAE%40google.com" target="_blank" rel="noopener">blink-dev thread</a>, also archived as <a href="https://www.mail-archive.com/blink-dev@chromium.org/msg17256.html" target="_blank" rel="noopener">mail-archive msg17256</a></td></tr>
+      <tr><th scope="row">TAG review</th><td><a href="https://github.com/w3ctag/design-reviews/issues/633" target="_blank" rel="noopener">w3ctag/design-reviews#633</a> (issues addressed)</td></tr>
+      <tr><th scope="row">Web platform tests</th><td><a href="https://wpt.fyi/results/jpegxl?label=experimental&amp;label=master&amp;aligned" target="_blank" rel="noopener">wpt.fyi/results/jpegxl</a> &mdash; the Intent notes default WPT runs show failures only because the flag was still disabled there, and links <a href="https://wpt.fyi/results/jpegxl?sha=3d06a34791fc33532baffe64e5c48c450cb1a1b9" target="_blank" rel="noopener">a flag-enabled run</a> with two known failures under investigation</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5114042131808256" target="_blank" rel="noopener">5114042131808256 &mdash; JPEG XL decoding support (image/jxl) in blink</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="what-changed">what changed</h2>
+    <p>Chromium historically did not decode JPEG XL (an earlier flagged implementation was removed in 2022; the format&rsquo;s return was one of the most-requested web platform features &mdash; the <a href="https://github.com/web-platform-dx/developer-signals/issues/215" target="_blank" rel="noopener">developer-signals issue</a> linked by webstatus.dev carries 515 upvotes). From Chrome 155, Blink decodes <code>image/jxl</code> resources wherever it decodes images; the ChromeStatus record and Intent describe the change at the codec level (&ldquo;decoding JPEG XL (image/jxl) images in Blink&rdquo;) rather than enumerating per-surface support. What the format itself brings, per the ChromeStatus summary:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Capability</th><th>What it means for pages</th></tr></thead>
+      <tr><td>Progressive decoding</td><td>A partially-downloaded <code>.jxl</code> renders a usable preview, &ldquo;for improved perceived loading performance&rdquo;</td></tr>
+      <tr><td>Wide color gamut, HDR, high bit depth</td><td>Color fidelity beyond 8-bit sRGB in a single compressed format</td></tr>
+      <tr><td>Animation</td><td>Animated images without GIF&rsquo;s palette and size limits</td></tr>
+      <tr><td>Memory-safe decoder</td><td>Chrome&rsquo;s implementation is <a href="https://github.com/libjxl/jxl-rs" target="_blank" rel="noopener">jxl-rs</a>, pure Rust &mdash; image decoders parse untrusted bytes, so memory safety is a security property here</td></tr>
+    </table>
+    </div>
+    <p>Nothing in the sources read records a change to the <code>Accept</code> request header advertising <code>image/jxl</code>; until such server-visible advertising is documented, prefer <em>client-side</em> format selection with <code>&lt;picture&gt;</code> (below) over server-side content negotiation.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5114042131808256" target="_blank" rel="noopener">ChromeStatus record</a> and <a href="https://www.mail-archive.com/blink-dev@chromium.org/msg17256.html" target="_blank" rel="noopener">Intent to Ship</a> (capabilities quoted from the summary); <a href="https://api.webstatus.dev/v1/features/jpegxl" target="_blank" rel="noopener">webstatus.dev jpegxl</a> (developer-signals link)</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">syntax</h2>
+    <p>No new API &mdash; the surfaces are the existing image-loading ones. The format is selected by MIME type (<a href="https://www.iana.org/assignments/media-types/image/jxl" target="_blank" rel="noopener">IANA: <code>image/jxl</code></a>; conventional extension <code>.jxl</code>):</p>
+    <pre><code>&lt;!-- Direct use: works in Chrome 155+, Safari 17+; broken image elsewhere --&gt;
+&lt;img src="photo.jxl" alt="&hellip;"&gt;
+
+&lt;!-- Safe deployment: the browser picks the first source it can decode --&gt;
+&lt;picture&gt;
+  &lt;source srcset="photo.jxl" type="image/jxl"&gt;
+  &lt;source srcset="photo.avif" type="image/avif"&gt;
+  &lt;img src="photo.jpg" alt="&hellip;"&gt;
+&lt;/picture&gt;</code></pre>
+    <p>The <code>&lt;picture&gt;</code> selection mechanism is the HTML Standard&rsquo;s <a href="https://html.spec.whatwg.org/multipage/embedded-content.html#attr-source-type" target="_blank" rel="noopener"><code>type</code> attribute on <code>&lt;source&gt;</code></a>: a <code>&lt;source&gt;</code> whose <code>type</code> is a MIME type the user agent does not support is skipped, so browsers without JPEG XL fall through to AVIF or JPEG with no script and no broken images.</p>
+    <span class="citation">Source: <a href="https://html.spec.whatwg.org/multipage/embedded-content.html#attr-source-type" target="_blank" rel="noopener">HTML Standard &mdash; the <code>source</code> element&rsquo;s <code>type</code> attribute</a>; <a href="https://www.iana.org/assignments/media-types/image/jxl" target="_blank" rel="noopener">IANA media-type registry</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <p>Script feature-detection, when markup fallback isn&rsquo;t enough (e.g. choosing texture URLs): attempt to decode a tiny JPEG XL and see whether it succeeds (snippet gendn-derived; the embedded showcase demo runs exactly this kind of probe live):</p>
+<pre><code>// Probe with a real (small) .jxl asset you serve yourself —
+// only a successful decode is proof of support.
+function supportsJXL(probeUrl = '/img/probe.jxl') {
+  return new Promise((resolve) =&gt; {
+    const img = new Image();
+    img.onload = () =&gt; resolve(img.naturalWidth &gt; 0);
+    img.onerror = () =&gt; resolve(false);
+    img.src = probeUrl;
+  });
+}
+
+// createImageBitmap gives a diagnosable error instead of a bare onerror:
+async function supportsJXLDiagnosable(probeUrl = '/img/probe.jxl') {
+  try {
+    const response = await fetch(probeUrl);
+    await createImageBitmap(await response.blob());
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+if (await supportsJXL()) {
+  useTextures('.jxl');   // progressive, HDR-capable
+} else {
+  useTextures('.avif');  // fallback chain
+}</code></pre>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v155/jpeg-xl-decoding-support-image-jxl-in-blink/decode-probe/"
+        title="Live example — probe this browser's JPEG XL decoding support" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase (route HEAD-checked 200, 2026-10-11): decode probes for <code>image/jxl</code> in the current browser, with honest unsupported states. Sibling concept demos (both 200): <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v155/jpeg-xl-decoding-support-image-jxl-in-blink/format-showdown/" target="_blank" rel="noopener">format showdown</a> and <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v155/jpeg-xl-decoding-support-image-jxl-in-blink/picture-fallback/" target="_blank" rel="noopener">&lt;picture&gt; fallback</a>.<span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v155/jpeg-xl-decoding-support-image-jxl-in-blink/" target="_blank" rel="noopener">chrome-platform-showcase</a></span></figcaption>
+    </figure>
+    <span class="citation">Source: detection pattern exercised by the <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v155/jpeg-xl-decoding-support-image-jxl-in-blink/decode-probe/" target="_blank" rel="noopener">showcase decode-probe demo</a>; <code>&lt;picture&gt;</code> fallback per the <a href="https://html.spec.whatwg.org/multipage/embedded-content.html#attr-source-type" target="_blank" rel="noopener">HTML Standard</a>; snippets gendn-derived (labelled)</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">browser compatibility</h2>
+    <p><strong>BCD has no JPEG XL key at all</strong> (the whole dataset was searched for <code>jxl</code>/<code>jpeg_xl</code> in package data 8.1.5, 2026-10-08 &mdash; zero entries; image-format support is tracked by webstatus.dev instead). The table below is from webstatus.dev, the ChromeStatus record, and the Firefox release notes:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th><code>image/jxl</code> decoding</th><th>Notes</th></tr></thead>
+      <tr><td>Chrome</td><td><strong>155</strong></td><td>Desktop, Android, Android WebView and iOS all 155 per the <a href="https://chromestatus.com/api/v0/features/5114042131808256" target="_blank" rel="noopener">ChromeStatus API record</a>; <a href="https://api.webstatus.dev/v1/features/jpegxl" target="_blank" rel="noopener">webstatus.dev</a> records availability 2026-10-06</td></tr>
+      <tr><td>Edge</td><td>Unknown</td><td>Chromium-based, expected at its 155-based release; no source read records an Edge version</td></tr>
+      <tr><td>Firefox</td><td>Nightly only (as of 153)</td><td>&ldquo;The Rust-based JPEG XL image decoder is now enabled by default in Nightly&rdquo; behind <code>image.jxl.enabled</code> &mdash; <a href="https://developer.mozilla.org/en-US/docs/Mozilla/Firefox/Releases/153" target="_blank" rel="noopener">Firefox 153 release notes</a>, <a href="https://bugzilla.mozilla.org/show_bug.cgi?id=2040074" target="_blank" rel="noopener">bug 2040074</a>; vendor view &ldquo;Shipped/Shipping &hellip; also migrating to rust version&rdquo; in the ChromeStatus record</td></tr>
+      <tr><td>Safari</td><td><strong>17</strong></td><td>Since 2023-09-18 per <a href="https://api.webstatus.dev/v1/features/jpegxl" target="_blank" rel="noopener">webstatus.dev</a>; &ldquo;WebKit currently uses the C++ decoder&rdquo; per the <a href="https://www.mail-archive.com/blink-dev@chromium.org/msg17256.html" target="_blank" rel="noopener">Intent</a></td></tr>
+    </table>
+    </div>
+    <p>Deploy JPEG XL additively: <code>&lt;picture&gt;</code> with <code>type="image/jxl"</code> first and AVIF/WebP/JPEG fallbacks keeps every browser working while the format&rsquo;s Baseline status is still Limited.</p>
+    <span class="citation">Source: <a href="https://api.webstatus.dev/v1/features/jpegxl" target="_blank" rel="noopener">webstatus.dev jpegxl</a> (queried 2026-10-11); <a href="https://chromestatus.com/api/v0/features/5114042131808256" target="_blank" rel="noopener">ChromeStatus API record</a>; <a href="https://developer.mozilla.org/en-US/docs/Mozilla/Firefox/Releases/153" target="_blank" rel="noopener">Firefox 153 release notes</a>; BCD 8.1.5 searched &mdash; no entry</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <p>An image decoder is one of the largest attack surfaces a browser exposes to untrusted bytes, which is why the implementation choice is itself the security story here: Chrome&rsquo;s JPEG XL support ships on <a href="https://github.com/libjxl/jxl-rs" target="_blank" rel="noopener">jxl-rs</a>, &ldquo;a memory-safe pure Rust decoder&rdquo; (ChromeStatus summary), tested against the same conformance corpus as the C++ reference implementation per the Intent. The Intent records &ldquo;no special risks&rdquo; for interoperability/compatibility and &ldquo;new feature, no special risk&rdquo; for WebView. Decoded images follow the platform&rsquo;s existing same-origin rules for image data (e.g. canvas origin-cleanliness); the sources read record no JPEG-XL-specific privacy considerations beyond the format-support bit that any new codec adds to passive fingerprinting surface.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5114042131808256" target="_blank" rel="noopener">ChromeStatus summary</a>; <a href="https://www.mail-archive.com/blink-dev@chromium.org/msg17256.html" target="_blank" rel="noopener">Intent to Ship (Risks sections)</a></span>
+  </section>
+
+  <section>
+    <h2 id="specifications">specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Specification</th><th>Link</th></tr></thead>
+      <tr><td>ISO/IEC 18181 &mdash; JPEG XL image coding system</td><td><a href="https://www.iso.org/standard/85066.html" target="_blank" rel="noopener">iso.org/standard/85066</a> (ChromeStatus-linked) &middot; <a href="https://www.iso.org/standard/85253.html" target="_blank" rel="noopener">iso.org/standard/85253</a> (webstatus.dev-linked); ISO text is paywalled &mdash; the format is also documented at <a href="https://jpegxl.info/" target="_blank" rel="noopener">jpegxl.info</a></td></tr>
+      <tr><td>HTML Standard &mdash; <code>&lt;source type&gt;</code> format selection</td><td><a href="https://html.spec.whatwg.org/multipage/embedded-content.html#attr-source-type" target="_blank" rel="noopener">embedded-content.html#attr-source-type</a></td></tr>
+      <tr><td>IANA &mdash; <code>image/jxl</code> media type</td><td><a href="https://www.iana.org/assignments/media-types/image/jxl" target="_blank" rel="noopener">iana.org/assignments/media-types/image/jxl</a></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: spec links as recorded by the <a href="https://chromestatus.com/api/v0/features/5114042131808256" target="_blank" rel="noopener">ChromeStatus record</a> and <a href="https://api.webstatus.dev/v1/features/jpegxl" target="_blank" rel="noopener">webstatus.dev</a>; IANA registry checked 200 on 2026-10-11</span>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/Media/Guides/Formats/Image_types" target="_blank" rel="noopener">MDN: Image file type and format guide</a> &mdash; MDN&rsquo;s cross-format comparison (no dedicated JPEG XL reference page exists; checked 2026-10-11)</li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v155/jpeg-xl-decoding-support-image-jxl-in-blink/" target="_blank" rel="noopener">chrome-platform-showcase: JPEG XL demos</a> (three concepts, all routes 200)</li>
+      <li><a href="https://chromestatus.com/feature/5114042131808256" target="_blank" rel="noopener">ChromeStatus &mdash; JPEG XL decoding support (5114042131808256)</a></li>
+      <li><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a8c2618.f0bac957.7b6f1.087d.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a> &middot; <a href="https://github.com/w3ctag/design-reviews/issues/633" target="_blank" rel="noopener">TAG review #633</a></li>
+      <li><a href="https://github.com/libjxl/jxl-rs" target="_blank" rel="noopener">libjxl/jxl-rs &mdash; the Rust decoder</a> &middot; <a href="https://github.com/web-platform-dx/developer-signals/issues/215" target="_blank" rel="noopener">developer-signals #215 (515 upvotes)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
