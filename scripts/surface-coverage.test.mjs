@@ -412,6 +412,15 @@ const root = Deno.cwd();
         r.failures.some((f) => f.startsWith(`${child}:`)),
       JSON.stringify({ changed: r.changed, failures: r.failures }),
     );
+    assert(
+      "pooled ratchet keeps failure order aligned with changed-contract order (gendn-czwr)",
+      (() => {
+        const probeFirst = r.changed.indexOf(probe) < r.changed.indexOf(child);
+        const failAt = (id) => r.failures.findIndex((f) => f.startsWith(`${id}:`));
+        return probeFirst ? failAt(probe) < failAt(child) : failAt(child) < failAt(probe);
+      })(),
+      JSON.stringify({ changed: r.changed, failures: r.failures }),
+    );
     await g("add", ".");
     await g("commit", "-qm", "page-only regression");
     r = await runRatchet(scratch);
@@ -420,6 +429,33 @@ const root = Deno.cwd();
       !r.vacuous && r.failures.length === 2 && r.pageOwners.join() === probe,
       JSON.stringify({ vacuous: r.vacuous, failures: r.failures }),
     );
+
+    // gendn-czwr deliberate mutation: a touched contract that cannot even PARSE must surface
+    // its load failure through the pooled loop — never vanish behind a quieter verdict. The
+    // owner walk still checks the probe's overview contract, so its finding survives while
+    // the child's slice finding is replaced by the load failure, in changed-contract order.
+    const childContractPath = `${scratch}/${child}/reference-contract.json`;
+    const childContractBase = await Deno.readTextFile(childContractPath);
+    await Deno.writeTextFile(childContractPath, "{ not json");
+    r = await runRatchet(scratch);
+    assert(
+      "corrupt touched contract fails the pooled ratchet through its load error (never swallowed)",
+      r.failures.length === 2 &&
+        r.failures.some((f) => f.startsWith(`${probe}:`)) &&
+        r.failures.filter((f) => f.startsWith("touched contract")).length === 1,
+      JSON.stringify(r.failures),
+    );
+    assert(
+      "...and the load failure sits at the corrupt contract's position in input order",
+      (() => {
+        const probeFirst = r.changed.indexOf(probe) < r.changed.indexOf(child);
+        const loadIdx = r.failures.findIndex((f) => f.startsWith("touched contract"));
+        const probeIdx = r.failures.findIndex((f) => f.startsWith(`${probe}:`));
+        return probeFirst ? probeIdx < loadIdx : loadIdx < probeIdx;
+      })(),
+      JSON.stringify({ changed: r.changed, failures: r.failures }),
+    );
+    await Deno.writeTextFile(childContractPath, childContractBase);
 
     // Exercise the actual CLI in both directions on the SAME committed wrong-surface tree.
     // The scratch repo's origin/main is a local ref: no network or browser is involved.

@@ -113,6 +113,10 @@ async function scratchTree({ stripMarkerGuard }) {
     }
   }
   await Deno.writeTextFile(`${dir}/scripts/run-fixtures.mjs`, runner);
+  // The runner imports the shared bounded pool (gendn-czwr); a scratch tree without it dies on
+  // module resolution before any behaviour under test is reached.
+  await Deno.mkdir(`${dir}/scripts/lib`, { recursive: true });
+  await Deno.copyFile(`${REPO}scripts/lib/map-pool.mjs`, `${dir}/scripts/lib/map-pool.mjs`);
   await Deno.writeTextFile(`${dir}/scripts/noop.mjs`, 'console.log("noop fixture ok");\n');
   await Deno.writeTextFile(
     `${dir}/scripts/noop.test.mjs`,
@@ -310,6 +314,21 @@ try {
         missing.code !== 0 && failure.includes("zz-new.test.mjs") &&
           failure.includes("missing @fixture-permissions") &&
           !new TextDecoder().decode(missing.stdout).includes("running  ("),
+      );
+      // gendn-czwr: the permission scan is pooled, so the refusal must still name the FIRST
+      // fixture in discovery order (localeCompare sort), not whichever read fails soonest.
+      await Deno.writeTextFile(
+        `${tree}/scripts/zz-aaa.test.mjs`,
+        'console.log("also no permissions");\n',
+      );
+      const ordered = await runIn(tree, ["--list"]);
+      const orderedFailure = new TextDecoder().decode(ordered.stderr);
+      assert(
+        "pooled permission scan refuses on the FIRST discovery-order failure (gendn-czwr)",
+        ordered.code !== 0 && orderedFailure.includes("zz-aaa.test.mjs") &&
+          orderedFailure.includes("missing @fixture-permissions") &&
+          !orderedFailure.includes("zz-new.test.mjs"),
+        orderedFailure.trim().split("\n").pop()?.slice(0, 160) ?? "",
       );
     } finally {
       await Deno.remove(tree, { recursive: true }).catch(() => {});

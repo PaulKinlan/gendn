@@ -669,6 +669,16 @@ try {
     "collectCritiques: only pages WITH a _questions.json contribute",
     critiques.length === 1 && critiques[0].q === 1,
   );
+  // gendn-czwr: critique collection is pooled per page; the result must stay in
+  // published-page order regardless of read completion order. Give the SECOND published
+  // page a critique and pin the exact order of both.
+  await Deno.writeTextFile(`${tmp}/v901/delta/_questions.json`, JSON.stringify({ q: 2 }));
+  const orderedCritiques = await collectCritiques(tmp);
+  assert(
+    "collectCritiques: pooled reads keep the published-page order (alpha before delta)",
+    orderedCritiques.length === 2 && orderedCritiques[0].q === 1 && orderedCritiques[1].q === 2,
+    JSON.stringify(orderedCritiques.map((c) => c.q)),
+  );
   assert(
     "conformancePath/critiquePath shape",
     conformancePath("v9/x", tmp) === `${tmp}/v9/x/conformance.json` &&

@@ -143,6 +143,11 @@ try {
     r.text.includes("1 have no IDL surface"),
     r.text,
   );
+  assert(
+    "rtvp check-conformance Case 1 (pooled denominators): critique census counts the present _questions.json (gendn-czwr)",
+    /critiques\s+: 1\/2 published pages/.test(r.text),
+    r.text,
+  );
   const unchangedNote =
     "[UNCHANGED: fetched baseline == HEAD - committed changes not in scope; uncommitted edits still checked]";
   assert(
@@ -231,6 +236,32 @@ try {
     r.code === 0 && r.text.includes("PASS"),
     r.text,
   );
+
+  // Case 6b (gendn-czwr): the pooled denominator reads must keep COUNTING, not merely avoid
+  // crashing. A critique added to the legacy page moves the census to 2/2. (The untracked
+  // file makes LEGACY touched, so the gate also reports its known missing-contract failure;
+  // like Case 5 this asserts at line level on a non-clean run.)
+  const legacyCritiquePath = `${scratch}/${LEGACY}/_questions.json`;
+  await Deno.writeTextFile(legacyCritiquePath, JSON.stringify({ schemaVersion: 1 }));
+  r = await runGate();
+  assert(
+    "rtvp check-conformance Case 6b (pooled denominators): added critique is counted in the census",
+    /critiques\s+: 2\/2 published pages/.test(r.text),
+    r.text,
+  );
+
+  // Case 6c (gendn-czwr): a BROKEN critique JSON must crash the gate, never be swallowed by
+  // the pool into a quiet census or a PASS — the exact failure mode a concurrency rewrite
+  // risks. The scratch migrations.json is valid, so a SyntaxError here can only come from the
+  // pooled _questions.json read.
+  await Deno.writeTextFile(legacyCritiquePath, "{ not json");
+  r = await runGate();
+  assert(
+    "rtvp check-conformance Case 6c: invalid _questions.json fails the gate (never a silent PASS)",
+    r.code === 1 && !r.text.includes("PASS —") && r.text.includes("SyntaxError"),
+    `exit=${r.code}`,
+  );
+  await Deno.remove(legacyCritiquePath);
 
   // A real committed weakening with a recomputed suiteHash (so hash validation cannot mask the
   // baseline defect). A ref-less ratchet must REFUSE, not report 201 self-compared suites checked.
