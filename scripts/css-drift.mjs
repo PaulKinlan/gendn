@@ -6,7 +6,7 @@
 // The corpus includes both published roots and nested member references: v*/**/index.html.
 // Capture the baseline on the pre-wave tree, then compare in the SAME worktree/Chrome version
 // after editing. Uncommitted reports/css-drift/ must be preserved across those two runs.
-import { launch } from "./lib/cdp.mjs";
+import { launch, raceWithTimeout } from "./lib/cdp.mjs";
 import { runGit } from "./lib/bounded-git.mjs";
 import {
   captureExpression,
@@ -49,10 +49,11 @@ async function stopServer(server) {
   try {
     server.kill("SIGTERM");
   } catch { /* already stopped */ }
-  const outcome = await Promise.race([
+  const outcome = await raceWithTimeout(
     server.status.then(() => "exited").catch(() => "exited"),
-    new Promise((resolve) => setTimeout(() => resolve("timeout"), 5000)),
-  ]);
+    5000,
+    "timeout",
+  );
   if (outcome === "timeout") {
     try {
       server.kill("SIGKILL");
