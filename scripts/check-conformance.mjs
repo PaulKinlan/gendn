@@ -32,7 +32,7 @@ import {
 import { validateReferenceContractsInBrowser } from "./lib/reference-browser.mjs";
 import { readJudgedFile } from "./lib/judged-content.mjs";
 import { gitRefExists, runGit } from "./lib/bounded-git.mjs";
-import { GIT_CONCURRENCY, mapPool } from "./lib/map-pool.mjs";
+import { GIT_CONCURRENCY, mapPool, PAGE_CONCURRENCY } from "./lib/map-pool.mjs";
 import {
   collectReferenceContracts,
   declaredSurfaceMembers,
@@ -362,20 +362,22 @@ async function main() {
   }
 
   // ---- denominators ----
-  const critiquePages = [];
-  for (const id of pageIds) {
-    if (await readJson(`./${id}/_questions.json`)) critiquePages.push(id);
-  }
+  // Every denominator read is independent per-page I/O, so overlap the critique and
+  // metadata reads in the shared bounded pool (gendn-czwr) and consume the results in the
+  // original page order: counts and any thrown read error keep the serial gate's output.
+  const pageIdList = [...pageIds];
+  const [critiqueReads, pageMetas] = await Promise.all([
+    mapPool(pageIdList, PAGE_CONCURRENCY, (id) => readJson(`./${id}/_questions.json`)),
+    mapPool(pageIdList, PAGE_CONCURRENCY, (id) => pageMetadata(`${id}/index.html`)),
+  ]);
+  const critiquePages = pageIdList.filter((_, index) => critiqueReads[index]);
   const okCls = (cls) =>
-    [...pageIds].filter((id) => supportForRoute(support, `/${id}/`)[cls] === "ok").length;
+    pageIdList.filter((id) => supportForRoute(support, `/${id}/`)[cls] === "ok").length;
   const results = await readJson("./reports/conformance/results.json");
 
   console.log("conformance gate");
   console.log(`  conformance suites : ${suiteById.size}/${pageIds.size} published pages`);
-  const builtPages = [];
-  for (const id of pageIds) {
-    if ((await pageMetadata(`${id}/index.html`)).status === "built") builtPages.push(id);
-  }
+  const builtPages = pageIdList.filter((_, index) => pageMetas[index].status === "built");
   const sufficientRefs = builtPages.filter((id) => {
     const contract = referenceById.get(id)?.contract;
     return contract?.id === id && contract.completeness === "implementation-sufficient" &&
@@ -391,19 +393,20 @@ async function main() {
   // pages with no IDL at all (CSS / HTML feature pages) that the schema cannot assess in its
   // present form. The split below runs over that same remainder — built, neither sufficient nor
   // partial — using declaredSurfaceMembers(html), the instrument the touched-page campaign uses,
-  // so "no IDL surface" is not read as "nothing to do".
-  let noIdlSurface = 0;
-  for (const id of builtPages) {
+  // so "no IDL surface" is not read as "nothing to do". One judged HTML read per built
+  // page, overlapped in the same bounded pool and counted in page order (gendn-czwr).
+  const idlFlags = await mapPool(builtPages, PAGE_CONCURRENCY, async (id) => {
     const contract = referenceById.get(id)?.contract;
     const isSufficient = contract?.id === id &&
       contract.completeness === "implementation-sufficient" &&
       referenceErrorsById.get(id)?.length === 0;
     const isPartial = contract?.id === id && contract.completeness === "partial" &&
       referenceErrorsById.get(id)?.length === 0;
-    if (isSufficient || isPartial) continue;
+    if (isSufficient || isPartial) return false;
     const html = await readJudgedFile(`./${id}/index.html`).catch(() => null);
-    if (html && declaredSurfaceMembers(html).length === 0) noIdlSurface++;
-  }
+    return Boolean(html && declaredSurfaceMembers(html).length === 0);
+  });
+  const noIdlSurface = idlFlags.filter(Boolean).length;
   console.log(`  critiques          : ${critiquePages.length}/${pageIds.size} published pages`);
   console.log(
     `  implementation refs: ${sufficientRefs} sufficient / ${partialRefs} partial / ${

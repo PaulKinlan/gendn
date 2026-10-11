@@ -54,6 +54,8 @@
 //
 // EXIT: 0 when every discovered fixture passed; 1 when one failed or timed out.
 
+import { mapPool, PAGE_CONCURRENCY } from "./lib/map-pool.mjs";
+
 const FIXTURE_TIMEOUT_MS = Number(Deno.env.get("GENDN_FIXTURE_TIMEOUT_MS") ?? 300_000);
 // How long to wait for the group kill to take effect before giving up on a fixture's output.
 const KILL_GRACE_MS = 10_000;
@@ -379,19 +381,28 @@ if (import.meta.main) {
     if (entry.isFile) files.push(entry.name);
   }
   const fixtures = discoverFixtures(files, tasks);
-  const permissions = new Map();
-  try {
-    for (const [name, file] of fixtures) {
-      if (file) {
-        permissions.set(
-          name,
-          fixturePermissions(await Deno.readTextFile(`${repoRoot}${file}`), file),
-        );
-      }
+  // Fixture sources are independent reads: scan them in the shared bounded pool (gendn-czwr),
+  // then consume the scans in discovery order so the first input-order failure is the one
+  // refused and the permission Map's insertion order matches the serial runner.
+  const scans = await mapPool([...fixtures], PAGE_CONCURRENCY, async ([name, file]) => {
+    if (!file) return null; // task-only fixture: no backing file to derive permissions from
+    try {
+      return {
+        name,
+        perms: fixturePermissions(await Deno.readTextFile(`${repoRoot}${file}`), file),
+      };
+    } catch (error) {
+      return { name, error };
     }
-  } catch (error) {
-    console.error(`test-fixtures: REFUSING — ${error.message}`);
-    Deno.exit(1);
+  });
+  const permissions = new Map();
+  for (const scan of scans) {
+    if (!scan) continue;
+    if (scan.error) {
+      console.error(`test-fixtures: REFUSING — ${scan.error.message}`);
+      Deno.exit(1);
+    }
+    permissions.set(scan.name, scan.perms);
   }
   const discovered = [...fixtures.keys()];
   const runnable = requested ?? discovered.filter((name) => !EXCLUDED.has(name));

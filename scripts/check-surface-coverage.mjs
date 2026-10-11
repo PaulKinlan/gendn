@@ -196,25 +196,34 @@ export async function runRatchet(root) {
     if (error) failures.push(`touched page ${owner}: ${error.message}`);
   }
   const warnings = [];
-  let inspected = 0;
-  for (const id of ids) {
+  // Each touched contract is judged independently (load + derive findings), so run the
+  // per-id work in the shared bounded pool and consume the reports in the original Set
+  // order (gendn-czwr): failures, warnings, and the inspected count stay deterministic.
+  const contractReports = await mapPool([...ids], PAGE_CONCURRENCY, async (id) => {
     let contract;
     try {
       contract = await loadContract(root, id);
     } catch (err) {
-      failures.push(`touched contract ${err.message}`);
-      continue;
+      return { failure: `touched contract ${err.message}` };
     }
-    if (!contract) continue; // deleted in the diff; route gate owns removal
-    inspected++;
-    let findings;
+    if (!contract) return {}; // deleted in the diff; route gate owns removal
     try {
-      findings = await surfaceCoverageFindings(contract, root, (path) => readHtml(root, path));
+      return {
+        inspected: true,
+        findings: await surfaceCoverageFindings(contract, root, (path) => readHtml(root, path)),
+      };
     } catch (err) {
-      failures.push(`touched contract ${id}: cannot read documented page: ${err.message}`);
-      continue;
+      return {
+        inspected: true,
+        failure: `touched contract ${id}: cannot read documented page: ${err.message}`,
+      };
     }
-    for (const f of findings) {
+  });
+  let inspected = 0;
+  for (const report of contractReports) {
+    if (report.inspected) inspected++;
+    if (report.failure) failures.push(report.failure);
+    for (const f of report.findings ?? []) {
       const line =
         `${f.id}: ${f.inventoryId}.${f.dim} -> ${f.selector} maps a slice without any surface marker [${
           (f.markers ?? []).join(", ")

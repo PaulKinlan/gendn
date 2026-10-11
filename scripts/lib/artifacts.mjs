@@ -291,13 +291,15 @@ export async function collectSuites(root = ".") {
 
 export async function collectCritiques(root = ".") {
   const pages = await collectPublishedPages(root);
-  const out = [];
-  for (const p of pages) {
-    const pageId = p.replace(/\/index\.html$/, "");
-    const c = await readJson(critiquePath(pageId, root));
-    if (c) out.push(c);
-  }
-  return out;
+  // Independent per-page critique reads: overlap them in the shared bounded pool (gendn-czwr).
+  // readJson yields null for an absent file, so filtering the input-ordered results preserves
+  // the serial return exactly.
+  const critiques = await mapPool(
+    pages,
+    PAGE_CONCURRENCY,
+    (p) => readJson(critiquePath(p.replace(/\/index\.html$/, ""), root)),
+  );
+  return critiques.filter((c) => c);
 }
 
 // ---------- responsive support sidecar ----------

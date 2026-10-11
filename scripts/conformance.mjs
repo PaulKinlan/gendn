@@ -20,6 +20,7 @@
 // and, in responsive mode, reports/conformance/shots/*.png when --screenshots is given.
 
 import { launch } from "./lib/cdp.mjs";
+import { mapPool, PAGE_CONCURRENCY } from "./lib/map-pool.mjs";
 import {
   collectPublishedPages,
   collectSuites,
@@ -204,18 +205,23 @@ async function runSuite(suite, ctx) {
   const { base, origin, desktop, mobile } = ctx;
   const results = [];
 
-  // http-status assertions are checked with a direct request (deterministic).
+  // http-status assertions are checked with a direct request (deterministic). The probes
+  // are independent, so overlap them in the shared bounded pool instead of a serial
+  // waterfall (gendn-czwr); statuses are keyed by assertion id, and results are consumed in
+  // assertion order, so the recorded outcome cannot depend on probe completion order.
   const httpAsserts = suite.assertions.filter((a) => a.kind === "http-status");
-  const httpStatuses = {};
-  for (const a of httpAsserts) {
+  const probedStatuses = await mapPool(httpAsserts, PAGE_CONCURRENCY, async (a) => {
     try {
       const res = await fetch(`${base}${a.test}`, { redirect: "manual" });
-      httpStatuses[a.id] = res.status;
+      const status = res.status;
       await res.body?.cancel();
+      return status;
     } catch {
-      httpStatuses[a.id] = 0;
+      return 0;
     }
-  }
+  });
+  const httpStatuses = {};
+  for (const [index, a] of httpAsserts.entries()) httpStatuses[a.id] = probedStatuses[index];
 
   // Load desktop once, mobile once.
   await desktop.goto(`${base}${suite.route}`);
