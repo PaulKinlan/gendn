@@ -258,8 +258,10 @@ try {
   r = await runGate();
   assert(
     "rtvp check-conformance Case 6c: invalid _questions.json fails the gate (never a silent PASS)",
-    r.code === 1 && !r.text.includes("PASS —") && r.text.includes("SyntaxError"),
-    `exit=${r.code}`,
+    r.code === 1 && !r.text.includes("PASS —") &&
+      r.text.includes("FAIL — the conformance gate could not complete") &&
+      /JSON at position/.test(r.text),
+    `exit=${r.code} tail=${r.text.trim().split("\n").slice(-4).join(" | ").slice(0, 300)}`,
   );
   await Deno.remove(legacyCritiquePath);
 
