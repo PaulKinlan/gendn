@@ -244,7 +244,15 @@ assert(
     previousZeroGuard.error?.includes("positive integer") &&
     !previousZeroGuard.error?.includes("responsive pass"),
 );
-for (const [rawLimit, expected] of [["1", 1], ["202", actualCatalogue.length]]) {
+// The over-catalogue limit is DERIVED, not hard-coded: a literal ("202") encoded "limit >=
+// catalogue size selects everything" only while the catalogue stayed at or under it, and went
+// stale when the catalogue crossed 202 pages (weekly hardening 2026-10-11, 201 -> 209).
+for (
+  const [rawLimit, expected] of [["1", 1], [
+    String(actualCatalogue.length + 1),
+    actualCatalogue.length,
+  ]]
+) {
   const selection = selectPublishedRootPages(actualCatalogue, { hasLimit: true, rawLimit });
   assert(
     `positive --limit ${rawLimit} without --page preserves ${expected} selected pages`,
