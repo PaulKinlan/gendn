@@ -362,22 +362,41 @@ async function main() {
   }
 
   // ---- denominators ----
-  // Every denominator read is independent per-page I/O, so overlap the critique and
-  // metadata reads in the shared bounded pool (gendn-czwr) and consume the results in the
-  // original page order: counts and any thrown read error keep the serial gate's output.
+  // Every denominator read is independent per-page I/O. Capture errors inside the bounded
+  // pool, then consume in page order so the first broken critique is still the one reported.
   const pageIdList = [...pageIds];
-  const [critiqueReads, pageMetas] = await Promise.all([
-    mapPool(pageIdList, PAGE_CONCURRENCY, (id) => readJson(`./${id}/_questions.json`)),
-    mapPool(pageIdList, PAGE_CONCURRENCY, (id) => pageMetadata(`${id}/index.html`)),
-  ]);
-  const critiquePages = pageIdList.filter((_, index) => critiqueReads[index]);
+  const critiqueReads = await mapPool(pageIdList, PAGE_CONCURRENCY, async (id) => {
+    try {
+      return { value: await readJson(`./${id}/_questions.json`) };
+    } catch (error) {
+      return { error };
+    }
+  });
+  const critiquePages = [];
+  for (const [index, read] of critiqueReads.entries()) {
+    if (read.error) throw read.error;
+    if (read.value) critiquePages.push(pageIdList[index]);
+  }
   const okCls = (cls) =>
     pageIdList.filter((id) => supportForRoute(support, `/${id}/`)[cls] === "ok").length;
   const results = await readJson("./reports/conformance/results.json");
 
   console.log("conformance gate");
   console.log(`  conformance suites : ${suiteById.size}/${pageIds.size} published pages`);
-  const builtPages = pageIdList.filter((_, index) => pageMetas[index].status === "built");
+  // Metadata ran after these first two lines in the serial gate. Preserve that failure
+  // boundary and throw the first input-order error rather than the fastest failed read.
+  const pageMetas = await mapPool(pageIdList, PAGE_CONCURRENCY, async (id) => {
+    try {
+      return { value: await pageMetadata(`${id}/index.html`) };
+    } catch (error) {
+      return { error };
+    }
+  });
+  const builtPages = [];
+  for (const [index, read] of pageMetas.entries()) {
+    if (read.error) throw read.error;
+    if (read.value.status === "built") builtPages.push(pageIdList[index]);
+  }
   const sufficientRefs = builtPages.filter((id) => {
     const contract = referenceById.get(id)?.contract;
     return contract?.id === id && contract.completeness === "implementation-sufficient" &&

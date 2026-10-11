@@ -679,6 +679,26 @@ try {
     orderedCritiques.length === 2 && orderedCritiques[0].q === 1 && orderedCritiques[1].q === 2,
     JSON.stringify(orderedCritiques.map((c) => c.q)),
   );
+  // Two broken inputs must report the FIRST page's parse error, not whichever pooled read
+  // rejects first. Compare against the same parser's error for alpha (gendn-czwr).
+  const alphaCritique = `${tmp}/v900/alpha/_questions.json`;
+  const deltaCritique = `${tmp}/v901/delta/_questions.json`;
+  await Deno.writeTextFile(alphaCritique, "{ first broken");
+  await Deno.writeTextFile(deltaCritique, "[ second broken");
+  const firstError = await readJson(alphaCritique).catch((error) => error.message);
+  let pooledError;
+  try {
+    await collectCritiques(tmp);
+  } catch (error) {
+    pooledError = error.message;
+  }
+  assert(
+    "collectCritiques: two broken reads throw the first input-order error",
+    Boolean(firstError) && pooledError === firstError,
+    `expected=${firstError}; actual=${pooledError}`,
+  );
+  await Deno.writeTextFile(alphaCritique, JSON.stringify({ q: 1 }));
+  await Deno.writeTextFile(deltaCritique, JSON.stringify({ q: 2 }));
   assert(
     "conformancePath/critiquePath shape",
     conformancePath("v9/x", tmp) === `${tmp}/v9/x/conformance.json` &&
