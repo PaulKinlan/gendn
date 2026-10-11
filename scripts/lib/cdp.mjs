@@ -35,6 +35,21 @@ function findChrome() {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// A completed operation must not leave the losing timeout alive: each browser fixture runs
+// in its own Deno process, and an uncleared 20s navigation timer held that process open
+// after Chrome/server cleanup. Keep the same bounded fallback and rejection semantics.
+export async function raceWithTimeout(promise, timeoutMs, fallback) {
+  let timer;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((resolve) => timer = setTimeout(() => resolve(fallback), timeoutMs)),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // CDP AWAITS ARE BOUNDED (gendn-1tu). Page.goto bounded only its LOAD wait: the underlying
 // Page.navigate and every Runtime.evaluate went through sendSession/Conn.send, which parked a
 // {resolve,reject} in the pending map and never deleted or bounded it. A dead or wedged Chrome
@@ -113,7 +128,7 @@ async function terminateChild(child) {
     // already exited
   }
   try {
-    const st = await Promise.race([child.status, sleep(5000).then(() => null)]);
+    const st = await raceWithTimeout(child.status, 5000, null);
     if (st === null) {
       try {
         child.kill("SIGKILL");
@@ -121,7 +136,7 @@ async function terminateChild(child) {
         // ignore
       }
       try {
-        await Promise.race([child.status, sleep(5000).then(() => null)]);
+        await raceWithTimeout(child.status, 5000, null);
       } catch {
         // ignore
       }
@@ -675,10 +690,7 @@ class Page {
     this._reqUrls = new Map();
     const loaded = new Promise((resolve) => this._loadWaiters.push(resolve));
     await this.sendSession("Page.navigate", { url });
-    await Promise.race([
-      loaded,
-      new Promise((r) => setTimeout(r, timeout)),
-    ]);
+    await raceWithTimeout(loaded, timeout, undefined);
     // Give lazily-scheduled work a brief, fixed settle window (deterministic).
     await new Promise((r) => setTimeout(r, 400));
     await this.assertLocalOrigin(`after goto ${url}`);

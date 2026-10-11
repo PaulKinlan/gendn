@@ -14,6 +14,7 @@ import {
   isLocalNavigation,
   parseCdpTimeoutMs,
   parseProcessListForDir,
+  raceWithTimeout,
   tmpRoot,
 } from "./lib/cdp.mjs";
 
@@ -146,6 +147,55 @@ else Deno.env.set("TMPDIR", savedTmpdir);
   } finally {
     if (saved === undefined) Deno.env.delete(name);
     else Deno.env.set(name, saved);
+  }
+}
+
+// gendn-rhav: a completed CDP navigation or child shutdown must clear its losing timeout;
+// a leaked 20s timer used to hold each real-browser fixture process open after the page passed.
+// Mock the clock so the fixture pins completion, timeout and rejection without a slow sleep.
+{
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  const timers = [];
+  try {
+    globalThis.setTimeout = (fn, ms) => {
+      const timer = { fn, ms, cleared: false };
+      timers.push(timer);
+      return timer;
+    };
+    globalThis.clearTimeout = (timer) => {
+      timer.cleared = true;
+    };
+
+    const loaded = await raceWithTimeout(Promise.resolve("loaded"), 20_000, "timeout");
+    assert(
+      "navigation load wins and cancels its losing 20s timer",
+      loaded === "loaded" && timers[0]?.ms === 20_000 && timers[0]?.cleared === true,
+    );
+
+    const waiting = raceWithTimeout(new Promise(() => {}), 5000, "timeout");
+    assert("shutdown wait retains its 5s bound", timers[1]?.ms === 5000);
+    timers[1].fn();
+    const timedOut = await waiting;
+    assert(
+      "a genuinely hung operation still returns the same timeout fallback",
+      timedOut === "timeout" && timers[1].cleared === true,
+    );
+
+    const reason = new Error("dead browser target");
+    let rejection;
+    try {
+      await raceWithTimeout(Promise.reject(reason), 5000, "timeout");
+    } catch (error) {
+      rejection = error;
+    }
+    assert(
+      "a rejecting CDP operation keeps its error and cancels its timer",
+      rejection === reason && timers[2]?.cleared === true,
+    );
+  } finally {
+    globalThis.setTimeout = originalSetTimeout;
+    globalThis.clearTimeout = originalClearTimeout;
   }
 }
 
