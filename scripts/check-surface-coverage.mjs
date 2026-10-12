@@ -15,25 +15,15 @@
 // 'next h2' produced gendn-5ao's self-confirming probe; the fixture replays that trap.
 import { surfaceCoverageFindings } from "./lib/surface-coverage.mjs";
 import { plainCorpusPath } from "./lib/plain-corpus-path.mjs";
+import { runGit } from "./lib/bounded-git.mjs";
 import { mapPool, PAGE_CONCURRENCY } from "./lib/map-pool.mjs";
 
 const CONTRACT_RE = /^(v\d+\/[^/]+(?:\/[^/]+)*)\/reference-contract\.json$/;
 const PAGE_RE = /^(v\d+\/[^/]+)(?:\/[^/]+)*\/index\.html$/;
 
 async function git(args, root) {
-  try {
-    const c = new Deno.Command("git", {
-      args,
-      cwd: root,
-      stdout: "piped",
-      stderr: "piped",
-    });
-    const out = await c.output();
-    if (!out.success) return null;
-    return new TextDecoder().decode(out.stdout);
-  } catch {
-    return null;
-  }
+  const { code, stdout } = await runGit(args, { cwd: root, stdout: "piped" });
+  return code === 0 ? stdout : null;
 }
 
 /** Contract ids (vN/slug[/member]) among diff path names. Pure; exported for the fixture. */
