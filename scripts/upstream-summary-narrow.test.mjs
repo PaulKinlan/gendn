@@ -121,6 +121,12 @@ try {
         !catalogueHtml.includes("chromestatus.com/feature/107") &&
         !catalogueHtml.includes("chromestatus.com/feature/108"),
     );
+    assert(
+      "catalogue: a name narrowed to '' because it was NOT a string is never reported as truncated " +
+        "(no data-truncated, no '...' — truncation is a property of a cut string, not a rejected value; " +
+        "gendn-iued compose rule with gendn-kow4)",
+      !catalogueHtml.includes("data-truncated") && !catalogueHtml.includes("..."),
+    );
   }
 
   // --- release page (/v<N>/): same field, pre-existing crash site ---
@@ -150,6 +156,13 @@ try {
   assert(
     "release page: non-string names never throw and never coerce — no '12345', no '[object Object]'",
     !releaseHtml.includes("12345") && !releaseHtml.includes("[object Object]"),
+  );
+  assert(
+    "release page: name narrowed for being non-string carries NO truncation marker (empty anchor, no '...')",
+    releaseHtml.includes(
+      '<h3><a href="https://chromestatus.com/feature/106" target="_blank" rel="noopener"></a></h3>',
+    ) &&
+      !releaseHtml.includes('rel="noopener">...</a></h3>'),
   );
   assert(
     "release page: nameless feature still listed with its chromestatus identity and an empty heading",
