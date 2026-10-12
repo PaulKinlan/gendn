@@ -526,21 +526,35 @@ export async function renderReleasePage(release: string, milestone: number): Pro
     const cat = categoryTag(group.category.slice(0, CATEGORY_CAP));
     const catCut = group.category.length > CATEGORY_CAP;
     const cards = await Promise.all(group.features.map(async (f) => {
-      const slug = slugify(f.name);
+      // Runtime narrow, not coerce (gendn-iued, the gendn-25hn disposition one field over): the
+      // declared `name: string` on FeatureSummary is a compile-time claim about untrusted JSON
+      // (getJson casts unchecked). EVERY consumer below requires a string — slugify() throws on
+      // a non-string (s.toLowerCase), and escapeHTML would throw the same way — so a malformed
+      // name (null/number/object) used to 502 the whole release page from the first consumer.
+      // Narrowing once at the head of the value's path makes every downstream use safe; a
+      // non-string degrades to "" (empty heading, slug "", doc-pending card) — THREAT_MODEL.md
+      // §4.1 disposition, same shape as the summary line below.
+      const name = typeof f.name === "string" ? f.name.slice(0, NAME_CAP) : "";
+      const slug = slugify(name);
       const hasDoc = await featureHasDoc(release, slug);
       // Runtime narrow, not just ?? (gendn-25hn): the declared string type is a compile-time claim
       // only (getJson casts unchecked), and ?? passes a non-string through to .slice(), which threw
       // and took the whole release page down (502). Non-string degrades to "" — THREAT_MODEL.md §4.1
       // disposition, same shape as chromeStatusUrl()/milestonePathSegment().
       const summary = typeof f.summary === "string" ? f.summary.slice(0, SUMMARY_CAP) : "";
-      // Same per-field class as the summary cap (gendn-kow4): the heading is the whole display
-      // need for the name, so an oversized upstream name stops at NAME_CAP. The slug above stays
-      // on the raw name — slugify bounds itself and route resolution must not depend on the cap.
-      const name = f.name.slice(0, NAME_CAP);
-      // Truncation signal (gendn-kow4): raw length > cap is the honest test — a value exactly at
-      // the cap was NOT cut. The release-page summary's === test is pre-existing behaviour left
-      // for gendn-d3mt; new caps use the correct comparison.
-      const nameCut = f.name.length > NAME_CAP;
+      // Same per-field class as the summary cap (gendn-kow4), composed with the gendn-iued
+      // narrowing: the heading is the whole display need for the name, so an oversized upstream
+      // name stops at NAME_CAP — and a NON-STRING name degrades to "" instead of throwing out
+      // of slugify/escapeHTML and 502ing the page (the whole consumer path requires a string,
+      // so the narrowing lives at the head of the value's path). The slug above derives from the
+      // narrowed name — identical to the raw name for every string, "" otherwise — and slugify
+      // bounds itself at 80 chars, so route resolution never depends on the display cap.
+      // Truncation signal (gendn-kow4 + iued): raw length > cap is the honest test, computed
+      // from the raw value ONLY when it is actually a string — a value that was never a string
+      // is absent, not truncated, and must not grow a "..." marker. The release-page summary's
+      // === test is pre-existing behaviour left for gendn-d3mt; new caps use the correct
+      // comparison.
+      const nameCut = typeof f.name === "string" && f.name.length > NAME_CAP;
       // Narrowed at runtime, not escaped (gendn-b2s): a non-canonical id renders the name as
       // plain text instead of a link — THREAT_MODEL.md invariant #4, renderCommitAnchor shape.
       const csHref = chromeStatusUrl(f.id);
@@ -669,7 +683,23 @@ export async function renderFeaturesCatalogue(channels: Channels): Promise<strin
   }
 
   const checked = await mapPool(items, IO_CONCURRENCY, async ({ m, g, f }) => {
-    const slug = slugify(f.name);
+    // Runtime narrow, not coerce (gendn-iued, the gendn-25hn disposition one field over):
+    // slugify() here threw on a non-string name and 502'd the whole catalogue; Row.name then
+    // feeds slugify(r.name), escapeHTML(r.name) and the data-search template in tableRows,
+    // all of which require strings too. Narrowing once at the head covers every consumer
+    // (Row.name is a string by construction); a non-string degrades to "" — slug "" has no
+    // doc directory (there is no v<N>/index.html), so the row is honestly omitted from the
+    // catalogue, which indexes what has actually been written.
+    // Runtime narrow, not coerce (gendn-iued, the gendn-25hn disposition one field over):
+    // slugify() here threw on a non-string name and 502'd the whole catalogue; Row.name then
+    // feeds slugify(r.name), escapeHTML(r.name) and the data-search template in tableRows,
+    // all of which require strings too. Narrowing once at the head covers every consumer
+    // (Row.name is a string by construction); a non-string degrades to "" — slug "" has no
+    // doc directory (there is no v<N>/index.html), so the row is honestly omitted from the
+    // catalogue, which indexes what has actually been written. Composed with the gendn-kow4
+    // cap: strings stop at NAME_CAP, non-strings degrade to "".
+    const name = typeof f.name === "string" ? f.name.slice(0, NAME_CAP) : "";
+    const slug = slugify(name);
     const hasDoc = await featureHasDoc(`v${m}`, slug);
     // The catalogue is the index of what's actually been written.
     // Pending APIs still show up on the per-release pages.
@@ -677,7 +707,7 @@ export async function renderFeaturesCatalogue(channels: Channels): Promise<strin
     return {
       mstone: m,
       id: f.id,
-      name: f.name.slice(0, NAME_CAP),
+      name,
       slug,
       // Same upstream cap as the release page (gendn-1krm): the summary is only used for the
       // row's data-search string, so 220 chars of search text is the whole legitimate need —
@@ -689,7 +719,7 @@ export async function renderFeaturesCatalogue(channels: Channels): Promise<strin
       // the same data-search/data-status attributes and cells that summary does.
       category: g.category.slice(0, CATEGORY_CAP),
       hasDoc,
-      nameCut: f.name.length > NAME_CAP,
+      nameCut: typeof f.name === "string" && f.name.length > NAME_CAP,
       categoryCut: g.category.length > CATEGORY_CAP,
     } as Row;
   });
