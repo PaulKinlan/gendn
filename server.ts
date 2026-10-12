@@ -409,6 +409,18 @@ const IO_CONCURRENCY = 32;
 // catalogue data-search), so both surfaces cap the field at the same length: an oversized or
 // adversarial payload cannot be reflected into, hashed with, or held in a response (gendn-1krm).
 const SUMMARY_CAP = 220;
+// gendn-kow4: the same hazard class holds for the other free-text fields on the same rows.
+// f.name feeds release-page headings, catalogue cells and data-search; g.category feeds group
+// titles, data-status and the same search string — capping summary alone left either field able
+// to reflect a multi-hundred-KB payload into one combined response that withRevalidation buffers
+// and hashes whole (measured by the reviewer: one 200 KB name → a 406 KB /features document).
+// Names share summary's 220 — a title's whole legitimate display+search need, and every real
+// chromestatus name is far below it. The longest legitimate category string is "In developer
+// trial (Behind a flag)" (35 chars), so 96 is ~3x margin. Slug derivation is deliberately NOT
+// capped: slugify() already bounds its own output (80 chars) and route resolution must not depend
+// on a display cap — rows carry the slug computed from the raw name.
+const NAME_CAP = 220;
+const CATEGORY_CAP = 96;
 
 // Run `fn` over `items` with at most `limit` in flight, returning results in INPUT ORDER so a
 // caller can rely on positional correspondence (that is what keeps duplicate-identity resolution
@@ -485,11 +497,15 @@ export function crossReferenceTag(cross: string): string {
   } &rarr;</a>`;
 }
 
-async function renderReleasePage(release: string, milestone: number): Promise<string> {
+export async function renderReleasePage(release: string, milestone: number): Promise<string> {
   const features = await getMilestoneFeatures(milestone);
   const identityIndex = await getIdentityIndex();
 
   const sections = await Promise.all(features.groups.map(async (group) => {
+    // Categories arrive as features_by_type object keys; the longest legitimate one is 35 chars
+    // ("In developer trial (Behind a flag)"), known-phrase mapping included (gendn-kow4). One
+    // derivation per group serves both the card tag and the group title below.
+    const cat = categoryTag(group.category.slice(0, CATEGORY_CAP));
     const cards = await Promise.all(group.features.map(async (f) => {
       const slug = slugify(f.name);
       const hasDoc = await featureHasDoc(release, slug);
@@ -498,6 +514,10 @@ async function renderReleasePage(release: string, milestone: number): Promise<st
       // and took the whole release page down (502). Non-string degrades to "" — THREAT_MODEL.md §4.1
       // disposition, same shape as chromeStatusUrl()/milestonePathSegment().
       const summary = typeof f.summary === "string" ? f.summary.slice(0, SUMMARY_CAP) : "";
+      // Same per-field class as the summary cap (gendn-kow4): the heading is the whole display
+      // need for the name, so an oversized upstream name stops at NAME_CAP. The slug above stays
+      // on the raw name — slugify bounds itself and route resolution must not depend on the cap.
+      const name = f.name.slice(0, NAME_CAP);
       // Narrowed at runtime, not escaped (gendn-b2s): a non-canonical id renders the name as
       // plain text instead of a link — THREAT_MODEL.md invariant #4, renderCommitAnchor shape.
       const csHref = chromeStatusUrl(f.id);
@@ -513,19 +533,19 @@ async function renderReleasePage(release: string, milestone: number): Promise<st
       return `<li class="demo-card">
         ${
         csHref
-          ? `<h3><a href="${csHref}" target="_blank" rel="noopener">${escapeHTML(f.name)}</a></h3>`
-          : `<h3>${escapeHTML(f.name)}</h3>`
+          ? `<h3><a href="${csHref}" target="_blank" rel="noopener">${escapeHTML(name)}</a></h3>`
+          : `<h3>${escapeHTML(name)}</h3>`
       }
         <p>${escapeHTML(summary)}${summary.length === SUMMARY_CAP ? "..." : ""}</p>
         <div class="demo-tags">
-          <span class="tag">${escapeHTML(categoryTag(group.category))}</span>
+          <span class="tag">${escapeHTML(cat)}</span>
           ${docTag}
         </div>
       </li>`;
     }));
     return `<section>
       <h3 class="group-title">${
-      escapeHTML(categoryTag(group.category))
+      escapeHTML(cat)
     } <span class="group-count">(${group.features.length})</span></h3>
       <ol class="demo-list">${cards.join("")}</ol>
     </section>`;
@@ -584,6 +604,9 @@ export async function renderFeaturesCatalogue(channels: Channels): Promise<strin
     mstone: number;
     id: number;
     name: string;
+    // Slug of the RAW upstream name (the same value hasDoc validated), so the row href never
+    // depends on the display-capped name (gendn-kow4).
+    slug: string;
     summary: string;
     category: string;
     hasDoc: boolean;
@@ -625,21 +648,27 @@ export async function renderFeaturesCatalogue(channels: Channels): Promise<strin
     return {
       mstone: m,
       id: f.id,
-      name: f.name,
+      name: f.name.slice(0, NAME_CAP),
+      slug,
       // Same upstream cap as the release page (gendn-1krm): the summary is only used for the
       // row's data-search string, so 220 chars of search text is the whole legitimate need —
       // the full field would only amplify an oversized upstream payload into /features.
       // Runtime narrow, not just ?? (gendn-25hn): a non-string upstream summary passed through ??
       // threw out of renderFeaturesCatalogue and 502'd the whole catalogue — degrade to "".
       summary: typeof f.summary === "string" ? f.summary.slice(0, SUMMARY_CAP) : "",
-      category: g.category,
+      // name/category complete the per-field bound for the whole row (gendn-kow4): both feed
+      // the same data-search/data-status attributes and cells that summary does.
+      category: g.category.slice(0, CATEGORY_CAP),
       hasDoc,
     } as Row;
   });
   const rows: Row[] = checked.filter((r): r is Row => r !== null);
 
   const tableRows = rows.map((r) => {
-    const slug = slugify(r.name);
+    // From the Row: computed once from the raw upstream name in the mapper above, so the href
+    // always targets the route hasDoc validated (gendn-kow4) instead of re-deriving it from the
+    // display-capped name.
+    const slug = r.slug;
     const cat = categoryTag(r.category);
     // Narrowed at runtime, not escaped (gendn-sxn / THREAT_MODEL.md invariant #4).
     const mstone = milestonePathSegment(r.mstone);

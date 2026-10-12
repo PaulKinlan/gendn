@@ -12,6 +12,14 @@ const evil = `x"><script>alert(1)</script>`;
 // adversarial payload; only the first SUMMARY_CAP (220) chars may reach the catalogue.
 const oversizedSummary = `${"z".repeat(5000)}UNIQUE_TAIL_BEYOND_CAP`;
 
+// gendn-kow4: the OTHER free-text fields on the same rows are the same untrusted class the
+// summary cap closed. "Animatable zoom" + "!"*5000 reproduces the reviewer probe exactly: the
+// "!" run is slug-inert (slugify strips it), so the row passes the hasDoc filter and — without
+// a name cap — rendered a ~200 KB data-search attribute inside a ~406 KB response. The hostile
+// category key is a features_by_type object key reaching data-status, cells and group titles.
+const oversizedName = `Animatable zoom${"!".repeat(5000)}`;
+const oversizedCategory = `${"c".repeat(5000)}CATEGORY_TAIL_BEYOND_CAP`;
+
 let servedIndexHtml = "";
 let servedCss = "";
 
@@ -44,6 +52,13 @@ const stubServer = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
               summary: oversizedSummary,
             },
           ],
+          [oversizedCategory]: [
+            {
+              id: 103,
+              name: oversizedName,
+              summary: "short summary",
+            },
+          ],
         },
       })
     }`);
@@ -61,6 +76,7 @@ const {
   referenceTag,
   renderFeaturesCatalogue,
   renderIndex,
+  renderReleasePage,
 } = await import("../server.ts");
 
 let failures = 0;
@@ -157,6 +173,58 @@ assert(
   assert(
     `renderFeaturesCatalogue: combined data-search stays bounded (name+220+category+milestone; got ${zoomSearch.length} chars)`,
     zoomSearch.length > 0 && zoomSearch.length <= 300,
+  );
+}
+
+// gendn-kow4: name and category complete the per-field bound for the whole upstream-derived row.
+// The hostile row's search string is name(220 max) + summary + category(96 max) + milestone, so a
+// hostile row can no longer inflate the combined /features document that withRevalidation
+// buffers and SHA-1 hashes whole. The row href must still target the slug hasDoc validated
+// (carried from the RAW name, not re-derived from the capped display name).
+{
+  const hostileTr = catalogueHtml.match(/<tr data-search="[^"]*![^"]*"[^>]*>[\s\S]*?<\/tr>/);
+  const hostileSearch = hostileTr?.[0].match(/data-search="([^"]*)"/)?.[1] ?? "";
+  // Internal doc href only (the name cell's chromestatus link is https://, excluded by the pattern).
+  const hostileHref = hostileTr?.[0].match(/href="\/v\d+\/[^"]*"/)?.[0] ?? "";
+  assert(
+    "renderFeaturesCatalogue: oversized-name/category row is rendered (slug-inert suffix keeps the doc dir match)",
+    hostileTr !== null,
+  );
+  assert(
+    "renderFeaturesCatalogue: hostile row href targets the hasDoc-validated slug",
+    hostileHref === 'href="/v150/animatable-zoom/"',
+  );
+  assert(
+    `renderFeaturesCatalogue: combined data-search stays bounded with name+summary+category (got ${hostileSearch.length} chars)`,
+    hostileSearch.length > 0 && hostileSearch.length <= 600,
+  );
+  assert(
+    "renderFeaturesCatalogue: name caps at 220 chars (205-char ! run present, 206+ absent)",
+    /!{205}/.test(catalogueHtml) && !/!{206}/.test(catalogueHtml),
+  );
+  assert(
+    "renderFeaturesCatalogue: category caps at 96 chars in data-status (96-char c run present, 97+ absent)",
+    /data-status="c{96}"/.test(catalogueHtml) && !/c{97}/.test(catalogueHtml),
+  );
+  assert(
+    "renderFeaturesCatalogue: content beyond either cap is absent from the entire response",
+    !catalogueHtml.includes("CATEGORY_TAIL_BEYOND_CAP") &&
+      !catalogueHtml.includes("category_tail_beyond_cap"),
+  );
+
+  const releaseHtml = await renderReleasePage("v150", 150);
+  assert(
+    "renderReleasePage: oversized name caps in the card heading (205-char ! run present, 206+ absent)",
+    releaseHtml.includes("Animatable zoom") && /!{205}/.test(releaseHtml) &&
+      !/!{206}/.test(releaseHtml),
+  );
+  assert(
+    "renderReleasePage: oversized category caps in the group title (96-char c run present, 97+ absent)",
+    /group-title">c{96} /.test(releaseHtml) && !/c{97}/.test(releaseHtml),
+  );
+  assert(
+    "renderReleasePage: content beyond either cap is absent from the release page too",
+    !releaseHtml.includes("CATEGORY_TAIL_BEYOND_CAP"),
   );
 }
 
