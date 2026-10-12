@@ -11,12 +11,17 @@
 // server.ts (BASE is captured at import time in lib/chromestatus.ts).
 const XSSI = ")]}'";
 
-// "Animatable zoom" → slug animatable-zoom and "CSS light-dark with image values" →
-// css-light-dark-with-image-values are both real v150 doc folders, so the catalogue's
+// "Animatable zoom" → slug animatable-zoom, "CSS light-dark with image values" →
+// css-light-dark-with-image-values, "Allow optional rounding parameter for polygon" →
+// allow-optional-rounding-parameter-for-polygon and "Comma separated container queries" →
+// comma-separated-container-queries are all real v150 doc folders, so the catalogue's
 // featureHasDoc check passes and the row (and its summary handling) is actually constructed.
+// The last entry has NO summary field at all (undefined after the unchecked cast).
 const HOSTILE_FEATURES = [
   { id: 102, name: "Animatable zoom", summary: 12345 },
   { id: 103, name: "CSS light-dark with image values", summary: "x".repeat(300) },
+  { id: 104, name: "Allow optional rounding parameter for polygon", summary: null },
+  { id: 105, name: "Comma separated container queries" },
 ];
 
 const stubServer = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
@@ -87,6 +92,14 @@ try {
       "catalogue: 220-char summary cap (gendn-1krm) still applies to real strings",
       catalogueHtml.includes("x".repeat(220)) && !catalogueHtml.includes("x".repeat(221)),
     );
+    assert(
+      "catalogue: null and missing (undefined) summaries still render doc-backed rows, never throw",
+      catalogueHtml.includes("/v150/allow-optional-rounding-parameter-for-polygon/") &&
+        catalogueHtml.includes("/v150/comma-separated-container-queries/") &&
+        catalogueHtml.includes(
+          'data-search="allow optional rounding parameter for polygon  shipped v150"',
+        ),
+    );
   }
 
   // --- release page (/v<N>/): same field, pre-existing crash site ---
@@ -103,6 +116,11 @@ try {
     releaseHtml.includes("<p></p>") &&
       releaseHtml.includes("chromestatus.com/feature/102") &&
       !releaseHtml.includes("12345"),
+  );
+  assert(
+    "release page: null and missing (undefined) summaries render rows, never throw",
+    releaseHtml.includes("Allow optional rounding parameter for polygon") &&
+      releaseHtml.includes("Comma separated container queries"),
   );
   assert(
     "release page: long string summary still capped at 220 chars with ellipsis",
