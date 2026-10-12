@@ -211,16 +211,38 @@ assert(
     !catalogueHtml.includes("CATEGORY_TAIL_BEYOND_CAP") &&
       !catalogueHtml.includes("category_tail_beyond_cap"),
   );
+  assert(
+    "renderFeaturesCatalogue: truncation is signalled — hostile row carries data-truncated naming both cut fields",
+    / data-truncated="name category" /.test(hostileTr?.[0] ?? ""),
+  );
+  assert(
+    "renderFeaturesCatalogue: name cell shows the 205-char ! run followed by the explicit ... marker",
+    /!{205}\.\.\.<\/a>/.test(catalogueHtml),
+  );
+  assert(
+    "renderFeaturesCatalogue: category cell shows the 96-char c run followed by the explicit ... marker",
+    /tag">c{96}\.\.\.<\/span>/.test(catalogueHtml),
+  );
+  assert(
+    "renderFeaturesCatalogue: machine-facing attributes stay marker-free (data-search not suffixed, data-status exact)",
+    !/\.\.\." data-mstone/.test(hostileTr?.[0] ?? "") &&
+      !/[!.]\.\.\." data-doc/.test(hostileTr?.[0] ?? ""),
+  );
+  assert(
+    "renderFeaturesCatalogue: untruncated rows gain no marker and no data-truncated attribute",
+    !catalogueHtml.includes('data-truncated=""') &&
+      catalogueHtml.match(/data-truncated/g)?.length === 1,
+  );
 
   const releaseHtml = await renderReleasePage("v150", 150);
   assert(
-    "renderReleasePage: oversized name caps in the card heading (205-char ! run present, 206+ absent)",
-    releaseHtml.includes("Animatable zoom") && /!{205}/.test(releaseHtml) &&
+    "renderReleasePage: oversized name caps in the card heading with the ... marker (205 ! run + ..., no 206+)",
+    releaseHtml.includes("Animatable zoom") && /!{205}\.\.\./.test(releaseHtml) &&
       !/!{206}/.test(releaseHtml),
   );
   assert(
-    "renderReleasePage: oversized category caps in the group title (96-char c run present, 97+ absent)",
-    /group-title">c{96} /.test(releaseHtml) && !/c{97}/.test(releaseHtml),
+    "renderReleasePage: oversized category caps in the group title with the ... marker (96 c run + ..., no 97+)",
+    /group-title">c{96}\.\.\. /.test(releaseHtml) && !/c{97}/.test(releaseHtml),
   );
   assert(
     "renderReleasePage: content beyond either cap is absent from the release page too",
