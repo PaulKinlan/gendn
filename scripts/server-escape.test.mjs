@@ -7,6 +7,11 @@
 const XSSI = ")]}'";
 const evil = `x"><script>alert(1)</script>`;
 
+// gendn-1krm: an oversized upstream summary (bounded only by the 8 MiB fetchBounded ceiling)
+// must be capped per field where it feeds SSR output. 5000 chars stands in for a malformed or
+// adversarial payload; only the first SUMMARY_CAP (220) chars may reach the catalogue.
+const oversizedSummary = `${"z".repeat(5000)}UNIQUE_TAIL_BEYOND_CAP`;
+
 let servedIndexHtml = "";
 let servedCss = "";
 
@@ -32,6 +37,11 @@ const stubServer = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
               id: 101,
               name: "AccentColor and AccentColorText system colors",
               summary: evil,
+            },
+            {
+              id: 102,
+              name: "Animatable zoom",
+              summary: oversizedSummary,
             },
           ],
         },
@@ -121,6 +131,34 @@ assert(
   "renderFeaturesCatalogue: invalid milestone drops href and does not emit clickable '#' fallback",
   !catalogueHtml.includes('href="#"'),
 );
+
+// gendn-1krm: the untrusted upstream summary is capped per field (SUMMARY_CAP = 220, shared with
+// renderReleasePage) before it feeds a catalogue row's data-search string, so the 5000-char stub
+// payload contributes at most its first 220 chars and its tail never reaches the /features
+// response that withRevalidation buffers and hashes whole.
+{
+  const zoomRow = catalogueHtml.match(
+    /<tr data-search="[^"]*"[^>]*>\s*<td><a [^>]*>Animatable zoom<\/a>/,
+  );
+  const zoomSearch = zoomRow?.[0].match(/data-search="([^"]*)"/)?.[1] ?? "";
+  assert(
+    "renderFeaturesCatalogue: oversized-summary row is rendered (doc dir exists) and searchable by its capped prefix",
+    zoomRow !== null && zoomSearch.includes("z".repeat(200)),
+  );
+  assert(
+    "renderFeaturesCatalogue: no run of 221+ chars from the 5000-char summary survives the cap",
+    !/z{221}/.test(catalogueHtml),
+  );
+  assert(
+    "renderFeaturesCatalogue: content beyond the cap is absent from the entire response",
+    // data-search is lowercased before interpolation, so assert the lowercased tail form.
+    !catalogueHtml.includes("unique_tail_beyond_cap"),
+  );
+  assert(
+    `renderFeaturesCatalogue: combined data-search stays bounded (name+220+category+milestone; got ${zoomSearch.length} chars)`,
+    zoomSearch.length > 0 && zoomSearch.length <= 300,
+  );
+}
 
 // gendn-f3t: knownReleaseMilestones is the boundary filtering hostile or unbounded channel data
 // before milestones reach catalogue options, feature fetches, or route dispatch.
