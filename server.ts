@@ -493,7 +493,11 @@ async function renderReleasePage(release: string, milestone: number): Promise<st
     const cards = await Promise.all(group.features.map(async (f) => {
       const slug = slugify(f.name);
       const hasDoc = await featureHasDoc(release, slug);
-      const summary = (f.summary ?? "").slice(0, SUMMARY_CAP);
+      // Runtime narrow, not just ?? (gendn-25hn): the declared string type is a compile-time claim
+      // only (getJson casts unchecked), and ?? passes a non-string through to .slice(), which threw
+      // and took the whole release page down (502). Non-string degrades to "" — THREAT_MODEL.md §4.1
+      // disposition, same shape as chromeStatusUrl()/milestonePathSegment().
+      const summary = typeof f.summary === "string" ? f.summary.slice(0, SUMMARY_CAP) : "";
       // Narrowed at runtime, not escaped (gendn-b2s): a non-canonical id renders the name as
       // plain text instead of a link — THREAT_MODEL.md invariant #4, renderCommitAnchor shape.
       const csHref = chromeStatusUrl(f.id);
@@ -625,7 +629,9 @@ export async function renderFeaturesCatalogue(channels: Channels): Promise<strin
       // Same upstream cap as the release page (gendn-1krm): the summary is only used for the
       // row's data-search string, so 220 chars of search text is the whole legitimate need —
       // the full field would only amplify an oversized upstream payload into /features.
-      summary: (f.summary ?? "").slice(0, SUMMARY_CAP),
+      // Runtime narrow, not just ?? (gendn-25hn): a non-string upstream summary passed through ??
+      // threw out of renderFeaturesCatalogue and 502'd the whole catalogue — degrade to "".
+      summary: typeof f.summary === "string" ? f.summary.slice(0, SUMMARY_CAP) : "",
       category: g.category,
       hasDoc,
     } as Row;
