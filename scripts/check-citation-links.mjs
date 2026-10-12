@@ -29,6 +29,7 @@
 //     "Source:" without a source-like token are not flagged.
 
 import { plainCorpusPath } from "./lib/plain-corpus-path.mjs";
+import { runGit } from "./lib/bounded-git.mjs";
 import { mapPool, PAGE_CONCURRENCY } from "./lib/map-pool.mjs";
 export { mapPool, PAGE_CONCURRENCY } from "./lib/map-pool.mjs";
 
@@ -36,19 +37,8 @@ const PAGE_RE = /^(v\d+\/[^/]+)\//; // any file in the page tree: member routes 
 // matching check-conformance.mjs touched-page mapping (a member-only diff must not bypass the gate)
 const CS_ID_MIN_LEN = 15;
 
-async function runGit(args, cwd = ".") {
-  const cmd = new Deno.Command("git", {
-    args,
-    cwd,
-    stdout: "piped",
-    stderr: "null",
-  });
-  const { code, stdout } = await cmd.output();
-  return { code, stdout: new TextDecoder().decode(stdout) };
-}
-
 async function git(args, cwd = ".") {
-  const { code, stdout } = await runGit(args, cwd);
+  const { code, stdout } = await runGit(args, { cwd, stdout: "piped" });
   return code === 0 ? stdout : null;
 }
 

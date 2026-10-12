@@ -257,8 +257,15 @@ export interface MilestoneFeatures {
 
 export async function getMilestoneFeatures(milestone: number): Promise<MilestoneFeatures> {
   const data = await getJson<FeaturesByMilestoneResponse>(`/features?milestone=${milestone}`);
-  const groups = Object.entries(data.features_by_type)
-    .filter(([_, list]) => list.length > 0)
+  // Untrusted JSON can have a null/missing/non-object root or a null/non-array list.
+  // Treat either as an empty collection instead of 502ing the whole release page
+  // (gendn-gne9); retain valid sibling lists and their original order.
+  const byType = data.features_by_type && typeof data.features_by_type === "object" &&
+      !Array.isArray(data.features_by_type)
+    ? data.features_by_type
+    : {};
+  const groups = Object.entries(byType)
+    .filter(([_, list]) => Array.isArray(list) && list.length > 0)
     .map(([category, features]) => ({ category, features }));
   const total = groups.reduce((s, g) => s + g.features.length, 0);
   return { milestone, groups, total };
