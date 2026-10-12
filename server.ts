@@ -404,6 +404,12 @@ let identityIndexPromise: Promise<Map<string, string>> | null = null;
 // change to which item wins anything.
 const IO_CONCURRENCY = 32;
 
+// chromestatus.com JSON is an untrusted upstream (THREAT_MODEL.md §2), bounded only by the 8 MiB
+// fetchBounded ceiling per response — NOT per field. Summaries feed SSR output (release-page prose,
+// catalogue data-search), so both surfaces cap the field at the same length: an oversized or
+// adversarial payload cannot be reflected into, hashed with, or held in a response (gendn-1krm).
+const SUMMARY_CAP = 220;
+
 // Run `fn` over `items` with at most `limit` in flight, returning results in INPUT ORDER so a
 // caller can rely on positional correspondence (that is what keeps duplicate-identity resolution
 // first-wins in getIdentityIndex below). Rejections propagate: callers that want per-item
@@ -487,7 +493,11 @@ async function renderReleasePage(release: string, milestone: number): Promise<st
     const cards = await Promise.all(group.features.map(async (f) => {
       const slug = slugify(f.name);
       const hasDoc = await featureHasDoc(release, slug);
-      const summary = (f.summary ?? "").slice(0, 220);
+      // Runtime narrow, not just ?? (gendn-25hn): the declared string type is a compile-time claim
+      // only (getJson casts unchecked), and ?? passes a non-string through to .slice(), which threw
+      // and took the whole release page down (502). Non-string degrades to "" — THREAT_MODEL.md §4.1
+      // disposition, same shape as chromeStatusUrl()/milestonePathSegment().
+      const summary = typeof f.summary === "string" ? f.summary.slice(0, SUMMARY_CAP) : "";
       // Narrowed at runtime, not escaped (gendn-b2s): a non-canonical id renders the name as
       // plain text instead of a link — THREAT_MODEL.md invariant #4, renderCommitAnchor shape.
       const csHref = chromeStatusUrl(f.id);
@@ -506,7 +516,7 @@ async function renderReleasePage(release: string, milestone: number): Promise<st
           ? `<h3><a href="${csHref}" target="_blank" rel="noopener">${escapeHTML(f.name)}</a></h3>`
           : `<h3>${escapeHTML(f.name)}</h3>`
       }
-        <p>${escapeHTML(summary)}${summary.length === 220 ? "..." : ""}</p>
+        <p>${escapeHTML(summary)}${summary.length === SUMMARY_CAP ? "..." : ""}</p>
         <div class="demo-tags">
           <span class="tag">${escapeHTML(categoryTag(group.category))}</span>
           ${docTag}
@@ -616,7 +626,12 @@ export async function renderFeaturesCatalogue(channels: Channels): Promise<strin
       mstone: m,
       id: f.id,
       name: f.name,
-      summary: f.summary ?? "",
+      // Same upstream cap as the release page (gendn-1krm): the summary is only used for the
+      // row's data-search string, so 220 chars of search text is the whole legitimate need —
+      // the full field would only amplify an oversized upstream payload into /features.
+      // Runtime narrow, not just ?? (gendn-25hn): a non-string upstream summary passed through ??
+      // threw out of renderFeaturesCatalogue and 502'd the whole catalogue — degrade to "".
+      summary: typeof f.summary === "string" ? f.summary.slice(0, SUMMARY_CAP) : "",
       category: g.category,
       hasDoc,
     } as Row;
