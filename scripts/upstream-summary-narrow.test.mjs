@@ -33,6 +33,14 @@ const HOSTILE_FEATURES = [
   { id: 106, name: null, summary: "null name" },
   { id: 107, name: 12345, summary: "numeric name" },
   { id: 108, name: { hostile: true }, summary: "object name" },
+  // gendn-iz07: a 245-unit name whose RAW slug ("animatable-zoom") differs from its
+  // capped-at-220 slug (""). The slug must derive from the RAW string — route resolution
+  // may not depend on a display cap — or this row (and its doc link) silently disappears.
+  {
+    id: 109,
+    name: "\u{1F389}".repeat(115) + "Animatable zoom",
+    summary: "emoji padded name",
+  },
 ];
 
 const stubServer = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
@@ -123,9 +131,23 @@ try {
     );
     assert(
       "catalogue: a name narrowed to '' because it was NOT a string is never reported as truncated " +
-        "(no data-truncated, no '...' — truncation is a property of a cut string, not a rejected value; " +
-        "gendn-iued compose rule with gendn-kow4)",
-      !catalogueHtml.includes("data-truncated") && !catalogueHtml.includes("..."),
+        "(the only data-truncated belongs to the genuinely-cut long-string row 109; nameless rows " +
+        "are absent entirely — truncation is a property of a cut string, not a rejected value)",
+      (catalogueHtml.match(/data-truncated/g)?.length ?? 0) === 1,
+    );
+    const longRow = catalogueHtml.match(/<tr [^>]*>[\s\S]*?<\/tr>/g)?.find((tr) =>
+      tr.includes("chromestatus.com/feature/109")
+    );
+    assert(
+      "catalogue: >NAME_CAP name keeps its row AND its raw-slug doc link (gendn-iz07: slug derives " +
+        "from the RAW string, not the display cap)",
+      longRow !== undefined && longRow.includes('href="/v150/animatable-zoom/"'),
+    );
+    assert(
+      "catalogue: >NAME_CAP name is display-capped (110-emoji run + '...') and flagged data-truncated=name",
+      longRow !== undefined &&
+        longRow.includes("\u{1F389}".repeat(110) + "...") &&
+        longRow.includes('data-truncated="name"'),
     );
   }
 
@@ -163,6 +185,15 @@ try {
       '<h3><a href="https://chromestatus.com/feature/106" target="_blank" rel="noopener"></a></h3>',
     ) &&
       !releaseHtml.includes('rel="noopener">...</a></h3>'),
+  );
+  const longCard = releaseHtml.match(/<li class="demo-card">[\s\S]*?<\/li>/g)?.find((c) =>
+    c.includes("chromestatus.com/feature/109")
+  );
+  assert(
+    "release page: >NAME_CAP name keeps its RAW-slug doc link (gendn-iz07) while the heading " +
+      "display-caps with the '...' marker",
+    longCard !== undefined && longCard.includes('href="/v150/animatable-zoom/"') &&
+      longCard.includes("\u{1F389}".repeat(110) + "..."),
   );
   assert(
     "release page: nameless feature still listed with its chromestatus identity and an empty heading",
