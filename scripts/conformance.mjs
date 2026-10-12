@@ -200,6 +200,27 @@ async function evalAuto(page, a, origin) {
   }
 }
 
+// Status checks only need headers: cancel the body without reading any bytes (a zero-byte body
+// budget). Keep redirects manual so the published 301 assertions see their actual status;
+// fetchBounded follows redirects and restricts them to upstream origins, not this loopback server.
+export async function assertionHttpStatus(base, path, { timeoutMs = 5_000 } = {}) {
+  if (
+    typeof path !== "string" || !/^\/(?!\/)[^\s?#\\]*$/.test(path) ||
+    path.includes("://") || new URL(path, base).origin !== new URL(base).origin
+  ) {
+    throw new Error(`invalid http-status assertion pathname: ${JSON.stringify(path)}`);
+  }
+  const res = await fetch(`${base}${path}`, {
+    redirect: "manual",
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  try {
+    return res.status;
+  } finally {
+    await res.body?.cancel();
+  }
+}
+
 async function runSuite(suite, ctx) {
   const { base, origin, desktop, mobile } = ctx;
   const results = [];
@@ -207,13 +228,13 @@ async function runSuite(suite, ctx) {
   // http-status assertions are checked with a direct request (deterministic).
   const httpAsserts = suite.assertions.filter((a) => a.kind === "http-status");
   const httpStatuses = {};
+  const httpErrors = {};
   for (const a of httpAsserts) {
     try {
-      const res = await fetch(`${base}${a.test}`, { redirect: "manual" });
-      httpStatuses[a.id] = res.status;
-      await res.body?.cancel();
-    } catch {
+      httpStatuses[a.id] = await assertionHttpStatus(base, a.test);
+    } catch (err) {
       httpStatuses[a.id] = 0;
+      httpErrors[a.id] = err.message;
     }
   }
 
@@ -239,7 +260,7 @@ async function runSuite(suite, ctx) {
     let outcome;
     if (a.kind === "http-status") {
       const got = httpStatuses[a.id];
-      outcome = { ok: got === (a.expect ?? 200), reason: `HTTP ${got}` };
+      outcome = { ok: got === (a.expect ?? 200), reason: httpErrors[a.id] ?? `HTTP ${got}` };
     } else {
       const page = a.deviceClass === "mobile" ? mobile : desktop;
       outcome = await evalAuto(page, a, origin);
