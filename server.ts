@@ -406,9 +406,39 @@ const IO_CONCURRENCY = 32;
 
 // chromestatus.com JSON is an untrusted upstream (THREAT_MODEL.md §2), bounded only by the 8 MiB
 // fetchBounded ceiling per response — NOT per field. Summaries feed SSR output (release-page prose,
-// catalogue data-search), so both surfaces cap the field at the same length: an oversized or
-// adversarial payload cannot be reflected into, hashed with, or held in a response (gendn-1krm).
+// catalogue data-search), so both surfaces cap the field at the same length (gendn-1krm; the exact
+// guarantee is stated once, below, with the other field caps).
 const SUMMARY_CAP = 220;
+// gendn-kow4: the same hazard class holds for the other free-text fields on the same rows.
+// f.name feeds release-page headings, catalogue cells and data-search; g.category feeds group
+// titles, data-status and the same search string — capping summary alone left either field able
+// to reflect a multi-hundred-KB payload into one combined response that withRevalidation buffers
+// and hashes whole (measured by the reviewer: one 200 KB name → a 406 KB /features document).
+// Names share summary's 220 — a title's whole legitimate display+search need, and every real
+// chromestatus name is far below it. The longest legitimate category string is "In developer
+// trial (Behind a flag)" (35 chars), so 96 is ~3x margin. Slug derivation is deliberately NOT
+// capped: slugify() already bounds its own output (80 chars) and route resolution must not depend
+// on a display cap — rows carry the slug computed from the raw name.
+//
+// EXACT GUARANTEE (gendn-kow4, replacing the earlier blanket claim): these caps bound each
+// free-text field's CONTRIBUTION to an SSR response — no single name, summary, or category can
+// reflect more than its cap into a document, so the per-field amplification path is closed.
+// They do NOT bound the document total: row count is unbounded upstream and the optional
+// total-size bound was explicitly declined in gendn-1krm. Ids and milestones are separately
+// runtime-narrowed (chromeStatusUrl/milestonePathSegment).
+//
+// TRUNCATION IS SIGNALLED, never silent (gendn-kow4): every cap here that drops bytes appends
+// "..." at its visible render point — the convention the release-page summary cap already
+// established — and catalogue rows additionally carry data-truncated="name category" naming
+// the fields that were cut. Machine-facing attributes stay clean: data-search/data-status hold
+// the capped value WITHOUT the marker, because the status filter is exact-match equality and
+// search text must not grow marker noise; the visible cells in the same row carry the "...".
+// The pre-existing catalogue summary cap signals nowhere (summary has no visible cell there,
+// data-search only) and tests raw === cap rather than > cap on the release page — that
+// inconsistency belongs to gendn-d3mt and is deliberately untouched here, as is the summary
+// cap's value and visible behaviour.
+const NAME_CAP = 220;
+const CATEGORY_CAP = 96;
 
 // Run `fn` over `items` with at most `limit` in flight, returning results in INPUT ORDER so a
 // caller can rely on positional correspondence (that is what keeps duplicate-identity resolution
@@ -485,11 +515,16 @@ export function crossReferenceTag(cross: string): string {
   } &rarr;</a>`;
 }
 
-async function renderReleasePage(release: string, milestone: number): Promise<string> {
+export async function renderReleasePage(release: string, milestone: number): Promise<string> {
   const features = await getMilestoneFeatures(milestone);
   const identityIndex = await getIdentityIndex();
 
   const sections = await Promise.all(features.groups.map(async (group) => {
+    // Categories arrive as features_by_type object keys; the longest legitimate one is 35 chars
+    // ("In developer trial (Behind a flag)"), known-phrase mapping included (gendn-kow4). One
+    // derivation per group serves both the card tag and the group title below.
+    const cat = categoryTag(group.category.slice(0, CATEGORY_CAP));
+    const catCut = group.category.length > CATEGORY_CAP;
     const cards = await Promise.all(group.features.map(async (f) => {
       const slug = slugify(f.name);
       const hasDoc = await featureHasDoc(release, slug);
@@ -498,6 +533,14 @@ async function renderReleasePage(release: string, milestone: number): Promise<st
       // and took the whole release page down (502). Non-string degrades to "" — THREAT_MODEL.md §4.1
       // disposition, same shape as chromeStatusUrl()/milestonePathSegment().
       const summary = typeof f.summary === "string" ? f.summary.slice(0, SUMMARY_CAP) : "";
+      // Same per-field class as the summary cap (gendn-kow4): the heading is the whole display
+      // need for the name, so an oversized upstream name stops at NAME_CAP. The slug above stays
+      // on the raw name — slugify bounds itself and route resolution must not depend on the cap.
+      const name = f.name.slice(0, NAME_CAP);
+      // Truncation signal (gendn-kow4): raw length > cap is the honest test — a value exactly at
+      // the cap was NOT cut. The release-page summary's === test is pre-existing behaviour left
+      // for gendn-d3mt; new caps use the correct comparison.
+      const nameCut = f.name.length > NAME_CAP;
       // Narrowed at runtime, not escaped (gendn-b2s): a non-canonical id renders the name as
       // plain text instead of a link — THREAT_MODEL.md invariant #4, renderCommitAnchor shape.
       const csHref = chromeStatusUrl(f.id);
@@ -513,19 +556,21 @@ async function renderReleasePage(release: string, milestone: number): Promise<st
       return `<li class="demo-card">
         ${
         csHref
-          ? `<h3><a href="${csHref}" target="_blank" rel="noopener">${escapeHTML(f.name)}</a></h3>`
-          : `<h3>${escapeHTML(f.name)}</h3>`
+          ? `<h3><a href="${csHref}" target="_blank" rel="noopener">${escapeHTML(name)}${
+            nameCut ? "..." : ""
+          }</a></h3>`
+          : `<h3>${escapeHTML(name)}${nameCut ? "..." : ""}</h3>`
       }
         <p>${escapeHTML(summary)}${summary.length === SUMMARY_CAP ? "..." : ""}</p>
         <div class="demo-tags">
-          <span class="tag">${escapeHTML(categoryTag(group.category))}</span>
+          <span class="tag">${escapeHTML(cat)}${catCut ? "..." : ""}</span>
           ${docTag}
         </div>
       </li>`;
     }));
     return `<section>
-      <h3 class="group-title">${
-      escapeHTML(categoryTag(group.category))
+      <h3 class="group-title">${escapeHTML(cat)}${
+      catCut ? "..." : ""
     } <span class="group-count">(${group.features.length})</span></h3>
       <ol class="demo-list">${cards.join("")}</ol>
     </section>`;
@@ -584,9 +629,16 @@ export async function renderFeaturesCatalogue(channels: Channels): Promise<strin
     mstone: number;
     id: number;
     name: string;
+    // Slug of the RAW upstream name (the same value hasDoc validated), so the row href never
+    // depends on the display-capped name (gendn-kow4).
+    slug: string;
     summary: string;
     category: string;
     hasDoc: boolean;
+    // Truncation signals (gendn-kow4): raw upstream length exceeded the field cap, so the row
+    // renders "..." on the cut cell(s) and carries data-truncated naming the cut fields.
+    nameCut: boolean;
+    categoryCut: boolean;
   };
 
   const perMilestone = await Promise.all(
@@ -625,21 +677,29 @@ export async function renderFeaturesCatalogue(channels: Channels): Promise<strin
     return {
       mstone: m,
       id: f.id,
-      name: f.name,
+      name: f.name.slice(0, NAME_CAP),
+      slug,
       // Same upstream cap as the release page (gendn-1krm): the summary is only used for the
       // row's data-search string, so 220 chars of search text is the whole legitimate need —
       // the full field would only amplify an oversized upstream payload into /features.
       // Runtime narrow, not just ?? (gendn-25hn): a non-string upstream summary passed through ??
       // threw out of renderFeaturesCatalogue and 502'd the whole catalogue — degrade to "".
       summary: typeof f.summary === "string" ? f.summary.slice(0, SUMMARY_CAP) : "",
-      category: g.category,
+      // name/category complete the per-field bound for the whole row (gendn-kow4): both feed
+      // the same data-search/data-status attributes and cells that summary does.
+      category: g.category.slice(0, CATEGORY_CAP),
       hasDoc,
+      nameCut: f.name.length > NAME_CAP,
+      categoryCut: g.category.length > CATEGORY_CAP,
     } as Row;
   });
   const rows: Row[] = checked.filter((r): r is Row => r !== null);
 
   const tableRows = rows.map((r) => {
-    const slug = slugify(r.name);
+    // From the Row: computed once from the raw upstream name in the mapper above, so the href
+    // always targets the route hasDoc validated (gendn-kow4) instead of re-deriving it from the
+    // display-capped name.
+    const slug = r.slug;
     const cat = categoryTag(r.category);
     // Narrowed at runtime, not escaped (gendn-sxn / THREAT_MODEL.md invariant #4).
     const mstone = milestonePathSegment(r.mstone);
@@ -654,21 +714,28 @@ export async function renderFeaturesCatalogue(channels: Channels): Promise<strin
     // Narrowed at runtime, not escaped (gendn-b2s) — see renderReleasePage.
     const csHref = chromeStatusUrl(r.id);
     const mstoneAttr = mstone ? ` data-mstone="${milestonePathSegment(r.mstone)}"` : "";
+    // Row-level truncation marker (gendn-kow4): machine-readable, names exactly which upstream
+    // fields were cut. Omitted entirely when nothing was — clean rows gain zero bytes.
+    const cutFields = [r.nameCut ? "name" : "", r.categoryCut ? "category" : ""]
+      .filter(Boolean).join(" ");
+    const cutAttr = cutFields ? ` data-truncated="${cutFields}"` : "";
     const statusText = mstone
       ? `v${mstone}`
       : (r.mstone !== undefined && r.mstone !== null
         ? `v${escapeHTML(String(r.mstone))}`
         : "unknown");
-    return `<tr data-search="${escapeHTML(search)}"${mstoneAttr} data-status="${
+    return `<tr data-search="${escapeHTML(search)}"${mstoneAttr}${cutAttr} data-status="${
       escapeHTML(cat)
     }" data-doc="${r.hasDoc}">
       <td>${
       csHref
-        ? `<a href="${csHref}" target="_blank" rel="noopener">${escapeHTML(r.name)}</a>`
-        : escapeHTML(r.name)
+        ? `<a href="${csHref}" target="_blank" rel="noopener">${escapeHTML(r.name)}${
+          r.nameCut ? "..." : ""
+        }</a>`
+        : `${escapeHTML(r.name)}${r.nameCut ? "..." : ""}`
     }</td>
       <td><span class="release-status">${statusText}</span></td>
-      <td><span class="tag">${escapeHTML(cat)}</span></td>
+      <td><span class="tag">${escapeHTML(cat)}${r.categoryCut ? "..." : ""}</span></td>
       <td>${docCell}</td>
     </tr>`;
   }).join("");
