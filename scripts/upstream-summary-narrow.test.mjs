@@ -1,4 +1,4 @@
-// @fixture-permissions --allow-read --allow-write --allow-run --allow-net=127.0.0.1,localhost --allow-env
+// @fixture-permissions --allow-read --allow-net=127.0.0.1,localhost --allow-env
 // gendn-25hn: a non-string upstream summary must degrade, never throw. The declared `summary: string`
 // type in FeatureSummary is a compile-time claim only — getJson casts unchecked — and both render
 // sites slice the field, so a number/boolean/object summary used to throw TypeError out of the
