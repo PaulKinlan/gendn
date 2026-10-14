@@ -1,6 +1,7 @@
 // @fixture-permissions --allow-read --allow-write --allow-run --allow-net --allow-env
 import { validateReferenceContractsInBrowser } from "./lib/reference-browser.mjs";
 import { REQUIRED_DIMENSIONS } from "./lib/reference-contract.mjs";
+import { CHECKOUT_ROOT, createPrivateServedRoot } from "./lib/private-root.mjs";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -16,24 +17,31 @@ const ids = [
   `${milestone}/reference-browser-hidden-${nonce}`,
   `${milestone}/reference-browser-mobile-only-${nonce}`,
 ];
+// PRIVATE served root (gendn-gvoq): the fixture pages are written into a disposable --shared clone
+// pinned to origin/main and the server is started with that clone as its cwd. The fixture used to
+// synthesize `<checkout>/v9998/**` and serve the checkout itself, which is shared writable state:
+// the CSS-drift fixture (and any agent) could delete or collide with these pages mid-run, and a
+// SIGKILL left debris inside the shared milestone. Nothing here names a checkout path.
+const root = await createPrivateServedRoot({ prefix: "gendn-reference-browser" });
 try {
   const records = [];
   for (const ownerId of ids) {
     const hidden = ownerId.includes("browser-hidden");
     const mobileOnly = ownerId.includes("browser-mobile-only");
+    // Refuse to overwrite: a path this fixture owns must not already exist, even inside a fresh root.
     try {
-      await Deno.stat(ownerId);
+      await Deno.stat(`${root.root}${ownerId}`);
       throw new Error(`refusing to overwrite existing browser-test fixture path ${ownerId}`);
     } catch (error) {
       if (!(error instanceof Deno.errors.NotFound)) throw error;
     }
-    await Deno.mkdir(`${ownerId}/member`, { recursive: true });
+    await Deno.mkdir(`${root.root}${ownerId}/member`, { recursive: true });
     await Deno.writeTextFile(
-      `${ownerId}/index.html`,
+      `${root.root}${ownerId}/index.html`,
       `<!doctype html><title>Fixture</title><h1>Fixture</h1>`,
     );
     await Deno.writeTextFile(
-      `${ownerId}/member/index.html`,
+      `${root.root}${ownerId}/member/index.html`,
       `<!doctype html><meta name="viewport" content="width=device-width"><title>Member</title>${
         mobileOnly ? "<style>@media (max-width: 500px) { #contract { display: none } }</style>" : ""
       }<main><section id="contract" style="${
@@ -56,7 +64,7 @@ try {
     });
   }
 
-  const errors = await validateReferenceContractsInBrowser(records);
+  const errors = await validateReferenceContractsInBrowser(records, { cwd: root.root });
   assert(
     errors.some((error) =>
       error.includes("reference-browser-hidden") && error.includes("not visibly rendered")
@@ -73,11 +81,19 @@ try {
     !errors.some((error) => error.includes("reference-browser-visible")),
     `visible documentation failed browser visibility validation:\n${errors.join("\n")}`,
   );
+  // The checkout is never written to, by name: none of this run's fixture paths exist there.
+  for (const ownerId of ids) {
+    let exists = true;
+    try {
+      await Deno.stat(`${CHECKOUT_ROOT}${ownerId}`);
+    } catch (error) {
+      if (!(error instanceof Deno.errors.NotFound)) throw error;
+      exists = false;
+    }
+    assert(!exists, `fixture wrote into the checkout: ${ownerId}`);
+  }
   console.log("PASS — reference-contract browser visibility tests");
 } finally {
-  for (const ownerId of ids) {
-    await Deno.remove(ownerId, { recursive: true }).catch(() => {});
-  }
-  // Remove only the now-empty milestone directory; never recursively delete shared work.
-  await Deno.remove(milestone).catch(() => {});
+  // One removal, of the root this fixture created: no shared milestone is ever touched.
+  await root.remove();
 }

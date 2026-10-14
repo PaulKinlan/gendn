@@ -84,10 +84,13 @@ export async function spawnServer({ script = "server.ts", startupTimeoutMs = 30_
   }
 }
 
-export async function validateReferenceContractsInBrowser(records) {
+// `cwd` is the served root and the root every route below resolves against. The real gate passes
+// nothing (the checkout is the subject); a fixture passes its own private root so the pages it
+// synthesizes are never written into, or read out of, the shared checkout (gendn-gvoq).
+export async function validateReferenceContractsInBrowser(records, { cwd } = {}) {
   if (records.length === 0) return [];
   const errors = [];
-  const server = await spawnServer();
+  const server = await spawnServer(cwd ? { cwd } : {});
   let browser;
   const pages = [];
   try {
