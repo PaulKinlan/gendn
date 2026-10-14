@@ -37,6 +37,16 @@ const REPO = new URL("..", import.meta.url).pathname;
 
 let failures = 0;
 let passed = 0;
+async function pathExists(path) {
+  try {
+    await Deno.stat(path);
+    return true;
+  } catch (error) {
+    if (!(error instanceof Deno.errors.NotFound)) throw error;
+    return false;
+  }
+}
+
 function assert(name, ok, detail = "") {
   if (ok) {
     passed++;
@@ -167,6 +177,9 @@ const settled = async (fn) => {
     return { ok: false, err };
   }
 };
+
+// Exactly the synthesized leaves this fixture created and therefore owns (gendn-gvoq).
+const createdSlugs = [];
 
 try {
   // --- XSSI parsing via the public API --------------------------------------------------
@@ -431,13 +444,23 @@ print(json.dumps([m.slugify(n) for n in json.loads(sys.argv[1])]))`,
   // canonically and the hostile NAMES still render as escaped plain text (fallback, not erasure).
   const { handleRequest } = await import("../server.ts");
   // The catalogue only indexes features whose doc directory exists (server.ts featureHasDoc ->
-  // `if (!hasDoc) return null`), and the repo has no v141 tree — so the seam test SYNTHESIZES
-  // the three doc directories here and removes the whole v141 tree in the stub's finally. The
-  // write permission is path-scoped (--allow-write=v141) and the directory exists only while
-  // this fixture runs.
+  // `if (!hasDoc) return null`), and the repo has no v141 tree — so the seam test SYNTHESIZES the
+  // three doc directories here. OWNERSHIP (gendn-gvoq): the teardown used to be
+  // `Deno.remove("v141", { recursive: true })`, which recursively owns a whole milestone and would
+  // have DESTROYED a published v141 release the day one exists (and, after a SIGKILL, left untracked
+  // pages inside the checkout for a later `git add -A`). It now refuses to touch anything
+  // pre-existing, records exactly the leaves it created, and removes only those — plus the milestone
+  // directory itself, non-recursively, so that only an empty directory can go. The write permission
+  // is path-scoped (--allow-write=v141).
   const SEAM_SLUGS = ["benign-feature", "hostile-twin", "attr-breaker"];
+  if (await pathExists("v141")) {
+    throw new Error(
+      "refusing to synthesize the v141 seam-test tree: v141 already exists in the checkout",
+    );
+  }
   for (const slug of SEAM_SLUGS) {
     await Deno.mkdir(`v141/${slug}`, { recursive: true });
+    createdSlugs.push(slug);
     await Deno.writeTextFile(
       `v141/${slug}/index.html`,
       "<!doctype html><title>seam-test</title>",
@@ -480,13 +503,12 @@ print(json.dumps([m.slugify(n) for n in json.loads(sys.argv[1])]))`,
   );
   seamAssertions("catalogue renderFeaturesCatalogue", await catRes.text());
 } finally {
-  try {
-    // Remove the synthesized seam-test tree so nothing downstream can observe it (the repo has
-    // no v141; the path-scoped write permission bounds the blast radius).
-    await Deno.remove("v141", { recursive: true });
-  } catch {
-    // ignore
+  // Remove ONLY the leaves this fixture created, then the milestone directory if it is now empty
+  // (`Deno.remove` refuses a non-empty directory). Nothing pre-existing is ever deleted.
+  for (const slug of createdSlugs) {
+    await Deno.remove(`v141/${slug}`, { recursive: true }).catch(() => {});
   }
+  await Deno.remove("v141").catch(() => {});
   try {
     await server.shutdown();
   } catch {

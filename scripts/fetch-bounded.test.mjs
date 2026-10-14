@@ -6,6 +6,11 @@
 //   - a SLOW-but-working response still passes inside the timeout (too short a timeout turns a
 //     slow upstream into an outage, which is worse than the exposure)
 //   - a HUNG connection fails fast and bounded (AbortSignal.timeout)
+//   - the bound that governs is the CALLER'S (gendn-gvoq): the fixtures record the argument handed
+//     to AbortSignal.timeout and assert the timeout/cap IDENTITY, rather than measuring how long a
+//     loaded VM took to deliver the abort — elapsed time here measured the scheduler, not the
+//     contract, and a concurrent gate turned a correct abort into a false red. One bounded external
+//     watchdog per bounded call (WATCHDOG_MS) still fails loudly if a call never settles at all.
 //   - a MID-BODY hang (headers arrive, some body arrives, then silence) is bounded too — that is
 //     the phase a streaming cap exists to protect, and A TRUNCATED BODY IS NEVER RETURNED
 //   - a large partial body followed by silence trips the byte cap DURING the stall, i.e. before
@@ -35,6 +40,19 @@ function assert(name, ok, detail = "") {
 }
 
 const BIG = 12 * 1024 * 1024;
+
+// Deterministic timing evidence (gendn-gvoq). The fixtures assert that the bound the CALLER passed
+// is the one armed on the request — recorded here by observing (and passing straight through) the
+// argument to `AbortSignal.timeout`, so no assertion depends on how long this VM took to deliver
+// it. Plus one explicit external watchdog per bounded call, so a call that never settles is a named
+// failure rather than a hung suite.
+const WATCHDOG_MS = 15_000;
+const armedTimeouts = [];
+const realAbortSignalTimeout = AbortSignal.timeout;
+AbortSignal.timeout = function instrumentedTimeout(ms) {
+  armedTimeouts.push(ms);
+  return realAbortSignalTimeout.call(AbortSignal, ms);
+};
 
 // Each stalling endpoint parks a request on purpose; keep EVERY cleanup so the test can release
 // them all before shutdown (Deno's server.shutdown() waits for in-flight requests). This is an
@@ -228,13 +246,54 @@ const base = `http://127.0.0.1:${server.addr.port}`;
 
 const timed = async (label, fn) => {
   const t0 = performance.now();
+  armedTimeouts.length = 0;
   try {
-    const value = await fn();
-    return { label, ok: true, value, ms: Math.round(performance.now() - t0) };
+    const value = await withWatchdog(label, fn());
+    return {
+      label,
+      ok: true,
+      value,
+      ms: Math.round(performance.now() - t0),
+      armed: [...armedTimeouts],
+    };
   } catch (err) {
-    return { label, ok: false, err, ms: Math.round(performance.now() - t0) };
+    return {
+      label,
+      ok: false,
+      err,
+      ms: Math.round(performance.now() - t0),
+      armed: [...armedTimeouts],
+    };
+  } finally {
+    armedTimeouts.length = 0;
   }
 };
+
+// A call that never settles (the unbounded regression this file exists to catch) must be a named
+// failure, not a hung suite. This bounds the FIXTURE; it is not a latency assertion.
+function withWatchdog(label, promise) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`watchdog: ${label} did not settle within ${WATCHDOG_MS}ms`)),
+      WATCHDOG_MS,
+    );
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
+/** True when the call armed exactly these bounds, in this order. */
+function armedBounds(result, ...expected) {
+  return JSON.stringify(result.armed) === JSON.stringify(expected);
+}
 
 try {
   // 1. healthy response passes and parses
@@ -255,16 +314,16 @@ try {
   );
   assert(
     "slow-but-working response still passes (timeout is not policing latency)",
-    slow.ok && slow.value === "slow but fine",
-    `${slow.ms}ms`,
+    slow.ok && slow.value === "slow but fine" && armedBounds(slow, 5000),
+    `${slow.ms}ms; armed ${JSON.stringify(slow.armed)}`,
   );
 
-  // 3. hung connection fails FAST and bounded
+  // 3. hung connection fails on the CALLER'S bound, and the rejection IS the timeout
   const hang = await timed("hang", () => fetchBounded(`${base}/hang`, { timeoutMs: 300 }));
   assert(
-    "hung upstream is bounded by AbortSignal.timeout",
-    !hang.ok && hang.ms < 2000,
-    `rejected after ${hang.ms}ms (bound 300ms); ${hang.err?.name ?? hang.err}`,
+    "hung upstream is bounded by the caller's AbortSignal.timeout bound (300ms armed, rejection is the timeout)",
+    !hang.ok && /timeout/i.test(String(hang.err?.name)) && armedBounds(hang, 300),
+    `armed ${JSON.stringify(hang.armed)}; rejected after ${hang.ms}ms with ${hang.err?.name}`,
   );
 
   // 4. oversized declared body is refused without reading it all
@@ -293,9 +352,11 @@ try {
   // may escape as a successful return.
   const midhang = await timed("midhang", () => fetchBounded(`${base}/midhang`, { timeoutMs: 300 }));
   assert(
-    "mid-body hang is bounded by the same timeout (headers alone do not settle it)",
-    !midhang.ok && midhang.ms < 2000 && /timeout/i.test(String(midhang.err?.name)),
-    `rejected after ${midhang.ms}ms (bound 300ms); ${midhang.err?.name}: ${midhang.err?.message}`,
+    "mid-body hang is bounded by the same timeout (headers alone do not settle it): the caller's 300ms bound armed, and the rejection is a timeout",
+    !midhang.ok && armedBounds(midhang, 300) && /timeout/i.test(String(midhang.err?.name)),
+    `armed ${
+      JSON.stringify(midhang.armed)
+    }; rejected after ${midhang.ms}ms with ${midhang.err?.name}: ${midhang.err?.message}`,
   );
   assert(
     "mid-body hang never returns a TRUNCATED body",
@@ -310,9 +371,10 @@ try {
     () => fetchBounded(`${base}/midhang-big`, { timeoutMs: 5000, maxBytes: 1024 * 1024 }),
   );
   assert(
-    "large partial body then stall trips the byte cap before the timeout",
-    !midbig.ok && /exceeded the .*cap/.test(String(midbig.err?.message)) && midbig.ms < 1000,
-    `rejected after ${midbig.ms}ms (timeout was 5000ms); ${midbig.err?.message}`,
+    "large partial body then stall trips the byte cap before the timeout (the cap's error, with the 5000ms bound armed — a post-read length check would have to hit the TimeoutError instead)",
+    !midbig.ok && /exceeded the .*cap/.test(String(midbig.err?.message)) &&
+      armedBounds(midbig, 5000),
+    `armed ${JSON.stringify(midbig.armed)}; rejected after ${midbig.ms}ms; ${midbig.err?.message}`,
   );
 
   // 5d. The cleanup registry itself: all three stalling endpoints must have registered their own
