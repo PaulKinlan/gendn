@@ -70,6 +70,10 @@ const EXCLUDED = new Map([
     "the aggregate that owns this run (courtesy entry: the GENDN_FIXTURE_RUN marker is the load-bearing guard and also covers a renamed or second aggregate)",
   ],
   [
+    "test-css-drift-browser",
+    "real-browser (~29s of Chrome); a NAMED suite selected by scripts/gate-map.mjs for CSS/server/browser-helper changes, run unconditionally by gate:full and by CI",
+  ],
+  [
     "test-reference-contract",
     "browser-backed (spawns Chrome); CI runs it as a dedicated browser regression step",
   ],
@@ -192,11 +196,55 @@ export function sweepTargets(pids, maxPids = SWEEP_MAX_PIDS) {
   return pids.slice(0, maxPids);
 }
 
-/** Kill at most `maxPids`, then re-scan within the SAME deadline; never invent a zero on truncation. */
-async function sweepByToken(token, { maxPids, budgetMs }) {
+/**
+ * THE PROCFS-FREE SCANNER (gendn-j3ug). Deno categorically denies procfs reads without --allow-all
+ * (measured 2.9.7: `--allow-read`, `--allow-read=/proc` and `--allow-sys` all fail), and the GATE
+ * tasks run with an explicit `--allow-read --allow-run --allow-env` set - so a /proc scan is a silent
+ * no-op in every real gate run. That trap is already documented in scripts/lib/cdp.mjs, which chose
+ * `ps` for the same reason. `ps eww` prints each process's ENVIRONMENT, so the SAME env token identity
+ * works, and `--allow-run` (which the gate already needs) is all it takes. A ps failure THROWS: never
+ * report a clean zero for a scan that could not run.
+ */
+export function scanProcessListForToken(out, token) {
+  const pids = [];
+  for (const line of out.split("\n")) {
+    const match = line.match(/^\s*(\d+)\s/);
+    if (!match) continue;
+    if (!line.includes(token)) continue;
+    const pid = Number(match[1]);
+    if (pid !== Deno.pid) pids.push(pid);
+  }
+  return pids;
+}
+
+/** Scan for the token through `ps eww -eo pid,args`, which also shows each process's environment. */
+export async function scanForTokenViaPs(token, deadline, { now = Date.now } = {}) {
+  const started = now();
+  const output = await new Deno.Command("ps", {
+    args: ["eww", "-eo", "pid,args"],
+    stdout: "piped",
+    stderr: "null",
+  }).output();
+  if (output.code !== 0) throw new Error(`ps exited ${output.code}`);
+  const text = new TextDecoder().decode(output.stdout);
+  const found = scanProcessListForToken(text, token);
+  return {
+    found,
+    unreadable: 0,
+    scanned: text.split("\n").length - 1,
+    elapsedMs: Math.max(0, now() - started),
+    truncated: now() > deadline,
+  };
+}
+
+/** Kill at most `maxPids`, then re-scan within the SAME deadline; never invent a zero on truncation.
+ * Exported so scripts/gate-map.mjs reclaims a timed-out STEP with this same mechanism rather than
+ * growing a second, weaker one (gendn-j3ug); `scan` lets a caller that cannot read procfs plug in the
+ * `ps` scanner above without changing the sweep's cap, budget or reporting. */
+export async function sweepByToken(token, { maxPids, budgetMs, scan = scanForToken }) {
   const started = Date.now();
   const deadline = started + budgetMs;
-  const first = await scanForToken(token, deadline);
+  const first = await scan(token, deadline);
   const capped = first.found.length > maxPids;
   const targets = sweepTargets(first.found, maxPids);
   let killed = 0;
@@ -218,7 +266,7 @@ async function sweepByToken(token, { maxPids, budgetMs }) {
     await new Promise((resolve) => setTimeout(resolve, Math.min(250, remaining)));
   }
   const after = Date.now() < deadline
-    ? await scanForToken(token, deadline)
+    ? await scan(token, deadline)
     : { found: [], unreadable: 0, scanned: 0, elapsedMs: 0, truncated: true };
   return {
     identified: first.found.length,
