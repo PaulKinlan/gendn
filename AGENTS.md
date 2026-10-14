@@ -293,3 +293,44 @@ check-conformance` (missing suite / orphan / weakened assertion / touched-page u
 implementation-sufficient; fresh recorded migration moves with unchanged identity are exempt — see
 the implementation-sufficiency section). Run `deno task conformance --page <id>` for any page you touch — don't
 push a red page. `blocked` is never a pass. Report honest denominators; burn down wave by wave.
+
+### Gate tiers — which checks ran, and what a green light means (`deno task gate:fast` / `gate:full`)
+
+Every gate run goes through one of two entry points, and each one PRINTS WHAT IT DID AND DID NOT RUN:
+
+- `deno task gate:fast` — cheap iteration. Always runs four ratchets that any change can break:
+  `deno task check` (typecheck/format/citation/coverage), `deno task check-routes`,
+  `deno task validate-artifacts`, `deno task check-conformance`. On top of those it runs ONLY the
+  suites the changed paths select (`deno task gate:fast --explain` prints the whole map). Measured at
+  tree e4761dd: 6s for a docs-only change, 18s for `server.ts`, 38s for `public/styles.css` (which
+  makes the CSS real-browser suite mandatory), 52s for a touched leaf page.
+- `deno task gate:full` — the landing gate. The same four ratchets, EVERY deterministic fixture, and
+  the CSS real-browser suite UNCONDITIONALLY (~122s at tree e4761dd).
+- **Fail-closed**: an unmapped path, an empty diff, a merge tip, or a missing `origin/main` baseline
+  ESCALATES the fast tier to the full tier — never to nothing.
+- **A changed module selects its IMPORTERS, not just a hand-written list** (`gendn-0jsg`). The rule
+  table states a minimum; the gate also derives, from real import syntax, every fixture that
+  (transitively) imports a declared path and runs those too. A substring mention is never a dependency —
+  a citation quoting `lib/html.ts` is not a consumer of the escaper. 30 of the 41 declared paths are
+  unchanged by this; a widely-shared helper can grow to ~15 of the 44 suites, which is coverage that was
+  previously missing rather than a slowdown.
+- **Fast means PROVEN ISOLATED, not merely unlisted** (`gendn-8wwm`). The tier is chosen on evidence that
+  the change cannot affect anything outside the selected set: an unplaceable path, a newly added file, an
+  empty diff, a merge tip, a missing baseline, or a dependency graph that could not be built (its universe
+  is `git ls-files`, so it cannot silently omit a directory) all ESCALATE to the full tier. A selection
+  that reaches half the corpus is also escalated rather than reported as scoped — measured 2026-10-14,
+  that is `server.ts` alone (22 of 44 fixtures); the median declared path selects 4. The manifest prints
+  `graph=git-ls-files(N)` or `graph=INCOMPLETE` so the basis of the claim is visible.
+- **Read the manifest, not just the exit code.** Every run ends with a `GATE-COVERAGE-MANIFEST` line
+  (`tier=… ran=… skipped=… browser=… unknown=… escalated=…`) and one `SKIPPED <suite> — <reason>` line
+  per suite that did not run. A green `gate:fast` is NOT a claim that the whole suite passed: it is a
+  claim about exactly the suites listed under `RAN`, and nothing else.
+- The gate also emits the fleet's coverage markers (`fast-gate: passed:|ran: <suites…>`,
+  `fast-gate: unmapped: <paths…>`, `fast-gate: unknown: <reason>`) because `fleet-check`'s coverage
+  reader parses that vocabulary; without it the reader reports "coverage UNKNOWN — N changed files NOT
+  demonstrated to be exercised" for every run, which is honest but discards what the gate knows exactly.
+- The one browser suite no fleet tier runs is `deno task test-reference-contract` (and its
+  `test-reference-browser` component): CI runs it as its own step, and every full-tier manifest prints
+  that as a `NOT-RUN` line so a reader is never left to assume it ran.
+- CI is the backstop: it runs the CSS real-browser suite unconditionally, so a fast-tier skip can
+  never be the only thing that ever looked.
