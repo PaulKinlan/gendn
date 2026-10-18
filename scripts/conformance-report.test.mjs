@@ -244,7 +244,14 @@ assert(
     previousZeroGuard.error?.includes("positive integer") &&
     !previousZeroGuard.error?.includes("responsive pass"),
 );
-for (const [rawLimit, expected] of [["1", 1], ["202", actualCatalogue.length]]) {
+// The second case must stay LARGER than the live catalogue (it asserts an over-limit
+// preserves every page); a frozen literal breaks on the first additive wave (gendn PR #15).
+for (
+  const [rawLimit, expected] of [["1", 1], [
+    String(actualCatalogue.length + 1),
+    actualCatalogue.length,
+  ]]
+) {
   const selection = selectPublishedRootPages(actualCatalogue, { hasLimit: true, rawLimit });
   assert(
     `positive --limit ${rawLimit} without --page preserves ${expected} selected pages`,

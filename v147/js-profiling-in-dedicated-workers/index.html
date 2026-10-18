@@ -10,8 +10,15 @@
     .doc-table th { background: var(--bg-stone); font-weight: 600; }
     .doc-table tr:last-child td { border-bottom: none; }
     .doc-table code { background: transparent; border: none; padding: 0; }
-    #browser-support + .doc-table tr > :first-child { white-space: nowrap; }
+    #browser-support ~ .doc-table tr > :first-child { white-space: nowrap; }
     .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--text-charcoal); display: block; margin-bottom: 0.4rem; }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    pre { overflow-x: auto; }
+    .example-embed { margin: 1.5rem 0; }
+    .example-embed iframe { max-width: 100%; }
+    .example-embed figcaption { font-size: 0.85rem; margin-top: 0.4rem; }
   </style>
 </head>
 <body>
@@ -21,6 +28,18 @@
   <header class="lede-block">
     <p class="eyebrow">v147 · developer trial · workers · performance</p>
     <h1>JS Profiling in Dedicated Workers</h1>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; main-thread <code>Profiler</code> since 94; worker exposure is this flag-gated trial</li>
+        <li class="limited">Edge &middot; mirrors Chrome main-thread; workers not reported</li>
+        <li class="limited">Firefox &middot; not shipped</li>
+        <li class="limited">Safari &middot; not shipped</li>
+      </ul>
+      <p>Not a Baseline feature: the host <a href="https://webstatus.dev/features/profiler" target="_blank" rel="noopener">webstatus.dev <code>profiler</code> web-feature</a> is Baseline <strong>limited</strong> (queried 2026-10-18), and that entry tracks the <em>main-thread</em> API. <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Profiler.json" target="_blank" rel="noopener">BCD <code>api/Profiler.json</code></a> (verified 2026-10-18) records Chrome <strong>94</strong>, Firefox <strong>not shipped</strong> (<a href="https://bugzil.la/1867361" target="_blank" rel="noopener">bug 1867361</a>), Safari <strong>not shipped</strong> &mdash; and carries <em>no worker-exposure subfeature</em>, so dedicated-worker support is recorded nowhere in BCD yet.</p>
+    </div>
+
     <p class="lede">Chrome 147 adds developer trial support for the JavaScript Self-Profiling API (<code>Profiler</code>) inside dedicated workers. Previously only available on the main thread, this lets worker scripts collect their own JavaScript call-stack samples, enabling fine-grained profiling of CPU-intensive work that's already been offloaded to a worker.</p>
   </header>
 
@@ -58,7 +77,43 @@
   </section>
 
   <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>The <a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">WICG draft</a>&rsquo;s IDL (quoted verbatim, fetched 2026-10-18) already declares the interface with <code>[Exposed=(Window, Worker)]</code> &mdash; worker exposure is in the draft; what Chrome 147&rsquo;s developer trial adds is the dedicated-worker implementation of that declared exposure:</p>
+    <pre><code>[Exposed=(Window, Worker)]
+interface Profiler : EventTarget {
+  readonly attribute DOMHighResTimeStamp sampleInterval;
+  readonly attribute boolean stopped;
+
+  constructor(ProfilerInitOptions options);
+  Promise&lt;ProfilerTrace&gt; stop();
+};
+
+dictionary ProfilerInitOptions {
+  required DOMHighResTimeStamp sampleInterval;
+  required unsigned long maxBufferSize;
+};
+
+dictionary ProfilerTrace {
+  required sequence&lt;ProfilerResource&gt; resources;
+  required sequence&lt;ProfilerFrame&gt; frames;
+  required sequence&lt;ProfilerStack&gt; stacks;
+  required sequence&lt;ProfilerSample&gt; samples;
+};</code></pre>
+    <p>The draft also defines the <code>js-profiling-mode</code> Document Policy gate (rejecting with <code>NotAllowedError</code> when disallowed; the matching Blink runtime flag <code>DocumentPolicyJSProfilingMode</code> read <code>status: "experimental"</code> in the <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime flag registry</a> on 2026-10-18) &mdash; the same gate the divergence note above reports for workers.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">WICG JS Self-Profiling API draft</a> (IDL verbatim); <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a></span>
+  </section>
+
+  <section>
     <h2 id="example">example</h2>
+
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/js-profiling-in-dedicated-workers/worker-profile/"
+        title="Live example — worker profile" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live example from the <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/js-profiling-in-dedicated-workers/" target="_blank" rel="noopener">Chrome Platform Showcase</a> (concept route HEAD-checked 200, 2026-10-18).<span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/js-profiling-in-dedicated-workers/" target="_blank" rel="noopener">chrome-platform-showcase</a></span></figcaption>
+    </figure>
+
 <pre><code>// Inside a dedicated worker script (requires flag in Chrome 147)
 const profiler = new Profiler({
   sampleInterval: 10,     // ms between samples
@@ -75,7 +130,15 @@ postMessage({ trace });</code></pre>
   </section>
 
   <section>
-    <h2 id="browser-support">browser support</h2>
+    <h2 id="browser-support">browser compatibility</h2>
+    <p>Main-thread <code>Profiler</code>, per-version from <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Profiler.json" target="_blank" rel="noopener">BCD <code>api/Profiler.json</code></a> (verified 2026-10-18 — BCD has no worker-exposure subfeature, so the worker rows below remain source-constrained statements, labelled as such):</p>
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th><code>Profiler</code> (main thread, BCD)</th></tr></thead>
+      <tr><td>Chrome</td><td>94</td></tr>
+      <tr><td>Edge</td><td>94 (mirrors Chrome)</td></tr>
+      <tr><td>Firefox</td><td>No (<a href="https://bugzil.la/1867361" target="_blank" rel="noopener">bug 1867361</a>)</td></tr>
+      <tr><td>Safari</td><td>No</td></tr>
+    </table>
     <table class="doc-table">
       <thead><tr><th>Browser</th><th>Dedicated-worker profiling status</th></tr></thead>
       <tr><td>Chrome 147</td><td>This page describes a flag-gated developer trial, but the cited ChromeStatus record still reads &ldquo;Proposed&rdquo; with no desktop milestone. The WICG draft also specifies a <code>js-profiling-mode</code> Document Policy gate; the flag alone does not establish usable worker support.</td></tr>
@@ -84,7 +147,15 @@ postMessage({ trace });</code></pre>
       <tr><td>Safari</td><td>Worker support is not established by the cited sources.</td></tr>
     </table>
     <p>Main-thread <code>Profiler</code> availability does not establish support inside dedicated workers in any browser.</p>
-    <span class="citation">Sources: <a href="https://chromestatus.com/feature/5159559872249856" target="_blank" rel="noopener">ChromeStatus feature 5159559872249856</a>; <a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">WICG JS Self-Profiling API draft</a>.</span>
+    <span class="citation">Sources: <a href="https://chromestatus.com/feature/5159559872249856" target="_blank" rel="noopener">ChromeStatus feature 5159559872249856</a>; <a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">WICG JS Self-Profiling API draft</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Profiler.json" target="_blank" rel="noopener">mdn/browser-compat-data api/Profiler.json</a>; <a href="https://api.webstatus.dev/v1/features/profiler" target="_blank" rel="noopener">webstatus.dev profiler</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <table class="doc-table">
+      <thead><tr><th>Specification</th><th>Status</th></tr></thead>
+      <tr><td><a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">JS Self-Profiling API — WICG draft (Profiler, <code>[Exposed=(Window, Worker)]</code>, <code>js-profiling-mode</code> Document Policy)</a></td><td>WICG Draft Community Group Report</td></tr>
+    </table>
   </section>
 
   <section>
@@ -92,6 +163,8 @@ postMessage({ trace });</code></pre>
     <ul>
       <li><a href="https://chromestatus.com/feature/5159559872249856" target="_blank" rel="noopener">Chrome Platform Status — JS Profiling in Dedicated Workers</a></li>
       <li><a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">WICG JS Self-Profiling API specification</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Profiler" target="_blank" rel="noopener">MDN: Profiler (main-thread reference)</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/js-profiling-in-dedicated-workers/" target="_blank" rel="noopener">Chrome Platform Showcase — JS Profiling in Dedicated Workers (interactive demos)</a></li>
     </ul>
   </section>
 
