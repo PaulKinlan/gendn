@@ -244,7 +244,14 @@ assert(
     previousZeroGuard.error?.includes("positive integer") &&
     !previousZeroGuard.error?.includes("responsive pass"),
 );
-for (const [rawLimit, expected] of [["1", 1], ["202", actualCatalogue.length]]) {
+// The over-catalogue limit is derived, not pinned: a literal here (it was "202" when the
+// catalogue had 201 routes) breaks on every legitimately added page without testing anything new.
+for (
+  const [rawLimit, expected] of [
+    ["1", 1],
+    [String(actualCatalogue.length + 1), actualCatalogue.length],
+  ]
+) {
   const selection = selectPublishedRootPages(actualCatalogue, { hasLimit: true, rawLimit });
   assert(
     `positive --limit ${rawLimit} without --page preserves ${expected} selected pages`,
