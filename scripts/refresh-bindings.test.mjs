@@ -129,6 +129,9 @@ const isSabotage = Deno.args.includes("--sabotage");
 try {
   const trackedLedgerPath = BINDING_LEDGER;
   const originalTrackedBytes = await Deno.readFile(trackedLedgerPath);
+  // Derived, not pinned: the repository-copy cases assert against the committed ledger's OWN
+  // row count (it was a literal 201 once, which broke on every legitimately added page).
+  const trackedRouteCount = JSON.parse(new TextDecoder().decode(originalTrackedBytes)).length;
 
   // Set up temp scripts directory
   const tempScriptsDir = `${tempDir}/scripts`;
@@ -254,8 +257,8 @@ try {
   ]);
   assert("Case 1B (repo identical): writes and exits rc0", res1B.code === 0, res1B.stderr);
   assert(
-    "Case 1B: stdout reports 201 published routes",
-    res1B.stdout.includes("201 published routes"),
+    `Case 1B: stdout reports ${trackedRouteCount} published routes`,
+    res1B.stdout.includes(`${trackedRouteCount} published routes`),
     res1B.stdout,
   );
   assert(
@@ -308,7 +311,7 @@ try {
     `--root=${emptyPagesRoot}`,
   ]);
   assert(
-    "Case 2B (201 routes empty): refuses with non-zero exit code",
+    `Case 2B (${trackedRouteCount} routes empty): refuses with non-zero exit code`,
     res2B.code !== 0,
     `code=${res2B.code}`,
   );
@@ -318,13 +321,13 @@ try {
     res2B.stderr,
   );
   assert(
-    "Case 2B: stderr names removed count (201 routes)",
-    res2B.stderr.includes("201 routes"),
+    `Case 2B: stderr names removed count (${trackedRouteCount} routes)`,
+    res2B.stderr.includes(`${trackedRouteCount} routes`),
     res2B.stderr,
   );
   assert(
-    "Case 2B: stderr bounds list with '... and 198 more'",
-    res2B.stderr.includes("... and 198 more"),
+    `Case 2B: stderr bounds list with '... and ${trackedRouteCount - 3} more'`,
+    res2B.stderr.includes(`... and ${trackedRouteCount - 3} more`),
     res2B.stderr,
   );
   assert(

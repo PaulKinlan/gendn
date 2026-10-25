@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebRTC Diagnostic Logging API — Chrome 156 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code { overflow-wrap: anywhere; }
+    .doc-table { margin: 1rem 0; font-size: 0.85rem; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 26%; min-width: 7.5rem; overflow-wrap: normal; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    .warn-block > strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--text-charcoal); display: block; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v156/">&larr; Chrome 156 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v156 &middot; web api &middot; webrtc</p>
+    <h1>WebRTC Diagnostic Logging API</h1>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 156, desktop only</li>
+        <li class="limited">Edge &middot; not separately reported</li>
+        <li class="limited">Firefox &middot; no signal</li>
+        <li class="limited">Safari &middot; no signal</li>
+      </ul>
+      <p>Not a Baseline feature: <a href="https://api.webstatus.dev/v1/features?q=diagnostic+logging" target="_blank" rel="noopener">webstatus.dev has no web-features entry</a> (query returned 0 results, 2026-10-25), and <a href="https://github.com/mdn/browser-compat-data/blob/main/api/RTCPeerConnection.json" target="_blank" rel="noopener">BCD&rsquo;s <code>api/RTCPeerConnection.json</code></a> has no key for the three static methods (0 matches for &ldquo;diagnostic&rdquo;, verified 2026-10-25). The <a href="https://chromestatus.com/api/v0/features/5091582546149376" target="_blank" rel="noopener">ChromeStatus record</a> ships desktop 156 with <em>no Android/WebView milestone</em>; Firefox and Safari positions are requested but unanswered (&ldquo;No signal&rdquo;) at <a href="https://github.com/mozilla/standards-positions/issues/1436" target="_blank" rel="noopener">mozilla/standards-positions#1436</a> and <a href="https://github.com/WebKit/standards-positions/issues/699" target="_blank" rel="noopener">WebKit/standards-positions#699</a>.</p>
+    </div>
+
+    <p class="lede">Three static methods on <code>RTCPeerConnection</code> &mdash; <a href="#startdiagnosticlogging"><code>startDiagnosticLogging()</code></a>, <a href="#stopdiagnosticlogging"><code>stopDiagnosticLogging()</code></a>, and <a href="#canceldiagnosticlogging"><code>cancelDiagnosticLogging()</code></a> &mdash; that let a web application start, stop, or cancel the browser&rsquo;s collection of its own internal WebRTC diagnostic logs. The logs are <strong>never exposed to the page</strong>: they are stored where the user controls, require explicit user authorization to collect, and the application is never told whether logging actually happened. The page receives only a session UUID it can quote in bug reports.</p>
+  </header>
+
+  <div class="warn-block warn-block--common" id="experimental">
+    <strong>New API &mdash; desktop-only, single engine, recently out of origin trial</strong>
+    <p>The API graduated from a Chrome origin trial (the <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime feature record</a> for <code>RTCDiagnosticLogging</code> still carries <code>origin_trial_feature_name: "RTCDiagnosticLogging"</code>; the earlier <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/L2kX7raIUCE" target="_blank" rel="noopener">blink-dev intent thread</a> covers that stage) and is enabled by default on <strong>desktop Chrome 156 only</strong> &mdash; the flag record sets <code>"Android": ""</code> and the <a href="https://chromestatus.com/feature/5091582546149376" target="_blank" rel="noopener">ChromeStatus record</a> lists no Android/WebView milestone. No other engine ships it and both vendor positions are unanswered, so the surface may still move. In earlier Chrome versions you can test it with <code>--enable-blink-features=RTCDiagnosticLogging</code> or <code>chrome://flags/#enable-experimental-web-platform-features</code>. Remember the API gives the page no success signal: without user/enterprise authorization (e.g. <a href="https://chromeenterprise.google/policies/#WebRtcDiagnosticLogCollectionAllowedForOrigins" target="_blank" rel="noopener"><code>WebRtcDiagnosticLogCollectionAllowedForOrigins</code></a>) the calls succeed but nothing is collected.</p>
+  </div>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">What it is</th><td>&ldquo;A programmatic interface for web applications to start, stop, and cancel the collection of internal diagnostic logs for WebRTC-related operations performed by the user agent&rdquo; (<a href="https://w3c.github.io/webrtc-extensions/#diagnostic-logging" target="_blank" rel="noopener">webrtc-extensions &sect; Diagnostic logging</a>, quoted 2026-10-25)</td></tr>
+      <tr><th scope="row">Why</th><td>Local developers debug their app; users hand logs to app developers; organizations collect logs across an internal WebRTC deployment; users may share logs with the browser vendor to fix user-agent bugs &mdash; the session UUID identifies the session in a bug report (<a href="https://w3c.github.io/webrtc-extensions/#diagnostic-logging" target="_blank" rel="noopener">spec use-case list</a>; <a href="https://github.com/WICG/webrtc-diagnostic-logging/blob/main/explainer.md" target="_blank" rel="noopener">explainer</a>)</td></tr>
+      <tr><th scope="row">Milestone listing</th><td>Chrome 156 &mdash; listed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=156" target="_blank" rel="noopener">milestone=156 listing</a> (fetched 2026-10-25; the listing is authoritative for filing)</td></tr>
+      <tr><th scope="row">Runtime feature</th><td><code>RTCDiagnosticLogging</code> &mdash; <code>status: {"Android": "", "default": "stable"}</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a> (read at trunk 2026-10-25): stable on desktop, <strong>not enabled on Android</strong>; it also carried the origin-trial name <code>RTCDiagnosticLogging</code></td></tr>
+      <tr><th scope="row">Enterprise policy</th><td><a href="https://chromeenterprise.google/policies/#WebRtcDiagnosticLogCollectionAllowedForOrigins" target="_blank" rel="noopener"><code>WebRtcDiagnosticLogCollectionAllowedForOrigins</code></a> &mdash; the ChromeStatus summary names this as how admins authorize collection per origin</td></tr>
+      <tr><th scope="row">Intents</th><td><a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/L2kX7raIUCE" target="_blank" rel="noopener">blink-dev Intent (origin-trial stage)</a> &middot; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/HeBQEx0dFaY" target="_blank" rel="noopener">blink-dev Intent to Ship</a>; tracking bug <a href="https://issues.chromium.org/issues/481412281" target="_blank" rel="noopener">481412281</a></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5091582546149376" target="_blank" rel="noopener">5091582546149376 &mdash; WebRTC Diagnostic Logging API</a></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://w3c.github.io/webrtc-extensions/#diagnostic-logging" target="_blank" rel="noopener">webrtc-extensions</a>; <a href="https://chromestatus.com/api/v0/features/5091582546149376" target="_blank" rel="noopener">ChromeStatus API record</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime flag record</a></span>
+  </section>
+
+  <section>
+    <h2 id="syntax">syntax</h2>
+    <p>Spec IDL, quoted verbatim from <a href="https://w3c.github.io/webrtc-extensions/#diagnostic-logging-extensions-peer-connection" target="_blank" rel="noopener">webrtc-extensions &sect; Extensions to the RTCPeerConnection Interface</a> (fetched 2026-10-25):</p>
+    <pre><code>[Exposed=Window]
+partial interface RTCPeerConnection {
+  static DOMString startDiagnosticLogging(optional RTCDiagnosticLoggingOptions options = {});
+  static undefined stopDiagnosticLogging();
+  static undefined cancelDiagnosticLogging();
+};
+
+dictionary RTCDiagnosticLoggingOptions {
+  record&lt;DOMString, DOMString&gt; metadata;
+};</code></pre>
+    <p>All three methods are <strong>static</strong> &mdash; they are called on the <code>RTCPeerConnection</code> interface object itself (<code>RTCPeerConnection.startDiagnosticLogging()</code>), not on an instance, and the logging session spans all WebRTC activity in the user agent, not one connection. The session state lives in a per-global internal slot, <code>[[RTCDiagnosticLoggingSessionId]]</code>, initialized to null (<a href="https://w3c.github.io/webrtc-extensions/#diagnostic-logging-internal-slots" target="_blank" rel="noopener">spec &sect; Internal slots</a>).</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/webrtc-extensions/#diagnostic-logging-extensions-peer-connection" target="_blank" rel="noopener">webrtc-extensions IDL</a>; <a href="https://w3c.github.io/webrtc-extensions/#diagnostic-logging-internal-slots" target="_blank" rel="noopener">&sect; Internal slots</a></span>
+  </section>
+
+  <section>
+    <h2 id="reference">reference</h2>
+
+    <h3 id="startdiagnosticlogging"><code>RTCPeerConnection.startDiagnosticLogging(options)</code></h3>
+    <p><strong>Parameters:</strong> an optional <a href="#options-dictionary"><code>RTCDiagnosticLoggingOptions</code></a> dictionary (default <code>{}</code>) whose single member is <a href="#metadata"><code>metadata</code></a>. <strong>Returns:</strong> a <code>DOMString</code> &mdash; a freshly generated UUID identifying the logging session (the spec says implementations SHOULD use the RFC&nbsp;4122 &sect;&nbsp;4.4 random form &ldquo;to avoid fingerprinting&rdquo;). <strong>Throws:</strong></p>
+    <ul>
+      <li><code>TypeError</code> &mdash; if <code>metadata</code> has more than 5 entries, or any key or value is longer than 100 code units (per the spec&rsquo;s steps, quoted: &ldquo;If |metadata|&rsquo;s map/size is greater than 5, or |metadata| contains any entry whose key or value have a length greater than 100, throw a TypeError&rdquo;);</li>
+      <li><code>InvalidStateError</code> <code>DOMException</code> &mdash; if a session is already running (<code>[[RTCDiagnosticLoggingSessionId]]</code> is not null).</li>
+    </ul>
+    <p>On success the user agent sets the internal slot to the new UUID and, in parallel, starts logging internal WebRTC activity with <code>metadata</code> as context. Whether logging <em>actually</em> happens is subject to user authorization the page can never observe &mdash; &ldquo;the application never knows if diagnostic logging operations succeed or fail&rdquo; (<a href="https://w3c.github.io/webrtc-extensions/#diagnostic-logging" target="_blank" rel="noopener">spec intro</a>).</p>
+
+    <h3 id="stopdiagnosticlogging"><code>RTCPeerConnection.stopDiagnosticLogging()</code></h3>
+    <p><strong>Parameters:</strong> none. <strong>Returns:</strong> <code>undefined</code>. <strong>Throws:</strong> <code>InvalidStateError</code> <code>DOMException</code> if no session is running. Clears the session slot and, in parallel, stops the logging session; &ldquo;the user agent MUST NOT log any WebRTC-related activity once the logging session has stopped&rdquo;. Logged data from the ended session is <em>kept</em> (in the user-controlled store) &mdash; contrast <a href="#canceldiagnosticlogging"><code>cancelDiagnosticLogging()</code></a>.</p>
+
+    <h3 id="canceldiagnosticlogging"><code>RTCPeerConnection.cancelDiagnosticLogging()</code></h3>
+    <p><strong>Parameters:</strong> none. <strong>Returns:</strong> <code>undefined</code>. <strong>Throws:</strong> <code>InvalidStateError</code> <code>DOMException</code> if no session is running. Clears the session slot, cancels the session in parallel, and &mdash; the difference from stop &mdash; &ldquo;the user agent MUST have removed any logged data associated with the canceled logging session&rdquo; (<a href="https://w3c.github.io/webrtc-extensions/#diagnostic-logging-methods" target="_blank" rel="noopener">spec &sect; Methods</a>, quoted 2026-10-25).</p>
+
+    <h3 id="options-dictionary"><code>RTCDiagnosticLoggingOptions</code> dictionary</h3>
+    <p id="metadata">One member, <code>metadata</code>, &ldquo;of type <code>record&lt;DOMString, DOMString&gt;</code>, defaulting to <code>[]</code>: a record containing key-value pairs that the application can use to provide context that can be stored in the diagnostic logs&rdquo; (<a href="https://w3c.github.io/webrtc-extensions/#diagnostic-logging-options-dictionary" target="_blank" rel="noopener">spec &sect; Dictionary RTCDiagnosticLoggingOptions members</a>, quoted 2026-10-25). Hard limits enforced by <a href="#startdiagnosticlogging"><code>startDiagnosticLogging()</code></a>: at most <strong>5 entries</strong>, each key and value at most <strong>100 characters</strong> &mdash; beyond either, <code>TypeError</code>. The metadata goes <em>into</em> the logs (e.g. an app version or a support-ticket id); it is never read back by the page.</p>
+
+    <h3 id="session-lifecycle">session lifecycle and state transitions</h3>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>State of <code>[[RTCDiagnosticLoggingSessionId]]</code></th><th><code>start…()</code></th><th><code>stop…()</code></th><th><code>cancel…()</code></th></tr></thead>
+      <tr><td><code>null</code> (no session)</td><td>sets slot to new UUID, returns it; logging may begin (subject to authorization)</td><td>throws <code>InvalidStateError</code></td><td>throws <code>InvalidStateError</code></td></tr>
+      <tr><td>UUID (session running)</td><td>throws <code>InvalidStateError</code> &mdash; one session at a time per global</td><td>slot &rarr; <code>null</code>; logging stops; <strong>data kept</strong></td><td>slot &rarr; <code>null</code>; logging stops; <strong>data deleted</strong></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: all method steps and the dictionary definition from <a href="https://w3c.github.io/webrtc-extensions/#diagnostic-logging-methods" target="_blank" rel="noopener">webrtc-extensions &sect; Methods</a> and <a href="https://w3c.github.io/webrtc-extensions/#diagnostic-logging-options-dictionary" target="_blank" rel="noopener">&sect; Dictionary members</a> (fetched 2026-10-25)</span>
+  </section>
+
+  <section>
+    <h2 id="context">context and exposure</h2>
+    <p><code>[Exposed=Window]</code> only &mdash; the methods are not available in workers (<a href="https://w3c.github.io/webrtc-extensions/#diagnostic-logging-extensions-peer-connection" target="_blank" rel="noopener">spec IDL</a>). In Chrome 156 the feature is enabled by default on <strong>desktop only</strong>: the <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime feature record</a> sets <code>"Android": ""</code> (not enabled) against <code>"default": "stable"</code>, and the <a href="https://chromestatus.com/api/v0/features/5091582546149376" target="_blank" rel="noopener">ChromeStatus record</a> lists no Android/WebView milestone. Collection requires explicit, implementation-defined user authorization (&ldquo;dedicated UI, configuration files, enterprise policies, prompts, or a combination&rdquo;), which &ldquo;may be limited to specific origins&rdquo;; in Chrome the named mechanism is the <a href="https://chromeenterprise.google/policies/#WebRtcDiagnosticLogCollectionAllowedForOrigins" target="_blank" rel="noopener"><code>WebRtcDiagnosticLogCollectionAllowedForOrigins</code></a> enterprise policy. The authorization status is never exposed to the application.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/webrtc-extensions/#diagnostic-logging-security-privacy" target="_blank" rel="noopener">webrtc-extensions &sect; Security and Privacy (diagnostic logging)</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">flag record</a>; <a href="https://chromestatus.com/feature/5091582546149376" target="_blank" rel="noopener">ChromeStatus</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <p>A support-flow sketch: start logging when the user opts into &ldquo;report a call-quality problem&rdquo;, attach context the vendor will see inside the logs, and quote the returned UUID in the ticket. Derived from the spec&rsquo;s method contracts above (labelled gendn-derived; the API itself gives the page no feedback to display):</p>
+    <pre><code>let sessionId = null;
+
+function beginCallDiagnostics(ticketId) {
+  try {
+    sessionId = RTCPeerConnection.startDiagnosticLogging({
+      metadata: {            // max 5 entries; keys/values ≤ 100 chars
+        app: "example-conf 4.2.1",
+        ticket: ticketId,
+      },
+    });
+    // Quote sessionId in the bug report — it identifies the log session
+    // to whoever the USER chooses to share the logs with.
+  } catch (e) {
+    // InvalidStateError: a session is already running.
+    // TypeError: metadata too large. Nothing else is observable.
+  }
+}
+
+function endCallDiagnostics(keepLogs) {
+  if (sessionId === null) return;
+  if (keepLogs) RTCPeerConnection.stopDiagnosticLogging();
+  else RTCPeerConnection.cancelDiagnosticLogging();   // deletes the data
+  sessionId = null;
+}</code></pre>
+    <p>Feature-detect before offering the UI &mdash; the methods are static, so the check needs no connection:</p>
+    <pre><code>const supported = "startDiagnosticLogging" in RTCPeerConnection;</code></pre>
+    <p>No Chrome Platform Showcase demo is built for this feature yet (route <code>/v156/webrtc-diagnostic-logging-api/</code> HEAD-checked 404, 2026-10-25; a demo would appear under <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v156/" target="_blank" rel="noopener">the showcase&rsquo;s Chrome 156 index</a>). A demo could in any case show only the UUID &mdash; the logs themselves are invisible to pages by design.</p>
+    <span class="citation">Source: method contracts per <a href="https://w3c.github.io/webrtc-extensions/#diagnostic-logging-methods" target="_blank" rel="noopener">webrtc-extensions &sect; Methods</a>; examples gendn-derived from those contracts (labelled accordingly)</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">browser compatibility</h2>
+    <p><em>Interim table.</em> <a href="https://github.com/mdn/browser-compat-data/blob/main/api/RTCPeerConnection.json" target="_blank" rel="noopener">BCD</a> has no key for any of the three methods (0 matches for &ldquo;diagnostic&rdquo; in <code>api/RTCPeerConnection.json</code>, verified 2026-10-25) and <a href="https://api.webstatus.dev/v1/features?q=diagnostic+logging" target="_blank" rel="noopener">webstatus.dev</a> has no web-features entry. Rows compiled from the linked primary sources.</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th>Support</th><th>Evidence</th></tr></thead>
+      <tr><td>Chrome</td><td><strong>156</strong>, desktop only; no Android/WebView milestone</td><td><a href="https://chromestatus.com/api/v0/features/5091582546149376" target="_blank" rel="noopener">ChromeStatus record</a> (desktop 156, android null); <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">flag record</a> (<code>"Android": ""</code>, <code>"default": "stable"</code>); <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/HeBQEx0dFaY" target="_blank" rel="noopener">Intent to Ship</a></td></tr>
+      <tr><td>Edge</td><td>Not separately reported</td><td>No BCD entry to mirror; Chromium-based Edge typically tracks Chromium, but no Edge-specific source exists for this API (2026-10-25)</td></tr>
+      <tr><td>Firefox</td><td>No signal</td><td><a href="https://github.com/mozilla/standards-positions/issues/1436" target="_blank" rel="noopener">mozilla/standards-positions#1436</a> (position requested, unanswered as recorded by the <a href="https://chromestatus.com/api/v0/features/5091582546149376" target="_blank" rel="noopener">ChromeStatus record</a>, 2026-10-25)</td></tr>
+      <tr><td>Safari</td><td>No signal</td><td><a href="https://github.com/WebKit/standards-positions/issues/699" target="_blank" rel="noopener">WebKit/standards-positions#699</a> (same basis)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: as linked per row; <a href="https://chromestatus.com/api/v0/features/5091582546149376" target="_blank" rel="noopener">ChromeStatus API record</a>, fetched 2026-10-25</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <ul>
+      <li><strong>The logs never reach the page.</strong> &ldquo;These diagnostic logs may contain information not exposed to the Web application and therefore, the API cannot expose these logs to the Web application in any way&rdquo; (<a href="https://w3c.github.io/webrtc-extensions/#diagnostic-logging-security-privacy" target="_blank" rel="noopener">spec &sect; Security and Privacy</a>, quoted 2026-10-25). The only page-visible output is the session UUID.</li>
+      <li><strong>Everything requires user authorization.</strong> Collection, storage, and any upload to the user-agent vendor all &ldquo;require explicit authorization by the user&rdquo;, via an implementation-defined mechanism (UI, config, enterprise policy, prompts), possibly origin-limited; the authorization status itself is hidden from the page, so the API &ldquo;provides no guarantees of success&rdquo;.</li>
+      <li><strong>Fingerprinting:</strong> the returned UUID is random (RFC&nbsp;4122 &sect;&nbsp;4.4 form recommended by the spec specifically &ldquo;to avoid fingerprinting&rdquo;), and because failure is unobservable, a page cannot use the API to probe whether the user has authorized logging.</li>
+      <li><strong>Metadata flows one way:</strong> the page can push up to 5 short key-value pairs <em>into</em> the logs; nothing flows back.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://w3c.github.io/webrtc-extensions/#diagnostic-logging-security-privacy" target="_blank" rel="noopener">webrtc-extensions &sect; Diagnostic logging — Security and Privacy</a>; <a href="https://w3c.github.io/webrtc-extensions/#diagnostic-logging-methods" target="_blank" rel="noopener">&sect; Methods</a> (UUID step)</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Document</th><th>Status</th></tr></thead>
+      <tr><td><a href="https://w3c.github.io/webrtc-extensions/#diagnostic-logging" target="_blank" rel="noopener">WebRTC Extensions &mdash; &sect; Diagnostic logging</a></td><td>W3C Editor&rsquo;s Draft of the webrtc-extensions document (the ChromeStatus record links <a href="https://w3c.github.io/webrtc-extensions/#diagnostic-logging" target="_blank" rel="noopener">this section</a> as the spec, maturity &ldquo;Working draft&rdquo;)</td></tr>
+      <tr><td><a href="https://github.com/WICG/webrtc-diagnostic-logging/blob/main/explainer.md" target="_blank" rel="noopener">WICG webrtc-diagnostic-logging explainer</a></td><td>Explainer; the ChromeStatus record&rsquo;s linked proposal document</td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/5091582546149376" target="_blank" rel="noopener">Chrome Platform Status &mdash; WebRTC Diagnostic Logging API</a> (<a href="https://chromestatus.com/api/v0/features/5091582546149376" target="_blank" rel="noopener">API record</a>)</li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection" target="_blank" rel="noopener">MDN &mdash; RTCPeerConnection</a> (the host interface; MDN has no page for these static methods &mdash; <code>startDiagnosticLogging_static</code> returned 404, 2026-10-25)</li>
+      <li><a href="https://chromeenterprise.google/policies/#WebRtcDiagnosticLogCollectionAllowedForOrigins" target="_blank" rel="noopener">Chrome Enterprise policy &mdash; WebRtcDiagnosticLogCollectionAllowedForOrigins</a></li>
+      <li><a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/L2kX7raIUCE" target="_blank" rel="noopener">blink-dev &mdash; earlier Intent (origin-trial stage)</a> &middot; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/HeBQEx0dFaY" target="_blank" rel="noopener">Intent to Ship</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v156/" target="_blank" rel="noopener">Chrome Platform Showcase &mdash; Chrome 156 index</a> (no demo for this feature yet, checked 2026-10-25)</li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
