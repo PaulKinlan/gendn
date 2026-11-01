@@ -244,7 +244,15 @@ assert(
     previousZeroGuard.error?.includes("positive integer") &&
     !previousZeroGuard.error?.includes("responsive pass"),
 );
-for (const [rawLimit, expected] of [["1", 1], ["202", actualCatalogue.length]]) {
+// The at-or-above-catalogue-size case must track the LIVE catalogue (a pinned literal broke on
+// the first additive page wave after it landed): the subject is "a limit >= the catalogue size
+// preserves every page", not any particular size.
+for (
+  const [rawLimit, expected] of [["1", 1], [
+    String(actualCatalogue.length),
+    actualCatalogue.length,
+  ]]
+) {
   const selection = selectPublishedRootPages(actualCatalogue, { hasLimit: true, rawLimit });
   assert(
     `positive --limit ${rawLimit} without --page preserves ${expected} selected pages`,
