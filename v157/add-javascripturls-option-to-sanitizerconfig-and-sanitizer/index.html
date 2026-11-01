@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Add javascriptURLs option to SanitizerConfig and Sanitizer — Chrome 157 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code { overflow-wrap: anywhere; }
+    .doc-table { margin: 1rem 0; font-size: 0.85rem; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 26%; min-width: 7.5rem; overflow-wrap: normal; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    .example-embed { margin: 1.5rem 0; }
+    .example-embed iframe { max-width: 100%; }
+    .example-embed figcaption { font-size: 0.85rem; margin-top: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v157/">&larr; Chrome 157 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v157 &middot; web api &middot; sanitizer &middot; enabled by default</p>
+    <h1>Add javascriptURLs option to SanitizerConfig and Sanitizer</h1>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 157 (this option; the host Sanitizer API shipped in 146)</li>
+        <li>Edge &middot; mirrors Chrome</li>
+        <li>Firefox &middot; Shipped/Shipping (ChromeStatus vendor view; host API since 148)</li>
+        <li class="limited">Safari &middot; not shipped (position &ldquo;Support&rdquo; for the host API)</li>
+      </ul>
+      <p>Not a Baseline feature: the host <a href="https://api.webstatus.dev/v1/features/sanitizer" target="_blank" rel="noopener">Sanitizer API web-feature on webstatus.dev</a> is itself Baseline <strong>limited</strong> (Chrome 146, Firefox 148, no Safari; queried 2026-11-01), and <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Sanitizer.json" target="_blank" rel="noopener">BCD&rsquo;s <code>setJavascriptURLs</code> subfeature</a> records no shipped version yet (<code>version_added: false</code>, marked experimental; freshness gap vs the milestone-157 listing, disclosed here).</p>
+    </div>
+
+    <p class="lede">A new boolean knob in the HTML standard&rsquo;s <a href="https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#the-sanitizerconfig-dictionary" target="_blank" rel="noopener">Sanitizer API</a> that makes <code>javascript:</code>-URL removal a developer-selectable option instead of a side effect of which method you call: <code>SanitizerConfig</code> gains a <code>javascriptURLs</code> member and <code>Sanitizer</code> gains a <code>setJavascriptURLs(allow)</code> method. Previously the API stripped <code>javascript:</code> URLs only via the &ldquo;safe&rdquo; methods (<code>setHTML()</code>, <code>parseHTML()</code>); with the option, the &ldquo;unsafe&rdquo; methods can remove them too &mdash; and a custom config can state the choice explicitly. MDN&rsquo;s <a href="https://developer.mozilla.org/en-US/docs/Web/API/SanitizerConfig" target="_blank" rel="noopener">SanitizerConfig</a> and <a href="https://developer.mozilla.org/en-US/docs/Web/API/Sanitizer" target="_blank" rel="noopener">Sanitizer</a> pages do not document this option yet (checked 2026-11-01), so this reference covers it.</p>
+  </header>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="At a glance summary table">
+    <table class="doc-table">
+      <tr><th scope="row">What it is</th><td>A <code>boolean javascriptURLs</code> member on <a href="https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#the-sanitizerconfig-dictionary" target="_blank" rel="noopener"><code>SanitizerConfig</code></a> plus <a href="https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#dom-sanitizer-setjavascripturls" target="_blank" rel="noopener"><code>Sanitizer.setJavascriptURLs(allow)</code></a>: &ldquo;Sets whether the sanitizer preserves attributes containing <code>javascript:</code> URLs&rdquo; (spec prose, quoted verbatim)</td></tr>
+      <tr><th scope="row">Why</th><td><code>javascript:</code>-URL stripping used to be hard-wired to the &ldquo;safe&rdquo; methods only &mdash; &ldquo;awkward if users wanted to use the &lsquo;unsafe&rsquo; methods for some reason, but still wanted javascript:-URLs removed&rdquo; (<a href="https://chromestatus.com/api/v0/features/5169798320357376" target="_blank" rel="noopener">ChromeStatus motivation</a>; discussion in <a href="https://github.com/whatwg/html/issues/12686" target="_blank" rel="noopener">whatwg/html #12686</a>, normalized by <a href="https://github.com/whatwg/html/pull/12898" target="_blank" rel="noopener">PR #12898</a>)</td></tr>
+      <tr><th scope="row">Milestone listing</th><td>Chrome 157 &mdash; listed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=157" target="_blank" rel="noopener">milestone=157 listing</a> (fetched 2026-11-01; the listing is authoritative for filing); desktop milestone 157 on the <a href="https://chromestatus.com/api/v0/features/5169798320357376" target="_blank" rel="noopener">API record</a></td></tr>
+      <tr><th scope="row">Runtime feature</th><td>No dedicated flag record: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a> has no <code>SanitizerJavascriptURLs</code> entry (verified 2026-11-01; that name is the record&rsquo;s Finch rollout name). The umbrella <code>SanitizerAPI</code> feature is <code>status: "stable"</code></td></tr>
+      <tr><th scope="row">Spec</th><td><a href="https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#dom-sanitizer-setjavascripturls" target="_blank" rel="noopener">HTML Standard &mdash; <code>setJavascriptURLs()</code></a> (merged into the living standard; the ChromeStatus record&rsquo;s spec link is the <a href="https://github.com/whatwg/html/pull/12898" target="_blank" rel="noopener">spec PR</a>)</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5169798320357376" target="_blank" rel="noopener">5169798320357376 &mdash; Add javascriptURLs option to SanitizerConfig and Sanitizer</a></td></tr>
+      <tr><th scope="row">Intent to Ship</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6acfa9bd.6e0b2b3a.151e33.132f.GAE%40google.com" target="_blank" rel="noopener">blink-dev intent thread</a> (linked from the ChromeStatus record)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#the-sanitizer-interface" target="_blank" rel="noopener">HTML Standard, Sanitizer interface</a>; <a href="https://chromestatus.com/api/v0/features/5169798320357376" target="_blank" rel="noopener">ChromeStatus API record</a> &mdash; fetched 2026-11-01</span>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>The Sanitizer API has two families of insertion methods: the <em>safe</em> ones (<code>Element.setHTML()</code>, <code>Document.parseHTML()</code>), which guarantee no script can survive sanitization, and the <em>unsafe</em> ones (<code>setHTMLUnsafe()</code>, <code>parseHTMLUnsafe()</code>), which apply only the configuration you give them. <code>javascript:</code> URLs in navigating attributes (an <code>&lt;a href&gt;</code>, a <code>&lt;form action&gt;</code>, &hellip;) are a script vector, so the safe methods always stripped them &mdash; but that behavior was attached to the <em>method</em>, not the <em>configuration</em>. <a href="https://github.com/whatwg/html/issues/12686" target="_blank" rel="noopener">whatwg/html issue #12686</a> called this out, and <a href="https://github.com/whatwg/html/pull/12898" target="_blank" rel="noopener">PR #12898</a> regularized it into the explicit <code>javascriptURLs</code> configuration option, so an unsafe-method caller can still opt in to <code>javascript:</code>-URL removal, and any configuration can state its choice explicitly.</p>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/issues/12686" target="_blank" rel="noopener">whatwg/html #12686</a>; <a href="https://github.com/whatwg/html/pull/12898" target="_blank" rel="noopener">whatwg/html PR #12898</a>; <a href="https://chromestatus.com/api/v0/features/5169798320357376" target="_blank" rel="noopener">ChromeStatus motivation</a></span>
+  </section>
+
+  <section>
+    <h2 id="syntax">syntax</h2>
+    <p>From the <a href="https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#the-sanitizer-interface" target="_blank" rel="noopener">HTML living standard</a> (IDL quoted verbatim, fetched 2026-11-01; <code>Sanitizer</code> is <code>[Exposed=Window]</code>):</p>
+    <pre><code>dictionary SanitizerConfig {
+  // &hellip; elements, removeElements, replaceWithChildrenElements,
+  //     attributes, removeAttributes &hellip;
+  boolean comments;
+  boolean dataAttributes;
+  boolean javascriptURLs;      // NEW in this change
+};
+
+[Exposed=Window]
+interface Sanitizer {
+  constructor(optional (SanitizerConfig or SanitizerPresets) configuration = "default");
+  SanitizerConfig get();
+  // &hellip; allowElement, removeElement, replaceElementWithChildren,
+  //     allowAttribute, removeAttribute, setComments, setDataAttributes &hellip;
+  boolean setJavascriptURLs(boolean allow);   // NEW in this change
+  boolean removeUnsafe();
+};</code></pre>
+    <span class="citation">Source: <a href="https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#the-sanitizer-interface" target="_blank" rel="noopener">HTML Standard &mdash; the Sanitizer interface</a> (elided members marked with ellipses; the two new items verbatim)</span>
+  </section>
+
+  <section>
+    <h2 id="member">the <code>javascriptURLs</code> member — inputs and defaults</h2>
+    <p>A plain Web IDL <code>boolean</code>. <code>true</code> means the sanitizer <em>preserves</em> attributes containing <code>javascript:</code> URLs; <code>false</code> means it removes them. When the member is absent, the default depends on how the configuration is used: the spec&rsquo;s <em>built-in safe default configuration</em> carries <code>javascriptURLs: false</code> (remove), while canonicalization of a custom configuration fills an absent member from the permissive defaults (&ldquo;If <var>configuration</var>["javascriptURLs"] does not exist, then set it to <var>permissiveDefaults</var>&rdquo; &mdash; spec step, quoted) &mdash; so an unsafe-method call with a config that doesn&rsquo;t mention the member keeps <code>javascript:</code> URLs, exactly as before this change. There is no third state.</p>
+    <span class="citation">Source: <a href="https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#the-sanitizerconfig-dictionary" target="_blank" rel="noopener">HTML Standard &mdash; SanitizerConfig</a> (member, safe default table, canonicalization steps)</span>
+  </section>
+
+  <section>
+    <h2 id="setter">the <code>setJavascriptURLs(allow)</code> method</h2>
+    <p>Quoting the method steps verbatim: &ldquo;Let <var>configuration</var> be <code>this</code>&rsquo;s configuration. Assert: <var>configuration</var> is valid. If <var>configuration</var>["javascriptURLs"] is <var>allow</var>, then return false. Set <var>configuration</var>["javascriptURLs"] to <var>allow</var>. Return true.&rdquo; So the boolean return value reports whether the configuration <em>changed</em> &mdash; <code>false</code> means the sanitizer was already in the requested state. The method throws no exceptions; the only input is the required <code>allow</code> boolean (any JS value coerces per Web IDL boolean conversion).</p>
+    <span class="citation">Source: <a href="https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#dom-sanitizer-setjavascripturls" target="_blank" rel="noopener">HTML Standard &mdash; <code>setJavascriptURLs()</code> method steps</a></span>
+  </section>
+
+  <section>
+    <h2 id="semantics">what it changes during sanitization</h2>
+    <ul>
+      <li><strong>Attribute filtering</strong> &mdash; in the keep-this-attribute algorithm: if <code>javascriptURLs</code> is <code>true</code> the attribute is kept without URL inspection; otherwise, if the (element, attribute) pair matches the spec&rsquo;s built-in <em>navigating URL attributes</em> list (normative definitions plus a table of element/attribute pairs) and the value contains a <code>javascript:</code> URL, the attribute is dropped.</li>
+      <li><strong><code>removeUnsafe()</code> forces removal</strong> &mdash; its steps include: &ldquo;If <var>configuration</var>["javascriptURLs"] is true: Set <var>result</var> to true. Set <var>configuration</var>["javascriptURLs"] to false.&rdquo; An unsafe-allowing config becomes a removing one.</li>
+      <li><strong>Method defaults are unchanged</strong> &mdash; safe methods still remove <code>javascript:</code> URLs (their default configuration says <code>false</code>); unsafe methods with a config that omits the member still keep them (permissive default <code>true</code>). The change is that either behavior can now be <em>requested explicitly</em> from either method family.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#sanitization-algorithms" target="_blank" rel="noopener">HTML Standard &mdash; sanitization algorithms</a> (quoted steps; fetched 2026-11-01)</span>
+  </section>
+
+  <section>
+    <h2 id="context">where it applies</h2>
+    <p><code>Sanitizer</code> is <code>[Exposed=Window]</code>; the option takes effect wherever a <code>SanitizerConfig</code> or <code>Sanitizer</code> is consumed: <code>Element.setHTML()</code> / <code>setHTMLUnsafe()</code>, <code>ShadowRoot.setHTML()</code> / <code>setHTMLUnsafe()</code>, and <code>Document.parseHTML()</code> / <code>parseHTMLUnsafe()</code>. No permission, secure-context restriction, or flag is recorded for it; in Chrome it ships with the stable <code>SanitizerAPI</code> runtime feature (milestone 157 for this option per the listing). Feature-detect the method directly:</p>
+    <pre><code>const supported = "setJavascriptURLs" in Sanitizer.prototype;</code></pre>
+    <span class="citation">Source: <a href="https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#the-sanitizer-interface" target="_blank" rel="noopener">HTML Standard &mdash; Sanitizer interface</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <pre><code>// Unsafe method, but with javascript: URLs removed — the case
+// that motivated the option (previously impossible):
+const sanitizer = new Sanitizer();        // "default" preset
+sanitizer.setJavascriptURLs(false);       // returns true if it changed
+el.setHTMLUnsafe(userMarkup, { sanitizer });
+
+// Same thing as a plain config dictionary:
+el.setHTMLUnsafe(userMarkup, {
+  sanitizer: { javascriptURLs: false },
+});
+
+// The setter's return value reports change, not success:
+const s = new Sanitizer({ javascriptURLs: false });
+s.setJavascriptURLs(false);               // → false (already in that state)
+s.setJavascriptURLs(true);                // → true  (configuration changed)
+
+// Inspect the resulting configuration:
+console.log(s.get().javascriptURLs);      // → true</code></pre>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v157/add-javascripturls-option-to-sanitizerconfig-and-sanitizer/javascript-url-playground/"
+        title="Live example — javascript: URL playground for the Sanitizer option" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase (route HEAD-checked 200, 2026-11-01). Sibling concept demos: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v157/add-javascripturls-option-to-sanitizerconfig-and-sanitizer/config-inspector/" target="_blank" rel="noopener">config inspector</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v157/add-javascripturls-option-to-sanitizerconfig-and-sanitizer/escape-artists/" target="_blank" rel="noopener">escape artists</a>, and <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v157/add-javascripturls-option-to-sanitizerconfig-and-sanitizer/untrusted-comment-feed/" target="_blank" rel="noopener">untrusted comment feed</a>. Requires Chrome 157+.<span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v157/add-javascripturls-option-to-sanitizerconfig-and-sanitizer/" target="_blank" rel="noopener">chrome-platform-showcase</a></span></figcaption>
+    </figure>
+    <span class="citation">Source: call forms per the <a href="https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#the-sanitizer-interface" target="_blank" rel="noopener">HTML Standard IDL</a> and the quoted method steps; examples are gendn-authored and labelled as such</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">browser compatibility</h2>
+    <p>Per-version data from <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Sanitizer.json" target="_blank" rel="noopener">BCD <code>api/Sanitizer.json</code></a> (fetched 2026-11-01). BCD already has a <code>setJavascriptURLs</code> subfeature key, but no browser has a recorded version yet &mdash; a freshness gap against the Chrome milestone-157 listing, shown as such.</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Browser compatibility table">
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th><code>Sanitizer</code> (host API)</th><th><code>setJavascriptURLs</code> / <code>javascriptURLs</code></th></tr></thead>
+      <tr><td>Chrome</td><td><strong>146</strong> (webstatus.dev)</td><td>Milestone <strong>157</strong> per the <a href="https://chromestatus.com/api/v0/features/5169798320357376" target="_blank" rel="noopener">ChromeStatus record</a>; BCD <code>version_added: false</code> (not yet recorded)</td></tr>
+      <tr><td>Edge</td><td>146 (mirrors Chrome)</td><td>Mirrors Chrome</td></tr>
+      <tr><td>Firefox</td><td><strong>148</strong> (webstatus.dev)</td><td>&ldquo;Shipped/Shipping&rdquo; per the <a href="https://chromestatus.com/api/v0/features/5169798320357376" target="_blank" rel="noopener">ChromeStatus vendor view</a>; BCD <code>version_added: false</code> (not yet recorded)</td></tr>
+      <tr><td>Safari</td><td>Not shipped; position &ldquo;Support&rdquo; for the host API (<a href="https://github.com/WebKit/standards-positions/issues/86" target="_blank" rel="noopener">WebKit/standards-positions #86</a>)</td><td>Not shipped</td></tr>
+    </table>
+    </div>
+    <p>For orientation, the host Sanitizer API web-feature is Baseline <strong>limited</strong> on <a href="https://api.webstatus.dev/v1/features/sanitizer" target="_blank" rel="noopener">webstatus.dev</a> (Chrome 146 &middot; Firefox 148 &middot; no Safari).</p>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Sanitizer.json" target="_blank" rel="noopener">BCD api/Sanitizer.json</a>; <a href="https://api.webstatus.dev/v1/features/sanitizer" target="_blank" rel="noopener">webstatus.dev sanitizer</a>; <a href="https://chromestatus.com/api/v0/features/5169798320357376" target="_blank" rel="noopener">ChromeStatus API record</a></span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <ul>
+      <li><strong><code>javascript:</code> URLs are an XSS vector</strong> &mdash; a surviving <code>&lt;a href="javascript:&hellip;"&gt;</code> runs script on activation. The option only ever <em>adds</em> a way to remove them from unsafe-method output; the safe methods&rsquo; guarantee is unchanged, and <code>removeUnsafe()</code> now forcibly flips the option to <code>false</code> as part of its make-this-config-safe contract (quoted in <a href="#semantics">semantics</a>).</li>
+      <li><strong>The hazard is the permissive default</strong> &mdash; an unsafe-method config that omits <code>javascriptURLs</code> keeps <code>javascript:</code> URLs (permissive canonicalization default). Code that migrates from <code>setHTML()</code> to <code>setHTMLUnsafe()</code> expecting URL stripping to follow must now say <code>javascriptURLs: false</code> explicitly.</li>
+      <li><strong>No privacy surface</strong> &mdash; the option processes markup already in the page; it stores nothing and exposes no new information about the user (no spec-flagged privacy considerations in <a href="https://github.com/whatwg/html/pull/12898" target="_blank" rel="noopener">PR #12898</a>).</li>
+    </ul>
+    <span class="citation">Source: <a href="https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#sanitization-algorithms" target="_blank" rel="noopener">HTML Standard sanitization algorithms</a>; <a href="https://github.com/whatwg/html/pull/12898" target="_blank" rel="noopener">whatwg/html PR #12898</a>; the migration note is gendn-derived from the quoted defaults, labelled as such</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">specifications</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Specifications table">
+    <table class="doc-table">
+      <thead><tr><th>Document</th><th>Status</th></tr></thead>
+      <tr><td><a href="https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#dom-sanitizer-setjavascripturls" target="_blank" rel="noopener">HTML Standard &mdash; <code>Sanitizer.setJavascriptURLs()</code></a> and <a href="https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#the-sanitizerconfig-dictionary" target="_blank" rel="noopener">the <code>SanitizerConfig</code> dictionary</a></td><td>Living standard &mdash; the option is merged text (verified present 2026-11-01)</td></tr>
+      <tr><td><a href="https://github.com/whatwg/html/pull/12898" target="_blank" rel="noopener">whatwg/html PR #12898 &mdash; the change that added the option</a></td><td>The ChromeStatus record&rsquo;s spec link; merged into the living standard</td></tr>
+      <tr><td><a href="https://github.com/whatwg/html/issues/12686" target="_blank" rel="noopener">whatwg/html issue #12686 &mdash; originating discussion</a></td><td>Motivating issue, linked from the ChromeStatus motivation</td></tr>
+    </table>
+    </div>
+    <span>Repository and thread records are linked above; contents fetched 2026-11-01.</span>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/5169798320357376" target="_blank" rel="noopener">Chrome Platform Status &mdash; Add javascriptURLs option to SanitizerConfig and Sanitizer</a> (<a href="https://chromestatus.com/api/v0/features/5169798320357376" target="_blank" rel="noopener">API record</a>)</li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Sanitizer" target="_blank" rel="noopener">MDN &mdash; Sanitizer</a> and <a href="https://developer.mozilla.org/en-US/docs/Web/API/SanitizerConfig" target="_blank" rel="noopener">MDN &mdash; SanitizerConfig</a> (neither documents the <code>javascriptURLs</code> option yet &mdash; member/method absent from both pages, checked 2026-11-01; <a href="https://developer.mozilla.org/en-US/docs/Web/API/Sanitizer/setJavascriptURLs" target="_blank" rel="noopener">the method URL 404s</a>)</li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/HTML_Sanitizer_API" target="_blank" rel="noopener">MDN &mdash; HTML Sanitizer API overview</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v157/add-javascripturls-option-to-sanitizerconfig-and-sanitizer/" target="_blank" rel="noopener">Chrome Platform Showcase &mdash; interactive demos for this feature</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
