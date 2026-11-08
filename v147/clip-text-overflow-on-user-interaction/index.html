@@ -11,6 +11,15 @@
     .doc-table tr:last-child td { border-bottom: none; }
     .doc-table code { background: transparent; border: none; padding: 0; }
     .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--text-charcoal); display: block; margin-bottom: 0.4rem; }
+    .table-wrap { margin-block: 1rem; }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    .example-embed { margin: 1.5rem 0; }
+    .example-embed iframe { border: 2px solid var(--border-black); width: 100%; max-width: 100%; }
+    .example-embed figcaption { font-size: 0.85rem; margin-top: 0.4rem; }
+    .compat-table { min-width: 30rem; }
+    .compat-table th, .compat-table td { overflow-wrap: normal; word-break: normal; }
     .demo-box { border: 2px solid var(--border-black); padding: 1rem; margin: 1rem 0; background: var(--bg-stone); }
     .demo-box p { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 260px; font-family: var(--font-mono); }
   </style>
@@ -22,12 +31,23 @@
   <header class="lede-block">
     <p class="eyebrow">v147 · css · in developer trial</p>
     <h1>Clip Text overflow on user interaction</h1>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 149 (flag in 147)</li>
+        <li>Edge &middot; mirrors Chromium</li>
+        <li>Firefox &middot; contenteditable while focused</li>
+        <li class="limited">Safari &middot; text inputs only</li>
+      </ul>
+      <p>This interaction behaviour has no web-feature of its own. The <code>text-overflow</code> property itself is <a href="https://webstatus.dev/features/text-overflow" target="_blank" rel="noopener">Baseline Widely available</a>, but that says nothing about clip-on-interaction. The <a href="https://chromestatus.com/api/v0/features/5146265241387008" target="_blank" rel="noopener">ChromeStatus record</a> maps it to <a href="https://webstatus.dev/features/custom-ellipses" target="_blank" rel="noopener">custom-ellipses</a> (Limited availability), which is the separate <code>text-overflow: &lt;string&gt;</code> feature. The real per-browser evidence is in the notes on <a href="https://github.com/mdn/browser-compat-data/blob/main/css/properties/text-overflow.json" target="_blank" rel="noopener">BCD <code>css/properties/text-overflow.json</code></a> <code>ellipsis</code> (fetched 2026-11-08). Chrome clips <code>contenteditable</code> ellipsis while focused from version 149 and Firefox already does. Safari&rsquo;s notes cover only <code>&lt;input&gt;</code>/<code>&lt;textarea&gt;</code>. Treat the behaviour as an enhancement, not something to depend on.</p>
+    </div>
     <p class="lede">When a user clicks into, edits, or navigates by caret inside an element styled with <code>text-overflow: ellipsis</code>, the browser temporarily switches the overflow rendering to <code>clip</code> — revealing the hidden content while the user is interacting and restoring the ellipsis when they leave.</p>
   </header>
 
   <div class="warn-block warn-block--common">
     <strong>In developer trial</strong>
-    This feature is behind a flag in Chrome 147. Enable <code>chrome://flags/#enable-experimental-web-platform-features</code> to test it. The behavior is still under development and the spec is not yet finalised for this interaction model.
+    This feature is behind a flag in Chrome 147. Enable <code>chrome://flags/#enable-experimental-web-platform-features</code> to test it. The behavior is still under development and the spec is not yet finalised for this interaction model. Update (2026-11-08): the <a href="https://chromestatus.com/api/v0/features/5146265241387008" target="_blank" rel="noopener">ChromeStatus record</a> now targets default shipping in Chrome 149, the Blink runtime feature <code>TextOverflowClipWithSelection</code> is <code>status: "stable"</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>, and <a href="https://github.com/mdn/browser-compat-data/blob/main/css/properties/text-overflow.json" target="_blank" rel="noopener">BCD <code>css/properties/text-overflow.json</code></a> records Chrome&nbsp;149. In Chrome&nbsp;147&ndash;148 you still need the flag.
   </div>
 
   <section>
@@ -51,6 +71,17 @@
   </section>
 
   <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>There is no new syntax. The behaviour hangs off the existing <code>text-overflow</code> property. Its grammar, from <a href="https://drafts.csswg.org/css-overflow-3/#propdef-text-overflow" target="_blank" rel="noopener">CSS Overflow Level&nbsp;3 &sect;text-overflow</a> (fetched 2026-11-08):</p>
+    <pre><code>text-overflow: clip | ellipsis
+/* Initial: clip · Applies to: block containers · Inherited: no */</code></pre>
+    <p>The normative hook is <a href="https://drafts.csswg.org/css-overflow-3/#ellipsis-interaction" target="_blank" rel="noopener">&sect;user interaction with ellipsis</a>, quoted verbatim:</p>
+    <blockquote><p>When the user is interacting with content (e.g. editing, selecting, scrolling), the user agent may treat <code>text-overflow: ellipsis</code> as <code>text-overflow: clip</code>. Selecting the ellipsis should select the ellipsed text. If all of the ellipsed text is selected, UAs should show selection of the ellipsis. Behavior of partially-selected ellipsed text is up to the UA.</p></blockquote>
+    <p>&ldquo;May&rdquo; is permissive. Browsers differ (see the compatibility table), so don&rsquo;t write code that depends on the clip switch happening.</p>
+    <span class="citation">Source: <a href="https://drafts.csswg.org/css-overflow-3/#ellipsis-interaction" target="_blank" rel="noopener">CSS Overflow Module Level 3 editor&rsquo;s draft</a>.</span>
+  </section>
+
+  <section>
     <h2 id="the-behavior">the behavior</h2>
     <p>No new CSS property or JavaScript API. The change is purely in the rendering model:</p>
     <table class="doc-table">
@@ -64,6 +95,12 @@
 
   <section>
     <h2 id="example">example</h2>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/clip-text-overflow-on-user-interaction/"
+        title="Live example — Clip Text overflow on user interaction demos" loading="lazy" height="520"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase (<a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/clip-text-overflow-on-user-interaction/" target="_blank" rel="noopener">feature index</a>, HTTP&nbsp;200 verified 2026-11-08). Concepts: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/clip-text-overflow-on-user-interaction/live-edit/" target="_blank" rel="noopener">live edit</a> · <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/clip-text-overflow-on-user-interaction/data-table/" target="_blank" rel="noopener">data table</a> · <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/clip-text-overflow-on-user-interaction/truncated-list/" target="_blank" rel="noopener">truncated list</a> · <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/clip-text-overflow-on-user-interaction/overflow-text-editor/" target="_blank" rel="noopener">overflow text editor</a> · <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/clip-text-overflow-on-user-interaction/compatibility-lab/" target="_blank" rel="noopener">compatibility lab</a>.<span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/clip-text-overflow-on-user-interaction/" target="_blank" rel="noopener">chrome-platform-showcase — Clip Text overflow on user interaction</a></span></figcaption>
+    </figure>
     <p>The element below uses <code>text-overflow: ellipsis</code>. In a browser with this feature, clicking or focusing on it would reveal the full text.</p>
     <div class="demo-box">
       <p title="The quick brown fox jumped over the lazy dog, then kept running for a very long time">The quick brown fox jumped over the lazy dog, then kept running for a very long time</p>
@@ -85,21 +122,35 @@
   </section>
 
   <section>
-    <h2 id="browser-support">browser support</h2>
-    <table class="doc-table">
-      <thead><tr><th>Browser</th><th>Support</th></tr></thead>
-      <tr><td>Chrome 147</td><td>In developer trial (behind flag)</td></tr>
-      <tr><td>Edge 147</td><td>Tracking Chromium</td></tr>
-      <tr><td>Firefox</td><td>Shipped/Shipping</td></tr>
-      <tr><td>Safari</td><td>No signal</td></tr>
+    <h2 id="browser-support">Browser compatibility</h2>
+    <div class="table-wrap">
+    <table class="doc-table compat-table">
+      <caption>Per-version behaviour of <code>text-overflow: ellipsis</code> under interaction, from the support notes in <a href="https://github.com/mdn/browser-compat-data/blob/main/css/properties/text-overflow.json" target="_blank" rel="noopener">BCD <code>css/properties/text-overflow.json</code></a> (raw, fetched 2026-11-08). BCD has no separate key for this behaviour.</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col">Version</th><th scope="col">Notes (BCD <code>ellipsis</code> sub-feature)</th></tr></thead>
+      <tr><td>Chrome</td><td>149 (147&ndash;148 behind <code>#enable-experimental-web-platform-features</code>)</td><td>&ldquo;From version 149, in <code>contenteditable</code> elements, behaves as <code>clip</code> while the element is focused.&rdquo; Textual <code>&lt;input&gt;</code> clips while focused; <code>&lt;textarea&gt;</code> always clips</td></tr>
+      <tr><td>Edge</td><td>149 (BCD <code>mirror</code>)</td><td>Follows Chrome</td></tr>
+      <tr><td>Firefox</td><td>7 (version of the base <code>ellipsis</code> entry)</td><td>&ldquo;In <code>contenteditable</code> elements, behaves as <code>clip</code> while the element is focused.&rdquo; Textual <code>&lt;input&gt;</code>/<code>&lt;textarea&gt;</code> always clip. BCD does not date the contenteditable note separately</td></tr>
+      <tr><td>Safari</td><td>No contenteditable support recorded</td><td>Only <code>&lt;textarea&gt;</code> (clip) and focused textual <code>&lt;input&gt;</code> (clip) are noted. Position: <a href="https://github.com/WebKit/standards-positions/issues/624" target="_blank" rel="noopener">WebKit/standards-positions#624</a></td></tr>
     </table>
-    <span class="citation">Source: <a href="https://chromestatus.com/feature/5146265241387008" target="_blank" rel="noopener">chromestatus browser views</a>, May 2026.</span>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/css/properties/text-overflow.json" target="_blank" rel="noopener">BCD <code>css/properties/text-overflow.json</code></a>; <a href="https://chromestatus.com/feature/5146265241387008" target="_blank" rel="noopener">chromestatus browser views</a> (fetched 2026-11-08).</span>
     <p>Status disagreement, both sides reported rather than resolved: this page records the Chrome 147 developer trial behind
       <code>chrome://flags/#enable-experimental-web-platform-features</code>, while the ChromeStatus record for feature
       <code>5146265241387008</code> reads status &ldquo;Proposed&rdquo; (fetched 2026-10-06; record last updated 2026-04-27). That record
       resolves the apparent conflict itself: its developer-trial stage is set to <code>desktop_first</code> 147 while its
       <em>active</em> stage is the intent-to-ship stage at 149 &mdash; so DevTrial-at-147 and ship-target-149 are both stated by the
       source, not inferred here. This page reports the 147 trial; the 149 ship target is the status the page does not carry.</p>
+    <p>Re-checked 2026-11-08: the record still reads &ldquo;Proposed&rdquo; with <code>desktop: 149</code>. BCD now records the shipped Chrome&nbsp;149 behaviour, so the ship target is shown in the table above.</p>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Specification</th><th scope="col">Section</th></tr></thead>
+      <tr><td><a href="https://drafts.csswg.org/css-overflow-3/" target="_blank" rel="noopener">CSS Overflow Module Level 3</a></td><td><a href="https://drafts.csswg.org/css-overflow-3/#ellipsis-interaction" target="_blank" rel="noopener">&sect; user interaction with ellipsis</a> · <a href="https://drafts.csswg.org/css-overflow-3/#propdef-text-overflow" target="_blank" rel="noopener">&sect; text-overflow</a></td></tr>
+    </table>
+    </div>
   </section>
 
   <section>
