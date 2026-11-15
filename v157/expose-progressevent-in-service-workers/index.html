@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Expose ProgressEvent in service workers — Chrome 157 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { margin: 1rem 0; font-size: 0.85rem; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { min-width: 7.5rem; overflow-wrap: normal; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .doc-table caption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); text-align: left; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .compat-table { min-width: 34rem; }
+    .compat-sw tr > th:first-child { min-width: 5.5rem; width: 22%; }
+    .compat-sw tr > :nth-child(2) { width: 18%; min-width: 4.75rem; overflow-wrap: normal; }
+    .compat-table tr > *:nth-child(2) { min-width: 6.5rem; }
+    .table-wrap:focus-visible { outline: 3px solid var(--border-black); outline-offset: 2px; }
+    .lede-block h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code, dd code { overflow-wrap: anywhere; }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    .member-facts { margin: 0.75rem 0; }
+    .member-facts dt { font-weight: 700; margin-top: 0.6rem; }
+    .member-facts dd { margin: 0.2rem 0 0 0; }
+    .example-embed { margin: 1.5rem 0; }
+    .example-embed iframe { max-width: 100%; display: block; }
+    .example-embed figcaption { font-size: 0.85rem; margin-top: 0.4rem; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v157/">&larr; Chrome 157 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v157 &middot; enabled by default &middot; miscellaneous &middot; service workers</p>
+    <h1>Expose ProgressEvent in service workers</h1>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Baseline Widely available (parent XMLHttpRequest feature) &middot; service-worker exposure new in Chrome 157</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 157 in service workers (1 in Window; 47 in dedicated/shared workers)</li>
+        <li class="limited">Edge &middot; Chromium-based; service-worker exposure not independently verified</li>
+        <li>Firefox &middot; exposed to all workers incl. service workers (verified in 140 release IDL)</li>
+        <li>Safari &middot; exposed to all workers incl. service workers (verified in WebKit-7614 release source)</li>
+      </ul>
+      <p><code>ProgressEvent</code> belongs to the <a href="https://webstatus.dev/features/xhr" target="_blank" rel="noopener">xhr web-feature</a>, which <a href="https://api.webstatus.dev/v1/features/xhr" target="_blank" rel="noopener">webstatus.dev</a> reports as <strong>Baseline Widely available</strong> (newly available 2015-07-29, widely 2018-01-29; queried 2026-11-15). That status describes the interface as a whole, not its availability inside service workers: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/ProgressEvent.json" target="_blank" rel="noopener">BCD <code>api/ProgressEvent.json</code></a> still marks Chrome&rsquo;s <code>worker_support</code> as a partial implementation &ldquo;not available in service workers&rdquo; (fetched 2026-11-15). This page documents the Chrome&nbsp;157 change that closes that gap; no separate Baseline date exists for it.</p>
+    </div>
+
+    <p class="lede">The <a href="https://xhr.spec.whatwg.org/#interface-progressevent" target="_blank" rel="noopener">XMLHttpRequest Standard</a> declares <code>ProgressEvent</code> with <code>[Exposed=(Window,Worker)]</code>, and a service worker&rsquo;s global scope is a <code>Worker</code> global, so the interface belongs there. Blink, however, exposed it only to <code>Window</code>, dedicated workers and shared workers. From Chrome&nbsp;157, <code>ProgressEvent</code> is also a global constructor in <code>ServiceWorkerGlobalScope</code>, so service-worker code can construct progress events with <code>lengthComputable</code>, <code>loaded</code> and <code>total</code> and reuse progress-reporting code across every worker type. The change reuses the existing implementation; it does not add <code>XMLHttpRequest</code> to service workers or make <code>fetch()</code> fire progress events.</p>
+  </header>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">What changes</th><td><code>self.ProgressEvent</code> is defined in <code>ServiceWorkerGlobalScope</code>; previously <code>typeof ProgressEvent</code> was <code>"undefined"</code> there</td></tr>
+      <tr><th scope="row">What does not change</th><td>The interface, its constructor and its three attributes are byte-for-byte the existing Blink implementation; no new members, no <code>XMLHttpRequest</code> in service workers, no automatic progress events from <code>fetch()</code></td></tr>
+      <tr><th scope="row">Shipped</th><td>Chrome 157 (desktop, Android, WebView per the <a href="https://chromestatus.com/api/v0/features/5069584943153152" target="_blank" rel="noopener">ChromeStatus API record</a>); <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8425503" target="_blank" rel="noopener">CL 8425503</a> merged 2026-10-13 at <code>refs/heads/main@{#1717288}</code>, first landed in <a href="https://chromiumdash.appspot.com/commit/1f7a8b255f6275dbc6c40aaef221b964e4f38071" target="_blank" rel="noopener">157.0.8103.0</a></td></tr>
+      <tr><th scope="row">Runtime feature</th><td><code>ProgressEventInServiceWorker</code>, <code>status: "stable"</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a> &mdash; on by default, retained as a Finch kill switch; no <code>chrome://flags</code> entry</td></tr>
+      <tr><th scope="row">Intent threads</th><td><a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/QBlgC3Iy-Z4/m/BxeYraAVCQAJ" target="_blank" rel="noopener">Intent to Prototype</a> &middot; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/xfESpbOdURw/m/rU8x1telCgAJ" target="_blank" rel="noopener">Intent to Ship</a> (three LGTMs)</td></tr>
+      <tr><th scope="row">Tracking</th><td><a href="https://issues.chromium.org/issues/332663431" target="_blank" rel="noopener">issues.chromium.org/332663431</a> &middot; blink component <code>Blink</code></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5069584943153152" target="_blank" rel="noopener">chromestatus.com/feature/5069584943153152</a> (listed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=157" target="_blank" rel="noopener">milestone=157 listing</a>)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5069584943153152" target="_blank" rel="noopener">ChromeStatus API record</a>, <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8425503" target="_blank" rel="noopener">CL 8425503</a>, <a href="https://chromiumdash.appspot.com/commit/1f7a8b255f6275dbc6c40aaef221b964e4f38071" target="_blank" rel="noopener">Chromium Dash commit record</a>, all read 2026-11-15</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>The interface, verbatim from <a href="https://xhr.spec.whatwg.org/#interface-progressevent" target="_blank" rel="noopener">XMLHttpRequest Standard &sect;5 Interface ProgressEvent</a>. Every member below is documented on this page: <a href="#constructor">constructor</a>, <a href="#progresseventinit"><code>ProgressEventInit</code></a>, <a href="#lengthcomputable"><code>lengthComputable</code></a>, <a href="#loaded"><code>loaded</code></a>, <a href="#total"><code>total</code></a>.</p>
+    <pre><code>[Exposed=(Window,Worker)]
+interface ProgressEvent : Event {
+  constructor(DOMString type, optional ProgressEventInit eventInitDict = {});
+
+  readonly attribute boolean lengthComputable;
+  readonly attribute double loaded;
+  readonly attribute double total;
+};
+
+dictionary ProgressEventInit : EventInit {
+  boolean lengthComputable = false;
+  double loaded = 0;
+  double total = 0;
+};</code></pre>
+    <p>The Chrome&nbsp;157 change is entirely in Blink&rsquo;s <code>[Exposed]</code> list. <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/events/progress_event.idl" target="_blank" rel="noopener">progress_event.idl at main</a> (fetched 2026-11-15) now gates the <code>ServiceWorker</code> exposure on the <code>ProgressEventInServiceWorker</code> runtime feature:</p>
+    <pre><code>[
+    Exposed(Window StableBlinkFeatures,
+            DedicatedWorker StableBlinkFeatures,
+            SharedWorker StableBlinkFeatures,
+            ServiceWorker ProgressEventInServiceWorker)
+] interface ProgressEvent : Event { /* members unchanged */ };</code></pre>
+    <p>In script, the only new syntax is that this now works inside a service worker:</p>
+    <pre><code>// sw.js, Chrome 157+
+const event = new ProgressEvent("progress", { lengthComputable: true, loaded: 512, total: 2048 });</code></pre>
+    <span class="citation">Source: <a href="https://xhr.spec.whatwg.org/#interface-progressevent" target="_blank" rel="noopener">XHR Standard IDL</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/events/progress_event.idl" target="_blank" rel="noopener">Blink progress_event.idl</a>; <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8425503" target="_blank" rel="noopener">CL 8425503</a></span>
+  </section>
+
+  <section>
+    <h2 id="service-worker-exposure">Service-worker exposure</h2>
+    <p id="exposure-what">The <a href="https://w3c.github.io/ServiceWorker/#serviceworkerglobalscope-interface" target="_blank" rel="noopener">Service Workers specification</a> declares <code>[Global=(Worker,ServiceWorker), Exposed=ServiceWorker, SecureContext] interface ServiceWorkerGlobalScope</code>. Because the XHR Standard exposes <code>ProgressEvent</code> to every <code>Worker</code> global, the specification has always required it in service workers; Chrome&nbsp;157 implements that requirement. After the change, inside a service worker <code>typeof ProgressEvent === "function"</code>, <code>"ProgressEvent" in self</code> is <code>true</code>, and <code>ProgressEvent.prototype</code> inherits from <code>Event.prototype</code> exactly as in a window.</p>
+    <dl class="member-facts">
+      <dt id="exposure-inputs">Inputs</dt>
+      <dd>None of its own: exposure adds a global binding. Construction inputs are the <a href="#constructor-parameters">constructor parameters</a> and <a href="#progresseventinit"><code>ProgressEventInit</code></a>, identical to every other realm.</dd>
+      <dt id="exposure-outputs">Observable effects</dt>
+      <dd>A new own property <code>ProgressEvent</code> on the service worker global object, visible to feature detection and to <code>Object.getOwnPropertyNames(self)</code>. Blink&rsquo;s service-worker interface-listing expectations (default and <code>virtual/stable</code>) were updated in the CL to include it. Verified at runtime: in Chrome 153.0.8010.12 a service worker reported <code>typeof ProgressEvent === "undefined"</code>; in Chrome 157.0.8103.78 and 158.0.8127.18 the same worker reported <code>"function"</code> and constructed an event with the expected values (gendn headless test, 2026-11-15).</dd>
+      <dt id="exposure-not-added">What is not added</dt>
+      <dd><code>XMLHttpRequest</code> stays undefined in service workers (runtime-checked in 157.0.8103.78), and <code>fetch()</code> does not dispatch progress events; per the <a href="https://chromestatus.com/api/v0/features/5069584943153152" target="_blank" rel="noopener">ChromeStatus motivation</a>, the change &ldquo;reuses the existing implementation without exposing XMLHttpRequest or adding automatic fetch progress events.&rdquo; Any <code>ProgressEvent</code> in a service worker is one your code constructs and dispatches, so <code>isTrusted</code> is always <code>false</code>.</dd>
+      <dt id="exposure-errors">Errors</dt>
+      <dd>Exposure has no error path of its own; it only defines a previously undefined global. Code that ran <code>new ProgressEvent(&hellip;)</code> in a service worker before Chrome&nbsp;157 got a <code>ReferenceError: ProgressEvent is not defined</code>; that is the failure feature detection guards against. Construction errors are listed under <a href="#constructor-exceptions">constructor exceptions</a>.</dd>
+      <dt id="exposure-context">Context</dt>
+      <dd>Available in every service worker in Chrome 157+ (service workers themselves require a secure context, per the <code>[SecureContext]</code> on <code>ServiceWorkerGlobalScope</code>). No permission, origin trial, header or policy is involved. Window, dedicated-worker and shared-worker exposure are unchanged (Chrome&nbsp;1 and&nbsp;47 respectively, per BCD).</dd>
+      <dt id="exposure-lifecycle">Lifecycle</dt>
+      <dd>The binding exists for the whole life of each service worker global, from script evaluation until the worker is terminated; it is not tied to <code>install</code>, <code>activate</code> or any event. The <code>ProgressEventInServiceWorker</code> runtime feature is <code>status: "stable"</code>, so it is on by default; the <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8425503" target="_blank" rel="noopener">CL message</a> says the feature is retained &ldquo;as a Finch kill switch&rdquo;, meaning Google could disable it server-side if a compatibility problem appeared. Always feature-detect rather than branch on the Chrome version.</dd>
+      <dt id="exposure-compat-risk">Compatibility risk</dt>
+      <dd>The <a href="https://chromestatus.com/api/v0/features/5069584943153152" target="_blank" rel="noopener">ChromeStatus record</a> rates it low, but notes that adding the global &ldquo;may change feature-detection results or interact with application-defined ProgressEvent polyfills in service workers.&rdquo; A polyfill that does <code>self.ProgressEvent = class &hellip;</code> unconditionally now overwrites the native constructor; guard it with <code>if (typeof ProgressEvent !== "function")</code>.</dd>
+    </dl>
+    <span class="citation">Source: <a href="https://w3c.github.io/ServiceWorker/#serviceworkerglobalscope-interface" target="_blank" rel="noopener">Service Workers spec, ServiceWorkerGlobalScope IDL</a>; <a href="https://xhr.spec.whatwg.org/#interface-progressevent" target="_blank" rel="noopener">XHR Standard</a>; <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8425503" target="_blank" rel="noopener">CL 8425503</a>; <a href="https://chromestatus.com/api/v0/features/5069584943153152" target="_blank" rel="noopener">ChromeStatus API record</a></span>
+  </section>
+
+  <section>
+    <h2 id="constructor"><code>ProgressEvent()</code> constructor</h2>
+    <p>Creates a new, untrusted <code>ProgressEvent</code>. It follows the DOM Standard&rsquo;s <a href="https://dom.spec.whatwg.org/#concept-event-constructor" target="_blank" rel="noopener">event constructor steps</a>: the event is created with <code>isTrusted</code> false, the init dictionary members are copied onto the matching attributes, and the event is not dispatched until you call <code>dispatchEvent()</code>.</p>
+    <pre><code>new ProgressEvent(type)
+new ProgressEvent(type, eventInitDict)</code></pre>
+    <h3 id="constructor-parameters">Parameters</h3>
+    <dl class="member-facts">
+      <dt><code>type</code></dt>
+      <dd>A string, the event name (required). Converted with WebIDL <code>DOMString</code> rules, so <code>null</code> becomes <code>"null"</code>. The XHR Standard suggests <code>loadstart</code>, <code>progress</code>, <code>error</code>, <code>abort</code>, <code>timeout</code>, <code>load</code> and <code>loadend</code> (see <a href="#lifecycle">event sequence</a>), but any name is accepted.</dd>
+      <dt><code>eventInitDict</code> <span class="citation">optional</span></dt>
+      <dd>A <a href="#progresseventinit"><code>ProgressEventInit</code></a> dictionary. Defaults to <code>{}</code>, giving <code>lengthComputable: false</code>, <code>loaded: 0</code>, <code>total: 0</code>, <code>bubbles: false</code>, <code>cancelable: false</code>, <code>composed: false</code>.</dd>
+    </dl>
+    <h3 id="constructor-return">Return value</h3>
+    <p>A new <code>ProgressEvent</code> whose <code>type</code> is <code>type</code>, whose <code>target</code> and <code>currentTarget</code> are <code>null</code>, whose <code>eventPhase</code> is <code>Event.NONE</code>, whose <code>isTrusted</code> is <code>false</code>, and whose <code>lengthComputable</code>, <code>loaded</code> and <code>total</code> equal the dictionary values. There is no legacy <code>initProgressEvent()</code> method (asserted by the WPT test below).</p>
+    <h3 id="constructor-exceptions">Exceptions</h3>
+    <dl class="member-facts">
+      <dt><code>TypeError</code></dt>
+      <dd>Thrown when <code>type</code> is omitted (<code>new ProgressEvent()</code>), when <code>eventInitDict</code> is not an object, <code>null</code> or <code>undefined</code>, or when <code>loaded</code> or <code>total</code> is a non-finite number (<code>NaN</code>, <code>Infinity</code>, <code>-Infinity</code>). The last rule follows from the WebIDL <code>double</code> type (restricted, not <code>unrestricted double</code>). Verified in Chrome 153, 157 and 158 in window, dedicated-worker and service-worker realms (gendn headless test, 2026-11-15).</dd>
+      <dt>Values that do <em>not</em> throw</dt>
+      <dd>Negative and fractional numbers are accepted unchanged (<code>loaded: -1</code> reads back <code>-1</code>). Non-number values are converted, not rejected: <code>{ lengthComputable: "hah", loaded: "2" }</code> gives <code>true</code> and <code>2</code>. Dictionary keys are case-sensitive, so <code>{ lengthcomputable: true }</code> is ignored. All of these cases come from the WPT test <a href="https://github.com/web-platform-tests/wpt/blob/master/xhr/progressevent-constructor.any.js" target="_blank" rel="noopener">xhr/progressevent-constructor.any.js</a>.</dd>
+    </dl>
+    <h3 id="constructor-example">Example</h3>
+    <pre><code>// Works the same in a window, a dedicated/shared worker, and (Chrome 157+) a service worker.
+const event = new ProgressEvent("progress", {
+  lengthComputable: true,
+  loaded: 1.5,
+  total: 3,
+});
+event.lengthComputable; // true
+event.loaded;           // 1.5
+event.total;            // 3
+event.isTrusted;        // false — script-constructed
+
+try {
+  new ProgressEvent("progress", { loaded: NaN });
+} catch (err) {
+  err.name;             // "TypeError" — loaded/total must be finite
+}</code></pre>
+    <span class="citation">Source: <a href="https://xhr.spec.whatwg.org/#dom-progressevent-progressevent" target="_blank" rel="noopener">XHR Standard constructor</a>; <a href="https://dom.spec.whatwg.org/#concept-event-constructor" target="_blank" rel="noopener">DOM Standard event constructor</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/xhr/progressevent-constructor.any.js" target="_blank" rel="noopener">WPT progressevent-constructor.any.js</a></span>
+  </section>
+
+  <section>
+    <h2 id="progresseventinit"><code>ProgressEventInit</code> dictionary</h2>
+    <p>Inherits <code>bubbles</code>, <code>cancelable</code> and <code>composed</code> (all default <code>false</code>) from the DOM Standard&rsquo;s <a href="https://dom.spec.whatwg.org/#dictdef-eventinit" target="_blank" rel="noopener"><code>EventInit</code></a>, and adds:</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="init-caption">
+    <table class="doc-table">
+      <caption id="init-caption">ProgressEventInit members</caption>
+      <thead><tr><th scope="col">Member</th><th scope="col">Type</th><th scope="col">Default</th><th scope="col">Sets</th></tr></thead>
+      <tbody>
+        <tr><th scope="row"><code>lengthComputable</code></th><td><code>boolean</code></td><td><code>false</code></td><td><a href="#lengthcomputable"><code>event.lengthComputable</code></a></td></tr>
+        <tr><th scope="row"><code>loaded</code></th><td><code>double</code> (finite)</td><td><code>0</code></td><td><a href="#loaded"><code>event.loaded</code></a></td></tr>
+        <tr><th scope="row"><code>total</code></th><td><code>double</code> (finite)</td><td><code>0</code></td><td><a href="#total"><code>event.total</code></a></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p>No member is validated against another: the constructor will happily build <code>{ lengthComputable: true, loaded: 9, total: 3 }</code>. Keeping the values consistent is the caller&rsquo;s job. When the platform itself fires a progress event, the XHR Standard&rsquo;s <a href="https://xhr.spec.whatwg.org/#concept-event-fire-progress" target="_blank" rel="noopener">fire a progress event</a> algorithm sets <code>loaded</code> to the bytes transmitted and, only when the length is non-zero, sets <code>lengthComputable</code> to true and <code>total</code> to the length. Mirror that rule when constructing events by hand.</p>
+    <span class="citation">Source: <a href="https://xhr.spec.whatwg.org/#progresseventinit" target="_blank" rel="noopener">XHR Standard ProgressEventInit</a>; <a href="https://dom.spec.whatwg.org/#dictdef-eventinit" target="_blank" rel="noopener">DOM Standard EventInit</a></span>
+  </section>
+
+  <section>
+    <h2 id="lengthcomputable"><code>ProgressEvent.lengthComputable</code></h2>
+    <p>Read-only <code>boolean</code>. The getter returns the value the event was initialized with (<a href="https://xhr.spec.whatwg.org/#dom-progressevent-lengthcomputable" target="_blank" rel="noopener">spec getter steps</a>). It tells the consumer whether <code>loaded / total</code> is a meaningful ratio; when it is <code>false</code>, show an indeterminate indicator instead of a percentage.</p>
+    <pre><code>event.lengthComputable // boolean, default false</code></pre>
+    <p>Assigning to it is ignored in sloppy mode and throws a <code>TypeError</code> in strict mode (and in modules), because it is an accessor without a setter; set it through the constructor instead.</p>
+    <span class="citation">Source: <a href="https://xhr.spec.whatwg.org/#dom-progressevent-lengthcomputable" target="_blank" rel="noopener">XHR Standard lengthComputable</a></span>
+  </section>
+
+  <section>
+    <h2 id="loaded"><code>ProgressEvent.loaded</code></h2>
+    <p>Read-only <code>double</code>. The getter returns the initialized value (<a href="https://xhr.spec.whatwg.org/#dom-progressevent-loaded" target="_blank" rel="noopener">spec getter steps</a>): the amount of work done so far, in whatever unit you chose. For events the browser fires for HTTP transfers it is a byte count; for events you construct it can be any finite number, such as a 0&ndash;1 fraction paired with <code>total: 1</code>.</p>
+    <pre><code>event.loaded // double, default 0</code></pre>
+    <p>The type was <code>unsigned long long</code> before Chrome 136; <a href="https://chromestatus.com/feature/5067669587623936" target="_blank" rel="noopener">Update ProgressEvent to use double type for &lsquo;loaded&rsquo; and &lsquo;total&rsquo;</a> changed it to <code>double</code>, so every Chrome release that has service-worker exposure (157+) uses <code>double</code>. Read-only semantics match <code>lengthComputable</code>.</p>
+    <span class="citation">Source: <a href="https://xhr.spec.whatwg.org/#dom-progressevent-loaded" target="_blank" rel="noopener">XHR Standard loaded</a>; <a href="https://chromestatus.com/feature/5067669587623936" target="_blank" rel="noopener">ChromeStatus double-type change</a></span>
+  </section>
+
+  <section>
+    <h2 id="total"><code>ProgressEvent.total</code></h2>
+    <p>Read-only <code>double</code>. The getter returns the initialized value (<a href="https://xhr.spec.whatwg.org/#dom-progressevent-total" target="_blank" rel="noopener">spec getter steps</a>): the total amount of work, or <code>0</code> when unknown. In a service worker the usual source is the response&rsquo;s <code>Content-Length</code> header. That header gives the encoded (possibly compressed) size while a response body stream yields decoded bytes, so a hand-built <code>loaded</code> can exceed <code>total</code> for compressed responses. Clamp, or treat the length as not computable, when <code>Content-Encoding</code> is present.</p>
+    <pre><code>event.total // double, default 0</code></pre>
+    <span class="citation">Source: <a href="https://xhr.spec.whatwg.org/#dom-progressevent-total" target="_blank" rel="noopener">XHR Standard total</a></span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">Event sequence and delivery</h2>
+    <p>A constructed <code>ProgressEvent</code> is inert until dispatched. In a service worker you dispatch it to an <code>EventTarget</code> you own (there is no XHR object to fire it at); listeners run synchronously inside <code>dispatchEvent()</code>. The XHR Standard&rsquo;s non-normative <a href="https://xhr.spec.whatwg.org/#suggested-names-for-events-using-the-progressevent-interface" target="_blank" rel="noopener">suggested names</a> define the conventional order: <code>loadstart</code> once, then <code>progress</code> zero or more times, then exactly one of <code>error</code>, <code>abort</code>, <code>timeout</code> or <code>load</code>, then <code>loadend</code> once. It suggests <code>bubbles</code> and <code>cancelable</code> stay <code>false</code>.</p>
+    <p>A <code>ProgressEvent</code> cannot cross to a page. <code>Client.postMessage()</code> uses structured cloning, and events are not serializable, so <code>structuredClone(event)</code> throws a <code>DataCloneError</code> (verified in Chrome 157). Post the plain fields <code>{ type, lengthComputable, loaded, total }</code> and rebuild the event on the receiving side, as the example below does.</p>
+    <span class="citation">Source: <a href="https://xhr.spec.whatwg.org/#suggested-names-for-events-using-the-progressevent-interface" target="_blank" rel="noopener">XHR Standard &sect;5.2</a>; <a href="https://dom.spec.whatwg.org/#dispatching-events" target="_blank" rel="noopener">DOM Standard dispatching events</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v157/expose-progressevent-in-service-workers/scope-probe/"
+        title="Live example — global-scope probe for ProgressEvent in a service worker" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase: registers a service worker and asks it whether <code>ProgressEvent</code> exists in its global (route HEAD-checked 200, 2026-11-15). Sibling concept demos: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v157/expose-progressevent-in-service-workers/scope-matrix/" target="_blank" rel="noopener">which scopes have it</a> and <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v157/expose-progressevent-in-service-workers/download-relay/" target="_blank" rel="noopener">streaming download relay</a>.<span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v157/expose-progressevent-in-service-workers/" target="_blank" rel="noopener">chrome-platform-showcase</a></span></figcaption>
+    </figure>
+
+    <h3 id="example-relay">Report download progress from a service worker</h3>
+    <p>The service worker counts response bytes as they stream through, describes each step as a real <code>ProgressEvent</code>, and posts the fields to its window clients. On older engines it falls back to a plain <code>Event</code> with the same fields. Both files were run in headless Chrome 153 (fallback path) and Chrome 157.0.8103.78 (native path) against a 400&nbsp;kB file; both produced matching <code>progress</code>/<code>loadend</code> messages and no errors (gendn test, 2026-11-15).</p>
+    <pre><code>// sw.js
+const hasProgressEvent = typeof ProgressEvent === "function"; // false before Chrome 157
+const progress = new EventTarget();
+
+function makeProgress(type, init) {
+  return hasProgressEvent
+    ? new ProgressEvent(type, init)
+    : Object.assign(new Event(type), init); // fallback for older engines
+}
+
+async function forward(event) {
+  // ProgressEvent is not serializable: post its fields, not the object.
+  const clients = await self.clients.matchAll({ type: "window" });
+  for (const client of clients) {
+    client.postMessage({
+      type: event.type,
+      lengthComputable: event.lengthComputable,
+      loaded: event.loaded,
+      total: event.total,
+    });
+  }
+}
+progress.addEventListener("progress", forward);
+progress.addEventListener("loadend", forward);
+
+self.addEventListener("fetch", (event) =&gt; {
+  if (!new URL(event.request.url).pathname.startsWith("/large/")) return;
+
+  event.respondWith((async () =&gt; {
+    const response = await fetch(event.request);
+    if (!response.body) return response; // opaque responses expose no body
+
+    const length = Number(response.headers.get("content-length")) || 0;
+    let loaded = 0;
+    const counter = new TransformStream({
+      transform(chunk, controller) {
+        loaded += chunk.byteLength;
+        progress.dispatchEvent(makeProgress("progress", {
+          lengthComputable: length !== 0, loaded, total: length,
+        }));
+        controller.enqueue(chunk);
+      },
+      flush() {
+        progress.dispatchEvent(makeProgress("loadend", {
+          lengthComputable: length !== 0, loaded, total: length,
+        }));
+      },
+    });
+
+    return new Response(response.body.pipeThrough(counter), {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    });
+  })());
+});</code></pre>
+    <pre><code>&lt;!-- page.html --&gt;
+&lt;progress id="bar" value="0"&gt;&lt;/progress&gt;
+&lt;script&gt;
+  const bar = document.getElementById("bar");
+  navigator.serviceWorker.addEventListener("message", (event) =&gt; {
+    const { type, ...init } = event.data;
+    const pe = new ProgressEvent(type, init); // rebuild a real ProgressEvent on the page
+    if (pe.lengthComputable) {
+      bar.max = pe.total;
+      bar.value = pe.loaded;
+    }
+  });
+  navigator.serviceWorker.register("/sw.js");
+&lt;/script&gt;</code></pre>
+    <h3 id="example-detect">Feature detection</h3>
+    <pre><code>// Inside the service worker
+const supported = typeof ProgressEvent === "function";
+// Never overwrite a native constructor with a polyfill:
+if (!supported) {
+  self.ProgressEvent = class ProgressEvent extends Event {
+    constructor(type, init = {}) {
+      super(type, init);
+      this.lengthComputable = Boolean(init.lengthComputable);
+      this.loaded = Number(init.loaded ?? 0);
+      this.total = Number(init.total ?? 0);
+    }
+  };
+}</code></pre>
+    <p>This polyfill is a convenience shape, not a faithful one: its fields are writable data properties and it does not throw for non-finite numbers.</p>
+    <span class="citation">Source: gendn-derived from the <a href="https://xhr.spec.whatwg.org/#interface-progressevent" target="_blank" rel="noopener">XHR Standard</a> and the <a href="https://xhr.spec.whatwg.org/#example-progress-events" target="_blank" rel="noopener">spec&rsquo;s &sect;5.4 progress-bar example</a>; behaviour checked in Chrome 153 and 157</span>
+  </section>
+
+  <section>
+    <h2 id="wpt">Web platform tests</h2>
+    <p><a href="https://chromium-review.googlesource.com/c/chromium/src/+/8425503" target="_blank" rel="noopener">CL 8425503</a> converted the constructor test to <a href="https://github.com/web-platform-tests/wpt/blob/master/xhr/progressevent-constructor.any.js" target="_blank" rel="noopener">xhr/progressevent-constructor.any.js</a> with <code>// META: global=window,dedicatedworker,sharedworker,serviceworker</code>, so the same ten assertions (defaults, no <code>initProgressEvent</code>, value conversion, decimals, negatives, case-sensitive keys) now run in a service worker. The former <code>progressevent-constructor.html</code> is gone upstream (404, 2026-11-15).</p>
+    <span class="citation">Source: <a href="https://github.com/web-platform-tests/wpt/blob/master/xhr/progressevent-constructor.any.js" target="_blank" rel="noopener">WPT file</a>; <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8425503" target="_blank" rel="noopener">CL 8425503 file list</a></span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">Browser compatibility</h2>
+    <p>Two layers matter: whether <code>ProgressEvent</code> is available in a service worker (this change), and how the interface itself is supported. BCD has no service-worker-specific row; its <code>worker_support</code> row covers all workers and still flags Chrome as partial (fetched 2026-11-15). The first table therefore combines BCD with release-source and runtime evidence, and states every unknown explicitly.</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-sw-caption">
+    <table class="doc-table compat-sw">
+      <caption id="compat-sw-caption">ProgressEvent in service workers</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col">Version</th><th scope="col">Evidence</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Chrome (desktop)</th><td>157</td><td>Runtime-verified in 157.0.8103.78 (gendn headless test); undefined in 153.0.8010.12. <a href="https://github.com/mdn/browser-compat-data/blob/main/api/ProgressEvent.json" target="_blank" rel="noopener">BCD</a> <code>worker_support</code>: 47, partial, &ldquo;not available in service workers&rdquo; (not yet updated)</td></tr>
+        <tr><th scope="row">Chrome Android</th><td>157</td><td><a href="https://chromestatus.com/api/v0/features/5069584943153152" target="_blank" rel="noopener">ChromeStatus</a> <code>android: 157</code>; not device-tested</td></tr>
+        <tr><th scope="row">Android WebView</th><td>157</td><td><a href="https://chromestatus.com/api/v0/features/5069584943153152" target="_blank" rel="noopener">ChromeStatus</a> <code>webview: 157</code>; not device-tested</td></tr>
+        <tr><th scope="row">Edge</th><td>Unknown</td><td>Chromium-based, so expected to follow Chrome 157, but no Edge-specific evidence; BCD <code>mirror</code> of Chrome&rsquo;s partial row</td></tr>
+        <tr><th scope="row">Firefox</th><td>Yes (first version unknown)</td><td><a href="https://hg.mozilla.org/releases/mozilla-release/raw-file/FIREFOX_140_0_RELEASE/dom/webidl/ProgressEvent.webidl" target="_blank" rel="noopener">Firefox 140 ProgressEvent.webidl</a> <code>[Exposed=(Window,Worker)]</code> + <a href="https://hg.mozilla.org/releases/mozilla-release/raw-file/FIREFOX_140_0_RELEASE/dom/webidl/ServiceWorkerGlobalScope.webidl" target="_blank" rel="noopener">ServiceWorkerGlobalScope.webidl</a> <code>Global=(Worker,ServiceWorker)</code>; BCD <code>worker_support</code>: 54</td></tr>
+        <tr><th scope="row">Safari</th><td>Yes (first version unknown)</td><td><a href="https://github.com/apple-oss-distributions/WebKit/blob/WebKit-7614.1.25.0.30/Source/WebCore/dom/ProgressEvent.idl" target="_blank" rel="noopener">WebKit-7614 ProgressEvent.idl</a> <code>Exposed=(Window,Worker)</code> + <a href="https://github.com/apple-oss-distributions/WebKit/blob/WebKit-7614.1.25.0.30/Source/WebCore/workers/service/ServiceWorkerGlobalScope.idl" target="_blank" rel="noopener">ServiceWorkerGlobalScope.idl</a> <code>Global=(Worker,ServiceWorker)</code>; BCD <code>worker_support</code>: 10</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-iface-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-iface-caption">ProgressEvent interface and members (BCD, any context)</caption>
+      <thead><tr><th scope="col">Feature</th><th scope="col">Chrome</th><th scope="col">Edge</th><th scope="col">Firefox</th><th scope="col">Safari</th></tr></thead>
+      <tbody>
+        <tr><th scope="row"><code>ProgressEvent</code></th><td>1</td><td>12</td><td>3.5</td><td>3.1</td></tr>
+        <tr><th scope="row"><code>ProgressEvent()</code> constructor</th><td>16</td><td>14</td><td>18</td><td>6</td></tr>
+        <tr><th scope="row"><code>lengthComputable</code></th><td>1</td><td>12</td><td>3.5</td><td>3.1</td></tr>
+        <tr><th scope="row"><code>loaded</code></th><td>1</td><td>12</td><td>3.5</td><td>3.1</td></tr>
+        <tr><th scope="row"><code>total</code></th><td>1</td><td>12</td><td>3.5</td><td>3.1</td></tr>
+        <tr><th scope="row">Worker support</th><td>47 (partial: no service workers until 157)</td><td>mirror of Chrome</td><td>54</td><td>10</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p>Mobile columns (Chrome Android, Firefox for Android, Safari on iOS, Samsung Internet, WebView) are <code>mirror</code> entries in BCD. <code>double</code> typing of <code>loaded</code>/<code>total</code> differs by engine and release: Chrome since 136, Firefox 140 release IDL uses <code>double</code>, and the WebKit-7614 release source still used <code>unsigned long long</code> (<a href="https://github.com/WebKit/WebKit/blob/main/Source/WebCore/dom/ProgressEvent.idl" target="_blank" rel="noopener">WebKit main</a> now uses <code>double</code>; the first Safari release with it is not recorded here). Under <code>unsigned long long</code>, fractional values are truncated and <code>NaN</code> converts to 0 instead of throwing.</p>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/ProgressEvent.json" target="_blank" rel="noopener">BCD api/ProgressEvent.json</a> (raw, 2026-11-15); <a href="https://chromestatus.com/api/v0/features/5069584943153152" target="_blank" rel="noopener">ChromeStatus API record</a>; engine IDL files linked per row</span>
+  </section>
+
+  <section>
+    <h2 id="security-privacy">Security and privacy</h2>
+    <p>Constructing a <code>ProgressEvent</code> reveals nothing: it holds only the numbers your code supplies, and it adds no I/O, no new network access and no new cross-origin surface. The XHR Standard&rsquo;s <a href="https://xhr.spec.whatwg.org/#security-considerations" target="_blank" rel="noopener">security considerations</a> concern browser-fired progress events for cross-origin requests, where sizes must not leak without a CORS opt-in. That threat model carries over to hand-built events. A service worker sees an opaque response (<code>response.body === null</code>, unreadable length) for no-cors cross-origin fetches, so the example above cannot measure them. Do not work around that by forwarding <code>Content-Length</code> values from other origins to pages that could not read them directly. MDN&rsquo;s guidance to normalize <code>total</code> (for example to <code>1</code>) applies when exact byte counts would be sensitive. The <a href="https://chromestatus.com/api/v0/features/5069584943153152" target="_blank" rel="noopener">ChromeStatus record</a> lists security and privacy review as pending and no origin trial, permission or enterprise policy.</p>
+    <span class="citation">Source: <a href="https://xhr.spec.whatwg.org/#security-considerations" target="_blank" rel="noopener">XHR Standard &sect;5.3</a>; <a href="https://developer.mozilla.org/en-US/docs/Web/API/ProgressEvent" target="_blank" rel="noopener">MDN ProgressEvent</a>; <a href="https://chromestatus.com/api/v0/features/5069584943153152" target="_blank" rel="noopener">ChromeStatus API record</a></span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Specification</th><th scope="col">Section</th></tr></thead>
+      <tbody>
+        <tr><td><a href="https://xhr.spec.whatwg.org/" target="_blank" rel="noopener">XMLHttpRequest Living Standard</a></td><td><a href="https://xhr.spec.whatwg.org/#interface-progressevent" target="_blank" rel="noopener">&sect;5 Interface ProgressEvent</a></td></tr>
+        <tr><td><a href="https://w3c.github.io/ServiceWorker/" target="_blank" rel="noopener">Service Workers</a></td><td><a href="https://w3c.github.io/ServiceWorker/#serviceworkerglobalscope-interface" target="_blank" rel="noopener">ServiceWorkerGlobalScope</a> (<code>Global=(Worker,ServiceWorker)</code>)</td></tr>
+        <tr><td><a href="https://dom.spec.whatwg.org/" target="_blank" rel="noopener">DOM Living Standard</a></td><td><a href="https://dom.spec.whatwg.org/#concept-event-constructor" target="_blank" rel="noopener">Constructing events</a></td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">See also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/5069584943153152" target="_blank" rel="noopener">Chrome Platform Status: Expose ProgressEvent in service workers</a> (<a href="https://chromestatus.com/api/v0/features/5069584943153152" target="_blank" rel="noopener">API record</a>)</li>
+      <li><a href="https://chromium-review.googlesource.com/c/chromium/src/+/8425503" target="_blank" rel="noopener">CL 8425503: [Blink] Expose ProgressEvent in service workers</a> &middot; <a href="https://issues.chromium.org/issues/332663431" target="_blank" rel="noopener">bug 332663431</a></li>
+      <li>MDN: <a href="https://developer.mozilla.org/en-US/docs/Web/API/ProgressEvent" target="_blank" rel="noopener">ProgressEvent</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/ProgressEvent/ProgressEvent" target="_blank" rel="noopener">ProgressEvent() constructor</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/ServiceWorkerGlobalScope" target="_blank" rel="noopener">ServiceWorkerGlobalScope</a></li>
+      <li><a href="https://webstatus.dev/features/xhr" target="_blank" rel="noopener">webstatus.dev: xhr</a> &middot; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/ProgressEvent.json" target="_blank" rel="noopener">BCD api/ProgressEvent.json</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v157/expose-progressevent-in-service-workers/" target="_blank" rel="noopener">Chrome Platform Showcase: Expose ProgressEvent in service workers</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
