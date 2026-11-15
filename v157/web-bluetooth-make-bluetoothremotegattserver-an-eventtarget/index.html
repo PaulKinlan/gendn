@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Web Bluetooth: Make BluetoothRemoteGATTServer an EventTarget — Chrome 157 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code, th code { overflow-wrap: anywhere; }
+    .doc-table { margin: 1rem 0; font-size: 0.85rem; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tbody th { background: transparent; }
+    .doc-table tbody th, .doc-table thead th:first-child { overflow-wrap: normal; word-break: normal; min-width: 6.5rem; }
+    /* Multi-column tables scroll inside their focusable .table-wrap region on narrow screens instead of breaking words (modern-web-guidance responsive-table). */
+    .table-wrap .doc-table:has(thead) { min-width: 34rem; }
+    .doc-table tr:last-child td, .doc-table tr:last-child th { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .doc-table caption { text-align: left; font-size: 0.85rem; padding: 0 0 0.4rem; color: var(--text-charcoal); }
+    .table-wrap:focus-visible { outline: 3px solid var(--text-charcoal); outline-offset: 2px; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    .warn-block > strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--text-charcoal); display: block; margin-bottom: 0.4rem; }
+    .example-embed { margin: 1.5rem 0; }
+    .example-embed iframe { max-width: 100%; }
+    .example-embed figcaption { font-size: 0.85rem; margin-top: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v157/">&larr; Chrome 157 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v157 &middot; enabled by default &middot; web api &middot; web bluetooth</p>
+    <h1>Web Bluetooth: Make BluetoothRemote<wbr>GATTServer an EventTarget</h1>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; Web Bluetooth since 56 (Android) / 70 (desktop, not Linux by default); this inheritance change listed for 157</li>
+        <li>Edge &middot; Web Bluetooth mirrors Chrome; inheritance change not separately reported</li>
+        <li class="limited">Firefox &middot; not implemented (position: negative)</li>
+        <li class="limited">Safari &middot; not implemented (position: oppose)</li>
+      </ul>
+      <p>Not Baseline. The parent <a href="https://webstatus.dev/features/web-bluetooth" target="_blank" rel="noopener">web-features entry <code>web-bluetooth</code></a> reports <strong>limited</strong> availability (<a href="https://api.webstatus.dev/v1/features/web-bluetooth" target="_blank" rel="noopener">webstatus.dev API</a>, queried 2026-11-15: Chrome 70, Chrome Android 56, Edge 79; no Firefox or Safari implementation). There is no separate web-features or <a href="https://github.com/mdn/browser-compat-data/blob/main/api/BluetoothRemoteGATTServer.json" target="_blank" rel="noopener">BCD</a> key for the <code>EventTarget</code> inheritance itself. See the <a href="#compatibility">full table</a>.</p>
+    </div>
+
+    <p class="lede"><code>BluetoothRemoteGATTServer</code> &mdash; the object you get from <code>device.gatt</code>, representing the GATT connection to a remote Bluetooth device &mdash; now inherits from <code>EventTarget</code>. It therefore gains the standard <a href="add-event-listener/"><code>addEventListener()</code></a>, <a href="remove-event-listener/"><code>removeEventListener()</code></a> and <a href="dispatch-event/"><code>dispatchEvent()</code></a> methods. Nothing else about the interface changes in this feature: its purpose is to give <em>connection-level</em> events a home on the object that represents the connection, starting with the separately proposed <code>maxwritewithoutresponsesizechanged</code> event.</p>
+  </header>
+
+  <div class="warn-block warn-block--common" id="shipping-note">
+    <strong>Check the shipping milestone before relying on it</strong>
+    <p>The <a href="https://chromestatus.com/api/v0/features?milestone=157" target="_blank" rel="noopener">chromestatus milestone=157 listing</a> files this feature under &ldquo;Enabled by default&rdquo;, and the <a href="https://chromestatus.com/api/v0/features/5138797158334464" target="_blank" rel="noopener">detail record</a> targets desktop, Android, WebView and iOS 157. However, the implementing change, <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8363084" target="_blank" rel="noopener">Chromium CL&nbsp;8363084</a>, merged on 2026-11-13 at <code>refs/heads/main@{#1743596}</code>. According to <a href="https://chromiumdash.appspot.com/fetch_milestones?mstone=157" target="_blank" rel="noopener">ChromiumDash</a>, that is after the M157 branch point (<code>#1717349</code>), the <a href="https://chromiumdash.appspot.com/fetch_milestones?mstone=158" target="_blank" rel="noopener">M158 branch point</a> (<code>#1727472</code>) and the <a href="https://chromiumdash.appspot.com/fetch_milestones?mstone=159" target="_blank" rel="noopener">M159 branch point</a> (<code>#1739869</code>), all queried 2026-11-15. Unless the change is merged back to a release branch (this page did not check for a merge-back), the first release that contains it will be later than 157. The defining spec change, <a href="https://github.com/WebBluetoothCG/web-bluetooth/pull/672" target="_blank" rel="noopener">WebBluetoothCG/web-bluetooth PR&nbsp;#672</a>, is approved but <strong>not merged</strong>. There is no runtime flag for the inheritance: the <code>: EventTarget</code> in the <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/bluetooth/bluetooth_remote_gatt_server.idl" target="_blank" rel="noopener">Chromium IDL</a> is unconditional, so detect the feature instead of checking the version number:</p>
+    <pre><code>const serverIsEventTarget =
+  "BluetoothRemoteGATTServer" in globalThis &amp;&amp;
+  EventTarget.prototype.isPrototypeOf(BluetoothRemoteGATTServer.prototype);</code></pre>
+  </div>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="At a glance">
+    <table class="doc-table">
+      <tbody>
+      <tr><th scope="row">Interface</th><td><code>BluetoothRemoteGATTServer</code> (Web Bluetooth)</td></tr>
+      <tr><th scope="row">Change</th><td>Parent interface changes from none (prototype chain ends at <code>Object.prototype</code>) to <code>EventTarget</code></td></tr>
+      <tr><th scope="row">New inherited members</th><td><a href="add-event-listener/"><code>addEventListener()</code></a>, <a href="remove-event-listener/"><code>removeEventListener()</code></a>, <a href="dispatch-event/"><code>dispatchEvent()</code></a></td></tr>
+      <tr><th scope="row">New events</th><td>None in this feature. The first event designed for this target, <code>maxwritewithoutresponsesizechanged</code>, ships as a separate feature (<a href="https://chromium-review.googlesource.com/c/chromium/src/+/7879985" target="_blank" rel="noopener">CL&nbsp;7879985</a>)</td></tr>
+      <tr><th scope="row">Exposure</th><td><code>[Exposed=Window, SecureContext]</code>; no workers</td></tr>
+      <tr><th scope="row">Flag</th><td>None (not gated by a runtime-enabled feature)</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5138797158334464" target="_blank" rel="noopener">5138797158334464</a> &middot; <a href="https://issues.chromium.org/issues/40265040" target="_blank" rel="noopener">tracking bug 40265040</a> &middot; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/QM8hDCKgjN0/m/aWFV3Ud2CQAJ" target="_blank" rel="noopener">Intent to Ship</a></td></tr>
+      <tr><th scope="row">Spec</th><td><a href="https://pr-preview.s3.amazonaws.com/hjanuschka/web-bluetooth/pull/672.html#bluetoothremotegattserver" target="_blank" rel="noopener">Web Bluetooth with PR #672 applied (preview)</a>; not yet in the <a href="https://bluetooth.spec.whatwg.org/#bluetoothgattremoteserver-interface" target="_blank" rel="noopener">published draft</a></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5138797158334464" target="_blank" rel="noopener">ChromeStatus 5138797158334464</a>; <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8363084" target="_blank" rel="noopener">CL 8363084</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/bluetooth/bluetooth_remote_gatt_server.idl" target="_blank" rel="noopener">Chromium IDL</a>. Queried 2026-11-15.</span>
+  </section>
+
+  <section>
+    <h2 id="why-it-exists">why it exists</h2>
+    <p><code>BluetoothRemoteGATTServer</code> represents an active GATT connection. Some state belongs to the connection rather than to the device or one characteristic: for example, the negotiated ATT_MTU, which limits how many bytes <code>writeValueWithoutResponse()</code> can send in one packet. Before this change the server object could not have listeners, so connection-level events had to be fired at <code>BluetoothDevice</code> (as <code>gattserverdisconnected</code> is). Making the server an <code>EventTarget</code> provides the standard listener API on the right object. The ChromeStatus record calls it a small preparation feature for that later work.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5138797158334464" target="_blank" rel="noopener">ChromeStatus API record</a> (motivation, web-developer view); <a href="https://github.com/WebBluetoothCG/web-bluetooth/pull/672" target="_blank" rel="noopener">spec PR #672</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">syntax</h2>
+    <p>The interface as it reads with <a href="https://github.com/WebBluetoothCG/web-bluetooth/pull/672" target="_blank" rel="noopener">PR #672</a> applied (quoted verbatim from the <a href="https://pr-preview.s3.amazonaws.com/hjanuschka/web-bluetooth/pull/672.html#bluetoothremotegattserver" target="_blank" rel="noopener">PR preview</a>, head <code>0d80357</code>, read 2026-11-15). <strong>This feature</strong> is the <code>: EventTarget</code> on the first line. The other members are pre-existing, except <code>maxWriteWithoutResponseSize</code> and <code>onmaxwritewithoutresponsesizechanged</code>, which the same PR adds but which ship as a separate Chrome feature:</p>
+    <pre><code>[Exposed=Window, SecureContext]
+interface BluetoothRemoteGATTServer : EventTarget {
+  [SameObject]
+  readonly attribute BluetoothDevice device;
+  readonly attribute boolean connected;
+  readonly attribute unsigned short maxWriteWithoutResponseSize;
+  attribute EventHandler onmaxwritewithoutresponsesizechanged;
+  Promise&lt;BluetoothRemoteGATTServer&gt; connect();
+  undefined disconnect();
+  Promise&lt;BluetoothRemoteGATTService&gt; getPrimaryService(BluetoothServiceUUID service);
+  Promise&lt;sequence&lt;BluetoothRemoteGATTService&gt;&gt;
+    getPrimaryServices(optional BluetoothServiceUUID service);
+};</code></pre>
+    <p>The three members gained through inheritance, as declared on <a href="https://dom.spec.whatwg.org/#interface-eventtarget" target="_blank" rel="noopener"><code>EventTarget</code> in the DOM Standard</a>:</p>
+    <pre><code>[Exposed=*]
+interface EventTarget {
+  constructor();
+
+  undefined addEventListener(DOMString type, EventListener? callback, optional (AddEventListenerOptions or boolean) options = {});
+  undefined removeEventListener(DOMString type, EventListener? callback, optional (EventListenerOptions or boolean) options = {});
+  boolean dispatchEvent(Event event);
+};</code></pre>
+    <p>Called on a server as <code>server.addEventListener(type, callback, options)</code>, <code>server.removeEventListener(type, callback, options)</code> and <code>server.dispatchEvent(event)</code>. The <code>EventTarget</code> constructor is not inherited as a way to create servers: <code>BluetoothRemoteGATTServer</code> declares no constructor of its own.</p>
+
+    <h3 id="inheritance">the inheritance contract</h3>
+    <p>Per <a href="https://webidl.spec.whatwg.org/#interface-prototype-object" target="_blank" rel="noopener">Web IDL</a>, declaring <code>: EventTarget</code> makes <code>Object.getPrototypeOf(BluetoothRemoteGATTServer.prototype)</code> equal <code>EventTarget.prototype</code>, and makes the interface object&rsquo;s own prototype <code>EventTarget</code>. The three methods are <em>inherited</em>, not copied: <code>Object.hasOwn(BluetoothRemoteGATTServer.prototype, "addEventListener")</code> stays <code>false</code>, and <code>server.addEventListener === EventTarget.prototype.addEventListener</code>. The interface still has no constructor; <code>new BluetoothRemoteGATTServer()</code> throws a <code>TypeError</code>.</p>
+
+    <h3 id="members">member reference</h3>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Inherited members">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Member</th><th scope="col">Returns</th><th scope="col">Full reference</th></tr></thead>
+      <tbody>
+      <tr><th scope="row"><code>addEventListener(type, callback, options)</code></th><td><code>undefined</code></td><td><a href="add-event-listener/">BluetoothRemoteGATTServer.addEventListener()</a></td></tr>
+      <tr><th scope="row"><code>removeEventListener(type, callback, options)</code></th><td><code>undefined</code></td><td><a href="remove-event-listener/">BluetoothRemoteGATTServer.removeEventListener()</a></td></tr>
+      <tr><th scope="row"><code>dispatchEvent(event)</code></th><td><code>boolean</code></td><td><a href="dispatch-event/">BluetoothRemoteGATTServer.dispatchEvent()</a></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://pr-preview.s3.amazonaws.com/hjanuschka/web-bluetooth/pull/672.html#bluetoothremotegattserver" target="_blank" rel="noopener">PR #672 preview</a> (IDL quoted verbatim); <a href="https://dom.spec.whatwg.org/#interface-eventtarget" target="_blank" rel="noopener">DOM Standard &sect;2.7 EventTarget</a>; <a href="https://webidl.spec.whatwg.org/#interface-prototype-object" target="_blank" rel="noopener">Web IDL interface prototype object</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/bluetooth/bluetooth_remote_gatt_server.idl" target="_blank" rel="noopener">Chromium IDL</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="inputs-and-outputs">inputs and observable effects</h2>
+    <h3 id="inputs">inputs</h3>
+    <p>The inheritance change takes no arguments. It has no option, flag, header or permission to configure. All inputs go through the three inherited methods. <code>addEventListener()</code> and <code>removeEventListener()</code> take an event <code>type</code> string, a <code>callback</code> (a function, an object with <code>handleEvent()</code>, or <code>null</code>) and an optional options dictionary or <code>capture</code> boolean. <code>dispatchEvent()</code> takes an initialized <code>Event</code> object. The parameters are documented on each member page.</p>
+    <h3 id="outputs">outputs and observable effects</h3>
+    <ul>
+      <li><code>server instanceof EventTarget</code> becomes <code>true</code>; <code>EventTarget.prototype.isPrototypeOf(BluetoothRemoteGATTServer.prototype)</code> becomes <code>true</code>.</li>
+      <li><code>for&hellip;in</code> over a server object now also yields <code>addEventListener</code>, <code>removeEventListener</code> and <code>dispatchEvent</code>. ChromeStatus lists this, along with code that relies on the methods being absent, as the only interop risk.</li>
+      <li>Listeners registered on the server can be inspected with the existing DevTools Console and event-listener tools. ChromeStatus says no dedicated panel is needed.</li>
+      <li>The existing members (<code>device</code>, <code>connected</code>, <code>connect()</code>, <code>disconnect()</code>, <code>getPrimaryService()</code>, <code>getPrimaryServices()</code>) behave exactly as before.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5138797158334464" target="_blank" rel="noopener">ChromeStatus API record</a> (interop/compat risks, debuggability); <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8363084" target="_blank" rel="noopener">CL 8363084</a> (updated global-interface-listing and WPT idlharness expectations).</span>
+  </section>
+
+  <section>
+    <h2 id="errors">errors</h2>
+    <p>The inheritance adds no new exception paths to Web Bluetooth. The errors you can now hit come from the inherited <code>EventTarget</code> methods and from Web IDL:</p>
+    <ul>
+      <li><code>dispatchEvent(event)</code> throws an <code>&quot;InvalidStateError&quot;</code> <code>DOMException</code> if <code>event</code> is already being dispatched or was never initialized (<a href="dispatch-event/#exceptions">details</a>).</li>
+      <li>Passing a non-<code>Event</code> to <code>dispatchEvent()</code>, or calling an inherited method with a <code>this</code> that is not an <code>EventTarget</code>, throws a <code>TypeError</code>.</li>
+      <li><code>new BluetoothRemoteGATTServer()</code> still throws <code>TypeError: Illegal constructor</code>. Server objects only come from <code>BluetoothDevice.gatt</code>.</li>
+      <li>On a browser without the change, <code>server.addEventListener</code> is <code>undefined</code>, so calling it throws <code>TypeError: server.addEventListener is not a function</code>. Use the feature check in the note above.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://dom.spec.whatwg.org/#dom-eventtarget-dispatchevent" target="_blank" rel="noopener">DOM &sect;dispatchEvent()</a>; <a href="https://webidl.spec.whatwg.org/#interface-prototype-object" target="_blank" rel="noopener">Web IDL</a>. Observed in local Chrome for Testing 153 (2026-11-15, before this change): <code>new BluetoothRemoteGATTServer()</code> threw <code>TypeError: Failed to construct &#39;BluetoothRemoteGATTServer&#39;: Illegal constructor</code>, and the prototype&rsquo;s parent was <code>Object.prototype</code>.</span>
+  </section>
+
+  <section>
+    <h2 id="context">context and exposure</h2>
+    <ul>
+      <li><strong>Global:</strong> <code>Window</code> only, and only in a <strong>secure context</strong> (<code>[Exposed=Window, SecureContext]</code>). Not exposed in workers.</li>
+      <li><strong>Getting a receiver:</strong> a server comes from <code>device.gatt</code>, and <code>device</code> comes from <a href="https://bluetooth.spec.whatwg.org/#dom-bluetooth-requestdevice" target="_blank" rel="noopener"><code>navigator.bluetooth.requestDevice()</code></a> (which needs a user gesture and a chooser) or <a href="https://bluetooth.spec.whatwg.org/#dom-bluetooth-getdevices" target="_blank" rel="noopener"><code>getDevices()</code></a>. The <a href="https://bluetooth.spec.whatwg.org/#dom-bluetoothdevice-gatt" target="_blank" rel="noopener"><code>gatt</code> getter</a> returns <code>null</code> in the spec unless the origin may use GATT on that device.</li>
+      <li><strong>Policy:</strong> the document must be allowed to use the <a href="https://bluetooth.spec.whatwg.org/#permissions-policy" target="_blank" rel="noopener"><code>&quot;bluetooth&quot;</code> policy-controlled feature</a>. This is unchanged.</li>
+      <li><strong>Platforms:</strong> the ChromeStatus record lists desktop, Android, WebView and iOS. However, <a href="https://github.com/mdn/browser-compat-data/blob/main/api/BluetoothRemoteGATTServer.json" target="_blank" rel="noopener">BCD</a> records no Android WebView support for <code>BluetoothRemoteGATTServer</code>, and Chrome on iOS has no Web Bluetooth. Where the interface does not exist, this change has nothing to attach to.</li>
+      <li><strong>Feature detection:</strong> works without hardware or permission, using the prototype check in the note above.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://pr-preview.s3.amazonaws.com/hjanuschka/web-bluetooth/pull/672.html#bluetoothremotegattserver" target="_blank" rel="noopener">PR #672 preview IDL</a>; <a href="https://bluetooth.spec.whatwg.org/#dom-bluetoothdevice-gatt" target="_blank" rel="noopener">Web Bluetooth gatt getter</a>; <a href="https://chromestatus.com/api/v0/features/5138797158334464" target="_blank" rel="noopener">ChromeStatus platforms</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/BluetoothRemoteGATTServer.json" target="_blank" rel="noopener">BCD</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">lifecycle and event flow</h2>
+    <ul>
+      <li><strong>One server object per device:</strong> <code>device.gatt</code> returns the device&rsquo;s stored <code>[[gatt]]</code> object, so a listener attached to the server stays attached across <code>disconnect()</code> / <code>connect()</code> cycles. Attach it once instead of after every reconnect. Otherwise the same handler is added again, unless you pass the same function reference, which <code>addEventListener()</code> de-duplicates.</li>
+      <li><strong>No propagation:</strong> the server is <em>not</em> part of the <a href="https://bluetooth.spec.whatwg.org/#bluetooth-tree" target="_blank" rel="noopener">Bluetooth tree</a>. That tree includes <code>navigator.bluetooth</code>, devices, services, characteristics and descriptors. A <code>BluetoothRemoteGATTServer</code> uses the default <a href="https://dom.spec.whatwg.org/#get-the-parent" target="_blank" rel="noopener">get the parent</a>, which returns null. Events dispatched at a server reach only the server&rsquo;s own listeners, even with <code>bubbles: true</code>, and events on the device or its services never pass through the server.</li>
+      <li><strong>Which object fires what:</strong> <code>gattserverdisconnected</code> is still fired at <a href="https://bluetooth.spec.whatwg.org/#eventdef-bluetoothdeviceeventhandlers-gattserverdisconnected" target="_blank" rel="noopener"><code>BluetoothDevice</code></a>, not at the server; listen on <code>device</code> for disconnects. <code>availabilitychanged</code> fires at <code>navigator.bluetooth</code> and <code>characteristicvaluechanged</code> at characteristics. The only event the spec defines for the server is <a href="https://pr-preview.s3.amazonaws.com/hjanuschka/web-bluetooth/pull/672.html#eventdef-bluetoothremotegattserver-maxwritewithoutresponsesizechanged" target="_blank" rel="noopener"><code>maxwritewithoutresponsesizechanged</code></a>, in the same PR. That event and its <code>onmaxwritewithoutresponsesizechanged</code> handler ship as a separate feature behind Chromium&rsquo;s <code>WebBluetoothMaxWriteWithoutResponseSize</code> runtime flag (<a href="https://chromium-review.googlesource.com/c/chromium/src/+/7879985" target="_blank" rel="noopener">CL&nbsp;7879985</a>). Until that ships, nothing in Chrome fires at the server except events you dispatch yourself.</li>
+      <li><strong>Teardown:</strong> Chromium resolves the server&rsquo;s execution context through its device (<code>GetExecutionContext()</code> returns <code>device_-&gt;GetExecutionContext()</code> in <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8363084" target="_blank" rel="noopener">CL 8363084</a>), so listeners go away with the document. Within a page, remove them with <code>removeEventListener()</code> or an <code>AbortSignal</code>.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://bluetooth.spec.whatwg.org/#bluetooth-tree" target="_blank" rel="noopener">Web Bluetooth &sect;Bluetooth tree</a> and <a href="https://bluetooth.spec.whatwg.org/#event-types" target="_blank" rel="noopener">&sect;Event types</a>; <a href="https://pr-preview.s3.amazonaws.com/hjanuschka/web-bluetooth/pull/672.html#mtu-change-events" target="_blank" rel="noopener">PR #672 &sect;Responding to MTU changes</a>; <a href="https://dom.spec.whatwg.org/#concept-event-dispatch" target="_blank" rel="noopener">DOM dispatch algorithm</a>; <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8363084" target="_blank" rel="noopener">CL 8363084</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <h3 id="example-detect-and-listen">detect, connect and listen on the server</h3>
+    <p>Run this from a click handler on an HTTPS page. It attaches connection-level listeners to the server once and keeps disconnect handling on the device, where that event actually fires:</p>
+    <pre><code>const button = document.querySelector("#connect");
+
+button.addEventListener("click", async () =&gt; {
+  if (!("bluetooth" in navigator)) {
+    console.log("Web Bluetooth is not available here.");
+    return;
+  }
+  const device = await navigator.bluetooth.requestDevice({
+    filters: [{ services: ["battery_service"] }],
+  });
+  const server = device.gatt; // the same object on every access
+
+  // Disconnects are still fired at the device.
+  device.addEventListener("gattserverdisconnected", () =&gt; {
+    console.log("disconnected; server listeners stay attached");
+  });
+
+  if (EventTarget.prototype.isPrototypeOf(BluetoothRemoteGATTServer.prototype)) {
+    // Connection-level events go to the server. This is the first
+    // event type designed for it (shipped as a separate feature).
+    server.addEventListener("maxwritewithoutresponsesizechanged", () =&gt; {
+      console.log("new size:", server.maxWriteWithoutResponseSize);
+    });
+  }
+
+  await server.connect();
+  console.log("connected:", server.connected);
+});</code></pre>
+    <h3 id="example-app-events">use the server as an app-level event bus</h3>
+    <p>Because the server is now an <code>EventTarget</code>, your own connection code can dispatch synthetic events at it. They do not propagate, and <code>isTrusted</code> is <code>false</code>:</p>
+    <pre><code>function announceReady(server) {
+  server.dispatchEvent(new CustomEvent("app:ready", { detail: { at: Date.now() } }));
+}
+
+const controller = new AbortController();
+server.addEventListener("app:ready", (event) =&gt; {
+  console.log(event.target === server, event.isTrusted, event.detail.at); // true false …
+}, { signal: controller.signal });
+
+announceReady(server);
+controller.abort(); // detaches the listener</code></pre>
+
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v157/web-bluetooth-make-bluetoothremotegattserver-an-eventtarget/prototype-chain-probe/"
+        title="Live example — BluetoothRemoteGATTServer prototype chain probe" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase: the prototype chain probe, which checks the inheritance without Bluetooth hardware (route HEAD-checked 200, 2026-11-15). Sibling concept demos: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v157/web-bluetooth-make-bluetoothremotegattserver-an-eventtarget/live-server-events/" target="_blank" rel="noopener">live server events</a> (needs a BLE device), <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v157/web-bluetooth-make-bluetoothremotegattserver-an-eventtarget/migration-listener-map/" target="_blank" rel="noopener">listener migration map</a> and <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v157/web-bluetooth-make-bluetoothremotegattserver-an-eventtarget/reconnect-lifecycle/" target="_blank" rel="noopener">reconnect lifecycle</a>.<span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v157/web-bluetooth-make-bluetoothremotegattserver-an-eventtarget/" target="_blank" rel="noopener">chrome-platform-showcase</a></span></figcaption>
+    </figure>
+    <span class="citation">Source: examples written for this page against the <a href="https://pr-preview.s3.amazonaws.com/hjanuschka/web-bluetooth/pull/672.html#bluetoothremotegattserver" target="_blank" rel="noopener">PR #672 IDL</a> and <a href="https://dom.spec.whatwg.org/#interface-eventtarget" target="_blank" rel="noopener">DOM EventTarget</a>. Not executed against a Chrome build that contains the change; a real device connection was not exercised.</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table">
+      <caption id="compat-caption">BluetoothRemoteGATTServer support and the EventTarget inheritance, by browser</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col"><code>BluetoothRemoteGATTServer</code> (BCD)</th><th scope="col">Inherits <code>EventTarget</code></th></tr></thead>
+      <tbody>
+      <tr><th scope="row">Chrome (desktop)</th><td>70 (partial: Linux not enabled by default); 56&ndash;69 macOS only</td><td>Listed for 157 (interim, ChromeStatus); code merged after the M159 branch point, so the first release is unknown</td></tr>
+      <tr><th scope="row">Chrome Android</th><td>56</td><td>Listed for 157 (interim); same caveat</td></tr>
+      <tr><th scope="row">Edge</th><td>Mirrors Chrome</td><td>Unknown (not separately reported)</td></tr>
+      <tr><th scope="row">Opera / Samsung Internet</th><td>Mirror Chrome</td><td>Unknown</td></tr>
+      <tr><th scope="row">Android WebView</th><td>No (<code>version_added: false</code>)</td><td>Not applicable (no interface), despite the ChromeStatus WebView milestone</td></tr>
+      <tr><th scope="row">Firefox</th><td>No (<a href="https://bugzil.la/674737" target="_blank" rel="noopener">bug 674737</a>)</td><td>No</td></tr>
+      <tr><th scope="row">Safari / iOS</th><td>No (<a href="https://webkit.org/b/101034" target="_blank" rel="noopener">WebKit bug 101034</a>)</td><td>No</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p>The interface column comes from <a href="https://github.com/mdn/browser-compat-data/blob/main/api/BluetoothRemoteGATTServer.json" target="_blank" rel="noopener">BCD <code>api/BluetoothRemoteGATTServer.json</code></a> (fetched raw 2026-11-15; status <code>experimental</code>, <code>standard_track</code>). BCD has <strong>no key</strong> for the inheritance change. The methods themselves have been on <code>EventTarget</code> for a long time per <a href="https://github.com/mdn/browser-compat-data/blob/main/api/EventTarget.json" target="_blank" rel="noopener">BCD <code>api/EventTarget.json</code></a>. The inheritance column is therefore interim data from <a href="https://chromestatus.com/feature/5138797158334464" target="_blank" rel="noopener">ChromeStatus</a>, corrected by the CL position given in the <a href="#shipping-note">shipping note</a>. Mozilla&rsquo;s position on Web Bluetooth is <a href="https://github.com/mozilla/standards-positions/issues/95" target="_blank" rel="noopener">negative</a> and WebKit&rsquo;s is <a href="https://github.com/WebKit/standards-positions/issues/570" target="_blank" rel="noopener">oppose</a>. Both cover the whole API, not this change.</p>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/BluetoothRemoteGATTServer.json" target="_blank" rel="noopener">BCD</a>; <a href="https://api.webstatus.dev/v1/features/web-bluetooth" target="_blank" rel="noopener">webstatus.dev</a>; <a href="https://chromestatus.com/api/v0/features/5138797158334464" target="_blank" rel="noopener">ChromeStatus API record</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <p>This change exposes only the standard <code>EventTarget</code> methods on an object the page could already reach. It does not give access to any more devices, services, characteristics, data or operations. The existing protections are unchanged: the permission chooser, the secure-context requirement, the service allowlist, the GATT blocklist and the <code>&quot;bluetooth&quot;</code> Permissions Policy. Events you dispatch yourself have <code>isTrusted</code> set to <code>false</code> and cannot be mistaken for UA-fired events. Registering a listener does not connect to the device or keep it connected. The only new observable is the prototype chain itself, which shows whether the browser has this change and reveals nothing about Bluetooth hardware or paired devices. ChromeStatus lists the security and privacy reviews as &ldquo;Pending&rdquo; (queried 2026-11-15).</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5138797158334464" target="_blank" rel="noopener">ChromeStatus API record</a> (security risks; review status); <a href="https://bluetooth.spec.whatwg.org/#permissions-policy" target="_blank" rel="noopener">Web Bluetooth &sect;Permissions Policy</a>; <a href="https://dom.spec.whatwg.org/#dom-eventtarget-dispatchevent" target="_blank" rel="noopener">DOM dispatchEvent() (isTrusted false)</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">specifications</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Specifications">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Specification</th><th scope="col">Status</th></tr></thead>
+      <tbody>
+      <tr><td><a href="https://pr-preview.s3.amazonaws.com/hjanuschka/web-bluetooth/pull/672.html#bluetoothremotegattserver" target="_blank" rel="noopener">Web Bluetooth (with PR #672)<br>&sect;BluetoothRemoteGATTServer</a></td><td>Approved pull request, <strong>not merged</strong> (<a href="https://github.com/WebBluetoothCG/web-bluetooth/pull/672" target="_blank" rel="noopener">PR #672</a>, head <code>0d80357</code> on 2026-11-02)</td></tr>
+      <tr><td><a href="https://bluetooth.spec.whatwg.org/#bluetoothgattremoteserver-interface" target="_blank" rel="noopener">Web Bluetooth<br>&sect;6.2 BluetoothRemoteGATTServer</a></td><td>Draft Community Group Report (3 June 2026). It still declares the interface <em>without</em> a parent</td></tr>
+      <tr><td><a href="https://dom.spec.whatwg.org/#interface-eventtarget" target="_blank" rel="noopener">DOM Standard<br>&sect;2.7 Interface EventTarget</a></td><td>Living Standard</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <span class="citation">Source: ChromeStatus spec maturity &ldquo;Working draft&rdquo; per the <a href="https://chromestatus.com/api/v0/features/5138797158334464" target="_blank" rel="noopener">API record</a>; spec text read 2026-11-15.</span>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/5138797158334464" target="_blank" rel="noopener">chromestatus &mdash; Web Bluetooth: Make BluetoothRemoteGATTServer an EventTarget (5138797158334464)</a></li>
+      <li><a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/QM8hDCKgjN0/m/aWFV3Ud2CQAJ" target="_blank" rel="noopener">blink-dev: Intent to Ship</a></li>
+      <li><a href="https://github.com/WebBluetoothCG/web-bluetooth/pull/672" target="_blank" rel="noopener">WebBluetoothCG/web-bluetooth PR #672</a> (explainer and spec change)</li>
+      <li><a href="https://chromium-review.googlesource.com/c/chromium/src/+/8363084" target="_blank" rel="noopener">Chromium CL 8363084</a> &middot; <a href="https://issues.chromium.org/issues/40265040" target="_blank" rel="noopener">Chromium issue 40265040</a></li>
+      <li>Tests: <a href="https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/web_tests/webexposed/global-interface-listing.html" target="_blank" rel="noopener">Chromium global-interface-listing</a> &middot; <a href="https://github.com/web-platform-tests/wpt/blob/master/bluetooth/bidi/idl/idlharness.tentative.https.window.js" target="_blank" rel="noopener">WPT Web Bluetooth idlharness</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/BluetoothRemoteGATTServer" target="_blank" rel="noopener">MDN: BluetoothRemoteGATTServer</a> (does not yet mention <code>EventTarget</code>, checked 2026-11-15) &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/EventTarget" target="_blank" rel="noopener">MDN: EventTarget</a></li>
+      <li>Member references: <a href="add-event-listener/"><code>addEventListener()</code></a> &middot; <a href="remove-event-listener/"><code>removeEventListener()</code></a> &middot; <a href="dispatch-event/"><code>dispatchEvent()</code></a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v157/web-bluetooth-make-bluetoothremotegattserver-an-eventtarget/" target="_blank" rel="noopener">chrome-platform-showcase: four concept demos for this feature</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

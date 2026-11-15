@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebTransport reliability attributes — Chrome 158 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    .doc-table { margin: 1rem 0; font-size: 0.85rem; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr > th:first-child { width: 32%; min-width: 7.5rem; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .compat-table tr > th:first-child { width: auto; min-width: 9rem; }
+    .compat-table th, .compat-table td { overflow-wrap: normal; }
+    .mdn-card a { font-weight: 600; }
+    .mdn-card + .mdn-card { margin-top: 0.75rem; }
+    p code, li code { overflow-wrap: anywhere; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v158/">&larr; Chrome 158 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v158 &middot; network / connectivity &middot; covered on mdn</p>
+    <h1>WebTransport reliability attributes</h1>
+    <p class="lede">Adds two attributes to <code>WebTransport</code>: the per-session <code>reliability</code> instance attribute and the static <code>supportsReliableOnly</code> attribute. Together they tell an application whether the browser can run WebTransport over exclusively reliable (TCP / HTTP/2) connections, and whether an established session can carry unreliable traffic such as datagrams &mdash; so a game, media or collaboration client can pick datagrams or reliable streams before it commits to a wire strategy.</p>
+  </header>
+
+  <section>
+    <h2>this feature is documented on MDN</h2>
+    <div class="mdn-card">
+      <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebTransport/reliability" target="_blank" rel="noopener">
+        MDN: WebTransport: reliability property
+      </a>
+      <p style="margin: 0.5rem 0 0">Covers the value set (<code>"pending"</code>, <code>"reliable-only"</code>, <code>"supports-unreliable"</code>), a worked example that awaits <code>ready</code> before branching, Specifications and Browser compatibility (verified substantive 2026-11-15; page last modified 2026-08-27).</p>
+    </div>
+    <div class="mdn-card">
+      <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebTransport/supportsReliableOnly_static" target="_blank" rel="noopener">
+        MDN: WebTransport: supportsReliableOnly static property
+      </a>
+      <p style="margin: 0.5rem 0 0">Covers the boolean value, a feature-detection example, Specifications, Browser compatibility and See also (verified substantive 2026-11-15; page last modified 2026-10-12).</p>
+    </div>
+    <p>Why gendn doesn't duplicate MDN: this site exists for Chrome features that have no MDN reference yet. MDN documents both attributes completely, so the honest page is a pointer to the canonical reference plus the Chrome-specific shipping and behaviour metadata MDN doesn't track &mdash; duplicated prose would only drift out of sync.</p>
+  </section>
+
+  <section>
+    <h2>what Chrome actually returns</h2>
+    <p>The <a href="https://www.w3.org/TR/webtransport/#dom-webtransport-reliability" target="_blank" rel="noopener">specification</a> allows three outcomes; Chromium can only produce two of them today, because it has no HTTP/2 fallback:</p>
+    <ul>
+      <li><code>transport.reliability</code> is <code>"pending"</code> from construction, and becomes <code>"supports-unreliable"</code> in the same task that resolves <code>transport.ready</code>. Chromium only establishes sessions over HTTP/3 connections that negotiated H3 Datagram support, so it never reports <code>"reliable-only"</code>.</li>
+      <li>A session that fails to establish never leaves <code>"pending"</code>: both the spec&rsquo;s <a href="https://www.w3.org/TR/webtransport/#webtransport-constructor" target="_blank" rel="noopener">establishment steps</a> and Chromium&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport.cc" target="_blank" rel="noopener"><code>web_transport.cc</code></a> assign the value only on successful establishment. Read it after <code>await transport.ready</code>, not after <code>closed</code>.</li>
+      <li><code>WebTransport.supportsReliableOnly</code> is hard-coded to <code>false</code> in Chromium &mdash; on a network that blocks UDP, Chrome&rsquo;s session fails instead of falling back.</li>
+      <li>The related <a href="https://www.w3.org/TR/webtransport/#dom-webtransportoptions-requireunreliable" target="_blank" rel="noopener"><code>requireUnreliable</code></a> constructor option is <strong>not</strong> in Chromium&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport_options.idl" target="_blank" rel="noopener"><code>WebTransportOptions</code> IDL</a>, so Chrome ignores it as an unknown dictionary member (BCD records Chrome <code>false</code> for it). Chrome behaves as if it were always <code>true</code>.</li>
+    </ul>
+<pre><code>// Feature-detect: the attributes are new even where WebTransport is not.
+if (typeof WebTransport !== "undefined" &amp;&amp; "reliability" in WebTransport.prototype) {
+  if (!WebTransport.supportsReliableOnly) {
+    // Chrome today: no TCP fallback, so keep your WebSocket path for UDP-blocked networks.
+  }
+  const transport = new WebTransport("https://example.com:4433/wt");
+  console.log(transport.reliability); // "pending"
+  await transport.ready;
+  console.log(transport.reliability); // Chrome: "supports-unreliable"
+}</code></pre>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport.cc" target="_blank" rel="noopener">Chromium web_transport.cc</a> (<code>reliability_</code> set once on establishment; <code>supportsReliableOnly()</code> returns <code>false</code>), <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport.idl" target="_blank" rel="noopener">web_transport.idl</a>, <a href="https://chromestatus.com/feature/5094058497277952" target="_blank" rel="noopener">ChromeStatus summary</a>, read 2026-11-15</span>
+  </section>
+
+  <section>
+    <h2>quick reference</h2>
+    <div class="table-wrap" role="region" aria-label="Quick reference" tabindex="0">
+    <table class="doc-table">
+      <tr><th scope="row">The change</th><td>On <code>WebTransport</code>: <code>readonly attribute WebTransportReliabilityMode reliability;</code> and <code>static readonly attribute boolean supportsReliableOnly;</code>, plus <code>enum WebTransportReliabilityMode { "pending", "reliable-only", "supports-unreliable" };</code> &mdash; verbatim from the <a href="https://www.w3.org/TR/webtransport/#web-transport" target="_blank" rel="noopener">W3C WebTransport IDL</a>. <code>[Exposed=(Window,Worker), SecureContext]</code></td></tr>
+      <tr><th scope="row">Chrome status</th><td>The <a href="https://chromestatus.com/api/v0/features?milestone=158" target="_blank" rel="noopener">milestone=158 listing</a> files it under &ldquo;Enabled by default&rdquo; (fetched 2026-11-15). Ship stage: desktop, Android and WebView 158; dev trial from 155. The detail record&rsquo;s status text still reads &ldquo;Proposed&rdquo; (stale; the runtime flag is stable)</td></tr>
+      <tr><th scope="row">Runtime flag</th><td><a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener"><code>WebTransportReliability</code></a> &mdash; <code>status: "stable"</code> at trunk (read 2026-11-15); both IDL members are gated <code>[RuntimeEnabled=WebTransportReliability]</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport.idl" target="_blank" rel="noopener">web_transport.idl</a>. Finch name <code>WebTransportReliability</code></td></tr>
+      <tr><th scope="row">Spec</th><td><a href="https://www.w3.org/TR/webtransport/#dom-webtransport-reliability" target="_blank" rel="noopener">WebTransport &mdash; <code>reliability</code></a> &middot; <a href="https://www.w3.org/TR/webtransport/#dom-webtransport-supportsreliableonly" target="_blank" rel="noopener"><code>supportsReliableOnly</code></a> &middot; <a href="https://www.w3.org/TR/webtransport/#enumdef-webtransportreliabilitymode" target="_blank" rel="noopener"><code>WebTransportReliabilityMode</code></a> (W3C Candidate Recommendation Snapshot; <a href="https://w3c.github.io/webtransport/" target="_blank" rel="noopener">Editor&rsquo;s Draft</a>). Added by <a href="https://github.com/w3c/webtransport/pull/385" target="_blank" rel="noopener">w3c/webtransport PR #385</a>; see the <a href="https://github.com/w3c/webtransport/blob/main/explainer.md#transport-modes" target="_blank" rel="noopener">explainer&rsquo;s transport modes</a></td></tr>
+      <tr><th scope="row">MDN</th><td><a href="https://developer.mozilla.org/en-US/docs/Web/API/WebTransport/reliability" target="_blank" rel="noopener">WebTransport.reliability</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebTransport/supportsReliableOnly_static" target="_blank" rel="noopener">WebTransport.supportsReliableOnly</a></td></tr>
+      <tr><th scope="row">Baseline</th><td>The parent web-feature <a href="https://webstatus.dev/features/webtransport" target="_blank" rel="noopener"><code>webtransport</code></a> is <strong>Baseline Newly available</strong> since 2026-03-24 (<a href="https://api.webstatus.dev/v1/features/webtransport" target="_blank" rel="noopener">webstatus.dev API</a>, queried 2026-11-15). BCD tags <code>reliability</code> into that feature; <code>supportsReliableOnly</code> carries no web-features tag yet, so it has no Baseline status of its own. Don&rsquo;t read the parent&rsquo;s status as member-level support &mdash; check the table below</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5094058497277952" target="_blank" rel="noopener">5094058497277952 &mdash; WebTransport reliability attributes</a> (blink component <code>Blink&gt;Network&gt;WebTransport</code>; <a href="https://issues.chromium.org/issues/545636884" target="_blank" rel="noopener">crbug 545636884</a>)</td></tr>
+      <tr><th scope="row">Intents</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a9705af.b5ef4c6f.265fb1.0007.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Prototype</a> &middot; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6ac67ffd.b816ca50.15188.03ae.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a></td></tr>
+      <tr><th scope="row">Tests</th><td>WPT <a href="https://wpt.fyi/results/webtransport/reliability.https.any.html?label=experimental&amp;label=master&amp;aligned" target="_blank" rel="noopener">reliability.https.any.html</a> (static attribute + initial state) &middot; <a href="https://wpt.fyi/results/webtransport/reliability.https.window.html?label=experimental&amp;label=master&amp;aligned" target="_blank" rel="noopener">reliability.https.window.html</a> (state after <code>ready</code>)</td></tr>
+      <tr><th scope="row">Interactive demos</th><td><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v158/webtransport-reliability-attributes/reliability-readout/" target="_blank" rel="noopener">Reliability readout</a> &middot; <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v158/webtransport-reliability-attributes/transport-strategy-picker/" target="_blank" rel="noopener">Transport strategy picker</a> &middot; <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v158/webtransport-reliability-attributes/readonly-and-static-edges/" target="_blank" rel="noopener">Readonly and static edges</a> &middot; <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v158/webtransport-reliability-attributes/" target="_blank" rel="noopener">feature index</a> (Chrome Platform Showcase; all four routes HEAD-checked 200, 2026-11-15)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5094058497277952" target="_blank" rel="noopener">chromestatus.com/feature/5094058497277952</a>; <a href="https://www.w3.org/TR/webtransport/" target="_blank" rel="noopener">W3C WebTransport</a>; <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebTransport/reliability" target="_blank" rel="noopener">MDN reliability</a> and <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebTransport/supportsReliableOnly_static" target="_blank" rel="noopener">MDN supportsReliableOnly</a>, fetched 2026-11-15</span>
+  </section>
+
+  <section>
+    <h2>browser compatibility</h2>
+    <p id="compat-caption"><strong>First supported version, per BCD <code>api/WebTransport.json</code></strong> (the table scrolls sideways on narrow screens)</p>
+    <div class="table-wrap" role="region" aria-labelledby="compat-caption" tabindex="0">
+    <table class="doc-table compat-table" aria-labelledby="compat-caption">
+      <thead>
+        <tr><th scope="col">Browser</th><th scope="col"><code>reliability</code></th><th scope="col"><code>supportsReliableOnly</code></th><th scope="col"><code>requireUnreliable</code> option</th></tr>
+      </thead>
+      <tbody>
+        <tr><th scope="row">Chrome / Edge / Chrome Android / WebView</th><td>157 (BCD) &middot; 158 (ChromeStatus ship)</td><td>157 (BCD) &middot; 158 (ChromeStatus ship); always <code>false</code></td><td>No</td></tr>
+        <tr><th scope="row">Firefox / Firefox Android</th><td>114</td><td>158</td><td>114</td></tr>
+        <tr><th scope="row">Safari / Safari iOS</th><td>26.4</td><td>26.4</td><td>26.4</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p>Disclosed disagreements: BCD records Chrome <strong>157</strong> for both attributes while the ChromeStatus ship stage and the milestone listing say <strong>158</strong>; we could not establish which branch first carried the stable flag, so both are shown. ChromeStatus also says Firefox implements only <code>reliability</code>, while BCD records <code>supportsReliableOnly</code> in Firefox 158. Edge, Opera, Samsung Internet and WebView mirror Chrome in BCD.</p>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebTransport.json" target="_blank" rel="noopener">BCD api/WebTransport.json</a> (keys <code>reliability</code>, <code>supportsReliableOnly_static</code>, <code>WebTransport.options_requireUnreliable_parameter</code>; read from main 2026-11-15); <a href="https://chromestatus.com/api/v0/features/5094058497277952" target="_blank" rel="noopener">ChromeStatus API record</a></span>
+  </section>
+
+  <section>
+    <h2>references</h2>
+    <ul>
+      <li><a href="https://chromestatus.com/feature/5094058497277952" target="_blank" rel="noopener">Chrome Platform Status &mdash; WebTransport reliability attributes</a> (<a href="https://chromestatus.com/api/v0/features/5094058497277952" target="_blank" rel="noopener">API record</a>)</li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/WebTransport/reliability" target="_blank" rel="noopener">MDN &mdash; WebTransport.reliability (canonical reference)</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebTransport/supportsReliableOnly_static" target="_blank" rel="noopener">MDN &mdash; WebTransport.supportsReliableOnly</a></li>
+      <li><a href="https://www.w3.org/TR/webtransport/#dom-webtransport-reliability" target="_blank" rel="noopener">W3C WebTransport &mdash; reliability attribute</a> &middot; <a href="https://www.w3.org/TR/webtransport/#dom-webtransport-supportsreliableonly" target="_blank" rel="noopener">supportsReliableOnly</a></li>
+      <li><a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport.idl" target="_blank" rel="noopener">Chromium web_transport.idl</a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport.cc" target="_blank" rel="noopener">web_transport.cc</a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime flag WebTransportReliability</a></li>
+      <li><a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebTransport.json" target="_blank" rel="noopener">BCD &mdash; api/WebTransport.json</a> &middot; <a href="https://webstatus.dev/features/webtransport" target="_blank" rel="noopener">webstatus.dev &mdash; webtransport</a></li>
+      <li><a href="https://bugzilla.mozilla.org/show_bug.cgi?id=1709355" target="_blank" rel="noopener">Firefox signal (Bugzilla 1709355)</a> &middot; <a href="https://github.com/WebKit/WebKit/pull/55124" target="_blank" rel="noopener">WebKit signal (PR 55124)</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v158/webtransport-reliability-attributes/" target="_blank" rel="noopener">Chrome Platform Showcase &mdash; interactive demos</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

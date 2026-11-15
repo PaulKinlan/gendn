@@ -13,6 +13,16 @@
     .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--text-charcoal); display: block; margin-bottom: 0.4rem; }
       /* B2 house table pattern (gendn-efu, per v152/reference-target-for-cross-root-aria +
        goals.json:784): scroll wrapper instead of body{overflow-x:hidden} clipping */
+    pre { overflow-x: auto; }
+    .example-embed { margin: 1.5rem 0; }
+    .example-embed iframe { max-width: 100%; }
+    .example-embed figcaption { font-size: 0.85rem; margin-top: 0.4rem; }
+    /* Name and version columns keep whole tokens; the notes column takes the wrapping. */
+    .props-table td:first-child { white-space: nowrap; }
+    .compat-table th:not(:last-child), .compat-table td:not(:last-child) { overflow-wrap: normal; }
+    .compat-table th code { white-space: nowrap; }
+    .compat-table td:last-child { min-width: 11rem; }
+    @media (max-width: 40rem) { .compat-table td:last-child { min-width: 16rem; } }
   </style>
 </head>
 <body>
@@ -22,12 +32,23 @@
   <header class="lede-block">
     <p class="eyebrow">v148 · origin trial · performance api</p>
     <h1>Container Timing</h1>
+
+    <div class="baseline-banner baseline-banner--paper-compact" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; origin trial 148&ndash;153; 145+ behind a flag</li>
+        <li>Edge &middot; mirrors Chrome&rsquo;s flag</li>
+        <li class="limited">Firefox &middot; 156+ behind a pref</li>
+        <li class="limited">Safari &middot; not supported</li>
+      </ul>
+      <p>Not Baseline. <a href="https://webstatus.dev/features/container-timing" target="_blank" rel="noopener">webstatus.dev</a> lists the web-features entry <code>container-timing</code> (&ldquo;Container timing performance entries&rdquo;) as <strong>limited</strong>, with no browser recorded as shipping it by default (<a href="https://api.webstatus.dev/v1/features/container-timing" target="_blank" rel="noopener">API record</a>, queried 2026-11-15). Per-browser versions come from <a href="https://github.com/mdn/browser-compat-data/blob/main/api/PerformanceContainerTiming.json" target="_blank" rel="noopener">BCD <code>api/PerformanceContainerTiming.json</code></a>. See the <a href="#browser-compatibility">full table</a>.</p>
+    </div>
     <p class="lede">A performance API that lets you measure when a named section of the DOM — a card, a widget, a news feed — first renders and when its last sub-element paints. Extends Element Timing from single elements to whole component trees.</p>
   </header>
 
   <div class="warn-block warn-block--common">
     <strong>Origin trial</strong>
-    Container Timing is in origin trial from Chrome 148. You need an origin trial token to use it in production outside of local testing. API shape is still subject to change; verify against the WICG spec before shipping. To test locally enable the <code>#container-timing</code> flag or register at <a href="https://developer.chrome.com/origintrials/" target="_blank" rel="noopener">developer.chrome.com/origintrials</a>.
+    Container Timing is in origin trial from Chrome 148. You need an origin trial token to use it in production outside of local testing. API shape is still subject to change; verify against the WICG spec before shipping. To test locally, enable <code>chrome://flags/#enable-experimental-web-platform-features</code> (the flag recorded by <a href="https://chromestatus.com/api/v0/features/5110962817073152" target="_blank" rel="noopener">ChromeStatus</a> and <a href="https://github.com/mdn/browser-compat-data/blob/main/api/PerformanceContainerTiming.json" target="_blank" rel="noopener">BCD</a>) or launch Chrome with <code>--enable-blink-features=ContainerTiming</code> (the <code>ContainerTiming</code> entry in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener"><code>runtime_enabled_features.json5</code></a>, which also allows third-party origin-trial tokens). For real users, register for the trial at <a href="https://developer.chrome.com/origintrials/" target="_blank" rel="noopener">developer.chrome.com/origintrials</a>.
   </div>
 
   <section>
@@ -60,19 +81,75 @@
   &lt;button&gt;Add to cart&lt;/button&gt;
 &lt;/section&gt;</code></pre>
 
+    <h3 id="idl">Formal syntax (Web IDL)</h3>
+    <p>Verbatim from the <a href="https://w3c.github.io/container-timing/#idl-index" target="_blank" rel="noopener">Container Timing specification IDL index</a> (Draft Community Group Report, 1 October 2026; the old <code>wicg.github.io</code> address now redirects there), plus the <code>PaintTimingMixin</code> it includes from <a href="https://w3c.github.io/paint-timing/#sec-PaintTimingMixin" target="_blank" rel="noopener">Paint Timing &sect;3.1</a>:</p>
+    <pre><code>[Exposed=Window]
+interface PerformanceContainerTiming : PerformanceEntry {
+    readonly attribute DOMString identifier;
+    readonly attribute DOMRectReadOnly intersectionRect;
+    readonly attribute unsigned long long size;
+    readonly attribute DOMHighResTimeStamp firstRenderTime;
+    readonly attribute HTMLElement? lastPaintedElement;
+    readonly attribute HTMLElement? rootElement;
+
+    [Default] object toJSON();
+};
+
+PerformanceContainerTiming includes PaintTimingMixin;
+
+partial interface HTMLElement {
+    [CEReactions, Reflect] attribute DOMString containerTiming;
+    [CEReactions, Reflect] attribute boolean containerTimingIgnore;
+};
+
+[Exposed=Window]
+interface mixin PaintTimingMixin {
+    readonly attribute DOMHighResTimeStamp paintTime;
+    readonly attribute DOMHighResTimeStamp? presentationTime;
+};</code></pre>
+    <p>Chromium&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/timing/performance_container_timing.idl" target="_blank" rel="noopener"><code>performance_container_timing.idl</code></a> (main, read 2026-11-15) declares the same members behind <code>RuntimeEnabled=ContainerTiming</code>, with two type differences: <code>size</code> is a <code>double</code> and <code>lastPaintedElement</code> is an <code>Element?</code>. The two reflected attributes are declared in Chromium&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_element.idl" target="_blank" rel="noopener"><code>html_element.idl</code></a> as <code>Reflect=containertiming</code> and <code>Reflect=containertimingignore</code>.</p>
+
     <h3 id="properties">PerformanceEntry properties</h3>
     <div class="table-wrap">
-<table class="doc-table">
+<table class="doc-table props-table">
       <thead><tr><th>Property</th><th>Description</th></tr></thead>
       <tr><td><code>entryType</code></td><td><code>"container"</code></td></tr>
+      <tr><td><code>name</code> / <code>duration</code></td><td>Inherited from <code>PerformanceEntry</code>; always the empty string and <code>0</code> for container entries.</td></tr>
       <tr><td><code>identifier</code></td><td>The value of the <code>containertiming</code> attribute.</td></tr>
-      <tr><td><code>startTime</code></td><td>The timestamp of the latest element paint within the container (updates as new sub-elements paint).</td></tr>
-      <tr><td><code>firstRenderTime</code></td><td>Timestamp of the container's first paint.</td></tr>
-      <tr><td><code>size</code></td><td>The rendered area (in pixels) of the largest painted element in the container.</td></tr>
-      <tr><td><code>lastPaintedElement</code></td><td>Reference to the last DOM element that painted within the container.</td></tr>
+      <tr><td><code>startTime</code></td><td>The paint time of the most recent frame that added new area to the container&rsquo;s painted region. Each new entry for the same container reports a later value.</td></tr>
+      <tr><td><code>firstRenderTime</code></td><td>The paint time of the container&rsquo;s first recorded paint (a <code>DOMHighResTimeStamp</code>).</td></tr>
+      <tr><td><code>size</code></td><td>The total area, in square CSS pixels, of the container&rsquo;s painted region: every newly painted rectangle unioned since the container was registered. Compare <code>size</code> between entries to filter out small changes.</td></tr>
+      <tr><td><code>intersectionRect</code></td><td>A <code>DOMRectReadOnly</code>: the bounding rectangle of the painted region, in viewport CSS pixels. Rectangles are not adjusted if the container later moves.</td></tr>
+      <tr><td><code>lastPaintedElement</code></td><td>The element that contributed the largest newly painted area in this frame, or <code>null</code>. The spec describes it as a debugging aid, not a metric.</td></tr>
+      <tr><td><code>rootElement</code></td><td>The container root (the element carrying <code>containertiming</code>), or <code>null</code>.</td></tr>
+      <tr><td><code>paintTime</code></td><td>From <code>PaintTimingMixin</code>: the rendering-update end time of the entry&rsquo;s paint timing info.</td></tr>
+      <tr><td><code>presentationTime</code></td><td>From <code>PaintTimingMixin</code>: the implementation-defined presentation time, or <code>null</code> when the browser does not expose one.</td></tr>
+      <tr><td><code>toJSON()</code></td><td>Runs the default toJSON steps: returns a plain object with the entry&rsquo;s attributes, suitable for <code>JSON.stringify()</code> and analytics beacons. Takes no arguments.</td></tr>
     </table>
 </div>
-    <span class="citation">Source: <a href="https://wicg.github.io/container-timing/#performance-container-timing" target="_blank" rel="noopener">WICG Container Timing specification &sect;PerformanceContainerTiming</a>; <a href="https://github.com/WICG/container-timing" target="_blank" rel="noopener">WICG explainer</a>, May 2026.</span>
+
+    <h3 id="attributes">HTML attributes</h3>
+    <ul>
+      <li><code>containertiming="&lt;identifier&gt;"</code>, reflected as <code>HTMLElement.containerTiming</code> (a <code>DOMString</code>): makes the element a <em>container root</em>. The value becomes the entry&rsquo;s <code>identifier</code>. Any string is accepted; nothing is validated and nothing throws.</li>
+      <li><code>containertimingignore</code>, reflected as <code>HTMLElement.containerTimingIgnore</code> (a <code>boolean</code>): marks the element and its descendants as an <em>ignored subtree</em>. Paints inside it do not count towards any ancestor container root. On a nested container root it also stops that root&rsquo;s paints from reaching the outer container.</li>
+    </ul>
+    <pre><code>&lt;div containertiming="feed"&gt;
+  &lt;main&gt;...&lt;/main&gt;
+  &lt;!-- Updates here never create "feed" entries --&gt;
+  &lt;aside containertimingignore&gt;...&lt;/aside&gt;
+&lt;/div&gt;</code></pre>
+
+    <h3 id="lifecycle">When entries are emitted</h3>
+    <ul>
+      <li>A container root is registered when an element with <code>containertiming</code> is connected to the document. Set the attribute <em>before</em> inserting the element: setting it later records only later paints.</li>
+      <li>Only image and text paints from light-DOM descendants count. Content inside a shadow tree or an ignored subtree does not.</li>
+      <li>After each frame the browser queues at most one entry per container root, and only when the painted region grew. Even a 1-pixel increase queues an entry. Repainting an area that was already painted does not.</li>
+      <li>Once the document has dispatched a scroll or input event, paints are no longer recorded. Entries already pending for that frame are still emitted.</li>
+      <li>Removing the attribute or disconnecting the element drops its record. Adding it again (or reconnecting) starts a fresh painted region.</li>
+      <li>A nested container root&rsquo;s paints also update its nearest ancestor container root, unless the nested root has <code>containertimingignore</code>.</li>
+    </ul>
+    <p>Errors: no member throws. An unsupported browser ignores the attributes, and <code>observe({ type: 'container' })</code> registers nothing (Chrome logs a console warning for an unknown entry type), so feature-detect with <code>PerformanceObserver.supportedEntryTypes.includes('container')</code>.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/container-timing/#performance-container-timing" target="_blank" rel="noopener">WICG Container Timing specification &sect;PerformanceContainerTiming</a>; <a href="https://github.com/WICG/container-timing" target="_blank" rel="noopener">WICG explainer</a>, May 2026. Re-checked 2026-11-15 against the current spec: <a href="https://w3c.github.io/container-timing/#performance-container-timing" target="_blank" rel="noopener">&sect;5 interface</a>, <a href="https://w3c.github.io/container-timing/#extensions-to-element" target="_blank" rel="noopener">&sect;6.3 HTMLElement extensions</a>, <a href="https://w3c.github.io/container-timing/#handle-element-painted" target="_blank" rel="noopener">&sect;6.8 handling paints</a>, <a href="https://w3c.github.io/container-timing/#emit-container-timing-entries" target="_blank" rel="noopener">&sect;6.9 emitting entries</a>, <a href="https://w3c.github.io/container-timing/#create-container-timing-entry" target="_blank" rel="noopener">&sect;6.14 entry fields</a>.</span>
   </section>
 
   <section>
@@ -107,20 +184,46 @@ observer.observe({ type: 'container', buffered: true });</code></pre>
 
     <h3>Origin trial setup</h3>
     <pre><code>&lt;meta http-equiv="origin-trial" content="YOUR_TOKEN_HERE"&gt;</code></pre>
+
+    <h3 id="live-example">Live example</h3>
+    <p>The <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/container-timing/" target="_blank" rel="noopener">Chrome Platform Showcase Container Timing page</a> collects five interactive demos. The embed below is its Content Section Timer. It needs a Chrome build with the API enabled (see the warning above) to report real entries.</p>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/container-timing/content-section-timer/"
+        title="Live example — Container Timing content section timer" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase (route checked 200, 2026-11-15): <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/container-timing/content-section-timer/" target="_blank" rel="noopener">open the content section timer in a new tab</a>. Other demos: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/container-timing/timing-dashboard/" target="_blank" rel="noopener">timing dashboard</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/container-timing/lcp-comparison/" target="_blank" rel="noopener">LCP vs Container Timing</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/container-timing/content-visibility-meter/" target="_blank" rel="noopener">content visibility meter</a>, and <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/container-timing/paint-budget-monitor/" target="_blank" rel="noopener">paint budget monitor</a>.<span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/container-timing/" target="_blank" rel="noopener">chrome-platform-showcase</a></span></figcaption>
+    </figure>
     <span class="citation">Source: <a href="https://developer.chrome.com/blog/container-timing-origin-trial" target="_blank" rel="noopener">Chrome for Developers blog — Container Timing origin trial</a>; <a href="https://www.mail-archive.com/blink-dev@chromium.org/msg16117.html" target="_blank" rel="noopener">blink-dev Intent to Experiment</a>; <a href="https://www.mail-archive.com/blink-dev@chromium.org/msg11854.html" target="_blank" rel="noopener">Intent to Prototype</a>, May 2026.</span>
   </section>
 
   <section>
     <h2 id="browser-compatibility">browser support</h2>
+    <p>Per-version data from <a href="https://github.com/mdn/browser-compat-data/blob/main/api/PerformanceContainerTiming.json" target="_blank" rel="noopener">BCD <code>api/PerformanceContainerTiming.json</code></a> and the <code>containerTiming</code> / <code>containerTimingIgnore</code> entries in <a href="https://github.com/mdn/browser-compat-data/blob/main/api/HTMLElement.json" target="_blank" rel="noopener">BCD <code>api/HTMLElement.json</code></a> (fetched 2026-11-15). Every interface member (<code>identifier</code>, <code>intersectionRect</code>, <code>size</code>, <code>firstRenderTime</code>, <code>lastPaintedElement</code>, <code>rootElement</code>, <code>paintTime</code>, <code>presentationTime</code>, <code>toJSON()</code>) has the same data as the interface.</p>
     <div class="table-wrap">
-<table class="doc-table">
-      <thead><tr><th>Browser</th><th>Support</th></tr></thead>
-      <tr><td>Chrome 148+</td><td>Origin trial</td></tr>
-      <tr><td>Firefox</td><td>No position</td></tr>
-      <tr><td>Safari</td><td>No position</td></tr>
+<table class="doc-table compat-table">
+      <thead><tr><th>Browser</th><th><code>PerformanceContainerTiming</code></th><th><code>containerTiming</code> / <code>containerTimingIgnore</code></th><th>Notes</th></tr></thead>
+      <tr><td>Chrome</td><td><strong>145</strong> (behind a flag)</td><td><strong>145</strong> (behind a flag)</td><td>BCD: preference <code>#enable-experimental-web-platform-features</code>; status <code>experimental</code>. Interim, from <a href="https://chromestatus.com/api/v0/features/5110962817073152" target="_blank" rel="noopener">ChromeStatus</a> (not in BCD): origin trial on desktop and Android, Chrome 148&ndash;153.</td></tr>
+      <tr><td>Edge</td><td>Mirrors Chrome</td><td>Mirrors Chrome</td><td>BCD <code>"edge": "mirror"</code> (same flag). Chrome origin-trial tokens are not recorded for Edge.</td></tr>
+      <tr><td>Firefox</td><td><strong>156</strong> (behind a pref)</td><td><strong>156</strong> (behind a pref)</td><td>BCD: <code>dom.enable_container_timing</code> set to <code>true</code>. Position: Positive (<a href="https://github.com/mozilla/standards-positions/issues/1155" target="_blank" rel="noopener">mozilla/standards-positions #1155</a>).</td></tr>
+      <tr><td>Safari</td><td>Not supported</td><td>Not supported</td><td>BCD <code>version_added: false</code>. Position: Neutral (<a href="https://github.com/WebKit/standards-positions/issues/442" target="_blank" rel="noopener">WebKit/standards-positions #442</a>).</td></tr>
     </table>
 </div>
-    <span class="citation">Source: <a href="https://chromestatus.com/feature/5110962817073152" target="_blank" rel="noopener">chromestatus.com feature page</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/PerformanceEntry.json" target="_blank" rel="noopener">BCD PerformanceEntry</a>, May 2026.</span>
+    <p>BCD has no entry for the <code>containertiming</code> / <code>containertimingignore</code> HTML attributes themselves, only for their reflected IDL properties, and it does not record the Chrome origin trial. <a href="https://webstatus.dev/features/container-timing" target="_blank" rel="noopener">webstatus.dev</a> rates the feature Baseline <strong>limited</strong> (queried 2026-11-15).</p>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/PerformanceContainerTiming.json" target="_blank" rel="noopener">BCD api/PerformanceContainerTiming.json</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/HTMLElement.json" target="_blank" rel="noopener">BCD api/HTMLElement.json</a>; <a href="https://api.webstatus.dev/v1/features/container-timing" target="_blank" rel="noopener">webstatus.dev API record</a>; <a href="https://chromestatus.com/feature/5110962817073152" target="_blank" rel="noopener">chromestatus.com feature page</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/PerformanceEntry.json" target="_blank" rel="noopener">BCD PerformanceEntry</a> (the parent interface, unchanged).</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <p>The spec&rsquo;s <a href="https://w3c.github.io/container-timing/#security-privacy" target="_blank" rel="noopener">&sect;7 Security and Privacy Considerations</a> says the API exposes nothing new beyond what Element Timing and Paint Timing already allow a page to estimate:</p>
+    <ul>
+      <li>Elements inside cross-origin iframes are never reported to the parent frame, and no timing crosses a frame boundary unless the page sends it with <code>postMessage()</code>.</li>
+      <li>Only elements in the page&rsquo;s own light DOM are measured. Shadow-tree content does not contribute.</li>
+      <li>Timestamps are <code>DOMHighResTimeStamp</code> values, subject to the same reduced-resolution protections as other Performance APIs.</li>
+      <li>The API does not enable cross-site tracking or expose browsing history.</li>
+    </ul>
+    <p>Treat <code>identifier</code> values as public: they are written into the page&rsquo;s own markup and are visible to any script running on the page, including third-party analytics.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/container-timing/#security-privacy" target="_blank" rel="noopener">Container Timing spec &sect;7</a>; <a href="https://w3c.github.io/container-timing/#contributes-to-container-timing" target="_blank" rel="noopener">&sect;6.11 contributes to container timing</a>.</span>
   </section>
 
   <section>
