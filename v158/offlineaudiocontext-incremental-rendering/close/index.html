@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OfflineAudioContext.close() — Chrome 158 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .doc-table { margin: 1rem 0; font-size: 0.85rem; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; text-align: left; }
+    .doc-table tr > th:first-child { min-width: 7.5rem; overflow-wrap: normal; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .doc-table caption { text-align: left; font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-charcoal); padding-bottom: 0.4rem; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table td:first-child > code { overflow-wrap: normal; white-space: nowrap; }
+    .table-wrap > .doc-table:has(thead) { min-inline-size: 32rem; }
+    .table-wrap > .doc-table.compat-table { min-inline-size: 36rem; }
+    .compat-table th, .compat-table td { overflow-wrap: normal; }
+    .doc-table.compat-table { font-size: 0.8rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v158/offlineaudiocontext-incremental-rendering/">&larr; OfflineAudioContext incremental rendering</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v158 &middot; method &middot; OfflineAudioContext</p>
+    <h1>OfflineAudio&shy;Context.close()</h1>
+    <p class="lede">Stops an <code>OfflineAudioContext</code> for good: rendering halts, any chunk promises still pending reject with <code>AbortError</code>, and the context moves to <code>"closed"</code>. It is the only way to end a <code>length: null</code> (open-ended) render and the way to cancel a long finite one. New in Chrome 158 (<a href="https://chromestatus.com/feature/5109900936085504" target="_blank" rel="noopener">ChromeStatus 5109900936085504</a>); its presence is also the recommended feature-detection signal for incremental rendering.</p>
+  </header>
+
+  <section>
+    <h2 id="syntax">syntax</h2>
+    <pre><code>close()</code></pre>
+    <p>Spec IDL (<a href="https://webaudio.github.io/web-audio-api/#dom-offlineaudiocontext-close" target="_blank" rel="noopener">Web Audio API &sect; OfflineAudioContext close()</a>, verbatim):</p>
+    <pre><code>Promise&lt;undefined&gt; close();</code></pre>
+    <p>Chromium (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webaudio/offline_audio_context.idl" target="_blank" rel="noopener">offline_audio_context.idl</a>) marks it <code>[RuntimeEnabled=OfflineAudioContextIncrementalRendering]</code>, so <code>close</code> only exists on <code>OfflineAudioContext.prototype</code> where the feature is on. It is distinct from <code>AudioContext.close()</code>; <code>BaseAudioContext</code> has no <code>close</code>.</p>
+    <span class="citation">Source: <a href="https://webaudio.github.io/web-audio-api/#dom-offlineaudiocontext-close" target="_blank" rel="noopener">spec</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webaudio/offline_audio_context.idl" target="_blank" rel="noopener">offline_audio_context.idl</a></span>
+  </section>
+
+  <section>
+    <h2 id="inputs">parameters</h2>
+    <p>None. <code>close()</code> takes no arguments; any passed are ignored per Web IDL overload resolution. Its behaviour depends only on the context&rsquo;s current state: not yet started, rendering or suspended, between chunks, or already closed.</p>
+  </section>
+
+  <section>
+    <h2 id="outputs">return value</h2>
+    <p>A <code>Promise&lt;undefined&gt;</code> that fulfils once the rendering thread has stopped and the context is <code>"closed"</code>. Effects, in order:</p>
+    <ul>
+      <li>Rendering stops at the current render quantum; the partially rendered chunk is <em>not</em> delivered.</li>
+      <li>Every pending <code>startRendering()</code> promise &mdash; the one rendering and any queued &mdash; rejects with <code>AbortError</code>.</li>
+      <li>Pending <code>suspend()</code> promises reject with <code>InvalidStateError</code>.</li>
+      <li><code>state</code> becomes <code>"closed"</code> and <code>statechange</code> fires. <code>complete</code> does <strong>not</strong> fire.</li>
+      <li><code>currentTime</code> stops advancing. Nodes are not automatically released; drop your references to let them be collected.</li>
+    </ul>
+    <pre><code>const ctx = new OfflineAudioContext({ numberOfChannels: 2, sampleRate: 44100, length: null });
+const big = ctx.startRendering(10 * 44100);   // state === "running"
+await ctx.close();                            // big rejects with AbortError
+console.log(ctx.state);                       // "closed"</code></pre>
+    <span class="citation">Source: <a href="https://webaudio.github.io/web-audio-api/#dom-offlineaudiocontext-close" target="_blank" rel="noopener">close() algorithm</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webaudio/offline_audio_context.cc" target="_blank" rel="noopener">offline_audio_context.cc (<code>closeContext</code>, <code>OnRenderStopped</code>)</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/webaudio/the-audio-api/the-offlineaudiocontext-interface/offlineaudiocontext-close.html" target="_blank" rel="noopener">WPT offlineaudiocontext-close</a></span>
+  </section>
+
+  <section>
+    <h2 id="errors">exceptions</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Exceptions">
+    <table class="doc-table">
+      <caption>Rejections of close()</caption>
+      <thead><tr><th scope="col">Exception</th><th scope="col">When</th></tr></thead>
+      <tbody>
+      <tr><td><code>InvalidStateError</code></td><td>The document is not fully active (spec)</td></tr>
+      <tr><td><code>InvalidStateError</code></td><td>The context is already <code>"closed"</code>, or a previous <code>close()</code> is still in progress (the second of two back-to-back calls rejects; WPT)</td></tr>
+      <tr><td><code>InvalidStateError</code></td><td>A <strong>finite</strong> context has already rendered all its frames &mdash; it closed itself, so a trailing <code>close()</code> rejects. Guard with <code>if (ctx.state !== "closed")</code></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p>After <code>close()</code>, <code>startRendering()</code>, <code>resume()</code> and <code>suspend()</code> all reject with <code>InvalidStateError</code>. A closed context cannot be reopened; construct a new one.</p>
+    <span class="citation">Source: <a href="https://webaudio.github.io/web-audio-api/#dom-offlineaudiocontext-close" target="_blank" rel="noopener">spec</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webaudio/offline_audio_context.cc" target="_blank" rel="noopener">offline_audio_context.cc</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/webaudio/the-audio-api/the-offlineaudiocontext-interface/offlineaudiocontext-close.html" target="_blank" rel="noopener">WPT</a></span>
+  </section>
+
+  <section>
+    <h2 id="context">context and exposure</h2>
+    <ul>
+      <li><code>[Exposed=Window]</code>, on <code>OfflineAudioContext</code> only. No secure-context, permission or user-activation requirement.</li>
+      <li>Available from Chrome 158 (runtime feature <code>OfflineAudioContextIncrementalRendering</code>, <code>status: "stable"</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>).</li>
+      <li>Feature detection: <code>typeof OfflineAudioContext.prototype.close === "function"</code> &mdash; recommended by the <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/OfflineAudioContext/explainer.md" target="_blank" rel="noopener">explainer</a> as the signal for the whole incremental-rendering feature.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">lifecycle</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="close() by state">
+    <table class="doc-table">
+      <caption>What close() does in each state</caption>
+      <thead><tr><th scope="col">State when called</th><th scope="col">Result</th></tr></thead>
+      <tbody>
+      <tr><td><code>"suspended"</code>, never rendered</td><td>Resolves; context closed. Valid &mdash; WPT &ldquo;close before rendering&rdquo;</td></tr>
+      <tr><td><code>"running"</code>, chunk rendering</td><td>Rendering stops; that chunk and any queued chunks reject <code>AbortError</code>; resolves</td></tr>
+      <tr><td><code>"suspended"</code> by <code>suspend()</code> mid-chunk</td><td>Queued chunks reject <code>AbortError</code>; future suspends reject <code>InvalidStateError</code>; no <code>complete</code>; resolves</td></tr>
+      <tr><td><code>"running"</code>, between chunks (open-ended)</td><td>Resolves; context closed</td></tr>
+      <tr><td><code>"closed"</code></td><td>Rejects <code>InvalidStateError</code></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p>Not idempotent: call it once. Re-entrant calls are safe &mdash; calling <code>close()</code> synchronously while a chunk promise resolves rejects the chunk queued in the same turn with <code>AbortError</code> (WPT).</p>
+    <span class="citation">Source: <a href="https://github.com/web-platform-tests/wpt/blob/master/webaudio/the-audio-api/the-offlineaudiocontext-interface/offlineaudiocontext-close.html" target="_blank" rel="noopener">WPT offlineaudiocontext-close</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/webaudio/the-audio-api/the-offlineaudiocontext-interface/offlineaudiocontext-incremental-rendering.html" target="_blank" rel="noopener">WPT incremental-rendering</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webaudio/offline_audio_context.cc" target="_blank" rel="noopener">offline_audio_context.cc</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <h3 id="example-cancel">A cancel button for a long export</h3>
+    <pre><code>const cancel = document.querySelector("#cancel");
+const ctx = new OfflineAudioContext({ numberOfChannels: 2, sampleRate: 48000, length: 48000 * 3600 });
+buildGraph(ctx);
+
+cancel.addEventListener("click", () =&gt; {
+  if (ctx.state !== "closed") ctx.close();
+}, { once: true });
+
+try {
+  while (ctx.state !== "closed") {
+    await save(await ctx.startRendering(48000));
+  }
+} catch (err) {
+  if (err.name !== "AbortError") throw err;    // AbortError = user cancelled
+}</code></pre>
+
+    <h3 id="example-cleanup">Always release an open-ended context</h3>
+    <pre><code>const ctx = new OfflineAudioContext({ numberOfChannels: 1, sampleRate: 16000 }); // length: null
+try {
+  for (let i = 0; i &lt; 100; i++) feed(await ctx.startRendering(1600));
+} finally {
+  if (ctx.state !== "closed") await ctx.close();
+}</code></pre>
+    <span class="citation">Source: behaviour per the <a href="https://webaudio.github.io/web-audio-api/#dom-offlineaudiocontext-close" target="_blank" rel="noopener">spec</a> and <a href="https://github.com/web-platform-tests/wpt/blob/master/webaudio/the-audio-api/the-offlineaudiocontext-interface/offlineaudiocontext-close.html" target="_blank" rel="noopener">WPT</a>; <code>buildGraph</code>, <code>save</code>, <code>feed</code> are placeholders</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Browser compatibility">
+    <table class="doc-table compat-table">
+      <thead><tr><th scope="col">Feature</th><th scope="col">Chrome</th><th scope="col">Edge</th><th scope="col">Firefox</th><th scope="col">Safari</th><th scope="col">Chrome Android</th><th scope="col">WebView</th></tr></thead>
+      <tbody>
+      <tr><th scope="row"><code>OfflineAudioContext.close()</code></th><td>158</td><td>158</td><td>No</td><td>No</td><td>158</td><td>158</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p>From <a href="https://github.com/mdn/browser-compat-data/blob/main/api/OfflineAudioContext.json" target="_blank" rel="noopener">BCD <code>api.OfflineAudioContext.close</code></a> (marked experimental; Edge/Android/WebView mirror Chrome). Not to be confused with <code>AudioContext.close()</code>, which is Baseline.</p>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <p><code>close()</code> exposes nothing; it only ends work the page started. It is the page&rsquo;s tool for releasing the rendering thread an open-ended context holds. See the spec&rsquo;s <a href="https://webaudio.github.io/web-audio-api/#privacy-considerations" target="_blank" rel="noopener">Privacy Considerations</a> for the unchanged Web Audio fingerprinting notes.</p>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="/v158/offlineaudiocontext-incremental-rendering/">Overview &mdash; OfflineAudioContext incremental rendering</a></li>
+      <li><a href="/v158/offlineaudiocontext-incremental-rendering/start-rendering/"><code>startRendering(chunkSize)</code></a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v158/offlineaudiocontext-incremental-rendering/lifecycle-and-close/" target="_blank" rel="noopener">Showcase demo &mdash; lifecycle and close()</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
