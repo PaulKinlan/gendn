@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Indefinite length (length: null) — OfflineAudioContext incremental rendering — Chrome 158 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code { overflow-wrap: anywhere; }
+    .table-wrap { max-inline-size: 100%; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .doc-table { margin: 1rem 0; font-size: 0.85rem; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    /* responsive-table: keep cells legible; wide tables scroll inside the focusable .table-wrap region */
+    .doc-table :is(th, td) { overflow-wrap: break-word; min-inline-size: 5.5rem; }
+    .table-wrap > .doc-table:has(thead th:nth-child(3)) { min-inline-size: 36rem; }
+    .doc-table caption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); text-align: left; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v158/offlineaudiocontext-incremental-rendering/">&larr; OfflineAudioContext incremental rendering</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v158 &middot; web audio &middot; dictionary member + attribute reference</p>
+    <h1>Indefinite length: Offline<wbr>Audio<wbr>Context<wbr>Options<wbr>.length and Offline<wbr>Audio<wbr>Context<wbr>.length</h1>
+    <p class="lede"><code>OfflineAudioContextOptions.length</code> is now optional and nullable. Omit it (or pass <code>null</code>) and the context has no fixed duration: <code>OfflineAudioContext.length</code> reads <code>null</code>, each <code>startRendering()</code> call renders one more chunk, and the render runs until you call <code>close()</code>. Use this when the output length is not known up front, such as rendering until a live signal goes quiet.</p>
+  </header>
+
+  <nav class="local-nav" aria-label="On this page">
+    <ul>
+      <li><a href="#options-length"><code>OfflineAudioContextOptions.length</code></a></li>
+      <li><a href="#length-attribute"><code>OfflineAudioContext.length</code></a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+<pre tabindex="0"><code>// Web Audio API 1.1 (IDL verbatim)
+dictionary OfflineAudioContextOptions {
+    unsigned long numberOfChannels = 1;
+    unsigned long? length = null;          // was: required unsigned long length;
+    required float sampleRate;
+    (AudioContextRenderSizeCategory or unsigned long) renderSizeHint = "default";
+};
+
+interface OfflineAudioContext : BaseAudioContext {
+    // ...excerpt; full interface on the overview page
+    readonly attribute unsigned long? length; // null for an indefinite context
+};
+
+// Usage
+const ctx = new OfflineAudioContext({ sampleRate: 48000 });          // length omitted
+const ctx2 = new OfflineAudioContext({ sampleRate: 48000, length: null });
+ctx.length; // null</code></pre>
+    <p>Web Audio 1.0 declared <code>required unsigned long length;</code>; 1.1 makes it <code>unsigned long? length = null</code>, and the matching <code>length</code> attribute becomes nullable. Chromium&rsquo;s <code>offline_audio_context_options.idl</code> carries the same <code>unsigned long? length = null;</code>, and its <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webaudio/offline_audio_context.idl" target="_blank" rel="noopener">offline_audio_context.idl</a> declares <code>readonly attribute unsigned long? length;</code>. The three-argument constructor <code>new OfflineAudioContext(numberOfChannels, length, sampleRate)</code> keeps a non-nullable <code>length</code>, so an indefinite context can only be made with the options dictionary.</p>
+    <span class="citation">Source: <a href="https://webaudio.github.io/web-audio-api/#dom-offlineaudiocontextoptions-length" target="_blank" rel="noopener">Web Audio API 1.1 &sect;1.3.4 &mdash; OfflineAudioContextOptions.length</a>; <a href="https://webaudio.github.io/web-audio-api/#dom-offlineaudiocontext-length" target="_blank" rel="noopener">&sect;1.3.2 &mdash; OfflineAudioContext.length</a>; <a href="https://www.w3.org/TR/webaudio-1.0/#dictdef-offlineaudiocontextoptions" target="_blank" rel="noopener">Web Audio API 1.0 &mdash; OfflineAudioContextOptions</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webaudio/offline_audio_context_options.idl" target="_blank" rel="noopener">Chromium offline_audio_context_options.idl</a></span>
+  </section>
+
+  <section>
+    <h2 id="options-length">Offline<wbr>Audio<wbr>Context<wbr>Options<wbr>.length</h2>
+    <h3 id="parameters">Accepted values</h3>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="len-values">
+    <table class="doc-table">
+      <caption id="len-values">OfflineAudioContextOptions length values</caption>
+      <thead><tr><th scope="col"><code>length</code></th><th scope="col">Result</th></tr></thead>
+      <tr><td>omitted or <code>null</code></td><td>Indefinite-length context; <code>ctx.length === null</code></td></tr>
+      <tr><td>positive integer</td><td>Finite context of that many sample-frames (unchanged behavior)</td></tr>
+      <tr><td><code>0</code></td><td><code>NotSupportedError</code> from the constructor</td></tr>
+      <tr><td><code>Infinity</code></td><td><strong>Not</strong> indefinite: WebIDL converts it to <code>0</code> for an <code>unsigned long</code>, so the constructor throws <code>NotSupportedError</code>. The explainer&rsquo;s <code>length: Infinity</code> sketch predates the shipped design.</td></tr>
+    </table>
+    </div>
+    <h3 id="exceptions">Constructor exceptions for length</h3>
+    <ul>
+      <li><code>NotSupportedError</code> &mdash; <code>length</code> is 0 after conversion (Chromium: &ldquo;number of frames&rdquo; below the minimum bound of 1), plus the existing channel-count, <code>sampleRate</code> and <code>renderSizeHint</code> range checks.</li>
+      <li><code>InvalidStateError</code> &mdash; the document is not fully active.</li>
+      <li><code>TypeError</code> &mdash; omitting <code>length</code> where the feature is unavailable: Web Audio 1.0 engines treat it as a required dictionary member, and Chromium with the flag off throws &ldquo;Required member is undefined.&rdquo; This doubles as a construction-time feature check.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://webaudio.github.io/web-audio-api/#dom-offlineaudiocontextoptions-length" target="_blank" rel="noopener">OfflineAudioContextOptions.length</a>; <code>OfflineAudioContext::Create</code> and <code>CreateOfflineAudioContext</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webaudio/offline_audio_context.cc" target="_blank" rel="noopener">Chromium offline_audio_context.cc</a>; <a href="https://webidl.spec.whatwg.org/#abstract-opdef-converttoint" target="_blank" rel="noopener">WebIDL ConvertToInt</a> (&plusmn;&infin; and NaN become +0); <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/OfflineAudioContext/explainer.md" target="_blank" rel="noopener">explainer</a></span>
+  </section>
+
+  <section>
+    <h2 id="length-attribute">Offline<wbr>Audio<wbr>Context<wbr>.length</h2>
+    <h3 id="return-value">Value</h3>
+    <p><code>readonly attribute unsigned long? length</code>. Returns the <code>length</code> passed at construction, or <code>null</code> for an indefinite-length context (&ldquo;For undefined-length rendering, this attribute SHOULD be set to null&rdquo;). It never changes as chunks render &mdash; WPT checks that <code>ctx.length</code> stays <code>null</code> after a chunk and stays the requested number after a finite render closes &mdash; so <code>ctx.length === null</code> is the reliable way to branch between the two modes. The attribute is read-only and takes no input: assigning to <code>ctx.length</code> is silently ignored in sloppy mode and throws a <code>TypeError</code> in strict-mode code (standard WebIDL readonly-attribute behavior). Reading <code>ctx.length</code> never throws, in any context state, including after <code>close()</code>.</p>
+    <span class="citation">Source: <a href="https://webaudio.github.io/web-audio-api/#dom-offlineaudiocontext-length" target="_blank" rel="noopener">OfflineAudioContext.length</a>; <a href="https://wpt.fyi/results/webaudio/the-audio-api/the-offlineaudiocontext-interface/offlineaudiocontext-incremental-rendering.html" target="_blank" rel="noopener">WPT offlineaudiocontext-incremental-rendering.html</a></span>
+  </section>
+
+  <section>
+    <h2 id="requirements">Requirements and context</h2>
+    <ul>
+      <li><code>OfflineAudioContext</code> is <code>[Exposed=Window]</code>; Chromium refuses to construct it in workers.</li>
+      <li>No permission, user activation or secure context.</li>
+      <li>Chrome 158+: constructing without <code>length</code> is allowed only when <code>OfflineAudioContextIncrementalRendering</code> is enabled (<code>stable</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>).</li>
+    </ul>
+    <span class="citation">Source: <a href="https://webaudio.github.io/web-audio-api/#OfflineAudioContext" target="_blank" rel="noopener">Web Audio API 1.1 &sect;1.3</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webaudio/offline_audio_context.cc" target="_blank" rel="noopener">Chromium offline_audio_context.cc</a></span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">Lifecycle: how an indefinite context differs</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="mode-diff">
+    <table class="doc-table">
+      <caption id="mode-diff">Finite vs indefinite length behavior</caption>
+      <thead><tr><th scope="col">Behavior</th><th scope="col">Finite <code>length</code></th><th scope="col"><code>length: null</code></th></tr></thead>
+      <tr><td><code>startRendering()</code> with no <code>chunkSize</code></td><td>All remaining frames</td><td>One render quantum (128 frames by default)</td></tr>
+      <tr><td>Upper bound on calls</td><td>Rejects (<code>InvalidStateError</code>) once every frame is committed</td><td>None</td></tr>
+      <tr><td>Ends</td><td>Automatically after the last chunk</td><td>Only via <code>close()</code></td></tr>
+      <tr><td><code>complete</code> event</td><td>Once, after the last chunk (Chromium)</td><td>Never</td></tr>
+      <tr><td><code>suspend(t)</code> range</td><td>Must be before the total render duration</td><td>No upper bound (Chromium skips the duration check)</td></tr>
+    </table>
+    </div>
+    <p>Nothing is pre-allocated for an indefinite context; rendering is pull-based and only advances by the chunks you request. Remember to <code>close()</code> it when finished.</p>
+    <span class="citation">Source: <a href="https://webaudio.github.io/web-audio-api/#dom-offlineaudiocontext-startrendering" target="_blank" rel="noopener">startRendering(chunkSize) algorithm</a>; <a href="https://webaudio.github.io/web-audio-api/#dom-offlineaudiocontext-suspend" target="_blank" rel="noopener">suspend()</a>; <code>CalculateEffectiveChunkSize</code>, <code>suspendContext</code> and <code>IsRenderComplete</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webaudio/offline_audio_context.cc" target="_blank" rel="noopener">Chromium offline_audio_context.cc</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+    <h3 id="example-until-silence">Render until the output goes silent (length: null)</h3>
+<pre tabindex="0"><code>const ctx = new OfflineAudioContext({ numberOfChannels: 1, sampleRate: 48000 });
+console.log(ctx.length); // null: no fixed length
+const src = new AudioBufferSourceNode(ctx, { buffer: impulse });
+const reverb = new ConvolverNode(ctx, { buffer: roomResponse });
+src.connect(reverb).connect(ctx.destination);
+src.start();
+
+const chunks = [];
+for (;;) {
+  const chunk = await ctx.startRendering(4800); // 4864 frames: rounded up to a multiple of 128
+  chunks.push(chunk);
+  const peak = Math.max(...chunk.getChannelData(0).map(Math.abs));
+  if (peak &lt; 1e-4) break; // tail has decayed
+}
+await ctx.close();</code></pre>
+    <h3 id="example-detect">Detecting indefinite-length support at construction</h3>
+<pre tabindex="0"><code>function makeOpenEndedContext(sampleRate) {
+  try {
+    const ctx = new OfflineAudioContext({ sampleRate }); // no length
+    if (ctx.length === null) return ctx;
+  } catch (e) {
+    // TypeError: this engine still requires OfflineAudioContextOptions.length
+  }
+  return null; // fall back to a fixed-length render
+}</code></pre>
+    <span class="citation">Source: gendn-derived from <a href="https://webaudio.github.io/web-audio-api/#dom-offlineaudiocontextoptions-length" target="_blank" rel="noopener">OfflineAudioContextOptions.length</a> and <a href="https://webaudio.github.io/web-audio-api/#dom-offlineaudiocontext-length" target="_blank" rel="noopener">OfflineAudioContext.length</a>; behaviour checked against <a href="https://wpt.fyi/results/webaudio/the-audio-api/the-offlineaudiocontext-interface/offlineaudiocontext-incremental-rendering.html" target="_blank" rel="noopener">WPT incremental-rendering</a></span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-len">
+    <table class="doc-table">
+      <caption id="compat-len">Nullable length support</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col"><code>length: null</code> / omitted</th><th scope="col">Notes</th></tr></thead>
+      <tr><td>Chrome / Chrome Android / WebView</td><td>158</td><td>Interim: ChromeStatus; BCD has <code>options_parameter</code> but no nullable-length sub-feature (checked 2026-11-22)</td></tr>
+      <tr><td>Edge</td><td>Unknown</td><td>Chromium-based; not separately recorded</td></tr>
+      <tr><td>Firefox</td><td>No</td><td>Not implemented per webstatus.dev; a missing <code>length</code> is expected to throw <code>TypeError</code> (required in the Web Audio 1.0 IDL) &mdash; not separately tested here</td></tr>
+      <tr><td>Safari</td><td>No</td><td>Not implemented per webstatus.dev; a missing <code>length</code> is expected to throw <code>TypeError</code> (required in the Web Audio 1.0 IDL) &mdash; not separately tested here</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/OfflineAudioContext.json" target="_blank" rel="noopener">BCD api/OfflineAudioContext.json</a>; <a href="https://chromestatus.com/api/v0/features/5109900936085504" target="_blank" rel="noopener">ChromeStatus API record</a>; <a href="https://api.webstatus.dev/v1/features/offline-audio-context-incremental-rendering" target="_blank" rel="noopener">webstatus.dev</a> (Firefox/Safari not implemented)</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <p>An indefinite context adds no new data exposure or permission. Because it is pull-based, an open-ended render cannot allocate or run ahead on its own: memory use is bounded by the chunks the page has requested and not yet released. The remaining cost &mdash; a rendering thread kept alive &mdash; ends with <code>close()</code>. The Web Audio <a href="https://webaudio.github.io/web-audio-api/#privacy-considerations" target="_blank" rel="noopener">privacy considerations</a> apply unchanged.</p>
+    <span class="citation">Source: <a href="https://webaudio.github.io/web-audio-api/#dom-offlineaudiocontext-startrendering" target="_blank" rel="noopener">startRendering(chunkSize)</a>; <a href="https://webaudio.github.io/web-audio-api/#privacy-considerations" target="_blank" rel="noopener">Web Audio API 1.1 &sect;8</a></span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <p><a href="https://webaudio.github.io/web-audio-api/#dom-offlineaudiocontextoptions-length" target="_blank" rel="noopener">Web Audio API 1.1 &mdash; <code>OfflineAudioContextOptions.length</code></a> &middot; <a href="https://webaudio.github.io/web-audio-api/#dom-offlineaudiocontext-length" target="_blank" rel="noopener"><code>OfflineAudioContext.length</code></a>, changed by <a href="https://github.com/WebAudio/web-audio-api/pull/2675" target="_blank" rel="noopener">WebAudio/web-audio-api#2675</a>. Tracking: <a href="https://chromestatus.com/feature/5109900936085504" target="_blank" rel="noopener">ChromeStatus 5109900936085504</a>.</p>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

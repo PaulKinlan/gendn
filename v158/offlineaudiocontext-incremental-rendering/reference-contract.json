@@ -1,0 +1,557 @@
+{
+  "schemaVersion": 1,
+  "id": "v158/offlineaudiocontext-incremental-rendering",
+  "route": "/v158/offlineaudiocontext-incremental-rendering/",
+  "kind": "web-api",
+  "completeness": "implementation-sufficient",
+  "assessedAt": "2026-11-22",
+  "assessor": "gendn leaf-reference writer self-assessment (primary sources fetched 2026-11-22: Web Audio 1.1 ED IDL + algorithms, Chromium IDL/impl, WPT); independent primary-source review remains an integrator obligation",
+  "sources": [
+    {
+      "id": "spec-start-rendering",
+      "label": "Web Audio API 1.1 §1.3.3 — startRendering(chunkSize) IDL, argument table and algorithm",
+      "url": "https://webaudio.github.io/web-audio-api/#dom-offlineaudiocontext-startrendering",
+      "kind": "normative-spec"
+    },
+    {
+      "id": "spec-oac",
+      "label": "Web Audio API 1.1 §1.3 — OfflineAudioContext interface IDL ([Exposed=Window])",
+      "url": "https://webaudio.github.io/web-audio-api/#OfflineAudioContext",
+      "kind": "web-idl"
+    },
+    {
+      "id": "spec-close",
+      "label": "Web Audio API 1.1 §1.3.3 — OfflineAudioContext.close() algorithm",
+      "url": "https://webaudio.github.io/web-audio-api/#dom-offlineaudiocontext-close",
+      "kind": "normative-spec"
+    },
+    {
+      "id": "spec-options-length",
+      "label": "Web Audio API 1.1 §1.3.4 — OfflineAudioContextOptions.length (unsigned long?, default null)",
+      "url": "https://webaudio.github.io/web-audio-api/#dom-offlineaudiocontextoptions-length",
+      "kind": "normative-spec"
+    },
+    {
+      "id": "spec-length-attr",
+      "label": "Web Audio API 1.1 §1.3.2 — OfflineAudioContext.length (nullable)",
+      "url": "https://webaudio.github.io/web-audio-api/#dom-offlineaudiocontext-length",
+      "kind": "normative-spec"
+    },
+    {
+      "id": "spec-suspend",
+      "label": "Web Audio API 1.1 — OfflineAudioContext.suspend()",
+      "url": "https://webaudio.github.io/web-audio-api/#dom-offlineaudiocontext-suspend",
+      "kind": "normative-spec"
+    },
+    {
+      "id": "spec-resume",
+      "label": "Web Audio API 1.1 — OfflineAudioContext.resume()",
+      "url": "https://webaudio.github.io/web-audio-api/#dom-offlineaudiocontext-resume",
+      "kind": "normative-spec"
+    },
+    {
+      "id": "spec-rq",
+      "label": "Web Audio API 1.1 — render quantum size",
+      "url": "https://webaudio.github.io/web-audio-api/#render-quantum-size",
+      "kind": "normative-spec"
+    },
+    {
+      "id": "spec-privacy",
+      "label": "Web Audio API 1.1 §8 — Privacy Considerations",
+      "url": "https://webaudio.github.io/web-audio-api/#privacy-considerations",
+      "kind": "normative-spec"
+    },
+    {
+      "id": "spec-1-0-options",
+      "label": "Web Audio API 1.0 (W3C Recommendation) — OfflineAudioContextOptions with required length",
+      "url": "https://www.w3.org/TR/webaudio-1.0/#dictdef-offlineaudiocontextoptions",
+      "kind": "normative-spec"
+    },
+    {
+      "id": "spec-pr",
+      "label": "WebAudio/web-audio-api PR #2675 — OfflineAudioContext Incremental Rendering",
+      "url": "https://github.com/WebAudio/web-audio-api/pull/2675",
+      "kind": "normative-spec"
+    },
+    {
+      "id": "webidl-convert",
+      "label": "WebIDL — ConvertToInt (unsigned long conversion: NaN/±Infinity become +0, modulo wrap)",
+      "url": "https://webidl.spec.whatwg.org/#abstract-opdef-converttoint",
+      "kind": "normative-spec"
+    },
+    {
+      "id": "explainer",
+      "label": "MSEdgeExplainers — WebAudio OfflineAudioContext incremental rendering explainer",
+      "url": "https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/OfflineAudioContext/explainer.md",
+      "kind": "explainer"
+    },
+    {
+      "id": "chromium-idl",
+      "label": "Chromium offline_audio_context.idl (startRendering overloads, close(), nullable length, runtime flag)",
+      "url": "https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webaudio/offline_audio_context.idl",
+      "kind": "implementation"
+    },
+    {
+      "id": "chromium-options-idl",
+      "label": "Chromium offline_audio_context_options.idl",
+      "url": "https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webaudio/offline_audio_context_options.idl",
+      "kind": "implementation"
+    },
+    {
+      "id": "chromium-impl",
+      "label": "Chromium offline_audio_context.cc (CalculateEffectiveChunkSize, startOfflineRendering, closeContext, OnChunkRendered, error messages)",
+      "url": "https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webaudio/offline_audio_context.cc",
+      "kind": "implementation"
+    },
+    {
+      "id": "flag",
+      "label": "Blink runtime_enabled_features.json5 — OfflineAudioContextIncrementalRendering: stable",
+      "url": "https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5",
+      "kind": "implementation"
+    },
+    {
+      "id": "wpt-incremental",
+      "label": "WPT offlineaudiocontext-incremental-rendering.html",
+      "url": "https://wpt.fyi/results/webaudio/the-audio-api/the-offlineaudiocontext-interface/offlineaudiocontext-incremental-rendering.html",
+      "kind": "test"
+    },
+    {
+      "id": "wpt-close",
+      "label": "WPT offlineaudiocontext-close.html",
+      "url": "https://wpt.fyi/results/webaudio/the-audio-api/the-offlineaudiocontext-interface/offlineaudiocontext-close.html",
+      "kind": "test"
+    },
+    {
+      "id": "bcd",
+      "label": "mdn/browser-compat-data api/OfflineAudioContext.json (close: Chrome 158)",
+      "url": "https://github.com/mdn/browser-compat-data/blob/main/api/OfflineAudioContext.json",
+      "kind": "browser-data"
+    },
+    {
+      "id": "webstatus",
+      "label": "webstatus.dev API — offline-audio-context-incremental-rendering (Baseline limited, Chrome 158)",
+      "url": "https://api.webstatus.dev/v1/features/offline-audio-context-incremental-rendering",
+      "kind": "browser-data"
+    },
+    {
+      "id": "chromestatus-api",
+      "label": "ChromeStatus API record 5109900936085504",
+      "url": "https://chromestatus.com/api/v0/features/5109900936085504",
+      "kind": "browser-data"
+    }
+  ],
+  "inventory": [
+    {
+      "id": "start-rendering",
+      "name": "OfflineAudioContext.startRendering(chunkSize)",
+      "kind": "method",
+      "sourceRefs": [
+        "spec-start-rendering",
+        "spec-pr",
+        "chromium-idl",
+        "chromium-impl",
+        "wpt-incremental"
+      ],
+      "surfaceMarkers": [
+        "startRendering",
+        "chunkSize"
+      ]
+    },
+    {
+      "id": "close",
+      "name": "OfflineAudioContext.close()",
+      "kind": "method",
+      "sourceRefs": [
+        "spec-close",
+        "spec-pr",
+        "chromium-idl",
+        "wpt-close"
+      ],
+      "surfaceMarkers": [
+        "close"
+      ]
+    },
+    {
+      "id": "options-length",
+      "name": "OfflineAudioContextOptions.length (unsigned long?, default null)",
+      "kind": "field",
+      "sourceRefs": [
+        "spec-options-length",
+        "spec-pr",
+        "chromium-options-idl",
+        "chromium-impl"
+      ],
+      "surfaceMarkers": [
+        "length"
+      ]
+    },
+    {
+      "id": "length-attribute",
+      "name": "OfflineAudioContext.length (readonly unsigned long?)",
+      "kind": "property",
+      "sourceRefs": [
+        "spec-length-attr",
+        "chromium-idl",
+        "wpt-incremental"
+      ],
+      "surfaceMarkers": [
+        "ctx.length"
+      ]
+    }
+  ],
+  "documentation": [
+    {
+      "inventoryId": "start-rendering",
+      "href": "start-rendering/",
+      "dimensions": {
+        "syntax": {
+          "status": "documented",
+          "selector": "#syntax",
+          "sourceRefs": [
+            "spec-start-rendering",
+            "chromium-idl"
+          ]
+        },
+        "inputs": {
+          "status": "documented",
+          "selector": "#parameters",
+          "sourceRefs": [
+            "spec-start-rendering",
+            "spec-rq",
+            "chromium-impl",
+            "wpt-incremental",
+            "webidl-convert"
+          ]
+        },
+        "outputs": {
+          "status": "documented",
+          "selector": "#return-value",
+          "sourceRefs": [
+            "spec-start-rendering",
+            "wpt-incremental"
+          ]
+        },
+        "errors": {
+          "status": "documented",
+          "selector": "#exceptions",
+          "sourceRefs": [
+            "spec-start-rendering",
+            "chromium-impl",
+            "wpt-close"
+          ]
+        },
+        "context": {
+          "status": "documented",
+          "selector": "#requirements",
+          "sourceRefs": [
+            "spec-oac",
+            "chromium-impl",
+            "flag",
+            "explainer"
+          ]
+        },
+        "lifecycle": {
+          "status": "documented",
+          "selector": "#lifecycle",
+          "sourceRefs": [
+            "spec-start-rendering",
+            "chromium-impl",
+            "wpt-incremental"
+          ]
+        },
+        "examples": {
+          "status": "documented",
+          "selector": "#example-chunks",
+          "sourceRefs": [
+            "spec-start-rendering",
+            "wpt-incremental"
+          ]
+        },
+        "compatibility": {
+          "status": "documented",
+          "selector": "#compatibility",
+          "sourceRefs": [
+            "chromestatus-api",
+            "bcd",
+            "webstatus"
+          ]
+        },
+        "securityPrivacy": {
+          "status": "documented",
+          "selector": "#security-and-privacy",
+          "sourceRefs": [
+            "spec-privacy",
+            "explainer"
+          ]
+        }
+      }
+    },
+    {
+      "inventoryId": "close",
+      "href": "close/",
+      "dimensions": {
+        "syntax": {
+          "status": "documented",
+          "selector": "#syntax",
+          "sourceRefs": [
+            "spec-close",
+            "chromium-idl"
+          ]
+        },
+        "inputs": {
+          "status": "documented",
+          "selector": "#parameters",
+          "sourceRefs": [
+            "spec-close"
+          ]
+        },
+        "outputs": {
+          "status": "documented",
+          "selector": "#return-value",
+          "sourceRefs": [
+            "spec-close",
+            "chromium-impl",
+            "wpt-close"
+          ]
+        },
+        "errors": {
+          "status": "documented",
+          "selector": "#exceptions",
+          "sourceRefs": [
+            "spec-close",
+            "chromium-impl",
+            "wpt-close"
+          ]
+        },
+        "context": {
+          "status": "documented",
+          "selector": "#requirements",
+          "sourceRefs": [
+            "spec-oac",
+            "wpt-close",
+            "flag"
+          ]
+        },
+        "lifecycle": {
+          "status": "documented",
+          "selector": "#lifecycle",
+          "sourceRefs": [
+            "spec-close",
+            "spec-resume",
+            "spec-suspend"
+          ]
+        },
+        "examples": {
+          "status": "documented",
+          "selector": "#example-stop",
+          "sourceRefs": [
+            "spec-close",
+            "wpt-close"
+          ]
+        },
+        "compatibility": {
+          "status": "documented",
+          "selector": "#compatibility",
+          "sourceRefs": [
+            "bcd",
+            "webstatus"
+          ]
+        },
+        "securityPrivacy": {
+          "status": "documented",
+          "selector": "#security-and-privacy",
+          "sourceRefs": [
+            "spec-close",
+            "spec-privacy"
+          ]
+        }
+      }
+    },
+    {
+      "inventoryId": "options-length",
+      "href": "indefinite-length/",
+      "dimensions": {
+        "syntax": {
+          "status": "documented",
+          "selector": "#syntax",
+          "sourceRefs": [
+            "spec-options-length",
+            "spec-1-0-options",
+            "chromium-options-idl"
+          ]
+        },
+        "inputs": {
+          "status": "documented",
+          "selector": "#parameters",
+          "sourceRefs": [
+            "spec-options-length",
+            "chromium-impl",
+            "webidl-convert",
+            "explainer"
+          ]
+        },
+        "outputs": {
+          "status": "documented",
+          "selector": "#parameters",
+          "sourceRefs": [
+            "spec-options-length",
+            "chromium-impl"
+          ]
+        },
+        "errors": {
+          "status": "documented",
+          "selector": "#exceptions",
+          "sourceRefs": [
+            "spec-options-length",
+            "chromium-impl",
+            "webidl-convert"
+          ]
+        },
+        "context": {
+          "status": "documented",
+          "selector": "#requirements",
+          "sourceRefs": [
+            "spec-oac",
+            "chromium-impl",
+            "flag"
+          ]
+        },
+        "lifecycle": {
+          "status": "documented",
+          "selector": "#lifecycle",
+          "sourceRefs": [
+            "spec-start-rendering",
+            "spec-suspend",
+            "chromium-impl"
+          ]
+        },
+        "examples": {
+          "status": "documented",
+          "selector": "#example-until-silence",
+          "sourceRefs": [
+            "spec-options-length",
+            "wpt-incremental"
+          ]
+        },
+        "compatibility": {
+          "status": "documented",
+          "selector": "#compatibility",
+          "sourceRefs": [
+            "bcd",
+            "chromestatus-api",
+            "webstatus"
+          ]
+        },
+        "securityPrivacy": {
+          "status": "documented",
+          "selector": "#security-and-privacy",
+          "sourceRefs": [
+            "spec-start-rendering",
+            "spec-privacy"
+          ]
+        }
+      }
+    },
+    {
+      "inventoryId": "length-attribute",
+      "href": "indefinite-length/",
+      "dimensions": {
+        "syntax": {
+          "status": "documented",
+          "selector": "#syntax",
+          "sourceRefs": [
+            "spec-length-attr"
+          ]
+        },
+        "inputs": {
+          "status": "documented",
+          "selector": "#return-value",
+          "sourceRefs": [
+            "spec-length-attr"
+          ]
+        },
+        "outputs": {
+          "status": "documented",
+          "selector": "#return-value",
+          "sourceRefs": [
+            "spec-length-attr",
+            "wpt-incremental"
+          ]
+        },
+        "errors": {
+          "status": "documented",
+          "selector": "#return-value",
+          "sourceRefs": [
+            "spec-length-attr"
+          ]
+        },
+        "context": {
+          "status": "documented",
+          "selector": "#requirements",
+          "sourceRefs": [
+            "spec-oac",
+            "flag"
+          ]
+        },
+        "lifecycle": {
+          "status": "documented",
+          "selector": "#return-value",
+          "sourceRefs": [
+            "spec-length-attr",
+            "wpt-incremental"
+          ]
+        },
+        "examples": {
+          "status": "documented",
+          "selector": "#example-until-silence",
+          "sourceRefs": [
+            "spec-length-attr",
+            "wpt-incremental"
+          ]
+        },
+        "compatibility": {
+          "status": "documented",
+          "selector": "#compatibility",
+          "sourceRefs": [
+            "bcd",
+            "chromestatus-api",
+            "webstatus"
+          ]
+        },
+        "securityPrivacy": {
+          "status": "documented",
+          "selector": "#security-and-privacy",
+          "sourceRefs": [
+            "spec-privacy"
+          ]
+        }
+      }
+    }
+  ],
+  "outOfScope": [
+    {
+      "name": "numberOfChannels",
+      "rationale": "Pre-existing Web Audio 1.0 OfflineAudioContextOptions member (and constructor argument) quoted as IDL context; PR #2675 and the Chromium flag do not change it. MDN documents it under the OfflineAudioContext() constructor."
+    },
+    {
+      "name": "sampleRate",
+      "rationale": "Pre-existing required OfflineAudioContextOptions member / constructor argument quoted as context; unchanged by incremental rendering. MDN documents it under the OfflineAudioContext() constructor."
+    },
+    {
+      "name": "renderSizeHint",
+      "rationale": "Belongs to the separate configurable render quantum feature (Chromium flag WebAudioConfigurableRenderQuantum, BCD options_renderSizeHint_parameter); quoted because it sets the render quantum that chunkSize rounds to, which start-rendering/#parameters explains."
+    },
+    {
+      "name": "resume",
+      "rationale": "Pre-existing OfflineAudioContext.resume() (Web Audio 1.0, documented on MDN); its IDL is unchanged. Its interaction with chunked rendering is documented in start-rendering/#lifecycle and close/#lifecycle."
+    },
+    {
+      "name": "suspend",
+      "rationale": "Pre-existing OfflineAudioContext.suspend() (Web Audio 1.0, documented on MDN); IDL unchanged. Chunk-boundary suspend behavior and the indefinite-length duration check are documented in start-rendering/#lifecycle and indefinite-length/#lifecycle."
+    },
+    {
+      "name": "oncomplete",
+      "rationale": "Pre-existing legacy event handler (Web Audio 1.0, documented on MDN); IDL unchanged. Its chunked-mode timing (fires once with the final chunk in Chromium; never for null length or after close) is documented in start-rendering/#complete-event."
+    }
+  ]
+}
