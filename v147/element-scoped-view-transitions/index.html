@@ -17,6 +17,15 @@
        body overflow-x:hidden would otherwise CLIP them silently (the scan's scrollWidth
        check cannot see a clipped overflow). Scoped to stub pages. */
     h1, code { overflow-wrap: anywhere; }
+    .compat-table { min-width: 30rem; }
+    .compat-table caption { text-align: left; }
+    .compat-table th:nth-child(-n+2), .compat-table td:nth-child(-n+2) { white-space: nowrap; }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    .example-embed { margin: 1.5rem 0; }
+    .example-embed iframe { border: 2px solid var(--border-black); width: 100%; }
+    .example-embed figcaption { font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem; }
   </style>
 </head>
 <body>
@@ -26,6 +35,17 @@
   <header class="lede-block">
     <p class="eyebrow">v147 · web api · covered on mdn</p>
     <h1>Element-scoped view transitions</h1>
+
+    <div class="baseline-banner" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 147</li>
+        <li>Edge &middot; 147</li>
+        <li class="limited">Firefox &middot; no support</li>
+        <li class="limited">Safari &middot; no support</li>
+      </ul>
+      <p>The <a href="https://webstatus.dev/features/view-transitions-element-scoped" target="_blank" rel="noopener">view-transitions-element-scoped web-feature</a> is <strong>Limited availability</strong> on <a href="https://api.webstatus.dev/v1/features?q=view-transitions" target="_blank" rel="noopener">webstatus.dev</a> (implemented in Chrome, Chrome Android and Edge 147; no Baseline date; verified 2026-11-22). <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Element.json" target="_blank" rel="noopener">BCD <code>api/Element.json</code></a> records <code>startViewTransition</code> and <code>activeViewTransition</code> in Chrome&nbsp;147 (Edge and Chrome Android mirror), Firefox and Safari <code>false</code>, and marks both <em>experimental</em>. Document-level view transitions are a separate, Baseline Newly available feature &mdash; that status does not extend to the element-scoped method.</p>
+    </div>
     <p class="lede">Call <code>element.startViewTransition()</code> on any HTML element to run a view transition scoped to that subtree, rather than the entire document. Multiple element-scoped transitions can run concurrently, nested transitions work naturally, and position-fixed content outside the scope stays interactive throughout.</p>
   </header>
 
@@ -40,6 +60,51 @@
   </section>
 
   <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>From the <a href="https://drafts.csswg.org/css-view-transitions-2/#scoped-vt" target="_blank" rel="noopener">CSS View Transitions Level&nbsp;2 editor&rsquo;s draft</a>, quoted verbatim (fetched 2026-11-22). The element method takes the same argument as the document method:</p>
+    <pre><code>partial interface Element {
+  ViewTransition startViewTransition(
+    optional (ViewTransitionUpdateCallback or StartViewTransitionOptions) callbackOptions = {}
+  );
+  readonly attribute ViewTransition? activeViewTransition;
+};
+
+callback ViewTransitionUpdateCallback = Promise&lt;any&gt; ();
+
+dictionary StartViewTransitionOptions {
+  ViewTransitionUpdateCallback? update = null;
+  sequence&lt;DOMString&gt;? types = null;
+};</code></pre>
+    <p>The returned <code>ViewTransition</code> gains a <code>transitionRoot</code> attribute (the element the transition is scoped to) in the same draft. MDN&rsquo;s <a href="https://developer.mozilla.org/en-US/docs/Web/API/Element/startViewTransition" target="_blank" rel="noopener">Element.startViewTransition()</a> page documents parameters, return value and exceptions.</p>
+    <span class="citation">Source: <a href="https://drafts.csswg.org/css-view-transitions-2/#dom-element-startviewtransition" target="_blank" rel="noopener">css-view-transitions-2 &sect;Element.startViewTransition()</a>, <a href="https://drafts.csswg.org/css-view-transitions-2/#dom-element-activeviewtransition" target="_blank" rel="noopener">&sect;activeViewTransition</a> and <a href="https://drafts.csswg.org/css-view-transitions-2/#dom-viewtransition-transitionroot" target="_blank" rel="noopener">&sect;transitionRoot</a> (fetched 2026-11-22).</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+    <p>Live demo from the <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/element-scoped-view-transitions/" target="_blank" rel="noopener">chrome-platform-showcase &mdash; Element-scoped view transitions</a> (feature index, five concepts). The embed below is its FAQ Accordion concept: each item runs its own element-scoped transition, so opening two quickly animates both at once.</p>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/element-scoped-view-transitions/accordion/"
+        title="Live example — element-scoped view transitions FAQ accordion" loading="lazy" height="520"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase (<a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/element-scoped-view-transitions/accordion/" target="_blank" rel="noopener">accordion concept</a>, HTTP&nbsp;200 verified 2026-11-22; Chrome&nbsp;147+ for the scoped transitions, other browsers get the demo&rsquo;s non-animated fallback).<span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/element-scoped-view-transitions/" target="_blank" rel="noopener">chrome-platform-showcase — element-scoped-view-transitions</a></span></figcaption>
+    </figure>
+    <pre><code>const panel = document.querySelector('#panel');
+
+if ('startViewTransition' in Element.prototype) {
+  // Only #panel's subtree takes part; the rest of the page stays interactive.
+  const transition = panel.startViewTransition({
+    update: () =&gt; updatePanel(panel),
+    types: ['panel-swap'],
+  });
+  console.log(transition.transitionRoot === panel); // true
+  await transition.finished;
+} else {
+  updatePanel(panel);
+}</code></pre>
+    <span class="citation">Source: IDL from <a href="https://drafts.csswg.org/css-view-transitions-2/#dom-element-startviewtransition" target="_blank" rel="noopener">css-view-transitions-2</a>; feature detection per <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Element.json" target="_blank" rel="noopener">BCD api/Element.json</a> (method absent outside Chromium 147+).</span>
+  </section>
+
+  <section>
     <h2>quick reference</h2>
     <table class="doc-table">
       <tr><th>Chrome 147+</th><td>Enabled by default</td></tr>
@@ -50,7 +115,47 @@
       <tr><th>Live demo</th><td><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/element-scoped-view-transitions/" target="_blank" rel="noopener">chrome-platform-showcase — live demo</a></td></tr>
       <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5109852273377280" target="_blank" rel="noopener">5109852273377280 — Element-scoped view transitions</a></td></tr>
     </table>
-    <span class="citation">Source: <a href="https://chromestatus.com/feature/5109852273377280" target="_blank" rel="noopener">chromestatus.com/feature/5109852273377280</a>; MDN, October 2026.</span>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5109852273377280" target="_blank" rel="noopener">chromestatus.com/feature/5109852273377280</a>; <a href="https://developer.mozilla.org/en-US/docs/Web/API/Element/startViewTransition" target="_blank" rel="noopener">MDN</a>, October 2026.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Per-version support &mdash; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Element.json" target="_blank" rel="noopener">BCD api/Element.json</a> (<a href="https://raw.githubusercontent.com/mdn/browser-compat-data/main/api/Element.json" target="_blank" rel="noopener">raw</a>, fetched 2026-11-22)</caption>
+      <thead><tr><th>Browser</th><th><code>startViewTransition()</code></th><th><code>activeViewTransition</code></th></tr></thead>
+      <tbody>
+      <tr><td>Chrome</td><td>147</td><td>147</td></tr>
+      <tr><td>Chrome Android</td><td>147 (mirror)</td><td>147 (mirror)</td></tr>
+      <tr><td>Edge</td><td>147 (mirror)</td><td>147 (mirror)</td></tr>
+      <tr><td>Firefox</td><td>No support</td><td>No support</td></tr>
+      <tr><td>Safari</td><td>No support</td><td>No support</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Element.json" target="_blank" rel="noopener">BCD api/Element.json</a> (both entries flagged experimental); <a href="https://webstatus.dev/features/view-transitions-element-scoped" target="_blank" rel="noopener">webstatus.dev — Element-scoped view transitions (Limited availability)</a>; standards positions &ldquo;No signal&rdquo; per the <a href="https://chromestatus.com/feature/5109852273377280" target="_blank" rel="noopener">ChromeStatus record</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Specification</th><th>Section</th></tr></thead>
+      <tbody>
+      <tr><td><a href="https://drafts.csswg.org/css-view-transitions-2/" target="_blank" rel="noopener">CSS View Transitions Module Level 2 (editor&rsquo;s draft)</a></td><td><a href="https://drafts.csswg.org/css-view-transitions-2/#scoped-vt" target="_blank" rel="noopener">&sect; Scoped view transitions</a> &middot; <a href="https://drafts.csswg.org/css-view-transitions-2/#dom-element-startviewtransition" target="_blank" rel="noopener">&sect; Element.startViewTransition()</a></td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>see also</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Element/startViewTransition" target="_blank" rel="noopener">MDN — Element.startViewTransition()</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Element/activeViewTransition" target="_blank" rel="noopener">MDN — Element.activeViewTransition</a></li>
+      <li><a href="https://chromestatus.com/feature/5109852273377280" target="_blank" rel="noopener">chromestatus — Element-scoped view transitions (5109852273377280)</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/element-scoped-view-transitions/" target="_blank" rel="noopener">chrome-platform-showcase — Element-scoped view transitions demos</a></li>
+    </ul>
   </section>
 
   <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
