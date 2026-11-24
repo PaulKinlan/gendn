@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PredefinedColorSpace srgb-linear and display-p3-linear — Chrome 155 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code, figcaption code { overflow-wrap: anywhere; }
+    .table-wrap { max-inline-size: 100%; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    .example-embed { margin: 1.5rem 0; }
+    .example-embed iframe { max-width: 100%; }
+    .example-embed figcaption { font-size: 0.85rem; margin-top: 0.4rem; }
+    .doc-table { margin: 1rem 0; font-size: 0.85rem; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table th[scope="row"] { overflow-wrap: normal; white-space: nowrap; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    blockquote.spec-quote { margin: 1rem 0; padding: 0.75rem 1rem; border-left: 4px solid var(--border-black); background: var(--bg-stone); font-size: 0.92rem; }
+    blockquote.spec-quote p { margin: 0 0 0.5rem; }
+    blockquote.spec-quote p:last-child { margin-bottom: 0; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v155/">&larr; Chrome 155 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v155 &middot; miscellaneous &middot; enabled by default</p>
+    <h1>PredefinedColorSpace srgb-linear and display-p3-linear</h1>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; the linear color spaces are new in Chrome 155</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 155 (desktop, Android, WebView)</li>
+        <li>Edge &middot; Chromium-based; no own record yet</li>
+        <li class="limited">Firefox &middot; no signal (no canvas colorSpace at all)</li>
+        <li>Safari &middot; implemented in WebKit; release not recorded</li>
+      </ul>
+      <p>ChromeStatus maps this change to the <a href="https://api.webstatus.dev/v1/features/canvas-2d-color-management" target="_blank" rel="noopener"><code>canvas-2d-color-management</code> web feature</a>, which is itself only <strong>Limited availability</strong> (queried 2026-10-11): canvas color management shipped in Chrome 92 and Safari 15.2, but Firefox has never shipped the <code>colorSpace</code> setting. The two <em>linear</em> values documented here are newer still &mdash; Chrome ships them in 155, WebKit &ldquo;suggested [the feature and has] already implemented&rdquo; it per the <a href="https://www.mail-archive.com/blink-dev@chromium.org/msg17379.html" target="_blank" rel="noopener">Intent to Ship</a>, with no shipping Safari version recorded in the sources read, and Mozilla&rsquo;s position is <a href="https://github.com/mozilla/standards-positions/issues/1453" target="_blank" rel="noopener">no signal</a>. Feature-detect before relying on them; see <a href="#examples">examples</a>.</p>
+    </div>
+
+    <p class="lede">From Chrome 155, the <code>PredefinedColorSpace</code> enum used by canvas APIs accepts two additional values defined by CSS Color 4: <code>"srgb-linear"</code> and <code>"display-p3-linear"</code>. They give a 2D canvas (and <code>ImageData</code>) a <em>linear-light</em> working color space &mdash; pixel values proportional to luminance, with no transfer-function gamma &mdash; which is what physically-based rendering, anti-aliasing, decimation, and interpolation pipelines expect. Previously only <code>"srgb"</code> and <code>"display-p3"</code> (both gamma-encoded) were available.</p>
+  </header>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Shipped in</th><td>Chrome 155 (desktop, Android, Android WebView; no iOS milestone recorded) &mdash; filed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=155" target="_blank" rel="noopener">milestone=155 listing</a> (fetched 2026-10-11); per-platform milestones from the <a href="https://chromestatus.com/api/v0/features/5122501071994880" target="_blank" rel="noopener">ChromeStatus API record</a> and the Intent&rsquo;s &ldquo;Estimated milestones&rdquo;</td></tr>
+      <tr><th scope="row">Runtime flag</th><td><code>ColorSpacePredefinedLinearSpaces</code>, status <code>stable</code> in Blink&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a> (its comment cites this ChromeStatus entry; verified 2026-10-11). Finch feature name: <code>ColorSpacePredefinedLinearSpaces</code>, &ldquo;will ship enabled for all users&rdquo; per the Intent</td></tr>
+      <tr><th scope="row">Specification</th><td><a href="https://html.spec.whatwg.org/multipage/canvas.html#colour-spaces-and-colour-correction" target="_blank" rel="noopener">HTML Standard &sect;4.12.5.4 &mdash; color spaces and color space conversion</a>; the color spaces themselves are defined in <a href="https://drafts.csswg.org/css-color-4/#predefined-sRGB-linear" target="_blank" rel="noopener">CSS Color 4 &mdash; <code>srgb-linear</code></a> and <a href="https://drafts.csswg.org/css-color-4/#predefined-display-p3-linear" target="_blank" rel="noopener"><code>display-p3-linear</code></a></td></tr>
+      <tr><th scope="row">Tracking bug</th><td><a href="https://issuetracker.google.com/issues/454152417" target="_blank" rel="noopener">issuetracker.google.com/454152417</a></td></tr>
+      <tr><th scope="row">Intent to Ship</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a9b2c7c.81999fdc.db953.0248.GAE%40google.com" target="_blank" rel="noopener">blink-dev thread</a>, also archived as <a href="https://www.mail-archive.com/blink-dev@chromium.org/msg17379.html" target="_blank" rel="noopener">mail-archive msg17379</a></td></tr>
+      <tr><th scope="row">TAG review</th><td><a href="https://github.com/w3ctag/design-reviews/issues/1194" target="_blank" rel="noopener">w3ctag/design-reviews#1194</a> (&ldquo;for the full HDR on the web project, which this is a part of&rdquo;; issues addressed)</td></tr>
+      <tr><th scope="row">Web platform tests</th><td><a href="https://wpt.fyi/results/html/canvas/element/manual/context-attributes/getContextAttributes.html" target="_blank" rel="noopener">getContextAttributes.html</a> (set/get) &middot; <a href="https://wpt.fyi/results/?label=experimental&amp;label=master&amp;aligned&amp;q=2d.color.space" target="_blank" rel="noopener">2d.color.space draw-and-readback tests</a> (both named by the Intent)</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5122501071994880" target="_blank" rel="noopener">5122501071994880 &mdash; PredefinedColorSpace srgb-linear and display-p3-linear</a> (blink component <code>Blink&gt;Canvas</code>)</td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="what-changed">what changed</h2>
+    <p>The <code>PredefinedColorSpace</code> enumeration &ldquo;is used to specify the color space of the canvas's backing store&rdquo; (<a href="https://html.spec.whatwg.org/multipage/canvas.html#colour-spaces-and-colour-correction" target="_blank" rel="noopener">HTML Standard &sect;4.12.5.4</a>). The HTML Standard now defines four values; Chrome 155 adds support for the two linear ones:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Enum value</th><th>Color space (CSS Color 4)</th><th>Chrome support</th></tr></thead>
+      <tr><td><code>"srgb"</code></td><td><a href="https://drafts.csswg.org/css-color-4/#predefined-sRGB" target="_blank" rel="noopener">sRGB</a> (gamma-encoded; the default)</td><td>Since canvas color management shipped in 92 (<a href="https://github.com/mdn/browser-compat-data/blob/main/api/HTMLCanvasElement.json" target="_blank" rel="noopener">BCD</a>)</td></tr>
+      <tr><td><code>"display-p3"</code></td><td>Display&nbsp;P3 (gamma-encoded, wide gamut)</td><td>Since 92 (same BCD entry)</td></tr>
+      <tr><td><code>"srgb-linear"</code></td><td><a href="https://drafts.csswg.org/css-color-4/#predefined-sRGB-linear" target="_blank" rel="noopener">Linear-light sRGB</a> &mdash; sRGB primaries, identity transfer function</td><td><strong>New in 155</strong></td></tr>
+      <tr><td><code>"display-p3-linear"</code></td><td><a href="https://drafts.csswg.org/css-color-4/#predefined-display-p3-linear" target="_blank" rel="noopener">Linear-light Display&nbsp;P3</a> &mdash; P3 primaries, identity transfer function</td><td><strong>New in 155</strong></td></tr>
+    </table>
+    </div>
+    <p>In a linear working space, arithmetic on pixel values is arithmetic on light: blending two pixels averages their luminance instead of their gamma-encoded codes. That is why the Intent&rsquo;s motivation calls linear spaces &ldquo;extremely commonly used in applications with connections to physical light rendering (e.g., games) or spatial processing (e.g., decimation, anti-aliasing, and interpolation)&rdquo;. Color space conversion is applied when the canvas is rendered to the output device: &ldquo;Color space conversion must be applied to the canvas's backing store when rendering the canvas to the output device&rdquo; (HTML Standard, same section), so a linear backing store still displays correctly. Note that an 8-bit-per-channel backing store (<code>colorType: "unorm8"</code>, the default) quantizes linear values coarsely in the dark range; the companion <code>CanvasColorType</code> enum (<code>"unorm8"</code>, <code>"float16"</code>) exists for that reason &mdash; the two settings are independent members of the same settings dictionary.</p>
+    <span class="citation">Source: <a href="https://html.spec.whatwg.org/multipage/canvas.html#colour-spaces-and-colour-correction" target="_blank" rel="noopener">HTML Standard &sect;4.12.5.4</a> (quoted verbatim, fetched 2026-10-11); <a href="https://drafts.csswg.org/css-color-4/#predefined" target="_blank" rel="noopener">CSS Color 4 &mdash; predefined color spaces</a>; motivation quoted from the <a href="https://www.mail-archive.com/blink-dev@chromium.org/msg17379.html" target="_blank" rel="noopener">Intent to Ship</a></span>
+  </section>
+
+  <section>
+    <h2 id="syntax">syntax</h2>
+    <p>No new members are added &mdash; the change widens the value set of an existing enum. IDL verbatim from the HTML Standard (fetched 2026-10-11):</p>
+    <pre><code>enum PredefinedColorSpace { "srgb", "srgb-linear", "display-p3", "display-p3-linear" };</code></pre>
+    <p>The enum is consumed by the 2D context settings dictionary &mdash; passed as the second argument of <code>canvas.getContext("2d", settings)</code> (and <code>OffscreenCanvas.getContext("2d", settings)</code>) and read back with <code>getContextAttributes()</code>:</p>
+    <pre><code>dictionary CanvasRenderingContext2DSettings {
+  boolean alpha = true;
+  boolean desynchronized = false;
+  PredefinedColorSpace colorSpace = "srgb";
+  CanvasColorType colorType = "unorm8";
+  boolean willReadFrequently = false;
+};
+
+enum CanvasColorType { "unorm8", "float16" };</code></pre>
+    <p>and by <code>ImageData</code>, via the settings dictionary accepted by the <code>ImageData</code> constructor and by <code>createImageData()</code> / <code>getImageData()</code>, and reflected by the read-only <code>ImageData.colorSpace</code> attribute (IDL verbatim from <a href="https://html.spec.whatwg.org/multipage/imagebitmap-and-animations.html" target="_blank" rel="noopener">HTML Standard &sect;ImageData</a>):</p>
+    <pre><code>dictionary ImageDataSettings {
+  PredefinedColorSpace colorSpace;
+  ImageDataPixelFormat pixelFormat = "rgba-unorm8";
+};</code></pre>
+    <p>Because <code>PredefinedColorSpace</code> is a Web IDL enumeration, passing a string outside the supported set to a dictionary member of this type throws a <code>TypeError</code> at the call site (<a href="https://webidl.spec.whatwg.org/#idl-enums" target="_blank" rel="noopener">Web IDL &mdash; enumeration types</a>) &mdash; in a browser that hasn&rsquo;t shipped this feature, <code>"srgb-linear"</code> is exactly such a string. That makes support detectable with a <code>try</code>/<code>catch</code> (see <a href="#examples">examples</a>). The same enum type is also referenced by the WebGL (<code>drawingBufferColorSpace</code>, <code>unpackColorSpace</code>) and WebGPU (<code>GPUCanvasConfiguration.colorSpace</code>) specifications; whether Chrome 155 accepts the linear values on those surfaces is not stated in the sources read here, which document the canvas-2D and <code>ImageData</code> entry points named by the ChromeStatus record.</p>
+    <span class="citation">Source: <a href="https://html.spec.whatwg.org/multipage/canvas.html#colour-spaces-and-colour-correction" target="_blank" rel="noopener">HTML Standard &sect;4.12.5.4</a> and <a href="https://html.spec.whatwg.org/multipage/imagebitmap-and-animations.html" target="_blank" rel="noopener">&sect;ImageData</a> (IDL verbatim); <a href="https://webidl.spec.whatwg.org/#idl-enums" target="_blank" rel="noopener">Web IDL &sect;enumerations</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">examples</h2>
+    <p>Requesting a linear-light 2D canvas, with honest fallback (snippet gendn-derived from the IDL above):</p>
+<pre><code>const canvas = document.querySelector('canvas');
+
+let ctx;
+try {
+  // Throws TypeError where "srgb-linear" isn't a known enum value.
+  ctx = canvas.getContext('2d', {
+    colorSpace: 'srgb-linear',
+    colorType: 'float16', // avoid 8-bit banding in linear light
+  });
+} catch {
+  ctx = canvas.getContext('2d'); // gamma-encoded srgb fallback
+}
+
+// Confirm what the context actually holds:
+console.log(ctx.getContextAttributes().colorSpace);
+// "srgb-linear" in Chrome 155+, "srgb" on the fallback path</code></pre>
+    <p>Why linear matters &mdash; a 50% blend of pure red and pure green. In gamma-encoded sRGB the midpoint is a muddy dark yellow; in linear light it keeps physical brightness (then converts for display):</p>
+<pre><code>// In "srgb-linear", gradient midpoints and globalAlpha compositing
+// average LIGHT, not gamma codes:
+const g = ctx.createLinearGradient(0, 0, 256, 0);
+g.addColorStop(0, 'color(srgb-linear 1 0 0)');
+g.addColorStop(1, 'color(srgb-linear 0 1 0)');
+ctx.fillStyle = g;
+ctx.fillRect(0, 0, 256, 64);
+
+// Reading pixels back in the same space:
+const data = ctx.getImageData(0, 0, 256, 64, { colorSpace: 'srgb-linear' });
+console.log(data.colorSpace); // "srgb-linear"</code></pre>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v155/predefinedcolorspace-srgb-linear-and-display-p3-linear/linear-light-gradients/"
+        title="Live example — gamma vs linear-light gradients side by side" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase (route HEAD-checked 200, 2026-10-11): the same gradients rendered in <code>srgb</code> and <code>srgb-linear</code> backing stores. Sibling concept demos (all 200): <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v155/predefinedcolorspace-srgb-linear-and-display-p3-linear/context-settings/" target="_blank" rel="noopener">context settings &amp; readback</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v155/predefinedcolorspace-srgb-linear-and-display-p3-linear/imagedata-round-trip/" target="_blank" rel="noopener">ImageData round trip</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v155/predefinedcolorspace-srgb-linear-and-display-p3-linear/additive-spotlights/" target="_blank" rel="noopener">additive spotlights</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v155/predefinedcolorspace-srgb-linear-and-display-p3-linear/detection-traps/" target="_blank" rel="noopener">detection traps</a>.<span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v155/predefinedcolorspace-srgb-linear-and-display-p3-linear/" target="_blank" rel="noopener">chrome-platform-showcase</a></span></figcaption>
+    </figure>
+    <span class="citation">Source: API shapes per the <a href="https://html.spec.whatwg.org/multipage/canvas.html#colour-spaces-and-colour-correction" target="_blank" rel="noopener">HTML Standard</a>; <code>color(srgb-linear &hellip;)</code> syntax per <a href="https://drafts.csswg.org/css-color-4/#color-function" target="_blank" rel="noopener">CSS Color 4</a>; snippets gendn-derived (labelled), exercised live by the embedded showcase demo</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">browser compatibility</h2>
+    <p><strong>BCD has no subfeature for the linear values yet</strong>: the <a href="https://github.com/mdn/browser-compat-data/blob/main/api/HTMLCanvasElement.json" target="_blank" rel="noopener">BCD <code>options_colorSpace_parameter</code></a> and <a href="https://github.com/mdn/browser-compat-data/blob/main/api/ImageData.json" target="_blank" rel="noopener"><code>ImageData.colorSpace</code></a> entries (package data 8.1.5, 2026-10-08) record only the <code>colorSpace</code> option itself. The table below is therefore interim, built from the ChromeStatus record and the Intent:</p>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Browser</th><th><code>"srgb-linear"</code> / <code>"display-p3-linear"</code></th><th>Notes</th></tr></thead>
+      <tr><td>Chrome</td><td><strong>155</strong> (interim: ChromeStatus, not yet BCD)</td><td>Desktop, Android, Android WebView per the <a href="https://chromestatus.com/api/v0/features/5122501071994880" target="_blank" rel="noopener">ChromeStatus API record</a>; no iOS milestone recorded. Flag <code>ColorSpacePredefinedLinearSpaces</code> is <code>stable</code></td></tr>
+      <tr><td>Edge</td><td>Unknown</td><td>Chromium-based, expected to inherit at its 155-based release; no source read here records an Edge version</td></tr>
+      <tr><td>Firefox</td><td>No</td><td>Mozilla position: <a href="https://github.com/mozilla/standards-positions/issues/1453" target="_blank" rel="noopener">standards-positions#1453</a>, &ldquo;No signal&rdquo; per the ChromeStatus record &mdash; and Firefox has never shipped the prerequisite <code>colorSpace</code> setting (BCD: <code>version_added: false</code>)</td></tr>
+      <tr><td>Safari</td><td>Implemented; release unknown</td><td>&ldquo;Suggested by WebKit, already implemented in WebKit&rdquo; per the <a href="https://www.mail-archive.com/blink-dev@chromium.org/msg17379.html" target="_blank" rel="noopener">Intent to Ship</a>; no shipping Safari version is recorded in the sources read</td></tr>
+      <tr><td colspan="3">Prerequisite &mdash; the <code>colorSpace</code> context/ImageData option itself, per <a href="https://github.com/mdn/browser-compat-data/blob/main/api/HTMLCanvasElement.json" target="_blank" rel="noopener">BCD</a> (verified 2026-10-11): Chrome <strong>92</strong>, Safari <strong>15.2</strong>, Firefox <strong>not supported</strong>, Edge mirrors Chrome.</td></tr>
+    </table>
+    </div>
+    <p>Treat the linear spaces as a progressive enhancement: request them in a <code>try</code>/<code>catch</code>, verify with <code>getContextAttributes()</code>, and keep the gamma-encoded path working. The Baseline web feature this belongs to (<a href="https://api.webstatus.dev/v1/features/canvas-2d-color-management" target="_blank" rel="noopener"><code>canvas-2d-color-management</code></a>) is Limited availability.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5122501071994880" target="_blank" rel="noopener">ChromeStatus API record</a>; <a href="https://www.mail-archive.com/blink-dev@chromium.org/msg17379.html" target="_blank" rel="noopener">Intent to Ship</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/HTMLCanvasElement.json" target="_blank" rel="noopener">BCD api/HTMLCanvasElement.json</a> and <a href="https://github.com/mdn/browser-compat-data/blob/main/api/ImageData.json" target="_blank" rel="noopener">api/ImageData.json</a> (no linear-value subfeature); <a href="https://api.webstatus.dev/v1/features/canvas-2d-color-management" target="_blank" rel="noopener">webstatus.dev canvas-2d-color-management</a></span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">security and privacy</h2>
+    <p>The Intent to Ship lists Security: &ldquo;None&rdquo; and Activation: &ldquo;None&rdquo;. The change adds no new data source: it widens an existing enum on surfaces the page already controls, and the backing-store contents remain subject to the canvas&rsquo;s existing origin-clean rules. As with any new enum value, <em>which</em> values a browser accepts is observable (the <code>TypeError</code> detection path above), adding at most one more bit to the already-detectable canvas color-management surface; the sources read record no other privacy considerations.</p>
+    <span class="citation">Source: <a href="https://www.mail-archive.com/blink-dev@chromium.org/msg17379.html" target="_blank" rel="noopener">Intent to Ship (Risks &mdash; Security/Privacy sections)</a>; origin-clean rules per the <a href="https://html.spec.whatwg.org/multipage/canvas.html#security-with-canvas-elements" target="_blank" rel="noopener">HTML Standard</a></span>
+  </section>
+
+  <section>
+    <h2 id="specifications">specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th>Specification</th><th>Section</th></tr></thead>
+      <tr><td><a href="https://html.spec.whatwg.org/" target="_blank" rel="noopener">HTML Living Standard</a></td><td><a href="https://html.spec.whatwg.org/multipage/canvas.html#colour-spaces-and-colour-correction" target="_blank" rel="noopener">&sect;4.12.5.4 &mdash; color spaces and color space conversion (<code>PredefinedColorSpace</code>)</a> &middot; <a href="https://html.spec.whatwg.org/multipage/canvas.html#the-canvas-settings" target="_blank" rel="noopener">canvas settings</a> &middot; <a href="https://html.spec.whatwg.org/multipage/imagebitmap-and-animations.html" target="_blank" rel="noopener"><code>ImageData</code> / <code>ImageDataSettings</code></a></td></tr>
+      <tr><td><a href="https://drafts.csswg.org/css-color-4/" target="_blank" rel="noopener">CSS Color Module Level 4</a></td><td><a href="https://drafts.csswg.org/css-color-4/#predefined-sRGB-linear" target="_blank" rel="noopener"><code>srgb-linear</code></a> &middot; <a href="https://drafts.csswg.org/css-color-4/#predefined-display-p3-linear" target="_blank" rel="noopener"><code>display-p3-linear</code></a></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: both specifications fetched 2026-10-11; the HTML Standard enum already includes the two linear values</span>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/getContext" target="_blank" rel="noopener">MDN: HTMLCanvasElement.getContext()</a> and <a href="https://developer.mozilla.org/en-US/docs/Web/API/ImageData/colorSpace" target="_blank" rel="noopener">MDN: ImageData.colorSpace</a> &mdash; the existing <code>colorSpace</code> option (MDN does not yet document the linear values; checked 2026-10-11)</li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v155/predefinedcolorspace-srgb-linear-and-display-p3-linear/" target="_blank" rel="noopener">chrome-platform-showcase: linear color space demos</a> (five concepts, all routes 200)</li>
+      <li><a href="https://chromestatus.com/feature/5122501071994880" target="_blank" rel="noopener">ChromeStatus &mdash; PredefinedColorSpace srgb-linear and display-p3-linear (5122501071994880)</a></li>
+      <li><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a9b2c7c.81999fdc.db953.0248.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a> &middot; <a href="https://issuetracker.google.com/issues/454152417" target="_blank" rel="noopener">tracking bug 454152417</a></li>
+      <li><a href="https://chromestatus.com/feature/5162372125818880" target="_blank" rel="noopener">ChromeStatus &mdash; the companion CSS <code>display-p3-linear</code> entry</a> (flag <code>ColorSpaceDisplayP3Linear</code>, also <code>stable</code>) &middot; <a href="https://chromestatus.com/feature/5204024772788224" target="_blank" rel="noopener">rec2100-linear (still experimental)</a> &mdash; both from the same runtime-flag file</li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
