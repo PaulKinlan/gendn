@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ServiceWorker Static Routing: Distinct TypeError message for cancelled race-network-and-fetch-handler fetch() requests — Chrome 159 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 36rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .scroll-table { min-width: 30rem; }
+    .example-embed { margin: 1.5rem 0; }
+    .example-embed iframe { max-inline-size: 100%; display: block; }
+    .example-embed figcaption { font-size: 0.85rem; margin-top: 0.4rem; overflow-wrap: anywhere; }
+    .citation { overflow-wrap: anywhere; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v159/">&larr; Chrome 159 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v159 &middot; service worker &middot; enabled by default</p>
+    <h1>ServiceWorker Static Routing: Distinct TypeError message for cancelled race-network-and-fetch-handler fetch() requests</h1>
+
+    <p class="lede">When a Service Worker matches a Static Routing rule with <code>source: "race-network-and-fetch-handler"</code> and calls <code>fetch(event.request)</code> inside its <code>fetch</code> handler, cancelling that deduplicated network request before response headers arrive (<code>net::ERR_ABORTED</code>) now rejects with <code>TypeError("The service worker race-network-and-fetch-handler request was cancelled before 'fetch()' settled.")</code> instead of the generic <code>TypeError("Failed to fetch")</code>.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; Chromium-specific implementation-defined error message (base <code>InstallEvent.addRoutes()</code> is Chrome 123+, Safari 27, not in Firefox)</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 159 (desktop, Android, WebView)</li>
+        <li>Edge &middot; Chromium-based (BCD mirror)</li>
+        <li class="limited">Firefox &middot; No signal (<code>addRoutes()</code> unsupported in BCD)</li>
+        <li class="limited">Safari &middot; No signal (<code>addRoutes()</code> in 27; message engine-defined)</li>
+      </ul>
+      <p><a href="https://github.com/mdn/browser-compat-data/blob/main/api/InstallEvent.json" target="_blank" rel="noopener">BCD <code>api/InstallEvent.json</code></a> records base <code>InstallEvent.addRoutes()</code> in Chrome 123+ and Safari 27 (unsupported in Firefox; checked 2026-11-24). Because Web IDL explicitly leaves <code>TypeError.message</code> strings implementation-defined, this distinct message is Chromium-specific and has no webstatus.dev web-feature or BCD subfeature.</p>
+    </div>
+  </header>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#at-a-glance">At a glance</a></li>
+      <li><a href="#why">Why it exists</a></li>
+      <li><a href="#syntax">Syntax &amp; contract</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#security-and-privacy">Security &amp; privacy</a></li>
+      <li><a href="#specifications">Specifications</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Shipped in</th><td>Chrome 159 (desktop, Android, Android WebView), enabled by default &mdash; filed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=159" target="_blank" rel="noopener">milestone=159 listing</a> and <a href="https://chromestatus.com/api/v0/features/5124748525830144" target="_blank" rel="noopener">ChromeStatus API record</a></td></tr>
+      <tr><th scope="row">Feature kill switch</th><td><code>ServiceWorkerRaceNetworkRequestAbortedErrorMessage</code> (<code>FEATURE_ENABLED_BY_DEFAULT</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/common/features.cc" target="_blank" rel="noopener">third_party/blink/common/features.cc</a>; no <code>chrome://flags</code> toggle)</td></tr>
+      <tr><th scope="row">Specification</th><td><a href="https://w3c.github.io/ServiceWorker/#dom-routersourceenum-race-network-and-fetch-handler" target="_blank" rel="noopener">W3C Service Workers &mdash; <code>"race-network-and-fetch-handler"</code></a>; <a href="https://fetch.spec.whatwg.org/#fetch-method" target="_blank" rel="noopener">WHATWG Fetch &mdash; <code>fetch()</code></a> (no IDL or spec change)</td></tr>
+      <tr><th scope="row">Intent</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6af42035.c4d90b0f.20186.0030.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a></td></tr>
+      <tr><th scope="row">Tracking bugs</th><td><a href="https://crbug.com/584504247" target="_blank" rel="noopener">crbug.com/584504247</a> (implementation); <a href="https://crbug.com/584629540" target="_blank" rel="noopener">crbug.com/584629540</a> (follow-up standardized cancellation reporting)</td></tr>
+      <tr><th scope="row">Tests</th><td>Chromium browser tests (<a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/service_worker/service_worker_browsertest.cc" target="_blank" rel="noopener">service_worker_browsertest.cc</a>) &amp; Blink unit tests (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/service_worker/service_worker_global_scope_test.cc" target="_blank" rel="noopener">service_worker_global_scope_test.cc</a>); WPT only checks <code>TypeError</code> type</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5124748525830144" target="_blank" rel="noopener">5124748525830144 &mdash; ServiceWorker Static Routing: Distinct TypeError message for cancelled race-network-and-fetch-handler fetch() requests</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>In Chromium&rsquo;s Service Worker Navigation Preload API (<code>event.preloadResponse</code>), pre-settlement request cancellations (<code>net::ERR_ABORTED</code>) already reject with the dedicated message <code>"The service worker navigation preload request was cancelled before 'preloadResponse' settled."</code>. Offline-capable web applications migrating from Navigation Preload to Static Routing (<code>"race-network-and-fetch-handler"</code>) rely on distinguishing expected race cancellations &mdash; such as an offline/cache fallback timer winning <code>event.respondWith()</code> or the user navigating away &mdash; from genuine network outages. Previously, Static Routing collapsed <code>net::ERR_ABORTED</code> into generic <code>TypeError("Failed to fetch")</code>, causing false-positive network error spikes in client telemetry and unnecessary fallback paths.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5124748525830144" target="_blank" rel="noopener">ChromeStatus motivation (5124748525830144)</a>; <a href="https://crbug.com/584504247" target="_blank" rel="noopener">crbug.com/584504247</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>This Chrome 159 change introduces <strong>no new WebIDL or specification syntax</strong>. It refines the rejection message string of <code>fetch(event.request)</code> inside a Service Worker <code>fetch</code> handler matched by an existing Static Routing rule registered via <code>InstallEvent.addRoutes()</code>:</p>
+    <pre><code>// Existing W3C Service Workers Static Routing registration (InstallEvent.addRoutes)
+self.addEventListener("install", (event) =&gt; {
+  event.addRoutes({
+    condition: { urlPattern: { pathname: "/app/*" } },
+    source: "race-network-and-fetch-handler",
+  });
+});
+
+// Exact Chrome 159 TypeError rejection message when the deduplicated raced request
+// (kRaceLoaderUsed) is aborted with net::ERR_ABORTED before response headers arrive
+// (parallel to Navigation Preload's event.preloadResponse cancellation string):
+// err instanceof TypeError === true
+// err.message === "The service worker race-network-and-fetch-handler request was cancelled before 'fetch()' settled."</code></pre>
+    <p>This reference covers three parts of the contract: the <a href="#distinct-typeerror-message">distinct <code>TypeError</code> message</a>, the <a href="#trigger-conditions">loader deduplication &amp; triggering conditions</a>, and <a href="#preload-parity">Navigation Preload telemetry parity</a>.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/ServiceWorker/#dom-routersourceenum-race-network-and-fetch-handler" target="_blank" rel="noopener">W3C Service Workers Static Routing</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/service_worker/service_worker_global_scope.cc" target="_blank" rel="noopener">Blink service_worker_global_scope.cc</a>.</span>
+
+    <h3 id="distinct-typeerror-message">Distinct <code>TypeError</code> rejection message</h3>
+    <p><strong>Inputs &amp; outputs.</strong> When <code>fetch(event.request)</code> inside a Service Worker <code>fetch</code> handler consumes a deduplicated <code>race-network-and-fetch-handler</code> request and that network request is cancelled with <code>net::ERR_ABORTED</code> before response headers arrive, the promise returned by <code>fetch(event.request)</code> rejects with a <code>TypeError</code> whose <code>message</code> is verbatim:</p>
+    <blockquote class="spec-quote">
+      <p><code>The service worker race-network-and-fetch-handler request was cancelled before 'fetch()' settled.</code></p>
+    </blockquote>
+    <p>The exception constructor remains standard <code>TypeError</code> (satisfying Fetch&rsquo;s requirement that network errors reject with a <code>TypeError</code>). Genuine network failures (such as offline disconnect, DNS resolution errors, TLS errors, or connection resets) continue to reject with Chromium&rsquo;s standard <code>TypeError("Failed to fetch")</code>.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/service_worker/service_worker_global_scope.cc" target="_blank" rel="noopener">Blink service_worker_global_scope.cc (GetCustomFetchErrorMessage)</a>; <a href="https://chromestatus.com/feature/5124748525830144" target="_blank" rel="noopener">ChromeStatus summary (5124748525830144)</a>.</span>
+
+    <h3 id="trigger-conditions">Triggering conditions and loader deduplication</h3>
+    <p><strong>Inputs &amp; outputs.</strong> In Blink&rsquo;s <code>ServiceWorkerGlobalScope::GetCustomFetchErrorMessage(net_error_code, request_data)</code>, the custom message is returned <em>only</em> when all four conditions hold simultaneously:</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="conditions-caption">
+    <table class="doc-table scroll-table">
+      <caption id="conditions-caption">Exact gating rules for the distinct cancellation <code>TypeError</code> message in Chrome 159</caption>
+      <thead><tr><th scope="col">Condition</th><th scope="col">Required state for custom message</th><th scope="col">Otherwise (fallback)</th></tr></thead>
+      <tr><td>Network error code</td><td><code>net::ERR_ABORTED</code> prior to response headers arriving</td><td>Standard <code>TypeError("Failed to fetch")</code> (or body stream error if aborted post-headers)</td></tr>
+      <tr><td>Race token presence</td><td><code>request_data</code> carries a <code>ServiceWorkerRaceNetworkRequestToken</code> from a matched <code>"race-network-and-fetch-handler"</code> rule</td><td>Standard <code>TypeError("Failed to fetch")</code> for ordinary <code>fetch()</code> requests</td></tr>
+      <tr><td>Deduplicated loader state</td><td>Per-token loader state is <code>kRaceLoaderUsed</code> (the first deduplicated <code>fetch(event.request)</code> that bound to the raced loader)</td><td>Subsequent <code>fetch(event.request)</code> calls enter <code>kFallbackDueToAlreadyConsumed</code> and receive standard <code>"Failed to fetch"</code>; once <code>MaybeRecordFetchError()</code> clears the token to <code>kNotFound</code>, it cannot re-fire</td></tr>
+      <tr><td>Runtime feature flag</td><td><code>kServiceWorkerRaceNetworkRequestAbortedErrorMessage</code> enabled (default in Chrome 159)</td><td>Standard <code>TypeError("Failed to fetch")</code> if disabled via Finch kill switch</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/service_worker/service_worker_global_scope.cc" target="_blank" rel="noopener">Blink service_worker_global_scope.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/service_worker/service_worker_global_scope_test.cc" target="_blank" rel="noopener">Blink service_worker_global_scope_test.cc</a>.</span>
+
+    <h3 id="preload-parity">Parity with <code>FetchEvent.preloadResponse</code> and telemetry guidance</h3>
+    <p><strong>Inputs &amp; outputs.</strong> The new message intentionally mirrors Chromium&rsquo;s existing Navigation Preload cancellation string so telemetry pipelines migrating from <code>event.preloadResponse</code> to Static Routing can classify both consistently:</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="parity-caption">
+    <table class="doc-table scroll-table">
+      <caption id="parity-caption">Comparison of Chromium pre-settlement cancellation <code>TypeError</code> messages</caption>
+      <thead><tr><th scope="col">Mechanism</th><th scope="col">Settling promise</th><th scope="col">Chromium pre-settlement cancellation <code>TypeError.message</code></th></tr></thead>
+      <tr><td>Navigation Preload</td><td><code>event.preloadResponse</code></td><td><code>"The service worker navigation preload request was cancelled before 'preloadResponse' settled."</code></td></tr>
+      <tr><td>Static Routing (<code>race-network-and-fetch-handler</code>)</td><td><code>fetch(event.request)</code></td><td><code>"The service worker race-network-and-fetch-handler request was cancelled before 'fetch()' settled."</code></td></tr>
+    </table>
+    </div>
+    <p><strong>Temporary / non-standard caveat.</strong> Blink&rsquo;s <code>features.cc</code> explicitly annotates <code>kServiceWorkerRaceNetworkRequestAbortedErrorMessage</code> with <code>TODO(crbug.com/584629540)</code> to replace this temporary custom message once standardized cancellation reporting is defined and implemented. Applications should use the message strictly for diagnostic/telemetry classification and never branch critical control flow exclusively on an engine-specific error string.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5124748525830144" target="_blank" rel="noopener">ChromeStatus motivation (5124748525830144)</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/common/features.cc" target="_blank" rel="noopener">Blink features.cc (TODO crbug.com/584629540)</a>.</span>
+
+    <h3 id="errors-and-fallbacks">Errors, edge cases, and recovery</h3>
+    <ul>
+      <li><strong><code>TypeError</code> remains the exception class:</strong> callers catching <code>err instanceof TypeError</code> continue to work identically.</li>
+      <li><strong>Strict equality on <code>"Failed to fetch"</code> breaks if assumed for cancellations:</strong> any existing Service Worker code that explicitly matched <code>err.message === "Failed to fetch"</code> to detect <em>all</em> fetch rejections (including <code>net::ERR_ABORTED</code> cancellations on the deduplicated <code>kRaceLoaderUsed</code> request) will no longer match cancelled <code>race-network-and-fetch-handler</code> fetches in Chrome 159+. Check <code>err instanceof TypeError</code> for general fetch failures, and inspect the specific cancellation messages (for <code>fetch()</code> and <code>preloadResponse</code>) only to suppress telemetry noise.</li>
+      <li><strong>Invalid Static Routing rules:</strong> registering a <code>"race-network-and-fetch-handler"</code> rule via <code>event.addRoutes()</code> when the Service Worker has no <code>fetch</code> event listener rejects the <code>addRoutes()</code> promise with <code>TypeError</code> per the W3C Service Workers spec.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5124748525830144" target="_blank" rel="noopener">ChromeStatus interop &amp; compatibility risks</a>; <a href="https://w3c.github.io/ServiceWorker/#register-router-method" target="_blank" rel="noopener">W3C Service Workers <code>addRoutes()</code></a>.</span>
+
+    <h3 id="context">Context and exposure</h3>
+    <p>Applies strictly inside a <code>ServiceWorkerGlobalScope</code> (Service Worker execution context, which requires a <strong>Secure Context</strong>) during a <code>fetch</code> event whose request matched a registered Static Routing rule with <code>source: "race-network-and-fetch-handler"</code>. Window and Dedicated/Shared Worker <code>fetch()</code> calls are unaffected.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/ServiceWorker/#dom-routersourceenum-race-network-and-fetch-handler" target="_blank" rel="noopener">W3C Service Workers</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/service_worker/service_worker_global_scope.cc" target="_blank" rel="noopener">Blink service_worker_global_scope.cc</a>.</span>
+
+    <h3 id="lifecycle">Lifecycle and state transitions</h3>
+    <p>When a navigation or subresource request matches a <code>"race-network-and-fetch-handler"</code> rule during Service Worker activation/fetch dispatch, Chromium launches the network request in parallel with firing the Service Worker&rsquo;s <code>fetch</code> event and attaches a one-time deduplication token. The first <code>fetch(event.request)</code> call inside the handler attaches to that in-flight race loader (<code>kRaceLoaderUsed</code>). If <code>event.respondWith()</code> settles first (for example from a cache fallback timer) or the client aborts the navigation before network response headers arrive, Chromium aborts the network loader with <code>net::ERR_ABORTED</code>, generates the distinct <code>TypeError</code> message for that pending <code>fetch(event.request)</code> promise, and clears the token state (<code>kNotFound</code>) during <code>MaybeRecordFetchError()</code>.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/service_worker/service_worker_global_scope.cc" target="_blank" rel="noopener">Blink service_worker_global_scope.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/service_worker/service_worker_global_scope_test.cc" target="_blank" rel="noopener">Blink service_worker_global_scope_test.cc</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v159/serviceworker-static-routing-distinct-typeerror-message-for-cancelled-race-netwo/fallback-timer-race/"
+        title="Live example — ServiceWorker Static Routing fallback-timer race" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live interactive example: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v159/serviceworker-static-routing-distinct-typeerror-message-for-cancelled-race-netwo/fallback-timer-race/" target="_blank" rel="noopener">Fallback-timer race</a> (also see <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v159/serviceworker-static-routing-distinct-typeerror-message-for-cancelled-race-netwo/error-taxonomy/" target="_blank" rel="noopener">Error taxonomy</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v159/serviceworker-static-routing-distinct-typeerror-message-for-cancelled-race-netwo/telemetry-noise-filter/" target="_blank" rel="noopener">Telemetry noise filter</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v159/serviceworker-static-routing-distinct-typeerror-message-for-cancelled-race-netwo/app-shell-revalidation/" target="_blank" rel="noopener">App-shell revalidation</a>, and <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v159/serviceworker-static-routing-distinct-typeerror-message-for-cancelled-race-netwo/fetch-shape-inspector/" target="_blank" rel="noopener">Fetch shape inspector</a>).<span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v159/serviceworker-static-routing-distinct-typeerror-message-for-cancelled-race-netwo/" target="_blank" rel="noopener">Chrome Platform Showcase &mdash; ServiceWorker Static Routing cancelled race TypeError</a></span></figcaption>
+    </figure>
+
+    <h3 id="example-telemetry-filter">Suppressing expected race-cancellation noise in Service Worker telemetry</h3>
+    <pre><code>const EXPECTED_CANCEL_MESSAGES = new Set([
+  "The service worker race-network-and-fetch-handler request was cancelled before 'fetch()' settled.",
+  "The service worker navigation preload request was cancelled before 'preloadResponse' settled.",
+]);
+
+self.addEventListener("install", (event) =&gt; {
+  if (typeof event.addRoutes === "function") {
+    event.addRoutes({
+      condition: { urlPattern: { pathname: "/articles/*" } },
+      source: "race-network-and-fetch-handler",
+    });
+  }
+});
+
+self.addEventListener("fetch", (event) =&gt; {
+  // First fetch(event.request) binds to the deduplicated race loader (kRaceLoaderUsed);
+  // if timedCacheFallback wins before headers arrive, Chromium aborts it with net::ERR_ABORTED.
+  const networkPromise = fetch(event.request).catch((err) =&gt; {
+    // Distinguish expected pre-settlement race cancellation from real network outages
+    if (err instanceof TypeError &amp;&amp; EXPECTED_CANCEL_MESSAGES.has(err.message)) {
+      return null; // Expected cancellation after cache fallback won; do not alert
+    }
+    reportNetworkOutageTelemetry(event.request.url, err);
+    throw err;
+  });
+
+  const timedCacheFallback = new Promise((resolve) =&gt; {
+    setTimeout(async () =&gt; {
+      const cached = await caches.match(event.request);
+      if (cached) resolve(cached);
+    }, 300);
+  });
+
+  event.respondWith(
+    Promise.race([
+      networkPromise.then((res) =&gt; res ?? caches.match(event.request)),
+      timedCacheFallback,
+    ]).then((res) =&gt; res || new Response("Offline", { status: 503 })),
+  );
+});</code></pre>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5124748525830144" target="_blank" rel="noopener">ChromeStatus 5124748525830144</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/service_worker/service_worker_global_scope.cc" target="_blank" rel="noopener">Blink service_worker_global_scope.cc</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Support for the distinct cancellation <code>TypeError</code> message alongside BCD support for <code>InstallEvent.addRoutes()</code> (checked 2026-11-24). Because exception message strings are implementation-defined in Web IDL, BCD does not track this message separately.</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col">Distinct cancellation message</th><th scope="col"><code>InstallEvent.addRoutes()</code> (BCD)</th><th scope="col">Notes &amp; evidence</th></tr></thead>
+      <tr><th scope="row">Chrome (desktop, Android, WebView)</th><td>159</td><td>123</td><td>Enabled by default in Chrome 159 via <code>ServiceWorkerRaceNetworkRequestAbortedErrorMessage</code> per <a href="https://chromestatus.com/feature/5124748525830144" target="_blank" rel="noopener">ChromeStatus 5124748525830144</a>; Chrome 123&ndash;158 rejected with <code>"Failed to fetch"</code></td></tr>
+      <tr><th scope="row">Edge</th><td>Chromium-based (mirror)</td><td>123 (mirror)</td><td>Mirrors Chrome in BCD</td></tr>
+      <tr><th scope="row">Firefox</th><td>N/A</td><td>No (<code>false</code>)</td><td>No signal in ChromeStatus; <code>InstallEvent.addRoutes()</code> is not shipped in BCD</td></tr>
+      <tr><th scope="row">Safari</th><td>Engine-defined</td><td>27</td><td>No signal in ChromeStatus; Web IDL leaves <code>TypeError.message</code> strings implementation-defined</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/InstallEvent.json" target="_blank" rel="noopener">BCD api/InstallEvent.json</a>; <a href="https://chromestatus.com/api/v0/features/5124748525830144" target="_blank" rel="noopener">ChromeStatus API record</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <p>Refining the <code>TypeError.message</code> string inside the page&rsquo;s own Service Worker exposes no cross-origin information, network timing side channel, or new capability beyond what the Service Worker already observes: the cancellation is triggered by the same origin&rsquo;s <code>fetch</code> handler resolving <code>event.respondWith()</code> first or the client aborting its own navigation before response headers arrive. No response headers, status codes, or cross-origin error details are included in the message. ChromeStatus records no security risks and lists security/privacy reviews as Pending (checked 2026-11-24).</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5124748525830144" target="_blank" rel="noopener">ChromeStatus record (5124748525830144)</a>; <a href="https://w3c.github.io/ServiceWorker/#security-considerations" target="_blank" rel="noopener">W3C Service Workers Security Considerations</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Specification</th><th scope="col">Section</th></tr></thead>
+      <tr><td><a href="https://w3c.github.io/ServiceWorker/" target="_blank" rel="noopener">W3C Service Workers</a></td><td><a href="https://w3c.github.io/ServiceWorker/#dom-routersourceenum-race-network-and-fetch-handler" target="_blank" rel="noopener"><code>RouterSourceEnum</code> &mdash; <code>"race-network-and-fetch-handler"</code></a> &amp; <a href="https://w3c.github.io/ServiceWorker/#register-router-method" target="_blank" rel="noopener"><code>InstallEvent.addRoutes()</code></a></td></tr>
+      <tr><td><a href="https://fetch.spec.whatwg.org/" target="_blank" rel="noopener">WHATWG Fetch Standard</a></td><td><a href="https://fetch.spec.whatwg.org/#fetch-method" target="_blank" rel="noopener"><code>fetch()</code> method</a> (rejects with <code>TypeError</code> on network error)</td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v159/serviceworker-static-routing-distinct-typeerror-message-for-cancelled-race-netwo/" target="_blank" rel="noopener">Chrome Platform Showcase &mdash; Cancelled race-network-and-fetch-handler TypeError (5 interactive concepts)</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/InstallEvent/addRoutes" target="_blank" rel="noopener">MDN &mdash; <code>InstallEvent.addRoutes()</code></a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/FetchEvent/preloadResponse" target="_blank" rel="noopener">MDN &mdash; <code>FetchEvent.preloadResponse</code></a></li>
+      <li><a href="https://developer.chrome.com/blog/service-worker-static-routing" target="_blank" rel="noopener">Chrome for Developers &mdash; Service Worker Static Routing API</a></li>
+      <li><a href="https://chromestatus.com/feature/5124748525830144" target="_blank" rel="noopener">ChromeStatus &mdash; ServiceWorker Static Routing: Distinct TypeError message for cancelled race-network-and-fetch-handler fetch() requests (5124748525830144)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

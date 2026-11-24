@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebTransportError API alignment and serialization — Chrome 159 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 36rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .scroll-table { min-width: 30rem; }
+    .example-embed { margin: 1.5rem 0; }
+    .example-embed iframe { max-inline-size: 100%; display: block; }
+    .example-embed figcaption { font-size: 0.85rem; margin-top: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v159/">&larr; Chrome 159 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v159 &middot; webtransport &middot; in developer trial (behind a flag)</p>
+    <h1>WebTransportError API alignment and serialization</h1>
+
+    <p class="lede">Aligns Chromium&rsquo;s <code>WebTransportError</code> with the W3C WebTransport specification by adding the standard <code>new WebTransportError(message, options)</code> constructor (while keeping Chromium&rsquo;s legacy dictionary-only overload for compatibility), propagating full 32-bit <code>unsigned long</code> <code>streamErrorCode</code> values end-to-end without 8-bit truncation, and making <code>WebTransportError</code> <code>[Serializable]</code> for <code>structuredClone()</code>, <code>postMessage()</code>, and IndexedDB.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; behind a flag in Chrome 159 (shipping target Chrome 160); base <code>WebTransport</code> is Baseline Newly available since 2026-03-24</p>
+      <ul class="baseline-browsers">
+        <li class="limited">Chrome &middot; 159 behind flag (shipping target 160)</li>
+        <li class="limited">Edge &middot; Chromium-based (not yet shipped)</li>
+        <li>Firefox &middot; Shipped (Bug 2009530)</li>
+        <li>Safari &middot; Shipped (WebKit Bug 305224 / 26.4)</li>
+      </ul>
+      <p>While the base <a href="https://webstatus.dev/features/webtransport" target="_blank" rel="noopener"><code>webtransport</code> web-feature</a> is <strong>Baseline Newly available</strong> (since 2026-03-24 per <a href="https://api.webstatus.dev/v1/features?q=webtransport" target="_blank" rel="noopener">webstatus.dev</a>) and <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebTransportError.json" target="_blank" rel="noopener">BCD <code>WebTransportError.json</code></a> records base <code>WebTransportError</code> from Chrome 97, Firefox 114, and Safari 26.4, BCD does not yet separate the standard <code>(message, options)</code> constructor, 32-bit <code>streamErrorCode</code>, or <code>[Serializable]</code> support (checked 2026-11-24).</p>
+    </div>
+  </header>
+
+  <div class="warn-block" role="note" aria-label="Experimental feature notice">
+    <strong>Developer trial (behind a flag) in Chrome 159 &mdash; shipping target Chrome 160.</strong>
+    <p>In Chrome 159, this alignment is filed under <em>In developer trial (Behind a flag)</em>; <a href="https://chromestatus.com/feature/5158277221580800" target="_blank" rel="noopener">ChromeStatus 5158277221580800</a> targets shipping enabled by default in <strong>Chrome 160</strong> (desktop, Android, Android WebView). To test in Chrome 159, enable <code>chrome://flags/#enable-experimental-web-platform-features</code> or launch Chrome with <code>--enable-blink-features=WebTransportErrorSerialization</code>. Once shipped, serialization writing remains controlled by the <code>WebTransportErrorSerialization</code> runtime kill switch while versioned decoding stays permanently enabled so persisted values remain readable.</p>
+  </div>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#at-a-glance">At a glance</a></li>
+      <li><a href="#why">Why it exists</a></li>
+      <li><a href="#syntax">Syntax &amp; API surface</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#security-and-privacy">Security &amp; privacy</a></li>
+      <li><a href="#specifications">Specifications</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Status in Chrome 159</th><td>In developer trial (Behind a flag) in Chrome 159 (desktop, Android); shipping enabled by default targeted for Chrome 160 (desktop, Android, Android WebView) per the <a href="https://chromestatus.com/api/v0/features?milestone=159" target="_blank" rel="noopener">milestone=159 listing</a> and <a href="https://chromestatus.com/api/v0/features/5158277221580800" target="_blank" rel="noopener">ChromeStatus API record</a></td></tr>
+      <tr><th scope="row">Flag / kill switch</th><td><code>chrome://flags/#enable-experimental-web-platform-features</code> or <code>--enable-blink-features=WebTransportErrorSerialization</code> (Finch / runtime feature <code>WebTransportErrorSerialization</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>)</td></tr>
+      <tr><th scope="row">Specification</th><td><a href="https://www.w3.org/TR/webtransport/#web-transport-error-interface" target="_blank" rel="noopener">W3C WebTransport &sect;12 <code>WebTransportError</code> Interface</a>; <a href="https://www.w3.org/TR/webtransport/#protocol-mapping" target="_blank" rel="noopener">Protocol Mapping (32-bit error code)</a></td></tr>
+      <tr><th scope="row">Intent</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6aea5e51.e5ec2bf0.2ba4f6.01ba.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a></td></tr>
+      <tr><th scope="row">Tracking bug</th><td><a href="https://issues.chromium.org/issues/577073049" target="_blank" rel="noopener">issues.chromium.org/577073049</a></td></tr>
+      <tr><th scope="row">Web platform tests</th><td><a href="https://wpt.fyi/results/webtransport/idlharness.https.sub.any.html?label=experimental&amp;label=master&amp;aligned" target="_blank" rel="noopener">webtransport/idlharness.https.sub.any.html</a>; <a href="https://github.com/web-platform-tests/wpt/pull/63842" target="_blank" rel="noopener">WPT PR #63842</a></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5158277221580800" target="_blank" rel="noopener">5158277221580800 &mdash; WebTransportError API alignment and serialization</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>Chromium&rsquo;s original <code>WebTransportError</code> implementation (shipped in Chrome 97) predated three changes in the W3C WebTransport specification: it only exposed a legacy dictionary constructor (<code>new WebTransportError({ message, streamErrorCode })</code>) instead of the <code>DOMException</code>-aligned <code>(message, options)</code> signature; it narrowed outgoing application stream error codes to 8 bits (<code>0&ndash;255</code>) even though the attribute type was <code>unsigned long?</code>; and it lacked structured serialization support, causing worker-to-window error relays and IndexedDB error logs to fail or drop WebTransport metadata. Aligning Chromium with Firefox and Safari closes these interop gaps without breaking existing callers that pass a dictionary as the first argument.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5158277221580800" target="_blank" rel="noopener">ChromeStatus motivation (5158277221580800)</a>; <a href="https://github.com/web-platform-tests/interop/issues/1121" target="_blank" rel="noopener">Interop 2026 WebTransport proposal (#1121)</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>Verbatim Blink WebIDL (matching W3C WebTransport &sect;12 plus Chromium&rsquo;s retained legacy compatibility overload):</p>
+    <pre><code>// third_party/blink/renderer/modules/webtransport/web_transport_error.idl
+enum WebTransportErrorSource {
+  "stream",
+  "session",
+};
+
+[Exposed=(Window,Worker), Serializable, SecureContext]
+interface WebTransportError : DOMException {
+  // Standard W3C constructor
+  constructor(optional DOMString message = "",
+              optional WebTransportErrorOptions options = {});
+
+  // Chromium legacy compatibility overload (clamps streamErrorCode to octet 0..255)
+  [MeasureAs=WebTransportErrorLegacyConstructor]
+  constructor(WebTransportErrorInit init, optional any legacyIgnored);
+
+  readonly attribute unsigned long? streamErrorCode;
+  readonly attribute WebTransportErrorSource source;
+};
+
+// third_party/blink/renderer/modules/webtransport/web_transport_error_options.idl
+dictionary WebTransportErrorOptions {
+  WebTransportErrorSource source = "stream";
+  [Clamp] unsigned long? streamErrorCode = null;
+};
+
+// third_party/blink/renderer/modules/webtransport/web_transport_error_init.idl
+dictionary WebTransportErrorInit {
+  [Clamp] octet streamErrorCode;
+  DOMString message;
+};</code></pre>
+    <p>This reference documents four parts of the contract: <a href="#standard-constructor">standard <code>(message, options)</code> constructor</a>, <a href="#legacy-constructor">legacy dictionary overload</a>, <a href="#error-code-and-source">32-bit <code>streamErrorCode</code> and <code>source</code></a>, and <a href="#structured-serialization"><code>[Serializable]</code> structured cloning</a>.</p>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/webtransport/#web-transport-error-interface" target="_blank" rel="noopener">W3C WebTransport &sect;12</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport_error.idl" target="_blank" rel="noopener">Blink web_transport_error.idl</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport_error_options.idl" target="_blank" rel="noopener">Blink web_transport_error_options.idl</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport_error_init.idl" target="_blank" rel="noopener">Blink web_transport_error_init.idl</a>.</span>
+
+    <h3 id="standard-constructor">Standard constructor: <code>new WebTransportError(message, options)</code></h3>
+    <p><strong>Inputs.</strong> Accepts two optional parameters matching the W3C specification:</p>
+    <ul>
+      <li><code>message</code> (<code>DOMString</code>, default <code>""</code>): human-readable error description stored in the inherited <code>DOMException.message</code> attribute.</li>
+      <li><code>options</code> (<code>WebTransportErrorOptions</code>, default <code>{}</code>):
+        <ul>
+          <li><code>source</code> (<code>WebTransportErrorSource</code>, default <code>"stream"</code>): either <code>"stream"</code> or <code>"session"</code>. Passing any other string throws a <code>TypeError</code> via WebIDL enum conversion.</li>
+          <li><code>streamErrorCode</code> (<code>[Clamp] unsigned long?</code>, default <code>null</code>): nullable 32-bit unsigned integer (<code>0</code> to <code>4294967295</code>). Negative numbers clamp to <code>0</code>; values above <code>4294967295</code> clamp to <code>4294967295</code>; <code>null</code> or <code>undefined</code> keeps the attribute <code>null</code>.</li>
+        </ul>
+      </li>
+    </ul>
+    <p><strong>Outputs.</strong> Returns a <code>WebTransportError</code> instance (subclass of <code>DOMException</code>) with <code>name === "WebTransportError"</code>, legacy <code>code === 0</code>, and the requested <code>message</code>, <code>source</code>, and <code>streamErrorCode</code>.</p>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/webtransport/#web-transport-error-interface" target="_blank" rel="noopener">W3C WebTransport &sect;12</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport_error.cc" target="_blank" rel="noopener">Blink web_transport_error.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport_error_test.cc" target="_blank" rel="noopener">Blink web_transport_error_test.cc</a>.</span>
+
+    <h3 id="legacy-constructor">Legacy compatibility overload: <code>new WebTransportError(init)</code></h3>
+    <p><strong>Inputs.</strong> When the first argument is a non-null JS object (matching WebIDL dictionary overload resolution for <code>WebTransportErrorInit</code>), Chromium dispatches to the retained legacy overload <code>constructor(WebTransportErrorInit init, optional any legacyIgnored)</code>:</p>
+    <ul>
+      <li><code>init.message</code> (optional <code>DOMString</code>, default <code>""</code>): copied into <code>error.message</code>.</li>
+      <li><code>init.streamErrorCode</code> (optional <code>[Clamp] octet</code>): clamped to <code>0&ndash;255</code> (if omitted, <code>streamErrorCode</code> is <code>null</code>).</li>
+      <li><code>legacyIgnored</code> (optional <code>any</code>): ignored to preserve compatibility with existing callers that passed trailing arguments.</li>
+    </ul>
+    <p><strong>Outputs &amp; migration note.</strong> Always produces <code>source === "stream"</code> and increments Chromium&rsquo;s <code>WebTransportErrorLegacyConstructor</code> UseCounter. Firefox and Safari only implement the standard <code>(message, options)</code> signature &mdash; passing an object as the first argument there coerces it via <code>ToString()</code> to <code>"[object Object]"</code>. New cross-browser code should always call <code>new WebTransportError(message, options)</code>.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport_error.idl" target="_blank" rel="noopener">Blink web_transport_error.idl</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport_error.cc" target="_blank" rel="noopener">Blink web_transport_error.cc</a>; <a href="https://chromestatus.com/feature/5158277221580800" target="_blank" rel="noopener">ChromeStatus compatibility risks</a>.</span>
+
+    <h3 id="error-code-and-source">Full 32-bit <code>streamErrorCode</code> and <code>source</code></h3>
+    <p><strong>Inputs &amp; outputs.</strong> <code>error.streamErrorCode</code> is a read-only <code>unsigned long?</code> carrying the full 32-bit application stream error code (<code>0</code> through <code>4294967295</code>, or <code>null</code> when no application error code applies). Previously, Chromium truncated outgoing application stream error codes (for example when aborting a stream or calling <code>ReadableStream.cancel()</code> / <code>WritableStream.abort()</code> with a <code>WebTransportError</code>) to 8 bits (<code>0&ndash;255</code>). With this change, Chromium carries the full 32-bit <code>uint32_t</code> value end-to-end across HTTP/3 WebTransport stream reset/stop-sending protocol mapping. <code>error.source</code> is a read-only <code>WebTransportErrorSource</code> equal to <code>"stream"</code> (error originated on an individual stream or client abort) or <code>"session"</code> (session-level error).</p>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/webtransport/#protocol-mapping" target="_blank" rel="noopener">W3C WebTransport Protocol Mapping</a>; <a href="https://chromestatus.com/feature/5158277221580800" target="_blank" rel="noopener">ChromeStatus summary (5158277221580800)</a>; <a href="https://github.com/web-platform-tests/wpt/pull/63842" target="_blank" rel="noopener">WPT PR #63842</a>.</span>
+
+    <h3 id="structured-serialization"><code>[Serializable]</code> structured cloning</h3>
+    <p><strong>Inputs &amp; outputs.</strong> Marking <code>WebTransportError</code> as <code>[Serializable]</code> allows instances to pass through <code>structuredClone()</code>, <code>Worker.postMessage()</code> / <code>MessageChannel</code>, and IndexedDB storage. Blink&rsquo;s module serializer (<code>V8ScriptValueSerializerForModules::WriteDOMObject</code>) writes a dedicated versioned tag (<code>kWebTransportErrorTag</code>) carrying four fields before delegating to the core <code>DOMException</code> serializer:</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="ser-fields-caption">
+    <table class="doc-table scroll-table">
+      <caption id="ser-fields-caption">Fields preserved by <code>WebTransportError</code> structured serialization in Chromium</caption>
+      <thead><tr><th scope="col">Field</th><th scope="col">Preserved?</th><th scope="col">Details</th></tr></thead>
+      <tr><td>Prototype / subtype</td><td>Yes</td><td>Deserializes as <code>WebTransportError</code> (<code>cloned instanceof WebTransportError === true</code>, <code>name === "WebTransportError"</code>)</td></tr>
+      <tr><td><code>message</code></td><td>Yes</td><td>UTF-8 <code>DOMString</code> preserved verbatim</td></tr>
+      <tr><td><code>source</code></td><td>Yes</td><td>Validated enum discriminant (<code>"stream"</code> or <code>"session"</code>)</td></tr>
+      <tr><td><code>streamErrorCode</code></td><td>Yes</td><td>Presence flag (<code>0</code>/<code>1</code>) plus full 32-bit unsigned integer (or <code>null</code>)</td></tr>
+      <tr><td><code>stack</code></td><td>No (reserved)</td><td>Wire format reserves an empty stack string in version 1; JS stack trace is intentionally not serialized</td></tr>
+    </table>
+    </div>
+    <p><strong>Writer kill switch vs permanent decoder.</strong> Writer-side serialization is gated by <code>RuntimeEnabledFeatures::WebTransportErrorSerializationEnabled()</code>, while deserialization in <code>V8ScriptValueDeserializerForModules::ReadDOMObject()</code> remains permanently enabled so previously persisted IndexedDB records decode cleanly even if the writer switch is turned off.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/bindings/modules/v8/serialization/v8_script_value_serializer_for_modules.cc" target="_blank" rel="noopener">Blink v8_script_value_serializer_for_modules.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/bindings/modules/v8/serialization/v8_script_value_deserializer_for_modules.cc" target="_blank" rel="noopener">Blink v8_script_value_deserializer_for_modules.cc</a>; <a href="https://chromestatus.com/feature/5158277221580800" target="_blank" rel="noopener">ChromeStatus 5158277221580800</a>.</span>
+
+    <h3 id="errors-and-fallbacks">Errors, edge cases, and recovery</h3>
+    <ul>
+      <li><strong><code>TypeError</code> on invalid <code>options.source</code> &amp; legacy <code>WebTransportErrorInit</code> clamping:</strong> passing a <code>source</code> value other than <code>"stream"</code> or <code>"session"</code> throws a synchronous <code>TypeError</code>. Passing a dictionary as the first argument invokes Chromium&rsquo;s legacy <code>WebTransportErrorInit</code> overload, which silently clamps <code>streamErrorCode</code> to an 8-bit octet (<code>0&ndash;255</code>) and forces <code>source</code> to <code>"stream"</code>.</li>
+      <li><strong><code>DataCloneError</code> (<code>DOMException</code>) in older Chrome / when flag is off:</strong> before this feature is enabled, structured-cloning a <code>WebTransportError</code> fails with <code>DataCloneError</code> (or loses WebTransport fields if sliced to <code>DOMException</code>). Feature-detect by testing <code>structuredClone(new WebTransportError("probe", { streamErrorCode: 70000 }))</code> and checking <code>clone instanceof WebTransportError &amp;&amp; clone.streamErrorCode === 70000</code>, falling back to plain-object DTO serialization when absent.</li>
+      <li><strong>Corrupted serialized payloads:</strong> Blink&rsquo;s deserializer rejects payloads with an unknown format version, out-of-range <code>source</code> tag, invalid presence flag (<code>&gt; 1</code>), malformed UTF-8, or truncated bytes, failing deserialization safely rather than constructing a malformed object.</li>
+      <li><strong>Non-secure target context:</strong> deserialization checks <code>ExecutionContextExposesInterface</code>; a non-secure context where <code>WebTransportError</code> is not exposed cannot deserialize a <code>WebTransportError</code> payload.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/bindings/modules/v8/serialization/v8_script_value_deserializer_for_modules.cc" target="_blank" rel="noopener">Blink deserializer validation</a>; <a href="https://chromestatus.com/feature/5158277221580800" target="_blank" rel="noopener">ChromeStatus compatibility &amp; security notes</a>.</span>
+
+    <h3 id="context">Context and exposure</h3>
+    <p><code>WebTransportError</code> is exposed in <code>Window</code> and <code>Worker</code> (dedicated, shared, and service workers) and requires a <strong>Secure Context</strong> (<code>[Exposed=(Window,Worker), Serializable, SecureContext]</code>). Constructing or cloning a <code>WebTransportError</code> does not require an active <code>WebTransport</code> connection, permission, or user activation.</p>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/webtransport/#web-transport-error-interface" target="_blank" rel="noopener">W3C WebTransport &sect;12</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport_error.idl" target="_blank" rel="noopener">Blink web_transport_error.idl</a>.</span>
+
+    <h3 id="lifecycle">Lifecycle and state transitions</h3>
+    <p><code>WebTransportError</code> instances are immutable value objects once constructed: <code>message</code>, <code>name</code>, <code>code</code>, <code>source</code>, and <code>streamErrorCode</code> are read-only. They are created either by user agents when a stream or session fails over HTTP/3 / QUIC, or by application script passing an error reason to <code>WritableStream.abort(reason)</code> / <code>ReadableStream.cancel(reason)</code>. Passing a <code>WebTransportError</code> through <code>structuredClone()</code>, <code>postMessage()</code>, or IndexedDB creates an independent copy in the receiving realm with identical <code>message</code>, <code>source</code>, and <code>streamErrorCode</code> (without retaining the original JS stack trace).</p>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/webtransport/#web-transport-error-interface" target="_blank" rel="noopener">W3C WebTransport &sect;12</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport_error.cc" target="_blank" rel="noopener">Blink web_transport_error.cc</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v159/webtransporterror-api-alignment-and-serialization/constructor-overloads/"
+        title="Live example — WebTransportError constructor overloads" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live interactive example: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v159/webtransporterror-api-alignment-and-serialization/constructor-overloads/" target="_blank" rel="noopener">Constructor overloads</a> (also see <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v159/webtransporterror-api-alignment-and-serialization/stream-error-code-range/" target="_blank" rel="noopener">Stream error code range</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v159/webtransporterror-api-alignment-and-serialization/worker-error-relay/" target="_blank" rel="noopener">Worker error relay</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v159/webtransporterror-api-alignment-and-serialization/persisted-error-log/" target="_blank" rel="noopener">Persisted error log</a>, and <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v159/webtransporterror-api-alignment-and-serialization/migration-shim/" target="_blank" rel="noopener">Migration shim</a>).<span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v159/webtransporterror-api-alignment-and-serialization/" target="_blank" rel="noopener">Chrome Platform Showcase &mdash; WebTransportError API alignment and serialization</a></span></figcaption>
+    </figure>
+
+    <h3 id="example-standard-and-clone">Standard constructor, 32-bit error code, and structured cloning across a Worker</h3>
+    <pre><code>// Standard W3C (message, options) constructor with a &gt;255 32-bit error code
+const err = new WebTransportError("Stream quota exceeded", {
+  source: "stream",
+  streamErrorCode: 70000,
+});
+
+console.log(err instanceof DOMException); // true
+console.log(err.name);                    // "WebTransportError"
+console.log(err.source);                  // "stream"
+console.log(err.streamErrorCode);         // 70000 (not truncated to 8 bits)
+
+// Structured clone preserves subtype, message, source, and streamErrorCode
+const cloned = structuredClone(err);
+console.log(cloned instanceof WebTransportError); // true
+console.log(cloned.streamErrorCode === 70000);    // true
+
+// Relay directly from a Worker to the Window via postMessage()
+self.postMessage({ kind: "wt-error", error: err });</code></pre>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport_error_test.cc" target="_blank" rel="noopener">Blink web_transport_error_test.cc</a>; <a href="https://www.w3.org/TR/webtransport/#web-transport-error-interface" target="_blank" rel="noopener">W3C WebTransport &sect;12</a>.</span>
+
+    <h3 id="example-compat-shim">Cross-browser construction and clone feature detection</h3>
+    <pre><code>function createWebTransportErrorSafe(message, options = {}) {
+  const probe = new WebTransportError(message, options);
+  // Pre-159 Chromium ignored (message, options) and required the legacy WebTransportErrorInit dictionary
+  if (message &amp;&amp; probe.message !== message) {
+    return new WebTransportError({
+      message,
+      streamErrorCode: options.streamErrorCode ?? 0,
+    });
+  }
+  return probe;
+}
+
+function canCloneWebTransportError() {
+  try {
+    const src = new WebTransportError("probe", { source: "session", streamErrorCode: 70000 });
+    const copy = structuredClone(src);
+    return (
+      copy instanceof WebTransportError &amp;&amp;
+      copy.message === "probe" &amp;&amp;
+      copy.source === "session" &amp;&amp;
+      copy.streamErrorCode === 70000
+    );
+  } catch {
+    return false;
+  }
+}</code></pre>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5158277221580800" target="_blank" rel="noopener">ChromeStatus 5158277221580800</a>; <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v159/webtransporterror-api-alignment-and-serialization/migration-shim/" target="_blank" rel="noopener">Chrome Platform Showcase migration-shim concept</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Support for <code>WebTransportError</code> standard constructor, 32-bit <code>streamErrorCode</code>, and <code>[Serializable]</code> cloning. BCD does not yet track these alignment subfeatures separately; status combines BCD base support with ChromeStatus and engine bugs (checked 2026-11-24).</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col">Alignment &amp; serialization</th><th scope="col">Base <code>WebTransportError</code> (BCD)</th><th scope="col">Notes &amp; evidence</th></tr></thead>
+      <tr><th scope="row">Chrome (desktop, Android, WebView)</th><td>159 (flag)<br>160 (target)</td><td>97</td><td>Developer trial behind <code>#enable-experimental-web-platform-features</code> in Chrome 159; shipping enabled by default targeted for Chrome 160 per <a href="https://chromestatus.com/feature/5158277221580800" target="_blank" rel="noopener">ChromeStatus 5158277221580800</a>. Retains legacy dictionary overload</td></tr>
+      <tr><th scope="row">Edge</th><td>Unknown (Chromium mirror)</td><td>97 (mirror)</td><td>Chromium-based; follows Chromium milestone rollout</td></tr>
+      <tr><th scope="row">Firefox</th><td>Shipped</td><td>114</td><td>Standard constructor, 32-bit <code>streamErrorCode</code>, and serialization shipped per <a href="https://bugzilla.mozilla.org/show_bug.cgi?id=2009530" target="_blank" rel="noopener">Bug 2009530</a> and <a href="https://github.com/web-platform-tests/wpt/pull/63842" target="_blank" rel="noopener">WPT PR #63842</a> (exact release number not listed in BCD)</td></tr>
+      <tr><th scope="row">Safari</th><td>Shipped (26.4)</td><td>26.4</td><td>Standard constructor, 32-bit error code, and serialization implemented per <a href="https://bugs.webkit.org/show_bug.cgi?id=305224" target="_blank" rel="noopener">WebKit Bug 305224</a> and <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebTransportError.json" target="_blank" rel="noopener">BCD</a></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebTransportError.json" target="_blank" rel="noopener">BCD api/WebTransportError.json</a>; <a href="https://chromestatus.com/api/v0/features/5158277221580800" target="_blank" rel="noopener">ChromeStatus API record</a>; <a href="https://bugzilla.mozilla.org/show_bug.cgi?id=2009530" target="_blank" rel="noopener">Firefox Bug 2009530</a>; <a href="https://bugs.webkit.org/show_bug.cgi?id=305224" target="_blank" rel="noopener">WebKit Bug 305224</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <p>Aligning <code>WebTransportError</code> and making it serializable grants no new network capability, reveals no new server or user information, and preserves WebTransport&rsquo;s <code>[SecureContext]</code> restriction. Structured cloning copies only the <code>WebTransportError</code> subtype, <code>DOMString</code> message, <code>source</code> enum (<code>"stream"</code>/<code>"session"</code>), and nullable 32-bit <code>streamErrorCode</code> (stack traces are not serialized). Blink&rsquo;s versioned decoder strictly validates the format version, enum discriminants, presence flag, UTF-8 code units, and payload length before instantiating a <code>WebTransportError</code>. ChromeStatus rates security risk as Low and lists formal security and privacy reviews as Pending (checked 2026-11-24).</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5158277221580800" target="_blank" rel="noopener">ChromeStatus security_risks (5158277221580800)</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/bindings/modules/v8/serialization/v8_script_value_deserializer_for_modules.cc" target="_blank" rel="noopener">Blink deserializer validation</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Specification</th><th scope="col">Section</th></tr></thead>
+      <tr><td><a href="https://www.w3.org/TR/webtransport/" target="_blank" rel="noopener">W3C WebTransport</a></td><td><a href="https://www.w3.org/TR/webtransport/#web-transport-error-interface" target="_blank" rel="noopener">&sect;12 <code>WebTransportError</code> Interface</a></td></tr>
+      <tr><td><a href="https://www.w3.org/TR/webtransport/" target="_blank" rel="noopener">W3C WebTransport</a></td><td><a href="https://www.w3.org/TR/webtransport/#protocol-mapping" target="_blank" rel="noopener">Protocol Mapping (32-bit application error codes)</a></td></tr>
+      <tr><td><a href="https://html.spec.whatwg.org/multipage/structured-data.html" target="_blank" rel="noopener">HTML Living Standard</a></td><td><a href="https://html.spec.whatwg.org/multipage/structured-data.html#serializable-objects" target="_blank" rel="noopener">Serializable objects</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v159/webtransporterror-api-alignment-and-serialization/" target="_blank" rel="noopener">Chrome Platform Showcase &mdash; WebTransportError API alignment and serialization (5 interactive concepts)</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/WebTransportError" target="_blank" rel="noopener">MDN &mdash; <code>WebTransportError</code></a></li>
+      <li><a href="/v159/webtransport-send-groups-and-send-stream-prioritization/">gendn Chrome 159 &mdash; WebTransport send groups and send-stream prioritization</a></li>
+      <li><a href="https://developer.chrome.com/docs/capabilities/web-apis/webtransport" target="_blank" rel="noopener">Chrome for Developers &mdash; Experimenting with WebTransport</a></li>
+      <li><a href="https://chromestatus.com/feature/5158277221580800" target="_blank" rel="noopener">ChromeStatus &mdash; WebTransportError API alignment and serialization (5158277221580800)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

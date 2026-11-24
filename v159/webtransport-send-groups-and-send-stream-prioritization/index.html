@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebTransport send groups and send-stream prioritization — Chrome 159 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 36rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .scroll-table { min-width: 30rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v159/">&larr; Chrome 159 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v159 &middot; webtransport &middot; enabled by default</p>
+    <h1>WebTransport send groups and send-stream prioritization</h1>
+
+    <p class="lede">Upgrades outgoing WebTransport streams in Chromium from plain <code>WritableStream</code> objects to <code>WebTransportSendStream</code> instances and adds <code>WebTransport.createSendGroup()</code>, <code>WebTransportSendGroup</code>, per-stream <code>sendGroup</code> and <code>sendOrder</code> prioritization, and byte-progress statistics via <code>getStats()</code> on both streams and groups while preserving <code>WritableStream</code> transferability.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; send groups, stream prioritization, and stats are not Baseline (base <code>WebTransport</code> is Baseline Newly available since 2026-03-24)</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 159 (desktop, Android, WebView)</li>
+        <li>Edge &middot; Chromium-based (BCD mirror)</li>
+        <li class="limited">Firefox &middot; 155 send groups / 121 sendOrder (stats full in 160)</li>
+        <li class="limited">Safari &middot; 26.4 (group <code>getStats()</code> partial in BCD)</li>
+      </ul>
+      <p>The base <a href="https://webstatus.dev/features/webtransport" target="_blank" rel="noopener"><code>webtransport</code> web-feature</a> is <strong>Baseline Newly available</strong> since 2026-03-24 per <a href="https://api.webstatus.dev/v1/features?q=webtransport" target="_blank" rel="noopener">webstatus.dev</a>, but send-group scheduling and send-stream statistics have engine differences recorded in <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebTransportSendGroup.json" target="_blank" rel="noopener">BCD <code>WebTransportSendGroup.json</code></a> and <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebTransportSendStream.json" target="_blank" rel="noopener">BCD <code>WebTransportSendStream.json</code></a> (checked 2026-11-24). Chromium 159 ships send groups, <code>sendOrder</code>, and full stream/group byte stats; the spec&rsquo;s specialized <code>WebTransportWriter</code> is not yet implemented in Chromium.</p>
+    </div>
+  </header>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#at-a-glance">At a glance</a></li>
+      <li><a href="#why">Why it exists</a></li>
+      <li><a href="#syntax">Syntax &amp; API surface</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#security-and-privacy">Security &amp; privacy</a></li>
+      <li><a href="#specifications">Specifications</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Shipped in</th><td>Chrome 159 (desktop, Android, Android WebView), enabled by default &mdash; filed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=159" target="_blank" rel="noopener">milestone=159 listing</a> and <a href="https://chromestatus.com/api/v0/features/5235261159112704" target="_blank" rel="noopener">ChromeStatus API record</a></td></tr>
+      <tr><th scope="row">Runtime flag</th><td>Enabled by default (<code>status: "stable"</code> for <code>WebTransportSendGroup</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>); previously gated behind <code>chrome://flags/#enable-experimental-web-platform-features</code></td></tr>
+      <tr><th scope="row">Specification</th><td><a href="https://www.w3.org/TR/webtransport/#webtransportsendstream" target="_blank" rel="noopener">W3C WebTransport &mdash; <code>WebTransportSendStream</code></a>, <a href="https://www.w3.org/TR/webtransport/#webtransportsendgroup" target="_blank" rel="noopener"><code>WebTransportSendGroup</code></a>, <a href="https://www.w3.org/TR/webtransport/#dom-webtransport-createsendgroup" target="_blank" rel="noopener"><code>createSendGroup()</code></a>, <a href="https://www.w3.org/TR/webtransport/#dictdef-webtransportsendstreamstats" target="_blank" rel="noopener"><code>WebTransportSendStreamStats</code></a></td></tr>
+      <tr><th scope="row">Explainers</th><td><a href="https://github.com/w3c/webtransport/blob/main/explainer.md#6-sending-video-one-stream-per-frame-or-segment-with-send-order" target="_blank" rel="noopener">Video frames with <code>sendOrder</code></a>, <a href="https://github.com/w3c/webtransport/blob/main/explainer.md#7-sending-real-time-game-data-per-stream-with-send-order" target="_blank" rel="noopener">Game data with <code>sendOrder</code></a>, <a href="https://github.com/w3c/webtransport/blob/main/explainer.md#8-managing-bandwidth-with-send-groups" target="_blank" rel="noopener">Managing bandwidth with send groups</a></td></tr>
+      <tr><th scope="row">Intent</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6ae2867d.4000571a.28172.010c.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a></td></tr>
+      <tr><th scope="row">Tracking bug</th><td><a href="https://crbug.com/568825278" target="_blank" rel="noopener">crbug.com/568825278</a></td></tr>
+      <tr><th scope="row">Web platform tests</th><td><a href="https://wpt.fyi/results/webtransport/sendgroup.https.any.html" target="_blank" rel="noopener">sendgroup.https.any.html</a>, <a href="https://wpt.fyi/results/webtransport/sendorder.https.any.html" target="_blank" rel="noopener">sendorder.https.any.html</a>, <a href="https://wpt.fyi/results/webtransport/send-stream-stats.https.any.html" target="_blank" rel="noopener">send-stream-stats.https.any.html</a>, <a href="https://wpt.fyi/results/webtransport/sendstream-bad-chunk.https.any.html" target="_blank" rel="noopener">sendstream-bad-chunk.https.any.html</a></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5235261159112704" target="_blank" rel="noopener">5235261159112704 &mdash; WebTransport send groups and send-stream prioritization</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>Real-time media, cloud gaming, and telemetry applications multiplex multiple independent data flows &mdash; such as audio frames, video keyframes, delta frames, and control state &mdash; over a single <code>WebTransport</code> session. Without send groups and ordering weights, all outgoing streams compete in a flat pool where a burst of large delta frames can starve audio or control streams. Send groups partition outgoing streams into fairness domains so competing flows share bandwidth without starving one another, while <code>sendOrder</code> establishes strict priority among streams within a group (for example, sending keyframes before P-frames). Exposing <code>getStats()</code> on both <code>WebTransportSendStream</code> and <code>WebTransportSendGroup</code> lets applications measure written, sent, and QUIC-acknowledged bytes to detect congestion and drop stale frames proactively.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5235261159112704" target="_blank" rel="noopener">ChromeStatus motivation (5235261159112704)</a>; <a href="https://github.com/w3c/webtransport/blob/main/explainer.md#8-managing-bandwidth-with-send-groups" target="_blank" rel="noopener">W3C WebTransport Explainer &sect;8</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>Normative WebIDL from the W3C WebTransport specification alongside Chromium&rsquo;s Blink IDL in Chrome 159:</p>
+    <pre><code>// WebTransport additions (third_party/blink/renderer/modules/webtransport/web_transport.idl)
+[Exposed=(Window,Worker), SecureContext]
+partial interface WebTransport {
+  WebTransportSendGroup createSendGroup();
+
+  // Resolves to WebTransportSendStream in Chrome 159 (subclass of WritableStream)
+  Promise&lt;WebTransportSendStream&gt; createUnidirectionalStream(
+    optional WebTransportSendStreamOptions options = {});
+
+  // Resolves to WebTransportBidirectionalStream whose .writable is WebTransportSendStream
+  Promise&lt;WebTransportBidirectionalStream&gt; createBidirectionalStream(
+    optional WebTransportSendStreamOptions options = {});
+};
+
+[Exposed=(Window,Worker), SecureContext]
+interface WebTransportSendGroup {
+  Promise&lt;WebTransportSendStreamStats&gt; getStats();
+};
+
+[Exposed=(Window,Worker), SecureContext]
+interface WebTransportSendStream : WritableStream {
+  attribute WebTransportSendGroup? sendGroup;
+  attribute long long sendOrder;
+  Promise&lt;WebTransportSendStreamStats&gt; getStats();
+  // Spec defines WebTransportWriter getWriter(); Chrome 159 inherits WritableStream.getWriter()
+};
+
+dictionary WebTransportSendOptions {
+  WebTransportSendGroup? sendGroup = null;
+  long long sendOrder = 0;
+};
+
+dictionary WebTransportSendStreamOptions : WebTransportSendOptions {
+  // Spec also defines boolean waitUntilAvailable = false (not yet implemented in Chrome 159)
+};
+
+dictionary WebTransportSendStreamStats {
+  unsigned long long bytesWritten = 0;
+  unsigned long long bytesSent = 0;
+  unsigned long long bytesAcknowledged = 0;
+};</code></pre>
+    <p>This reference documents all five parts of the Chrome 159 surface: <a href="#createsendgroup"><code>WebTransport.createSendGroup()</code></a>, <a href="#webtransportsendgroup"><code>WebTransportSendGroup</code></a>, <a href="#webtransportsendstream"><code>WebTransportSendStream</code></a>, <a href="#send-stream-options"><code>WebTransportSendOptions</code> / <code>WebTransportSendStreamOptions</code></a>, and <a href="#send-stream-stats"><code>WebTransportSendStreamStats</code></a>.</p>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/webtransport/#webtransportsendstream" target="_blank" rel="noopener">W3C WebTransport &sect;7</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport.idl" target="_blank" rel="noopener">Blink web_transport.idl</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport_send_stream.idl" target="_blank" rel="noopener">Blink web_transport_send_stream.idl</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport_send_group.idl" target="_blank" rel="noopener">Blink web_transport_send_group.idl</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport_send_options.idl" target="_blank" rel="noopener">Blink web_transport_send_options.idl</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport_send_stream_stats.idl" target="_blank" rel="noopener">Blink web_transport_send_stream_stats.idl</a>.</span>
+
+    <h3 id="createsendgroup"><code>WebTransport.createSendGroup()</code></h3>
+    <p><strong>Inputs.</strong> Takes no parameters. Must be called on a live (connecting or connected) <code>WebTransport</code> instance.</p>
+    <p><strong>Outputs.</strong> Synchronously returns a newly allocated, distinct <code>WebTransportSendGroup</code> object bound exclusively to the calling <code>WebTransport</code> session. Repeated calls return distinct group instances even when no streams have been assigned yet.</p>
+    <p><strong>Errors.</strong> Throws a synchronous <code>InvalidStateError</code> <code>DOMException</code> if the <code>WebTransport</code> session is already closed or failed. In Chromium, also throws <code>OperationError</code> if the internal 32-bit group identifier counter is exhausted.</p>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/webtransport/#dom-webtransport-createsendgroup" target="_blank" rel="noopener">W3C WebTransport <code>createSendGroup()</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport.cc" target="_blank" rel="noopener">Blink web_transport.cc</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/webtransport/sendgroup.https.any.js" target="_blank" rel="noopener">WPT sendgroup.https.any.js</a>.</span>
+
+    <h3 id="webtransportsendgroup"><code>WebTransportSendGroup</code> and <code>getStats()</code></h3>
+    <p><strong>Inputs.</strong> <code>WebTransportSendGroup</code> has no constructor and is created only via <code>transport.createSendGroup()</code>. Its single method <code>getStats()</code> accepts no arguments.</p>
+    <p><strong>Outputs.</strong> <code>group.getStats()</code> returns a <code>Promise</code> resolving to a <a href="#send-stream-stats"><code>WebTransportSendStreamStats</code></a> dictionary summing <code>bytesWritten</code>, <code>bytesSent</code>, and <code>bytesAcknowledged</code> across all active and finalized streams assigned to the group. An empty group resolves immediately with all counters at <code>0</code>. Finalized stream counters remain included in the group total even after individual streams or the parent <code>WebTransport</code> session close.</p>
+    <p><strong>Reassignment caveat.</strong> In Chromium 159, moving an already-finalized stream to a different group subtracts its lifetime counters from the previous group and adds them to the new group (open spec discussion in <a href="https://github.com/w3c/webtransport/issues/802" target="_blank" rel="noopener">w3c/webtransport#802</a>).</p>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/webtransport/#webtransportsendgroup" target="_blank" rel="noopener">W3C WebTransport <code>WebTransportSendGroup</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport_send_group.cc" target="_blank" rel="noopener">Blink web_transport_send_group.cc</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/webtransport/send-stream-stats.https.any.js" target="_blank" rel="noopener">WPT send-stream-stats.https.any.js</a>.</span>
+
+    <h3 id="webtransportsendstream"><code>WebTransportSendStream</code> (<code>sendGroup</code>, <code>sendOrder</code>, <code>getStats()</code>, transfer)</h3>
+    <p><strong>Inputs &amp; outputs.</strong> <code>WebTransportSendStream</code> subclasses <code>WritableStream</code> and is the runtime object returned by <code>createUnidirectionalStream()</code> and exposed on <code>bidirectional.writable</code>. It preserves <code>stream instanceof WritableStream === true</code> and inherits <code>WritableStream</code>&rsquo;s transfer steps (<code>postMessage(stream, [stream])</code> transfers the underlying writable pipe across realms without breaking existing code).</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="sendstream-members-caption">
+    <table class="doc-table scroll-table">
+      <caption id="sendstream-members-caption">Members of <code>WebTransportSendStream</code> in Chrome 159</caption>
+      <thead><tr><th scope="col">Member</th><th scope="col">Type / default</th><th scope="col">Behavior &amp; errors</th></tr></thead>
+      <tr><td><code>sendGroup</code></td><td><code>WebTransportSendGroup?</code> (default <code>null</code>)</td><td>Gets or reassigns the stream&rsquo;s send group dynamically. Setting a group created by a <em>different</em> <code>WebTransport</code> instance throws <code>InvalidStateError</code>. Setting <code>null</code> returns the stream to the ungrouped pool. Each change dispatches a priority update to the network service.</td></tr>
+      <tr><td><code>sendOrder</code></td><td><code>long long</code> (default <code>0</code>)</td><td>Signed 64-bit integer priority weight relative to other streams sharing the same <code>sendGroup</code> (or ungrouped streams when <code>sendGroup</code> is <code>null</code>). Higher values are scheduled ahead of lower values. Assigning <code>null</code> coerces to <code>0</code> per WebIDL <code>long long</code> conversion. Can be mutated dynamically after stream creation.</td></tr>
+      <tr><td><code>getStats()</code></td><td><code>Promise&lt;WebTransportSendStreamStats&gt;</code></td><td>Resolves to a snapshot of <code>bytesWritten</code>, <code>bytesSent</code>, and <code>bytesAcknowledged</code> for this stream. Continues returning the finalized byte counts after the stream or session closes.</td></tr>
+      <tr><td><code>getWriter()</code></td><td>Inherited <code>WritableStreamDefaultWriter</code> (Chrome 159)</td><td>The W3C spec defines a specialized <code>WebTransportWriter</code> subclass (adding <code>atomicWrite()</code> and <code>commit()</code>), which is not yet implemented in Chromium 159 (<a href="https://crbug.com/487117768" target="_blank" rel="noopener">crbug.com/487117768</a>); calling <code>getWriter()</code> returns a standard <code>WritableStreamDefaultWriter</code>.</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/webtransport/#webtransportsendstream" target="_blank" rel="noopener">W3C WebTransport <code>WebTransportSendStream</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport_send_stream.cc" target="_blank" rel="noopener">Blink web_transport_send_stream.cc</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/webtransport/sendorder.https.any.js" target="_blank" rel="noopener">WPT sendorder.https.any.js</a>.</span>
+
+    <h3 id="send-stream-options"><code>WebTransportSendOptions</code> and <code>WebTransportSendStreamOptions</code></h3>
+    <p><strong>Inputs.</strong> Both <code>createUnidirectionalStream(options)</code> and <code>createBidirectionalStream(options)</code> accept an optional <code>WebTransportSendStreamOptions</code> dictionary inheriting from <code>WebTransportSendOptions</code>:</p>
+    <ul>
+      <li><code>sendGroup</code> (<code>WebTransportSendGroup?</code>, default <code>null</code>): assigns the new stream to the specified send group at creation time. Passing a group from another <code>WebTransport</code> instance causes stream creation to reject with <code>InvalidStateError</code>.</li>
+      <li><code>sendOrder</code> (<code>long long</code>, default <code>0</code>): sets the stream&rsquo;s initial priority weight within its send group (or among ungrouped streams).</li>
+      <li><code>waitUntilAvailable</code> (W3C spec <code>boolean = false</code>): not yet implemented in Chromium 159 (<a href="https://crbug.com/487117768" target="_blank" rel="noopener">crbug.com/487117768</a>); stream creation rejects immediately if peer stream limits are exhausted.</li>
+    </ul>
+    <p><strong>Outputs &amp; datagrams.</strong> The same <code>WebTransportSendOptions</code> dictionary (<code>sendGroup</code> and <code>sendOrder</code>) is also accepted by <code>transport.datagrams.createWritable(options)</code>, returning a <code>WebTransportDatagramsWritable</code> whose <code>sendGroup</code> and <code>sendOrder</code> attributes can be read and updated dynamically.</p>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/webtransport/#dictdef-webtransportsendstreamoptions" target="_blank" rel="noopener">W3C WebTransport <code>WebTransportSendStreamOptions</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport_send_stream_options.idl" target="_blank" rel="noopener">Blink web_transport_send_stream_options.idl</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/webtransport/sendgroup.https.any.js" target="_blank" rel="noopener">WPT sendgroup.https.any.js</a>.</span>
+
+    <h3 id="send-stream-stats"><code>WebTransportSendStreamStats</code></h3>
+    <p><strong>Inputs &amp; outputs.</strong> Returned as the resolved dictionary from both <code>WebTransportSendStream.getStats()</code> and <code>WebTransportSendGroup.getStats()</code>. All three fields are non-negative <code>unsigned long long</code> byte counters initialized to <code>0</code>:</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="stats-fields-caption">
+    <table class="doc-table scroll-table">
+      <caption id="stats-fields-caption">Fields of <code>WebTransportSendStreamStats</code></caption>
+      <thead><tr><th scope="col">Field</th><th scope="col">Type (default)</th><th scope="col">Meaning</th></tr></thead>
+      <tr><td><code>bytesWritten</code></td><td><code>unsigned long long</code> (<code>0</code>)</td><td>Total application payload bytes successfully accepted by the stream(s) via <code>write()</code>.</td></tr>
+      <tr><td><code>bytesSent</code></td><td><code>unsigned long long</code> (<code>0</code>)</td><td>Total stream bytes transmitted on the wire by the QUIC transport (never exceeds <code>bytesWritten</code>; advances asynchronously).</td></tr>
+      <tr><td><code>bytesAcknowledged</code></td><td><code>unsigned long long</code> (<code>0</code>)</td><td>Total stream bytes confirmed received by the peer via QUIC acknowledgments (<code>bytesAcknowledged &lt;= bytesSent &lt;= bytesWritten</code>).</td></tr>
+    </table>
+    </div>
+    <p>Comparing <code>bytesWritten - bytesSent</code> measures local send-buffer backlog; comparing <code>bytesSent - bytesAcknowledged</code> measures in-flight unacknowledged bytes.</p>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/webtransport/#dictdef-webtransportsendstreamstats" target="_blank" rel="noopener">W3C WebTransport <code>WebTransportSendStreamStats</code></a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/webtransport/send-stream-stats.https.any.js" target="_blank" rel="noopener">WPT send-stream-stats.https.any.js</a>.</span>
+
+    <h3 id="errors-and-compat-risks">Errors, breaking-change note, and recovery</h3>
+    <ul>
+      <li><strong><code>InvalidStateError</code> (<code>DOMException</code>):</strong> thrown synchronously by <code>transport.createSendGroup()</code> on a closed or failed transport, thrown synchronously by the <code>stream.sendGroup</code> setter when given a group from a different <code>WebTransport</code> session, and rejected asynchronously when passed a foreign <code>sendGroup</code> inside <code>WebTransportSendStreamOptions</code> to <code>createUnidirectionalStream()</code> / <code>createBidirectionalStream()</code>.</li>
+      <li><strong><code>OperationError</code> (<code>DOMException</code>):</strong> thrown synchronously by <code>createSendGroup()</code> in Chromium if the 32-bit group ID counter overflows.</li>
+      <li><strong><code>TypeError</code>:</strong> writing a non-<code>BufferSource</code> chunk to a <code>WebTransportSendStream</code> rejects the write promise with <code>TypeError</code> (verified by WPT <code>sendstream-bad-chunk.https.any.html</code>).</li>
+      <li><strong>Constructor / prototype check migration:</strong> in Chrome &lt; 159, outgoing streams were plain <code>WritableStream</code> objects (<code>stream.constructor === WritableStream</code>). In Chrome 159+, <code>stream.constructor === WebTransportSendStream</code> while <code>stream instanceof WritableStream</code> remains <code>true</code>. Replace exact constructor equality checks with <code>instanceof WritableStream</code> or feature-detect <code>"WebTransportSendStream" in globalThis</code>.</li>
+      <li><strong>Cross-engine <code>getStats()</code> fallback:</strong> Firefox &lt; 160 rejects <code>WebTransportSendStream.getStats()</code> with <code>NotSupportedError</code> and resolves <code>WebTransportSendGroup.getStats()</code> with an empty object <code>{}</code>; wrap <code>getStats()</code> calls in <code>try/catch</code> and verify <code>typeof stats.bytesAcknowledged === "number"</code>.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5235261159112704" target="_blank" rel="noopener">ChromeStatus interop &amp; compatibility risks</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/webtransport/sendstream-bad-chunk.https.any.js" target="_blank" rel="noopener">WPT sendstream-bad-chunk.https.any.js</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebTransportSendStream.json" target="_blank" rel="noopener">BCD WebTransportSendStream.json</a>.</span>
+
+    <h3 id="context">Context and exposure</h3>
+    <p><code>WebTransportSendGroup</code> and <code>WebTransportSendStream</code> are exposed in <code>Window</code> and <code>Worker</code> (including dedicated, shared, and service workers) and require a <strong>Secure Context</strong> (<code>https://</code> or <code>http://localhost</code>). Creating streams or send groups requires an active <code>WebTransport</code> session; no special Permissions Policy or user activation is needed.</p>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/webtransport/#webtransportsendstream" target="_blank" rel="noopener">W3C WebTransport &sect;7</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport_send_stream.idl" target="_blank" rel="noopener">Blink web_transport_send_stream.idl</a>.</span>
+
+    <h3 id="lifecycle">Lifecycle and state transitions</h3>
+    <p>A <code>WebTransportSendGroup</code> is created while its parent <code>WebTransport</code> is connecting or connected and remains valid for the session&rsquo;s lifetime (including post-close <code>getStats()</code> queries). Streams can be attached to a send group at creation time via <code>options.sendGroup</code> and moved between groups (or ungrouped with <code>null</code>) at any point before closing; each <code>sendGroup</code> or <code>sendOrder</code> mutation sends an immediate asynchronous priority update over Mojo to Chromium&rsquo;s QUIC network stack. When a stream finishes or aborts, its final byte counters are snapshotted into the stream and rolled into its current group&rsquo;s finalized totals so subsequent <code>getStats()</code> calls resolve immediately without a network-service round trip. Calling <code>postMessage(stream, [stream])</code> transfers the underlying <code>WritableStream</code> pipe across realms.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport_send_stream.cc" target="_blank" rel="noopener">Blink web_transport_send_stream.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport_send_group.cc" target="_blank" rel="noopener">Blink web_transport_send_group.cc</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/webtransport/send-stream-stats.https.any.js" target="_blank" rel="noopener">WPT send-stream-stats.https.any.js</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+    <p>No live interactive demo exists yet on the Chrome Platform Showcase for Chrome 159 (checked 2026-11-24). The examples below demonstrate send-group isolation, dynamic priority elevation, and congestion-aware byte statistics.</p>
+
+    <h3 id="example-send-groups">Isolating audio and video flows with send groups and <code>sendOrder</code></h3>
+    <pre><code>const transport = new WebTransport("https://media.example.com/ingest");
+await transport.ready;
+
+// Feature-detect send groups before creating fairness domains
+const supportsSendGroups = typeof transport.createSendGroup === "function";
+const audioGroup = supportsSendGroups ? transport.createSendGroup() : null;
+const videoGroup = supportsSendGroups ? transport.createSendGroup() : null;
+
+// Pass WebTransportSendStreamOptions ({ sendGroup, sendOrder }) to prioritize keyframes over delta frames
+const keyframeStream = await transport.createUnidirectionalStream(
+  videoGroup ? { sendGroup: videoGroup, sendOrder: 100 } : undefined,
+);
+const deltaStream = await transport.createUnidirectionalStream(
+  videoGroup ? { sendGroup: videoGroup, sendOrder: 10 } : undefined,
+);
+
+// Audio uses an independent send group so video bursts do not starve it
+const audioStream = await transport.createUnidirectionalStream(
+  audioGroup ? { sendGroup: audioGroup, sendOrder: 50 } : undefined,
+);
+
+const encoder = new TextEncoder();
+const writer = keyframeStream.getWriter();
+await writer.write(encoder.encode("keyframe-payload"));
+await writer.close();
+
+// Dynamically reprioritize or reassign an open stream
+if ("sendOrder" in deltaStream) {
+  deltaStream.sendOrder = 200;       // promote within videoGroup
+  deltaStream.sendGroup = null;      // or detach to the ungrouped pool
+}</code></pre>
+    <span class="citation">Source: <a href="https://github.com/w3c/webtransport/blob/main/explainer.md#8-managing-bandwidth-with-send-groups" target="_blank" rel="noopener">W3C WebTransport Explainer &sect;8</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/webtransport/sendgroup.https.any.js" target="_blank" rel="noopener">WPT sendgroup.https.any.js</a>.</span>
+
+    <h3 id="example-stats">Monitoring send backlog with <code>getStats()</code> and cross-browser guards</h3>
+    <pre><code>async function readSendProgress(streamOrGroup) {
+  if (typeof streamOrGroup?.getStats !== "function") {
+    return null;
+  }
+  try {
+    const stats = await streamOrGroup.getStats();
+    // Firefox &lt; 160 resolves group.getStats() with {}
+    if (typeof stats.bytesAcknowledged !== "number") {
+      return null;
+    }
+    return {
+      written: stats.bytesWritten,
+      queuedLocally: stats.bytesWritten - stats.bytesSent,
+      inFlight: stats.bytesSent - stats.bytesAcknowledged,
+      acked: stats.bytesAcknowledged,
+    };
+  } catch (err) {
+    // Firefox &lt; 160 rejects WebTransportSendStream.getStats() with NotSupportedError
+    if (err instanceof DOMException &amp;&amp; err.name === "NotSupportedError") {
+      return null;
+    }
+    throw err;
+  }
+}
+
+const groupProgress = await readSendProgress(videoGroup);
+if (groupProgress &amp;&amp; groupProgress.queuedLocally &gt; 256 * 1024) {
+  // Back off or drop low-priority delta frames
+  await deltaStream.abort(new WebTransportError("Congestion drop", { streamErrorCode: 1 }));
+}</code></pre>
+    <span class="citation">Source: <a href="https://github.com/web-platform-tests/wpt/blob/master/webtransport/send-stream-stats.https.any.js" target="_blank" rel="noopener">WPT send-stream-stats.https.any.js</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebTransportSendStream.json" target="_blank" rel="noopener">BCD WebTransportSendStream.json</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Support for <code>WebTransportSendGroup</code>, <code>WebTransportSendStream</code>, <code>sendOrder</code>, and <code>getStats()</code> from BCD and ChromeStatus (checked 2026-11-24).</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col">Send groups &amp; <code>sendOrder</code></th><th scope="col"><code>getStats()</code> (stream / group)</th><th scope="col">Notes &amp; evidence</th></tr></thead>
+      <tr><th scope="row">Chrome (desktop, Android, WebView)</th><td>159</td><td>159 (full)</td><td>Enabled by default per <a href="https://chromestatus.com/feature/5235261159112704" target="_blank" rel="noopener">ChromeStatus</a> and <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebTransportSendGroup.json" target="_blank" rel="noopener">BCD</a>; <code>WebTransportWriter</code> and <code>waitUntilAvailable</code> not yet implemented</td></tr>
+      <tr><th scope="row">Edge</th><td>Chromium-based (mirror)</td><td>Chromium-based (mirror)</td><td>Mirrors Chrome in BCD; exact Edge release number not separately published</td></tr>
+      <tr><th scope="row">Firefox</th><td>155 (<code>sendOrder</code>: 121)</td><td>160 (partial earlier)</td><td><code>WebTransportSendStream</code> in 114, <code>sendOrder</code> option in 119 / attribute in 121, <code>WebTransportSendGroup</code> &amp; <code>createSendGroup()</code> in 155 (<a href="https://bugzilla.mozilla.org/show_bug.cgi?id=2007165" target="_blank" rel="noopener">Bug 2007165</a>). Stream <code>getStats()</code> rejects with <code>NotSupportedError</code> in 114&ndash;159; group <code>getStats()</code> returns <code>{}</code> in 155&ndash;159</td></tr>
+      <tr><th scope="row">Safari</th><td>26.4</td><td>26.4 (group partial)</td><td>Ships <code>WebTransportSendGroup</code>, <code>WebTransportSendStream</code>, <code>WebTransportWriter</code>, and stream <code>getStats()</code> per <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebTransportSendGroup.json" target="_blank" rel="noopener">BCD</a>; <code>WebTransportSendGroup.getStats()</code> only counts datagram bytes in 26.4</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebTransportSendGroup.json" target="_blank" rel="noopener">BCD api/WebTransportSendGroup.json</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebTransportSendStream.json" target="_blank" rel="noopener">BCD api/WebTransportSendStream.json</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebTransport.json" target="_blank" rel="noopener">BCD api/WebTransport.json</a>; <a href="https://chromestatus.com/api/v0/features/5235261159112704" target="_blank" rel="noopener">ChromeStatus API record</a>; <a href="https://webstatus.dev/features/webtransport" target="_blank" rel="noopener">webstatus.dev webtransport</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <p>Send groups and stream prioritization introduce no new network permissions, origin boundaries, or cross-origin channels. Every <code>WebTransportSendGroup</code> is scoped to a single secure-context <code>WebTransport</code> session, and Chromium rejects attempts to assign a send group created on one <code>WebTransport</code> instance to a stream on another instance (throwing <code>InvalidStateError</code>). Byte statistics returned by <code>getStats()</code> only report counters for data written and transmitted by the application&rsquo;s own streams and groups, without exposing shared network state from other origins. ChromeStatus records security and privacy reviews as Pending (checked 2026-11-24).</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5235261159112704" target="_blank" rel="noopener">ChromeStatus security_risks (5235261159112704)</a>; <a href="https://www.w3.org/TR/webtransport/#privacy-security" target="_blank" rel="noopener">W3C WebTransport Privacy &amp; Security Considerations</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Specification</th><th scope="col">Section</th></tr></thead>
+      <tr><td><a href="https://www.w3.org/TR/webtransport/" target="_blank" rel="noopener">W3C WebTransport</a></td><td><a href="https://www.w3.org/TR/webtransport/#webtransportsendstream" target="_blank" rel="noopener">&sect;7 <code>WebTransportSendStream</code></a> &amp; <a href="https://www.w3.org/TR/webtransport/#webtransportsendgroup" target="_blank" rel="noopener"><code>WebTransportSendGroup</code></a></td></tr>
+      <tr><td><a href="https://www.w3.org/TR/webtransport/" target="_blank" rel="noopener">W3C WebTransport</a></td><td><a href="https://www.w3.org/TR/webtransport/#dictdef-webtransportsendstreamoptions" target="_blank" rel="noopener"><code>WebTransportSendOptions</code> / <code>WebTransportSendStreamOptions</code></a> &amp; <a href="https://www.w3.org/TR/webtransport/#dictdef-webtransportsendstreamstats" target="_blank" rel="noopener"><code>WebTransportSendStreamStats</code></a></td></tr>
+      <tr><td><a href="https://streams.spec.whatwg.org/" target="_blank" rel="noopener">WHATWG Streams Standard</a></td><td><a href="https://streams.spec.whatwg.org/#ws-transfer" target="_blank" rel="noopener"><code>WritableStream</code> transfer steps</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/WebTransportSendGroup" target="_blank" rel="noopener">MDN &mdash; <code>WebTransportSendGroup</code></a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/WebTransportSendStream" target="_blank" rel="noopener">MDN &mdash; <code>WebTransportSendStream</code></a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/WebTransport/createSendGroup" target="_blank" rel="noopener">MDN &mdash; <code>WebTransport.createSendGroup()</code></a></li>
+      <li><a href="/v159/webtransporterror-api-alignment-and-serialization/">gendn Chrome 159 &mdash; WebTransportError API alignment and serialization</a></li>
+      <li><a href="https://github.com/w3c/webtransport/blob/main/explainer.md#8-managing-bandwidth-with-send-groups" target="_blank" rel="noopener">W3C WebTransport Explainer &mdash; Managing bandwidth with send groups</a></li>
+      <li><a href="https://chromestatus.com/feature/5235261159112704" target="_blank" rel="noopener">ChromeStatus &mdash; WebTransport send groups and send-stream prioritization (5235261159112704)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
