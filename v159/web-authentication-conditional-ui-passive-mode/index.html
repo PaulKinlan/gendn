@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Web Authentication Conditional UI Passive Mode — Chrome 159 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, h2, h3 { text-wrap: balance; }
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, td code, th code, figcaption code { overflow-wrap: anywhere; }
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    .doc-table { margin: 1rem 0; font-size: 0.85rem; }
+    .doc-table caption { text-align: left; font-size: 0.8rem; padding-bottom: 0.4rem; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table th[scope="row"] { overflow-wrap: normal; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .scroll-table { min-width: 30rem; }
+    blockquote.spec-quote { margin: 1rem 0; padding: 0.75rem 1rem; border-left: 4px solid var(--border-black); background: var(--bg-stone); font-size: 0.92rem; }
+    blockquote.spec-quote p { margin: 0 0 0.5rem; }
+    blockquote.spec-quote p:last-child { margin-bottom: 0; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v159/">&larr; Chrome 159 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v159 &middot; webauthn &middot; origin trial</p>
+    <h1>Web Authentication Conditional UI Passive Mode</h1>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; Origin Trial in Chrome 159 (desktop only); not Baseline (parent WebAuthn is Baseline Widely available)</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 159&ndash;170 Origin Trial (desktop)</li>
+        <li class="limited">Edge &middot; No release / no BCD entry</li>
+        <li class="limited">Firefox &middot; No signal</li>
+        <li class="limited">Safari &middot; No signal</li>
+      </ul>
+      <p>Passive Mode has no dedicated web-feature id or BCD entry yet (checked 2026-11-24 against <a href="https://github.com/mdn/browser-compat-data/blob/main/api/CredentialsContainer.json" target="_blank" rel="noopener">BCD <code>api/CredentialsContainer.json</code></a> and <a href="https://github.com/mdn/browser-compat-data/blob/main/api/PublicKeyCredential.json" target="_blank" rel="noopener">BCD <code>api/PublicKeyCredential.json</code></a>). The parent <a href="https://webstatus.dev/features/webauthn" target="_blank" rel="noopener">WebAuthn web-feature</a> is Baseline <strong>Widely available since 2024-03-07</strong> per <a href="https://api.webstatus.dev/v1/features/webauthn" target="_blank" rel="noopener">webstatus.dev</a>, which does not cover <code>uiMode: "passive"</code> or <code>conditionalPassiveGet</code>. Always feature-detect via <code>PublicKeyCredential.getClientCapabilities()</code> and retain an explicit sign-in path.</p>
+    </div>
+
+    <p class="lede">Conditional UI Passive Mode (also referred to as &ldquo;Ambient&rdquo; sign-in) lets a site invoke <code>navigator.credentials.get()</code> with <code>mediation: "conditional"</code> and <code>uiMode: "passive"</code> so the browser immediately surfaces available passkeys (and optionally saved passwords) in an unobtrusive, non-modal prompt &mdash; without requiring a sign-in form or autofill-tagged <code>&lt;input&gt;</code> on the page. If the user has no eligible credentials, no UI is shown and the promise stays pending.</p>
+  </header>
+
+  <div class="warn-block" role="note" aria-label="Experimental Origin Trial status">
+    <strong>Origin Trial (Desktop Chrome 159&ndash;170) &mdash; draft API subject to change.</strong>
+    <p>This feature is an active <a href="https://chromestatus.com/feature/5068149209825280" target="_blank" rel="noopener">Origin Trial</a> on desktop platforms (Windows, macOS, Linux, ChromeOS) from Chrome 159 through Chrome 170, backed by the open specification pull request <a href="https://github.com/w3c/webauthn/pull/2485" target="_blank" rel="noopener">w3c/webauthn#2485</a>. Enable it in one of two ways:</p>
+    <ul>
+      <li><strong>Production Origin Trial:</strong> register for trial <code>WebAuthenticationAmbient</code> (ChromeStatus Origin Trial ID <code>942941171980697601</code>) and serve the token via an <code>Origin-Trial</code> HTTP header or <code>&lt;meta http-equiv="origin-trial"&gt;</code> tag.</li>
+      <li><strong>Local testing (no token):</strong> enable <code>chrome://flags/#web-authentication-ambient-signin</code> or launch Chrome with <code>--enable-features=WebAuthenticationAmbientSignin</code> (Blink runtime feature <code>WebAuthenticationAmbient</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>).</li>
+    </ul>
+  </div>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Shipped in</th><td>Chrome 159&ndash;170 Origin Trial on desktop (Windows, macOS, Linux, ChromeOS) &mdash; filed under &ldquo;Origin trial&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=159" target="_blank" rel="noopener">milestone=159 listing</a>; Dev Trial started in Chrome 157 per the <a href="https://chromestatus.com/api/v0/features/5068149209825280" target="_blank" rel="noopener">ChromeStatus API record</a></td></tr>
+      <tr><th scope="row">Origin trial / flag</th><td>Origin Trial <code>WebAuthenticationAmbient</code> (ID <code>942941171980697601</code>, desktop 159&ndash;170); flag <code>chrome://flags/#web-authentication-ambient-signin</code> / <code>--enable-features=WebAuthenticationAmbientSignin</code>; Blink runtime feature <code>WebAuthenticationAmbient</code> (<code>status: "experimental"</code>, <code>origin_trial_os: ["win", "mac", "linux", "chromeos"]</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>)</td></tr>
+      <tr><th scope="row">Specification</th><td><a href="https://github.com/w3c/webauthn/pull/2485" target="_blank" rel="noopener">w3c/webauthn PR #2485 &mdash; Conditional UI without autofill</a> (open PR against <a href="https://w3c.github.io/webauthn/" target="_blank" rel="noopener">WebAuthn Level 3</a>); <a href="https://w3c.github.io/webappsec-credential-management/#dictdef-credentialrequestoptions" target="_blank" rel="noopener">Credential Management Level 1 <code>CredentialRequestOptions</code></a></td></tr>
+      <tr><th scope="row">Explainer &amp; proposal</th><td><a href="https://github.com/w3c/webauthn/blob/main/explainers/conditional-ui-without-autofill.md" target="_blank" rel="noopener">Explainer: Conditional UI without Autofill</a>; initial issue <a href="https://github.com/w3c/webauthn/issues/2144" target="_blank" rel="noopener">w3c/webauthn#2144</a>; TAG review <a href="https://github.com/w3ctag/design-reviews/issues/1291" target="_blank" rel="noopener">w3ctag/design-reviews#1291</a></td></tr>
+      <tr><th scope="row">Intents</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a4d6b73.198129d7.1d0cd0.0795.GAE%40google.com" target="_blank" rel="noopener">Intent to Prototype</a>; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6af49d1e.d50b2b3a.1393b3.026b.GAE%40google.com" target="_blank" rel="noopener">Intent to Experiment</a></td></tr>
+      <tr><th scope="row">Tracking bug</th><td><a href="https://issues.chromium.org/issues/532206357" target="_blank" rel="noopener">issues.chromium.org/532206357</a></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5068149209825280" target="_blank" rel="noopener">5068149209825280 &mdash; Web Authentication Conditional UI Passive Mode</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>Standard WebAuthn Conditional UI (<code>mediation: "conditional"</code>) integrates passkeys into form autofill, which works well on dedicated sign-in pages that contain an <code>&lt;input autocomplete="username webauthn"&gt;</code> field. On content pages without a login form &mdash; such as a paywalled article or an e-commerce catalog visited by a signed-out returning user &mdash; conditional autofill cannot surface credentials, while a modal WebAuthn dialog would interrupt users who have no passkey or do not wish to sign in. Passive Mode bridges that gap: it lets the page request silent discovery on load (without user activation), showing a quiet, permission-bubble-style suggestion in Chrome&rsquo;s top-left chrome only when matching credentials exist, and remaining completely invisible otherwise.</p>
+    <span class="citation">Source: <a href="https://github.com/w3c/webauthn/blob/main/explainers/conditional-ui-without-autofill.md" target="_blank" rel="noopener">Explainer: Conditional UI without Autofill</a>; <a href="https://chromestatus.com/feature/5068149209825280" target="_blank" rel="noopener">ChromeStatus motivation (5068149209825280)</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>Relevant WebIDL from Blink&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/credentialmanagement/credential_request_options.idl" target="_blank" rel="noopener"><code>credential_request_options.idl</code></a> and <a href="https://github.com/w3c/webauthn/pull/2485" target="_blank" rel="noopener">w3c/webauthn PR #2485</a> (checked 2026-11-24):</p>
+    <pre><code>enum CredentialUiModeRequirement {
+  "active",
+  "immediate",
+  "passive"
+};
+
+partial dictionary CredentialRequestOptions {
+  CredentialMediationRequirement mediation = "optional";
+  CredentialUiModeRequirement uiMode = "active";
+  PublicKeyCredentialRequestOptions publicKey;
+  boolean password = false;
+  AbortSignal signal;
+};
+
+partial enum ClientCapability {
+  "conditionalPassiveGet"
+};</code></pre>
+    <blockquote class="spec-quote">
+      <p>&ldquo;If <code>options.uiMode</code> is <code>passive</code>, the prompt SHOULD be minimally disruptive to other user activity such that the user does not have to interact with the prompt.&rdquo;</p>
+    </blockquote>
+    <p><strong>Spec vs. Chrome 159 note:</strong> PR #2485 and the explainer also propose <code>uiMode: "active"</code> with <code>mediation: "conditional"</code> and capability <code>"conditionalActiveGet"</code>, and name the spec enum <code>CredentialUiMode</code>. In Chrome 159&rsquo;s Origin Trial, Blink defines <code>CredentialUiModeRequirement</code> and implements only <strong>Passive Mode</strong> (<code>uiMode: "passive"</code> + <code>"conditionalPassiveGet"</code>); <code>"conditionalActiveGet"</code> is not implemented in Blink&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/credentialmanagement/public_key_credential.cc" target="_blank" rel="noopener"><code>public_key_credential.cc</code></a> (verified 2026-11-24). Also note that the explainer&rsquo;s prose briefly writes &ldquo;the PublicKeyCredentialRequestOptions contains <code>uiMode: 'passive'</code>&rdquo;, while its code example, PR #2485 algorithm, and Blink IDL all place <code>uiMode</code> on the top-level <code>CredentialRequestOptions</code> dictionary.</p>
+    <p>This reference documents three surfaces: <a href="#uimode-option"><code>CredentialRequestOptions.uiMode</code></a>, <a href="#client-capability"><code>ClientCapability</code> <code>"conditionalPassiveGet"</code></a>, and the <a href="#passive-ceremony">passive conditional mediation ceremony</a> (lifecycle, coexistence with autofill, errors, and security).</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/credentialmanagement/credential_request_options.idl" target="_blank" rel="noopener">Blink credential_request_options.idl</a>; <a href="https://github.com/w3c/webauthn/pull/2485" target="_blank" rel="noopener">w3c/webauthn PR #2485</a>; <a href="https://github.com/w3c/webauthn/blob/main/explainers/conditional-ui-without-autofill.md" target="_blank" rel="noopener">Explainer: Conditional UI without Autofill</a>.</span>
+
+    <h3 id="uimode-option"><code>CredentialRequestOptions.uiMode</code> &mdash; inputs and valid combinations</h3>
+    <p><strong>Input.</strong> <code>uiMode</code> is an optional member on the <code>CredentialRequestOptions</code> dictionary passed to <code>navigator.credentials.get(options)</code>. In Blink&rsquo;s IDL its enum type is <code>CredentialUiModeRequirement</code> (values <code>"active"</code>, <code>"immediate"</code>, <code>"passive"</code>; default <code>"active"</code>). To activate Conditional UI Passive Mode, you MUST pass <em>both</em>:</p>
+    <ul>
+      <li><code>mediation: "conditional"</code></li>
+      <li><code>uiMode: "passive"</code></li>
+      <li><code>publicKey</code>: a valid <code>PublicKeyCredentialRequestOptions</code> object (with <code>challenge</code>, optional <code>rpId</code>, etc.)</li>
+      <li><code>password: true</code> (optional): includes saved <code>PasswordCredential</code> entries alongside discoverable passkeys in the same passive bubble.</li>
+      <li><code>signal</code> (optional): an <code>AbortSignal</code> used to cancel the pending request (for example before launching a modal sign-in or passkey registration).</li>
+    </ul>
+    <p><strong>Output.</strong> <code>navigator.credentials.get()</code> returns a <code>Promise&lt;Credential | null&gt;</code>. When the user selects a passkey in the passive bubble (or autofill dropdown), the promise resolves with a <code>PublicKeyCredential</code>. If <code>password: true</code> was also passed and the user chooses a saved password, it resolves with a <code>PasswordCredential</code>. If the user has no eligible credentials or ignores/dismisses the passive bubble without interacting with autofill, the promise <strong>never resolves</strong> (unless aborted via <code>signal</code> or the document is unloaded).</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="combo-caption">
+    <table class="doc-table scroll-table">
+      <caption id="combo-caption">Option combinations for <code>uiMode: "passive"</code> in Chromium&rsquo;s <code>authentication_credentials_container.cc</code></caption>
+      <thead><tr><th scope="col">Options passed to <code>navigator.credentials.get()</code></th><th scope="col">Behavior in Chrome 159 (with trial/flag enabled)</th></tr></thead>
+      <tr><td><code>mediation: "conditional", uiMode: "passive", publicKey: { ... }</code></td><td>Triggers Passive Mode (<code>Mediation::AMBIENT</code>) for discoverable passkeys</td></tr>
+      <tr><td><code>mediation: "conditional", uiMode: "passive", publicKey: { ... }, password: true</code></td><td>Triggers Passive Mode offering both discoverable passkeys and saved passwords</td></tr>
+      <tr><td><code>mediation: "conditional", uiMode: "passive", password: true</code> (no <code>publicKey</code>)</td><td>Rejects with <code>NotSupportedError</code>: <code>"Conditional mediation is not supported for this credential type"</code></td></tr>
+      <tr><td><code>mediation: "conditional", uiMode: "passive", publicKey: { ... }</code> + any of <code>otp</code>, <code>identity</code>, <code>federated</code>, or <code>publicKey.extensions.payment</code></td><td>Rejects with <code>NotSupportedError</code>: <code>"Unsupported combination of credential types requested."</code></td></tr>
+      <tr><td><code>mediation: "conditional", uiMode: "passive", publicKey: { ... }</code> when trial/flag is <em>off</em></td><td>Falls through to regular autofill Conditional UI (<code>Mediation::CONDITIONAL</code>); no error thrown</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/credentialmanagement/authentication_credentials_container.cc" target="_blank" rel="noopener">Blink authentication_credentials_container.cc</a> (verified 2026-11-24); <a href="https://github.com/w3c/webauthn/pull/2485" target="_blank" rel="noopener">w3c/webauthn PR #2485</a>.</span>
+
+    <h3 id="client-capability"><code>ClientCapability</code> &mdash; <code>"conditionalPassiveGet"</code></h3>
+    <p><strong>Inputs &amp; invocation.</strong> Call the static method <code>await PublicKeyCredential.getClientCapabilities()</code> (no arguments; exposed on <code>Window</code> in a secure context).</p>
+    <p><strong>Outputs.</strong> Resolves to a plain record (<code>Record&lt;DOMString, boolean&gt;</code>) mapping capability names to booleans. When the Origin Trial token or flag is active on a supported desktop platform, the returned object includes the key <code>"conditionalPassiveGet"</code> with a boolean value indicating whether the client can present Passive Mode conditional UI. When the runtime feature <code>WebAuthenticationAmbient</code> is disabled, Blink explicitly removes <code>"conditionalPassiveGet"</code> from the returned map (so <code>caps.conditionalPassiveGet</code> is <code>undefined</code>).</p>
+    <p><strong>Errors.</strong> Rejects with <code>InvalidStateError</code> if the calling document&rsquo;s execution context is detached. In browsers predating <code>getClientCapabilities()</code> (Chrome &lt; 133, Firefox &lt; 135, Safari &lt; 17.4), the static method itself is <code>undefined</code>, so guard with <code>typeof PublicKeyCredential?.getClientCapabilities === "function"</code>.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/credentialmanagement/public_key_credential.cc" target="_blank" rel="noopener">Blink public_key_credential.cc</a> (<code>OnGetClientCapabilitiesComplete</code>); <a href="https://github.com/w3c/webauthn/pull/2485" target="_blank" rel="noopener">w3c/webauthn PR #2485</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/PublicKeyCredential.json" target="_blank" rel="noopener">BCD api/PublicKeyCredential.json</a>.</span>
+
+    <h3 id="passive-ceremony">Passive conditional mediation ceremony &mdash; lifecycle and coexistence</h3>
+    <p>In <a href="https://github.com/w3c/webauthn/pull/2485" target="_blank" rel="noopener">w3c/webauthn PR #2485</a>, the authentication algorithm initializes a per-request flag <code>conditionalNonAutofillTriggered = false</code> and runs silent credential discovery:</p>
+    <ol>
+      <li><strong>No user activation required.</strong> The page may call <code>navigator.credentials.get()</code> immediately on page load.</li>
+      <li><strong>Silent discovery.</strong> The browser checks for eligible discoverable credentials for the RP without showing UI. If none exist, no bubble is displayed and the promise remains unresolved.</li>
+      <li><strong>One-shot non-modal prompt.</strong> If eligible credentials exist and <code>conditionalNonAutofillTriggered</code> is <code>false</code>, the browser sets the flag to <code>true</code> and displays a non-modal suggestion bubble (top-left of the Chrome desktop window, similar to a permission prompt) listing credential metadata such as <code>name</code> and <code>displayName</code>.</li>
+      <li><strong>Coexistence with autofill.</strong> If the page also contains an <code>&lt;input&gt;</code> or <code>&lt;textarea&gt;</code> with <code>autocomplete="username webauthn"</code> (or <code>"current-password webauthn"</code>), dismissing or ignoring the passive bubble does <em>not</em> reject the promise: focusing that input still offers the same credentials in autofill UI under the same pending request.</li>
+      <li><strong>Selection &amp; settlement.</strong> Selecting a credential in either surface issues the assertion to that authenticator and resolves the promise once completed.</li>
+      <li><strong>Cancellation &amp; exclusivity.</strong> Pass an <code>AbortController</code>&rsquo;s <code>signal</code> and call <code>controller.abort()</code> before starting a modal <code>navigator.credentials.get()</code> or <code>navigator.credentials.create()</code> call, because WebAuthn allows only one pending request per document at a time.</li>
+    </ol>
+    <span class="citation">Source: <a href="https://github.com/w3c/webauthn/pull/2485" target="_blank" rel="noopener">w3c/webauthn PR #2485</a> (<code>#GetAssn-ConditionalMediation-NonAutofill</code>); <a href="https://github.com/w3c/webauthn/blob/main/explainers/conditional-ui-without-autofill.md" target="_blank" rel="noopener">Explainer: Conditional UI without Autofill</a>; <a href="https://kenrb.github.io/test/ambient/script.js" target="_blank" rel="noopener">Author reference demo script.js</a>.</span>
+
+    <h3 id="errors">Errors and edge cases</h3>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="errors-caption">
+    <table class="doc-table scroll-table">
+      <caption id="errors-caption">Rejection and throw conditions for Passive Mode requests</caption>
+      <thead><tr><th scope="col">Condition</th><th scope="col">Exception</th><th scope="col">Notes / recovery</th></tr></thead>
+      <tr><td>Invalid enum value for <code>uiMode</code> (e.g. typo)</td><td><code>TypeError</code></td><td>Standard WebIDL enum validation rejects invalid strings</td></tr>
+      <tr><td><code>mediation: "conditional"</code> without <code>publicKey</code> (e.g. <code>password: true</code> only)</td><td><code>NotSupportedError</code> (<code>DOMException</code>)</td><td>Include a <code>publicKey</code> request alongside <code>password: true</code></td></tr>
+      <tr><td>Combined with <code>otp</code>, <code>identity</code>, <code>federated</code>, or <code>publicKey.extensions.payment</code></td><td><code>NotSupportedError</code> (<code>DOMException</code>)</td><td>Only <code>publicKey</code> (and optionally <code>password: true</code>) is permitted in Chromium&rsquo;s passive mode</td></tr>
+      <tr><td><code>publicKey.extensions.remoteDesktopClientOverride</code> set with conditional mediation</td><td><code>NotAllowedError</code> (<code>DOMException</code>)</td><td>Disallowed on conditional mediation requests</td></tr>
+      <tr><td><code>signal</code> is already aborted or aborts while pending</td><td><code>signal.reason</code> (default <code>AbortError</code>)</td><td>Expected during cleanup before modal <code>create()</code> or <code>get()</code></td></tr>
+      <tr><td>Insecure context or cross-origin iframe missing <code>publickey-credentials-get</code> policy</td><td><code>NotAllowedError</code> / <code>SecurityError</code> (<code>DOMException</code>)</td><td>Serve over HTTPS and delegate <code>allow="publickey-credentials-get"</code> if embedded</td></tr>
+      <tr><td>Another WebAuthn request is already pending</td><td><code>OperationError</code> (<code>DOMException</code>)</td><td>Abort the passive request via <code>AbortController</code> first</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/credentialmanagement/authentication_credentials_container.cc" target="_blank" rel="noopener">Blink authentication_credentials_container.cc</a>; <a href="https://w3c.github.io/webauthn/#sctn-getAssertion" target="_blank" rel="noopener">WebAuthn Level 3 &mdash; Get an assertion</a>.</span>
+
+    <h3 id="context">Context, permissions, and exposure</h3>
+    <ul>
+      <li><strong>Exposure:</strong> <code>Window</code> only (<code>navigator.credentials</code> and <code>PublicKeyCredential</code> are not exposed in Workers).</li>
+      <li><strong>Secure context:</strong> Required (<code>https://</code> or <code>localhost</code>).</li>
+      <li><strong>Cross-origin iframes:</strong> Permitted when the embedding frame delegates the <code>publickey-credentials-get</code> Permissions Policy (<code>allow="publickey-credentials-get"</code>). In Chrome, the passive bubble title displays the requesting frame&rsquo;s origin so users can verify which site is requesting sign-in.</li>
+      <li><strong>User activation:</strong> Not required &mdash; passive mode is specifically designed to be invoked on page load.</li>
+      <li><strong>Platform scope in Chrome 159:</strong> Desktop only (Windows, macOS, Linux, ChromeOS) during the Origin Trial.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5068149209825280" target="_blank" rel="noopener">ChromeStatus API record (5068149209825280)</a>; <a href="https://github.com/w3c/webauthn/blob/main/explainers/conditional-ui-without-autofill.md" target="_blank" rel="noopener">Explainer &mdash; Cross-origin iframes</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Blink runtime_enabled_features.json5</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+    <p>No interactive demo exists yet on the Chrome Platform Showcase for Chrome 159. The feature owner&rsquo;s standalone prototype demo is live at <a href="https://kenrb.github.io/test/ambient/index.html" target="_blank" rel="noopener">kenrb.github.io/test/ambient/</a>.</p>
+
+    <h3 id="example-passive-signin">Feature detection and passive sign-in on page load</h3>
+    <pre><code>let passiveController = null;
+
+async function startPassiveSignIn(challengeBytes) {
+  if (typeof PublicKeyCredential?.getClientCapabilities !== "function") {
+    return;
+  }
+
+  const caps = await PublicKeyCredential.getClientCapabilities();
+  if (!caps.conditionalPassiveGet) {
+    // Passive mode unavailable (no Origin Trial / flag or unsupported browser).
+    // Fall back to explicit sign-in link or standard conditional autofill.
+    return;
+  }
+
+  passiveController = new AbortController();
+
+  try {
+    const credential = await navigator.credentials.get({
+      signal: passiveController.signal,
+      mediation: "conditional",
+      uiMode: "passive",
+      publicKey: {
+        challenge: challengeBytes,
+        rpId: window.location.hostname,
+        userVerification: "preferred",
+      },
+      // Optional: also surface saved passwords in the same passive bubble.
+      password: true,
+    });
+
+    if (credential?.type === "public-key") {
+      // Send assertion to server to verify challenge and establish a session.
+      await verifyPasskeyAssertion(credential);
+    } else if (credential?.type === "password") {
+      await verifyPasswordCredential(credential);
+    }
+  } catch (err) {
+    if (err.name === "AbortError") {
+      return; // Cancelled intentionally (e.g. user clicked Sign In or Create Passkey).
+    }
+    console.error("Passive sign-in failed:", err);
+  }
+}
+
+// Always abort a pending passive request before calling modal create() or get():
+async function onExplicitSignInClick() {
+  passiveController?.abort();
+  passiveController = null;
+  // Proceed with modal sign-in...
+}</code></pre>
+    <span class="citation">Source: <a href="https://github.com/w3c/webauthn/blob/main/explainers/conditional-ui-without-autofill.md" target="_blank" rel="noopener">Explainer: Conditional UI without Autofill</a>; <a href="https://kenrb.github.io/test/ambient/script.js" target="_blank" rel="noopener">Author prototype script.js</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/credentialmanagement/public_key_credential.cc" target="_blank" rel="noopener">Blink public_key_credential.cc</a>.</span>
+
+    <h3 id="example-coexistence">Coexisting with a sign-in form (passive bubble + autofill)</h3>
+    <p>When a page invokes <code>navigator.credentials.get()</code> with <code>mediation: "conditional"</code> and <code>uiMode: "passive"</code> alongside a login form, ignoring the passive bubble keeps the request active for autofill:</p>
+    <pre><code>&lt;!-- If the user ignores the passive bubble, focusing this input still offers
+     the same credentials from the single pending conditional request. --&gt;
+&lt;form action="/login" method="post"&gt;
+  &lt;label for="acct"&gt;Username&lt;/label&gt;
+  &lt;input id="acct" name="username" autocomplete="username webauthn" required&gt;
+  &lt;button type="submit"&gt;Continue&lt;/button&gt;
+&lt;/form&gt;</code></pre>
+    <span class="citation">Source: <a href="https://github.com/w3c/webauthn/pull/2485" target="_blank" rel="noopener">w3c/webauthn PR #2485</a>; <a href="https://github.com/w3c/webauthn/blob/main/explainers/conditional-ui-without-autofill.md" target="_blank" rel="noopener">Explainer: Conditional UI without Autofill</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Support for Conditional UI Passive Mode (<code>uiMode: "passive"</code> and <code>conditionalPassiveGet</code>). BCD has no entry for Passive Mode yet; data comes from ChromeStatus, Blink runtime flags, and standards positions (checked 2026-11-24). Parent <code>getClientCapabilities()</code> versions are from BCD.</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col">Conditional UI Passive Mode</th><th scope="col">Evidence / notes</th><th scope="col"><code>getClientCapabilities()</code> (BCD)</th></tr></thead>
+      <tr><th scope="row">Chrome (Desktop)</th><td>159&ndash;170<br>(Origin Trial)</td><td>Origin Trial <code>WebAuthenticationAmbient</code> on Windows, macOS, Linux, ChromeOS; behind <code>chrome://flags/#web-authentication-ambient-signin</code> since 157 per <a href="https://chromestatus.com/feature/5068149209825280" target="_blank" rel="noopener">ChromeStatus</a></td><td>133</td></tr>
+      <tr><th scope="row">Chrome (Android) / WebView</th><td>No</td><td>Not included in the desktop-only Origin Trial (<code>origin_trial_os</code> excludes Android in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>)</td><td>133</td></tr>
+      <tr><th scope="row">Edge</th><td>Unknown</td><td>Chromium-based; no independent Edge ship signal or BCD entry yet</td><td>133 (mirror)</td></tr>
+      <tr><th scope="row">Firefox</th><td>No</td><td><a href="https://github.com/mozilla/standards-positions/issues/1475" target="_blank" rel="noopener">Mozilla standards position #1475</a>: No signal (awaiting response)</td><td>135</td></tr>
+      <tr><th scope="row">Safari</th><td>No</td><td><a href="https://github.com/WebKit/standards-positions/issues/729" target="_blank" rel="noopener">WebKit standards position #729</a>: No signal (awaiting response)</td><td>17.4</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5068149209825280" target="_blank" rel="noopener">ChromeStatus API record (5068149209825280)</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/PublicKeyCredential.json" target="_blank" rel="noopener">BCD api/PublicKeyCredential.json</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/CredentialsContainer.json" target="_blank" rel="noopener">BCD api/CredentialsContainer.json</a>; <a href="https://webstatus.dev/features/webauthn" target="_blank" rel="noopener">webstatus.dev WebAuthn</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <ul>
+      <li><strong>No credential-presence oracle:</strong> Just like standard Conditional UI, when the user has no eligible credentials for the Relying Party, no UI is displayed and the returned promise never resolves or rejects. A site cannot probe whether a signed-out visitor owns a passkey or saved password.</li>
+      <li><strong>Clickjacking mitigation:</strong> Chrome renders the passive bubble using its permissions prompt infrastructure, which applies an input-delay clickjacking protection preventing clicks on bubble buttons immediately after display.</li>
+      <li><strong>Cross-origin framing clarity:</strong> When invoked inside a cross-origin iframe (requiring the <code>publickey-credentials-get</code> Permissions Policy), Chrome displays the requesting frame&rsquo;s origin in the bubble title so users can verify the authentic recipient of the credential.</li>
+      <li><strong>Review status:</strong> ChromeStatus lists Chromium&rsquo;s security review, privacy review, and <a href="https://github.com/w3ctag/design-reviews/issues/1291" target="_blank" rel="noopener">W3C TAG review #1291</a> as Pending (checked 2026-11-24).</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5068149209825280" target="_blank" rel="noopener">ChromeStatus security_risks &amp; review status</a>; <a href="https://github.com/w3c/webauthn/blob/main/explainers/conditional-ui-without-autofill.md" target="_blank" rel="noopener">Explainer: Conditional UI without Autofill</a>; <a href="https://github.com/w3ctag/design-reviews/issues/1291" target="_blank" rel="noopener">w3ctag/design-reviews#1291</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Specification</th><th scope="col">Section / Proposal</th></tr></thead>
+      <tr><td><a href="https://w3c.github.io/webauthn/" target="_blank" rel="noopener">Web Authentication: An API for accessing Public Key Credentials Level 3</a></td><td><a href="https://github.com/w3c/webauthn/pull/2485" target="_blank" rel="noopener">PR #2485 &mdash; Conditional UI without autofill</a> (open pull request)</td></tr>
+      <tr><td><a href="https://w3c.github.io/webappsec-credential-management/" target="_blank" rel="noopener">Credential Management Level 1 (Editor&rsquo;s Draft)</a></td><td><a href="https://w3c.github.io/webappsec-credential-management/#dictdef-credentialrequestoptions" target="_blank" rel="noopener"><code>CredentialRequestOptions</code> dictionary</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://github.com/w3c/webauthn/blob/main/explainers/conditional-ui-without-autofill.md" target="_blank" rel="noopener">Explainer &mdash; Conditional UI without Autofill</a></li>
+      <li><a href="https://kenrb.github.io/test/ambient/index.html" target="_blank" rel="noopener">Author prototype demo &mdash; Web Authentication Ambient Mode Passkey Demo</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/CredentialsContainer/get" target="_blank" rel="noopener">MDN &mdash; <code>CredentialsContainer.get()</code></a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/PublicKeyCredential/getClientCapabilities_static" target="_blank" rel="noopener">MDN &mdash; <code>PublicKeyCredential.getClientCapabilities()</code></a></li>
+      <li><a href="https://github.com/w3c/webauthn/issues/2144" target="_blank" rel="noopener">w3c/webauthn#2144 &mdash; Original proposal issue</a></li>
+      <li><a href="https://chromestatus.com/feature/5068149209825280" target="_blank" rel="noopener">ChromeStatus &mdash; Web Authentication Conditional UI Passive Mode (5068149209825280)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
