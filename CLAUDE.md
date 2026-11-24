@@ -42,6 +42,22 @@ routines-per-day cap. If you bump it back to hourly, watch the cap.
 Routine prompt lives in `.claude/routine-prompt.md`. When you change it, also push to the live
 routine via the `RemoteTrigger` MCP tool (action `update`).
 
+### Weekly hardening routine and auto-merge
+
+A second scheduled task, "gendn: weekly hardening + MDN upgrade", runs Sundays at 06:43
+Europe/London. It opens one PR titled `Weekly hardening …` from a `claude/` branch.
+`.github/workflows/auto-merge-weekly.yml` merges that PR once CI is green on its head commit,
+provided every changed file is routine-owned (`v<N>/`, `reports/`, `_data/`,
+`responsive-support.json`, `migrations.json`, `goals.json`, `route-bindings.json`). Anything else
+(scripts, `deno.lock`, server, CI, docs) leaves the PR for Paul with one explanatory comment.
+
+Why: unmerged weekly PRs made each run start from a stale `main` and redo the same pages, so
+PRs #14 to #20 conflicted with each other and had to be combined by hand in #21. If a weekly PR
+is still open when the next run starts, the run branches from it and writes `Supersedes #N`.
+
+`fetch-data.yml` refreshes `_data/` every Sunday at 05:13 UTC (and on manual dispatch), for
+milestones stable-1 through dev read from the channels payload.
+
 ### Triggering a manual run
 
 Manual runs do NOT use the remote routine — they run in Claude's local session against the working
