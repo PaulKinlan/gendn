@@ -2,7 +2,7 @@
 //
 // Split out of scripts/css-drift.test.mjs (gendn-xe6f) because it costs ~29s of real Chrome and must
 // not be paid by every unrelated landing (gendn-ohot). It is a NAMED suite, not an auto-discovered
-// fixture: `deno task test-css-drift-browser`. scripts/run-fixtures.mjs lists it in EXCLUDED with a
+// fixture: `npm run test-css-drift-browser`. scripts/run-fixtures.mjs lists it in EXCLUDED with a
 // reason, and scripts/gate-map.mjs is what makes it MANDATORY for the changes it can catch (the
 // CSS-drift sources, the browser-capture helpers, public/styles.css, routing/server code, and this
 // file). gate:full runs it unconditionally; the fast tier runs it when a mapped path changed and

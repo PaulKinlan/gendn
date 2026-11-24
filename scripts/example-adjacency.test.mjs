@@ -12,7 +12,7 @@
 // then proves it is a detector by running the same assertion against a synthesized copy with the
 // exact defect this bead introduced — it must fail there and pass on the real file.
 //
-// Run: deno task test-fixtures --tasks test-example-adjacency
+// Run: npm run test-fixtures -- --tasks test-example-adjacency
 
 import * as sys from "./lib/sys.mjs";
 

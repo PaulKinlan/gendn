@@ -9,10 +9,10 @@ everywhere — keep them in sync.
 ## Read before editing
 
 Before you change ANY existing page, read its current implementation, its git history/rationale, and
-the route manifest (`deno task manifest`). Make the SMALLEST change that satisfies the goal. Never
+the route manifest (`npm run manifest`). Make the SMALLEST change that satisfies the goal. Never
 regenerate a working page from scratch when a targeted edit suffices, and never rename, move, or
 delete a published route/identity to make room for a new design — add a new page instead. Run the
-route regression gate (`deno task check-routes`) before every push; it must pass.
+route regression gate (`npm run check-routes`) before every push; it must pass.
 
 ## Durable demo compatibility contract — stable URLs · additive evolution · non-destructive
 
@@ -46,7 +46,7 @@ controls, its use-case intent, and all inbound links.** Routine and agent waves 
   regression gate. Stable does NOT mean frozen — improve existing demos when justified, and add new
   demos/use cases freely; just never replace an old one merely to present a new idea.
 
-**Gate before every push:** run the route regression gate (`deno task check-routes`). It compares
+**Gate before every push:** run the route regression gate (`npm run check-routes`). It compares
 the previously published manifest against the working tree and fails on any missing published ID,
 deleted route, renamed/repurposed slug, changed published identity, changed/removed selected
 showcase demo URL, or unexplained concept-count reduction — while allowing additive entries, honest
@@ -83,24 +83,24 @@ durable identity is:
 
 ## Route manifest + regression gate
 
-- `deno task manifest` — emit the normalized manifest
+- `npm run manifest` — emit the normalized manifest
   `{ id, route, identity, status, demo, referenceRoutes, aliases, support }` from the catalogue (the `support` record
   is merged from `responsive-support.json`). `--ref origin/main` emits it for a git ref; `--pretty`
   indents.
-- `deno task check-routes` — the regression gate. Baseline = the manifest at `origin/main`
+- `npm run check-routes` — the regression gate. Baseline = the manifest at `origin/main`
   (fallback: committed `.route-manifest.baseline.json`); current = the working tree. Fails on a
   missing published id, a deleted `built` route, a changed published identity, a changed/removed
   selected demo URL, a deleted `stub` record, or an uncovered published-count drop. Passes additive
   ids, honest stubs, and same-id in-place fixes that preserve their selected demo URL. Its separate
   binding ratchet needs a reachable baseline ref; it fails closed rather than trusting the older
-  fallback snapshot when that ref is unavailable. A clean offline `deno task check-routes` now exits
+  fallback snapshot when that ref is unavailable. A clean offline `npm run check-routes` now exits
   non-zero if `origin/main` (or an explicit `--baseline` ref) is unavailable: fetch the ref instead
   of treating the stale fallback snapshot as a green binding verdict.
 - `route-bindings.json` — the small, committed binding ledger: exactly `{ route, identity, demo }`
   for **every** published route. This independent snapshot catches rebindings made solely by edits
   to extractor code (which otherwise affect both sides of the manifest comparison). The gate fails
   on missing/extra/duplicate/stale entries; it NEVER rewrites the ledger. For a deliberate page or
-  extractor binding change, run **`deno task refresh-bindings` explicitly**, inspect the ledger diff
+  extractor binding change, run **`npm run refresh-bindings` explicitly**, inspect the ledger diff
   against the previous committed version, and commit it alongside the migration. Regenerating the
   ledger WITHOUT a new authorising migration is exactly the bypass this gate exists to stop: the
   gate must fail, not silently bless the changed identity or demo. New routes need a ledger entry
@@ -161,8 +161,8 @@ The authoring format and example are in [`docs/reference-contract.md`](docs/refe
   inventory and details with current primary sources. Authored text, page length, a green route, or
   an agent's self-attestation never establishes completeness.
 - Existing unassessed pages remain `legacy-unassessed`; partial contracts remain `partial`. New or
-  touched full references must pass `deno task validate-artifacts`, `deno task
-  test-reference-contract`, and `deno task check-conformance`, which fail unless the touched feature
+  touched full references must pass `npm run validate-artifacts`, `npm run
+  test-reference-contract`, and `npm run check-conformance`, which fail unless the touched feature
   is implementation-sufficient. MDN redirect stubs are exempt because MDN owns their detailed
   reference. A recorded migration move (`move`/`alias` in `migrations.json`) is also exempt for
   the diff that lands it: it is a filing correction, not a reference edit — the destination page
@@ -217,7 +217,7 @@ targeted compatibility fixes — never a destructive rewrite, never a new slug t
   it claims to support. Apply this to existing demos during audits with targeted compatibility
   fixes, wave by wave — the coverage number is the backlog burn-down, and it never regresses.
 
-**Run the responsive matrix before every push** with `deno task responsive` and record each touched
+**Run the responsive matrix before every push** with `npm run responsive` and record each touched
 demo's result in `responsive-support.json` (`ok` / `unsupported`+evidence per class).
 
 ## modern-web-guidance is mandatory for all frontend work
@@ -283,28 +283,28 @@ contract (`cpsFeature`) rather than forking it.
 - `v<N>/<slug>/reference-contract.json` — source-derived surface inventory and exact mapping to
   implementation-sufficient overview/member/protocol documentation. Required for new or touched
   non-stub references.
-- `goals.json` — additive backlog rolled up from critiques (`deno task build-goals`); never replaces
+- `goals.json` — additive backlog rolled up from critiques (`npm run build-goals`); never replaces
   a stable page.
 - `responsive-support.json` — per-route mobile+desktop record merged into the manifest.
 
-**Gates before every push (with `deno task check-routes`):** `deno task validate-artifacts`
-(schema + suiteHash + reference mappings), `deno task test-reference-contract`, and `deno task
+**Gates before every push (with `npm run check-routes`):** `npm run validate-artifacts`
+(schema + suiteHash + reference mappings), `npm run test-reference-contract`, and `npm run
 check-conformance` (missing suite / orphan / weakened assertion / touched-page untested or not
 implementation-sufficient; fresh recorded migration moves with unchanged identity are exempt — see
-the implementation-sufficiency section). Run `deno task conformance --page <id>` for any page you touch — don't
+the implementation-sufficiency section). Run `npm run conformance -- --page <id>` for any page you touch — don't
 push a red page. `blocked` is never a pass. Report honest denominators; burn down wave by wave.
 
-### Gate tiers — which checks ran, and what a green light means (`deno task gate:fast` / `gate:full`)
+### Gate tiers — which checks ran, and what a green light means (`npm run gate:fast` / `gate:full`)
 
 Every gate run goes through one of two entry points, and each one PRINTS WHAT IT DID AND DID NOT RUN:
 
-- `deno task gate:fast` — cheap iteration. Always runs four ratchets that any change can break:
-  `deno task check` (typecheck/format/citation/coverage), `deno task check-routes`,
-  `deno task validate-artifacts`, `deno task check-conformance`. On top of those it runs ONLY the
-  suites the changed paths select (`deno task gate:fast --explain` prints the whole map). Measured at
+- `npm run gate:fast` — cheap iteration. Always runs four ratchets that any change can break:
+  `npm run check` (typecheck/format/citation/coverage), `npm run check-routes`,
+  `npm run validate-artifacts`, `npm run check-conformance`. On top of those it runs ONLY the
+  suites the changed paths select (`npm run gate:fast -- --explain` prints the whole map). Measured at
   tree e4761dd: 6s for a docs-only change, 18s for `server.ts`, 38s for `public/styles.css` (which
   makes the CSS real-browser suite mandatory), 52s for a touched leaf page.
-- `deno task gate:full` — the landing gate. The same four ratchets, EVERY deterministic fixture, and
+- `npm run gate:full` — the landing gate. The same four ratchets, EVERY deterministic fixture, and
   the CSS real-browser suite UNCONDITIONALLY (~122s at tree e4761dd).
 - **Fail-closed**: an unmapped path, an empty diff, a merge tip, or a missing `origin/main` baseline
   ESCALATES the fast tier to the full tier — never to nothing.
@@ -329,7 +329,7 @@ Every gate run goes through one of two entry points, and each one PRINTS WHAT IT
   `fast-gate: unmapped: <paths…>`, `fast-gate: unknown: <reason>`) because `fleet-check`'s coverage
   reader parses that vocabulary; without it the reader reports "coverage UNKNOWN — N changed files NOT
   demonstrated to be exercised" for every run, which is honest but discards what the gate knows exactly.
-- The one browser suite no fleet tier runs is `deno task test-reference-contract` (and its
+- The one browser suite no fleet tier runs is `npm run test-reference-contract` (and its
   `test-reference-browser` component): CI runs it as its own step, and every full-tier manifest prints
   that as a `NOT-RUN` line so a reader is never left to assume it ran.
 - CI is the backstop: it runs the CSS real-browser suite unconditionally, so a fast-tier skip can

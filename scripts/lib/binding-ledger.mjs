@@ -1,5 +1,5 @@
 // A narrow, extractor-independent published binding baseline. The gate never refreshes it:
-// `deno task refresh-bindings` is the only intentional update path.
+// `npm run refresh-bindings` is the only intentional update path.
 export const BINDING_LEDGER = "route-bindings.json";
 
 export function formatRemovedRoutes(removed, max = 3) {
@@ -137,7 +137,7 @@ export function evaluateBindingLedger(
     const recorded = ledgerByRoute.get(entry.route);
     if (!recorded) {
       errors.push(
-        `${BINDING_LEDGER} missing published route ${entry.route}; run deno task refresh-bindings`,
+        `${BINDING_LEDGER} missing published route ${entry.route}; run npm run refresh-bindings`,
       );
       continue;
     }
@@ -147,7 +147,7 @@ export function evaluateBindingLedger(
           `${BINDING_LEDGER} stale ${entry.route} ${field}: ledger ${
             JSON.stringify(recorded[field])
           } -> ` +
-            `derived ${JSON.stringify(entry[field])}; run deno task refresh-bindings`,
+            `derived ${JSON.stringify(entry[field])}; run npm run refresh-bindings`,
         );
       }
     }
@@ -155,7 +155,7 @@ export function evaluateBindingLedger(
   for (const recorded of ledger) {
     if (!currentByRoute.has(recorded.route)) {
       errors.push(
-        `${BINDING_LEDGER} has non-published route ${recorded.route}; run deno task refresh-bindings`,
+        `${BINDING_LEDGER} has non-published route ${recorded.route}; run npm run refresh-bindings`,
       );
     }
   }

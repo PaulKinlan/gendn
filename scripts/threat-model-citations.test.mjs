@@ -31,7 +31,7 @@
 // Cwd-independent: the repo root is resolved from import.meta.url, so the fixture proves the
 // same thing from any working directory (the 4l6/6q3 lesson).
 //
-// Run: deno task test-fixtures --tasks test-threat-model-citations  (or: deno run --allow-read scripts/threat-model-citations.test.mjs)
+// Run: npm run test-fixtures -- --tasks test-threat-model-citations  (or: node scripts/threat-model-citations.test.mjs)
 
 import * as sys from "./lib/sys.mjs";
 

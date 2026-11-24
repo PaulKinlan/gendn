@@ -10,7 +10,7 @@
 // SHAPE: this fixture NEVER runs the script against the worktree. A python3 harness loads
 // .claude/fix-slugs.py via importlib (the __main__ guard keeps import side-effect-free),
 // MONKEYPATCHES get_json with canned listing data, and patches urllib.request.urlopen to RAISE
-// — so any code path that tries the real network fails the test (the deno task also carries no
+// — so any code path that tries the real network fails the test (the npm run also carries no
 // --allow-net). cleanup() then runs over a synthesized TEMP catalogue covering every summary
 // bucket; the deno side asserts the summary JSON, the resulting filesystem, and CONSERVATION:
 // the real catalogue's v-dir/slug listings are byte-identical before and after.
@@ -26,7 +26,7 @@
 // script diff. A suite that has never been shown to fail on a plausible wrong implementation
 // is a claim, not a detector.
 //
-// Run: deno task test-fixtures --tasks test-fix-slugs
+// Run: npm run test-fixtures -- --tasks test-fix-slugs
 import * as sys from "./lib/sys.mjs";
 
 const REPO = new URL("..", import.meta.url).pathname.replace(/\/$/, "");

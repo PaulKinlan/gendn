@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-read --allow-write
+#!/usr/bin/env node
 // build-goals.mjs — roll every critique's `followUpGoals` into the repo-level goals.json backlog.
 //
 // goals.json is the ADDITIVE backlog the routine consumes to pick the next new page or a targeted
@@ -6,7 +6,7 @@
 // entries keep their `status` (open/done) across rebuilds; new followUpGoals are appended; a goal
 // whose source critique no longer lists it is retained (history) unless already done.
 //
-// Usage: deno run --allow-read --allow-write scripts/build-goals.mjs
+// Usage: node scripts/build-goals.mjs
 
 import * as sys from "./lib/sys.mjs";
 import { collectCritiques, readJson } from "./lib/artifacts.mjs";

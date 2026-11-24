@@ -4,8 +4,8 @@
 // next worker reads. A count of `PASS` lines is a PLURALITY OF READINGS: a red suite that emits 33 PASS
 // lines satisfies `33 == $(... | grep -c ^PASS)`, and the count cannot distinguish that from a green run.
 // The exit code is the fact that differs when this file is broken, so:
-//     deno task test-reference-contract; echo "exit=$?"      <- the verdict is the exit code
-//     deno task test-reference-contract | grep -c ^PASS      <- context only, NEVER the control
+//     npm run test-reference-contract; echo "exit=$?"      <- the verdict is the exit code
+//     npm run test-reference-contract | grep -c ^PASS      <- context only, NEVER the control
 // `deno task` already propagates this file's exit status, so any caller that checks `$?` - a gate, a
 // fleet-check, a person at a prompt - is asserting it. There is deliberately NO in-file assertion of the
 // exit code: the exit code is produced BY these assertions, so asserting it here would be circular.

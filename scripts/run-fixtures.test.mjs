@@ -349,7 +349,7 @@ try {
     );
     // The name-keyed protection alone is insufficient, stated as the property it lacks.
     const runnerSource = await sys.readTextFile(`${REPO}scripts/run-fixtures.mjs`);
-    // Tolerates both shapes deno fmt produces: ["name", …] on one line and the name on its own
+    // Tolerates both shapes npm run fmt produces: ["name", …] on one line and the name on its own
     // line after a bare bracket (an earlier regex only matched the first and reported "excluded: []").
     const excludedNames = [...runnerSource.matchAll(/^\s*\[?\s*"(test-[a-z-]+)"/gm)].map((m) =>
       m[1]

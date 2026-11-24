@@ -7,9 +7,9 @@ const source = await sys.readTextFile(`${repo}scripts/iframe-posture-sweep.mjs`)
 const root = await sys.makeTempDir({ prefix: "gendn-iframe-sweep-preflight-" });
 const script = `${root}/scripts/iframe-posture-sweep.mjs`;
 let assertions = 0;
-async function run(args, permissions = ["--allow-read"]) {
+async function run(args) {
   const result = await new sys.Command(sys.execPath(), {
-    args: [...permissions, script, ...args],
+    args: [script, ...args],
     stdout: "piped",
     stderr: "piped",
   }).output();
@@ -41,6 +41,7 @@ try {
       "judged-content.mjs",
       "plain-corpus-path.mjs",
       "bounded-git.mjs",
+      "sys.mjs",
     ]
   ) {
     await sys.symlink(`${repo}scripts/lib/${name}`, `${root}/scripts/lib/${name}`);
@@ -86,16 +87,7 @@ try {
     script,
     patched.replace('const OUT = "/tmp/kjq-sweep";', `const OUT = "${root}/evidence";`),
   );
-  const failedStartup = await run(
-    [],
-    [
-      "--allow-read",
-      "--allow-write",
-      "--allow-run",
-      "--allow-env",
-      "--allow-net=127.0.0.1,localhost",
-    ],
-  );
+  const failedStartup = await run([]);
   assert.notEqual(failedStartup.code, 0);
   assert.match(failedStartup.err, /gendn server did not start for reference visibility validation/);
   assert.match(failedStartup.err, /__missing_iframe_sweep_fixture__\.ts/);

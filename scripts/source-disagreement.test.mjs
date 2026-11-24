@@ -63,7 +63,7 @@
 // Each restored to green. A check that cannot fail on a silently dropped side is a claim, not
 // a detector (rule 64: the signal must be shown to fire on the shape it was added for).
 //
-// Run: deno task test-fixtures --tasks test-source-disagreement
+// Run: npm run test-fixtures -- --tasks test-source-disagreement
 
 import * as sys from "./lib/sys.mjs";
 

@@ -8,7 +8,7 @@
 // resulting HTML: no dangerous href may appear), plus a control proving a real GitHub commit URL
 // still renders as a working link, unchanged.
 //
-// Run: deno task test-fixtures --tasks test-external-url   (or: deno run --allow-read scripts/external-url.test.mjs)
+// Run: npm run test-fixtures -- --tasks test-external-url   (or: node scripts/external-url.test.mjs)
 
 import * as sys from "./lib/sys.mjs";
 import { renderCommitAnchor, safeExternalUrl } from "../lib/external-url.ts";

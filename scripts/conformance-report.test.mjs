@@ -1,8 +1,8 @@
-#!/usr/bin/env -S deno run --allow-read --allow-write
+#!/usr/bin/env node
 // scripts/conformance-report.test.mjs — the tracked responsive report must not be TRUNCATED by a
 // scoped run (gendn-jvh).
 //
-// THE DEFECT, measured during the gendn-sgc pilot: `deno task responsive --page <id>` is the
+// THE DEFECT, measured during the gendn-sgc pilot: `npm run responsive -- --page <id>` is the
 // documented way to check ONE page, but the reporter wrote only the pages it had scanned, so the
 // scoped run rewrote the TRACKED reports/conformance/responsive.json from 198 rows to 1 - 2
 // insertions / 3154 deletions in a tracked file, a diff that reads like a deliberate regeneration.
@@ -14,7 +14,7 @@
 // also get a real subprocess assertion because they fail before browser boot. Importing the runner
 // is side-effect-free (`if (sys.isMain(import.meta.url)) await main()`).
 //
-// Run: deno task test-fixtures --tasks test-conformance-report
+// Run: npm run test-fixtures -- --tasks test-conformance-report
 //
 // PERMISSIONS: --allow-read for the imports and --allow-write for the temp files that pin the
 // tolerant reader's contract (a missing report, a corrupt one, and junk rows). The alternative was
@@ -457,7 +457,7 @@ await sys.remove(tmp, { recursive: true });
 
 // ---- gendn-502: THE SAME CLASS IN THE RUNNER'S OWN REPORT -------------------------------------
 // jvh fixed it for reports/conformance/responsive.json; the same runner's OTHER output had it too -
-// `deno task conformance --page <id>`, the documented evidence command, rewrote the tracked
+// `npm run conformance -- --page <id>`, the documented evidence command, rewrote the tracked
 // results.json from 198 suites to 1 and the index rollup from 229 lines to 32. So the class is
 // closed once, in mergeReportRows, and both reports call it. These assertions pin the DECISION
 // (wholesale vs merge) for the second report and the two shapes the shared reader must accept.

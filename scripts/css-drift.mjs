@@ -1,6 +1,6 @@
 // On-demand computed-style regression sweep. Baselines are uncommitted per-wave artifacts.
-// deno task css-drift --record wave-1 --routes 'v147/*'
-// deno task css-drift --compare wave-1 --routes 'v147/*'
+// npm run css-drift -- --record wave-1 --routes 'v147/*'
+// npm run css-drift -- --compare wave-1 --routes 'v147/*'
 // --changed scopes to reference files changed against origin/main (including uncommitted files).
 // Use --all instead of --routes/--changed for an explicit full-corpus run (several minutes).
 // The corpus includes both published roots and nested member references: v*/**/index.html.

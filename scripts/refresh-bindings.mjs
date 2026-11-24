@@ -1,6 +1,6 @@
-#!/usr/bin/env -S deno run --allow-read --allow-run --allow-write
+#!/usr/bin/env node
 // Explicit, reviewable regeneration of the identity/demo ledger. Never called by check-routes.
-// Usage: deno task refresh-bindings [--allow-removals]
+// Usage: npm run refresh-bindings [--allow-removals]
 import * as sys from "./lib/sys.mjs";
 import { buildManifest } from "./route-manifest.mjs";
 import {

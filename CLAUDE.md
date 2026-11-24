@@ -22,11 +22,14 @@ Sister project: [chrome-platform-showcase](https://github.com/PaulKinlan/chrome-
 server.ts             Routing + rendering. Routes /, /features, /v<N>/, /v<N>/<api-slug>/.
                       Index + /features + /v<N>/ render server-side from the chromestatus.com API.
                       Runtime-neutral: serveRequest() is shared by every entry below. Never call
-                      Deno.* (or node:fs) directly here; read files through lib/site-fs.ts.
+                      node:fs directly here; read files through lib/site-fs.ts.
 worker.ts             Cloudflare Workers entry (PRODUCTION). wrangler.jsonc; deployed by Workers Builds.
 serve.ts              Node entry for local dev (`npm run dev` / `npm start`, Node 22.18+).
 scripts/build-worker-assets.mjs  Copies v<N>/, public/, reports/conformance/ into dist/site + file index.
-package.json          npm scripts + pinned wrangler. deno.json: legacy tasks for the gates (moving to Node).
+package.json          Every task (`npm run <task>`) + pinned dev tools (wrangler, typescript, dprint).
+tsconfig.json         `npm run typecheck` (tsc). dprint.json: `npm run fmt` / `fmt:check`.
+scripts/              Gates, generators and fixtures, all plain Node (`node scripts/<x>.mjs`).
+  lib/sys.mjs         File/process/subprocess helpers the scripts share (see its header).
 lib/
   chromestatus.ts     Wrapper around chromestatus.com/api/v0. Strips the )]}' XSSI prefix. In-memory cache.
   mdn.ts              MDN existence heuristics (HEAD-checks the canonical MDN URL, hour cache).
@@ -48,18 +51,25 @@ routines-per-day cap. If you bump it back to hourly, watch the cap.
 Routine prompt lives in `.claude/routine-prompt.md`. When you change it, also push to the live
 routine via the `RemoteTrigger` MCP tool (action `update`).
 
-### Hosting: Cloudflare Workers (moving off Deno)
+### Hosting and tooling: Cloudflare Workers + Node (off Deno)
 
 Deno Deploy shuts down in April 2027 and Deno runtime development ends about a year after the
-Oct 2026 announcement, so gendn is moving off Deno in two phases. Phase 1 (done): the site runs on
-Cloudflare Workers (`worker.ts`, Worker `gendn`) and locally on Node
-(`npm run dev`). Phase 2 (pending): port the scripts, gates and CI from Deno to Node; until then the
-`deno task` commands below stay authoritative.
+Oct 2026 announcement, so gendn left Deno. The site runs on Cloudflare Workers (`worker.ts`, Worker
+`gendn`) and locally on Node (`npm run dev`). Every script, gate, fixture and the CI run on Node
+22.18+ (CI uses Node 24): `npm ci`, then `npm run <task>`. Pass script arguments after `--`, e.g.
+`npm run conformance -- --page v149/webmcp`. There is no deno.json any more; do not add one.
+
+- `server.ts` still carries a small guarded `Deno.serve` block so the old
+  gendn.paulkinlan-ea.deno.net deployment keeps serving until the domain moves to the Worker. It is
+  not used by any tooling; delete it once the deno.net URL is retired.
+- Fixtures used to declare narrow Deno `--allow-*` flags; Node runs them unsandboxed. The one
+  fixture that needs a restricted process (an unreadable /proc) uses Node's `--permission` model.
 
 - **Workers have no filesystem.** Any file server.ts or lib/ reads at request time must be copied
   by `scripts/build-worker-assets.mjs`, or it renders locally and 404s in production. Check
   `npx wrangler dev` after adding a new read.
-- Node, Deno and the Worker must answer byte-identically: all three call `serveRequest()`.
+- Node and the Worker must answer byte-identically: both call `serveRequest()`. `serve.ts` also
+  compresses (br/gzip) the way Cloudflare's edge does, so the transport fixtures see production.
 - **Deploys: Cloudflare Workers Builds**, connected to this repo (no GitHub secrets, no Actions
   workflow). Trigger "Deploy on push to main" runs `npx wrangler deploy`; "Branch previews" runs
   `npx wrangler versions upload` on every other branch, which shows up as a check on PRs. Build logs
@@ -72,7 +82,7 @@ Europe/London. It opens one PR titled `Weekly hardening …` from a `claude/` br
 `.github/workflows/auto-merge-weekly.yml` merges that PR once CI is green on its head commit,
 provided every changed file is routine-owned (`v<N>/`, `reports/`, `_data/`,
 `responsive-support.json`, `migrations.json`, `goals.json`, `route-bindings.json`). Anything else
-(scripts, `deno.lock`, server, CI, docs) leaves the PR for Paul with one explanatory comment.
+(scripts, `package.json`, server, CI, docs) leaves the PR for Paul with one explanatory comment.
 
 Why: unmerged weekly PRs made each run start from a stale `main` and redo the same pages, so
 PRs #14 to #20 conflicted with each other and had to be combined by hand in #21. If a weekly PR
@@ -145,7 +155,7 @@ production.
 ### 8. Routine never edits top-level files
 
 The routine prompt is constrained to writing inside `v<N>/`. `server.ts`, `lib/`, `public/`,
-`deno.json`, `CLAUDE.md`, and the seed pages (`v149/css-gap-decorations/` and `v149/webmcp/`) are
+`package.json`, `CLAUDE.md`, and the seed pages (`v149/css-gap-decorations/` and `v149/webmcp/`) are
 off-limits.
 
 ## Durable demo compatibility contract — stable URLs · additive evolution · non-destructive
@@ -180,7 +190,7 @@ controls, its use-case intent, and all inbound links.** Routine and agent waves 
   regression gate. Stable does NOT mean frozen — improve existing demos when justified, and add new
   demos/use cases freely; just never replace an old one merely to present a new idea.
 
-**Gate before every push:** run the route regression gate (`deno task check-routes`). It compares
+**Gate before every push:** run the route regression gate (`npm run check-routes`). It compares
 the previously published manifest against the working tree and fails on any missing published ID,
 deleted route, renamed/repurposed slug, changed published identity, or unexplained concept-count
 reduction — while allowing additive entries, honest `blocked` records, and in-place fixes.
@@ -207,9 +217,9 @@ durable identity is:
   itself changes). Sibling concept links are additive only if the selected URL stays stable; inspect
   the manifest after reordering links.
 
-Tooling: `deno task manifest` emits the normalized manifest
+Tooling: `npm run manifest` emits the normalized manifest
 (`{ id, route, identity, status, demo, referenceRoutes, aliases, support }`) from the catalogue;
-`deno task check-routes` is the regression gate (baseline = the manifest at `origin/main`, fallback
+`npm run check-routes` is the regression gate (baseline = the manifest at `origin/main`, fallback
 `.route-manifest.baseline.json`). Exceptional removals/moves/demo changes are recorded in
 `migrations.json`. For demo changes the gate matches only `id` + `action`, not `from`/`to`: a green
 result proves a `demo-change` record exists for that route, NOT that this specific URL repoint was
@@ -260,8 +270,8 @@ The authoring format and example are in [`docs/reference-contract.md`](docs/refe
   inventory and details with current primary sources. Authored text, page length, a green route, or
   an agent's self-attestation never establishes completeness.
 - Existing unassessed pages remain `legacy-unassessed`; partial contracts remain `partial`. New or
-  touched full references must pass `deno task validate-artifacts`, `deno task
-  test-reference-contract`, and `deno task check-conformance`, which fail unless the touched feature
+  touched full references must pass `npm run validate-artifacts`, `npm run
+  test-reference-contract`, and `npm run check-conformance`, which fail unless the touched feature
   is implementation-sufficient. MDN redirect stubs are exempt because MDN owns their detailed
   reference. A recorded migration move (`move`/`alias` in `migrations.json`) is also exempt for
   the diff that lands it: it is a filing correction, not a reference edit — the destination page
@@ -316,7 +326,7 @@ targeted compatibility fixes — never a destructive rewrite, never a new slug t
   it claims to support. Apply this to existing demos during audits with targeted compatibility
   fixes, wave by wave — the coverage number is the backlog burn-down, and it never regresses.
 
-**Run the responsive matrix before every push** with `deno task responsive` and record each touched
+**Run the responsive matrix before every push** with `npm run responsive` and record each touched
 demo's result in `responsive-support.json` (`ok` / `unsupported`+evidence per class).
 
 ## modern-web-guidance is mandatory for all frontend work
@@ -391,7 +401,7 @@ forking contradictory platform assertions.
   source-derived surface inventory plus one-to-one mappings to overview or stable child docs. Every
   item covers syntax, inputs, outputs, errors, context, lifecycle, examples, compatibility, and
   security/privacy, or gives a sourced not-applicable rationale. Required for new/touched non-stubs.
-- **`goals.json` — additive backlog.** `deno task build-goals` rolls every critique's
+- **`goals.json` — additive backlog.** `npm run build-goals` rolls every critique's
   `followUpGoals` into it. The routine consumes it to pick the next ADDITIVE page or a targeted
   in-place fix — never to replace a stable page.
 - **`responsive-support.json` — per-route mobile+desktop record**, merged into the route manifest as
@@ -401,22 +411,22 @@ forking contradictory platform assertions.
 Commands:
 
 ```bash
-deno task gen-conformance      # write a genuine suite for any published page missing one (never overwrites)
-deno task conformance          # headless-Chrome run-all: tested/total/pass/fail/blocked + reports/conformance/ rollup
-deno task conformance --page v<N>/<slug>      # one page's suite (the routine's per-page gate — don't push red)
-deno task responsive --update-support         # mobile+desktop scan → responsive-support.json (auto = needs-review)
-deno task build-goals          # roll critique followUpGoals into goals.json
-deno task validate-artifacts   # schemas + suiteHash + implementation-sufficiency mappings
-deno task test-reference-contract # fail-closed validator regression tests
-deno task check-conformance    # coverage + immutability + touched-page sufficiency gate
-deno task check-verdict-emission <log> [--phase run-all|responsive|behavioural]  # LANDING GATE: assert the emitted verdict block of a REAL gate log (`--phase behavioural` is required for the kill probe, and requires the kill evidence below)
+npm run gen-conformance      # write a genuine suite for any published page missing one (never overwrites)
+npm run conformance          # headless-Chrome run-all: tested/total/pass/fail/blocked + reports/conformance/ rollup
+npm run conformance -- --page v<N>/<slug>      # one page's suite (the routine's per-page gate — don't push red)
+npm run responsive -- --update-support         # mobile+desktop scan → responsive-support.json (auto = needs-review)
+npm run build-goals          # roll critique followUpGoals into goals.json
+npm run validate-artifacts   # schemas + suiteHash + implementation-sufficiency mappings
+npm run test-reference-contract # fail-closed validator regression tests
+npm run check-conformance    # coverage + immutability + touched-page sufficiency gate
+npm run check-verdict-emission -- <log> [--phase run-all|responsive|behavioural]  # LANDING GATE: assert the emitted verdict block of a REAL gate log (`--phase behavioural` is required for the kill probe, and requires the kill evidence below)
 sh scripts/kill-probe.sh <log> [--after <seconds>] -- <command>  # LANDING GATE (behavioural phase): run the kill probe itself; the wrapper appends the kill-evidence line the checker requires
-deno task test-verdict-emission # validate the CHECKER against synthetic logs — the landing gate is where it meets the runner's real output, so this alone cannot detect a runner that stopped printing `verdict:`
-deno task gate:fast           # TIER 1 gate: four always-on ratchets (check, check-routes, validate-artifacts, check-conformance) + only the suites the changed paths select. Prints RAN/SKIPPED for every suite with the rule and reason, then GATE-COVERAGE-MANIFEST tier=... ran=... skipped=... browser=... unknown=... . `--explain` prints the whole path->suite map. An unmapped path, an empty diff, a merge tip or a missing origin/main escalation to the full tier (fail-closed). A green fast gate claims ONLY the suites listed under RAN.
-deno task gate:full           # TIER 2 (landing) gate: the same ratchets + EVERY deterministic fixture + the CSS real-browser suite (test-css-drift-browser) unconditionally, with the same manifest. It does NOT run test-reference-contract/test-reference-browser (CI runs those as their own step) and says so on a NOT-RUN line.
-deno task test-css-drift-browser # the CSS real-browser half of the css-drift coverage (record / refuse-overwrite / no-drift / mismatched corpus / real CSS mutation at both widths, plus --changed scoping against a live server). It is a NAMED suite, excluded from test-fixtures, selected by scripts/gate-map.mjs for CSS/server/browser-helper changes and run unconditionally by CI. scripts/css-drift.test.mjs keeps the browser-free selection/comparison assertions.
+npm run test-verdict-emission # validate the CHECKER against synthetic logs — the landing gate is where it meets the runner's real output, so this alone cannot detect a runner that stopped printing `verdict:`
+npm run gate:fast           # TIER 1 gate: four always-on ratchets (check, check-routes, validate-artifacts, check-conformance) + only the suites the changed paths select. Prints RAN/SKIPPED for every suite with the rule and reason, then GATE-COVERAGE-MANIFEST tier=... ran=... skipped=... browser=... unknown=... . `--explain` prints the whole path->suite map. An unmapped path, an empty diff, a merge tip or a missing origin/main escalation to the full tier (fail-closed). A green fast gate claims ONLY the suites listed under RAN.
+npm run gate:full           # TIER 2 (landing) gate: the same ratchets + EVERY deterministic fixture + the CSS real-browser suite (test-css-drift-browser) unconditionally, with the same manifest. It does NOT run test-reference-contract/test-reference-browser (CI runs those as their own step) and says so on a NOT-RUN line.
+npm run test-css-drift-browser # the CSS real-browser half of the css-drift coverage (record / refuse-overwrite / no-drift / mismatched corpus / real CSS mutation at both widths, plus --changed scoping against a live server). It is a NAMED suite, excluded from test-fixtures, selected by scripts/gate-map.mjs for CSS/server/browser-helper changes and run unconditionally by CI. scripts/css-drift.test.mjs keeps the browser-free selection/comparison assertions.
                                # The manifest is not decoration: a gate that silently tests less is a green light attached to nothing, so every run names each suite it ran and each it skipped, with the rule that decided.
-deno task test-fixtures        # run every scripts/*.test.mjs fixture discovered by scripts/run-fixtures.mjs, except browser-backed files listed with reasons (CI runs the reference browser suite separately). Each fixture declares its narrow Deno flags in a first-block @fixture-permissions comment; a new file without one fails closed. Use --tasks test-<filename-stem> for one fixture. The runner also keeps the original test-mdn-has typecheck and the CI task names test-reference-contract/test-verdict-emission.
+npm run test-fixtures        # run every scripts/*.test.mjs fixture discovered by scripts/run-fixtures.mjs, except browser-backed files listed with reasons (CI runs the reference browser suite separately). Each fixture runs as `node scripts/<name>.test.mjs`. Use `-- --tasks test-<filename-stem>` for one fixture. The runner also keeps the original test-mdn-has typecheck (tsc) and the CI task names test-reference-contract/test-verdict-emission.
                                # TIMEOUT SEMANTICS (gendn-ebf/r3b): a fixture owns its processes; SUCCESS leaves them alone, while TIMEOUT kills its group and sweeps token-attributed descendants (GENDN_FIXTURE_TOKEN chain read from /proc/<pid>/environ), including setsid children and nested-runner grandchildren. The same spawn env increments GENDN_FIXTURE_RUN depth; incoming depth 3 REFUSES accidental recursion by any command spelling (a deliberately cleared environment remains outside this guard). Up to 64 attributable pids are killed in a 5s scan budget; a completed scan reports known survivors as LEAK, while a truncated/failed scan reports survivor count UNKNOWN and fails, never claiming zero. Unreadable environments are skipped and labelled ownership-unknown, not falsely attributed or killed. A fixture must clean up detached processes it intentionally leaves on SUCCESS.
 ```
 
@@ -430,8 +440,8 @@ requires the recorded death to be a real signal (a probe that COMPLETED inside i
 `signal=none` and is refused). A probe run by hand, or an unsummarised run declared as behavioural,
 will fail the landing gate.
 
-**Gate before every push (in addition to `deno task check-routes`):** `deno task validate-artifacts`,
-`deno task test-reference-contract`, and `deno task check-conformance` must pass. `blocked` in a run is explicit (manual-evidenced or
+**Gate before every push (in addition to `npm run check-routes`):** `npm run validate-artifacts`,
+`npm run test-reference-contract`, and `npm run check-conformance` must pass. `blocked` in a run is explicit (manual-evidenced or
 genuinely unavailable) and is NEVER counted as a pass. Coverage denominators are honest and burned
 down wave by wave — never claim complete/all.
 
@@ -482,11 +492,12 @@ Measured rules it encodes — do not "simplify" any of them:
 ## Testing checklist (do this before merging anything)
 
 ```bash
-deno fmt --check
-deno check server.ts
-deno task check-routes   # route regression gate — MUST pass before every push
-deno task test-reference-contract
-deno task start
+npm ci
+npm run fmt:check
+npm run typecheck
+npm run check-routes   # route regression gate — MUST pass before every push
+npm run test-reference-contract
+npm run start
 
 curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/
 curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/features

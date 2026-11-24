@@ -18,7 +18,7 @@
 //               that price a landing verdict must have driven a browser). Any further browser suite
 //               the map selects is run too.
 //
-// WHAT EVEN THE FULL TIER DOES NOT RUN, named here because that is the point: `deno task
+// WHAT EVEN THE FULL TIER DOES NOT RUN, named here because that is the point: `npm run
 // test-reference-contract` (the browser-backed reference-contract/reference-browser suite) is a
 // dedicated CI step and has never been part of the fleet's landing gate. It is not silently
 // discarded - the manifest prints it under NOT RUN with its reason, and CI runs it on every PR.
@@ -83,7 +83,7 @@ export const ALL_FIXTURES_STEP = {
 export const CSS_BROWSER_SUITE = "test-css-drift-browser";
 
 /** Fixture names that are COMPONENTS of a composite suite. `test-reference-browser` is executed
- * inside `deno task test-reference-contract`; selecting it separately would launch the same Chrome
+ * inside `npm run test-reference-contract`; selecting it separately would launch the same Chrome
  * coverage twice in one merged union, which gendn-xe6f explicitly forbids. So it is not a suite the
  * map can select - it is named here so the NOT-RUN line can still account for it. */
 export const COMPONENT_OF = new Map([["test-reference-browser", "test-reference-contract"]]);
@@ -559,7 +559,7 @@ export function classifyPaths(
     // fixture that is a component of a composite suite pulls in the composite instead of double-launching.
     //
     // PLUS THE SUPERSET ORACLE (gendn-8wwm): a consumer that never writes an `import` - a fixture that
-    // spawns `deno run scripts/foo.mjs`, reads the file as TEXT to assert a source invariant, or hands
+    // spawns `node scripts/foo.mjs`, reads the file as TEXT to assert a source invariant, or hands
     // its path to a server - is invisible to an import-only relation. test-chromestatus-units is exactly
     // that shape for server.ts (it sweeps server.ts and lib/ for a construction site). A textual mention
     // in a FIXTURE (one hop, never chained) is treated as evidence of a consumer, so it selects them too.
@@ -758,7 +758,7 @@ export async function discover(root) {
     graphReason = `the dependency graph could not be built: ${error}`;
   }
   // Commands come from the RUNNER's own helpers, never from a hand-written list: most fixtures have
-  // no deno.json task at all (that is the runner's premise), so `deno task test-fetch-bounded` would
+  // no deno.json task at all (that is the runner's premise), so `npm run test-fetch-bounded` would
   // fail outright. fixtureCommand/fixturePermissions are exactly what run-fixtures.mjs executes,
   // including the retained composite tasks and test-mdn-has's prepended typecheck.
   const commands = {};
@@ -890,7 +890,7 @@ export async function runStep(step, timeoutMs) {
   // A UNIQUE process marker for this step's descendants, so a timed-out step can be reclaimed by the
   // runner's env-token sweep. Deliberately NOT fixtureEnvironment(): that also sets the runner's
   // recursion marker (GENDN_FIXTURE_RUN), which asserts "we are already inside a fixture run" - and
-  // `deno task test-fixtures` then REFUSES to run by its own aggregate guard, which is how the first
+  // `npm run test-fixtures` then REFUSES to run by its own aggregate guard, which is how the first
   // version of this wiring broke the FULL tier while every fast-tier run stayed green (a tier that
   // never runs all-fixtures cannot see it). The gate is not a fixture; it needs a token to sweep by.
   const token = `${process.pid}-gate-${step.id}-${Date.now().toString(36)}`;
@@ -1106,7 +1106,7 @@ async function main() {
         skipped.push({
           name,
           why:
-            `unaffected: no changed path maps to it (see the rule table: deno task gate:fast --explain)`,
+            `unaffected: no changed path maps to it (see the rule table: npm run gate:fast -- --explain)`,
         });
       }
     }
@@ -1131,14 +1131,14 @@ async function main() {
         ([child]) => child,
       );
       console.log(
-        `NOT-RUN   ${name} — not part of the fleet full gate: CI runs it as its own step (deno task ${name}` +
+        `NOT-RUN   ${name} — not part of the fleet full gate: CI runs it as its own step (npm run ${name}` +
           (components.length ? `, which executes ${components.join(", ")}` : "") +
           ") - this manifest is how a reader knows it did not run here",
       );
     }
   } else {
     console.log(
-      `NOT-RUN   the full fixture tier (deno task test-fixtures) — fast tier ran ${steps.length} scoped step(s); the merger's full gate runs all ${pure.length} pure fixtures`,
+      `NOT-RUN   the full fixture tier (npm run test-fixtures) — fast tier ran ${steps.length} scoped step(s); the merger's full gate runs all ${pure.length} pure fixtures`,
     );
   }
 

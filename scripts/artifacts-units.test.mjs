@@ -19,7 +19,7 @@
 // suite returned to 54/54 with an empty git diff of the module. A suite that has never been
 // shown to fail on a plausible wrong implementation is a claim, not a detector.
 //
-// Run: deno task test-fixtures --tasks test-artifacts-units
+// Run: npm run test-fixtures -- --tasks test-artifacts-units
 
 import * as sys from "./lib/sys.mjs";
 import {

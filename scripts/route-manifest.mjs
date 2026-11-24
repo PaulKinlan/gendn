@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-read --allow-run
+#!/usr/bin/env node
 // route-manifest.mjs — emits gendn's durable route manifest.
 //
 // The catalogue is the filesystem convention `v<N>/<slug>/index.html`. There is no separate
@@ -21,8 +21,8 @@
 //   referenceRoutes — stable overview/member/protocol routes declared by reference-contract.json.
 //
 // Usage:
-//   deno run --allow-read --allow-run scripts/route-manifest.mjs            # working tree
-//   deno run --allow-read --allow-run scripts/route-manifest.mjs --ref origin/main   # a git ref
+//   node scripts/route-manifest.mjs            # working tree
+//   node scripts/route-manifest.mjs --ref origin/main   # a git ref
 //   (add `--pretty` for indented output)
 
 import * as sys from "./lib/sys.mjs";

@@ -3,14 +3,14 @@
 //
 // WHY THIS FILE EXISTS: every assertion here is a pure string comparison over canonicalCitationUrl
 // and hasHref — no browser, no network, sub-millisecond. They used to live in
-// reference-contract.test.mjs, which was reached only by `deno task test-reference-contract`:
+// reference-contract.test.mjs, which was reached only by `npm run test-reference-contract`:
 // ci.yml did not invoke it and gendn-cp7's aggregate excluded it as browser-backed. So the rule's
 // POSITIVE behaviour was CI-guarded (check-conformance runs the validator over the real catalogue)
 // while assertions proving it does not OVER-COLLAPSE relied on someone remembering a task name.
 // A `test-*` task is discovered by the aggregate, which CI runs, so moving them here gave them
 // automated reach. The DOM-backed visibility suite now has its own dedicated CI step.
 //
-// Run: deno task test-fixtures --tasks test-citation-canonical (file-discovered automatically)
+// Run: npm run test-fixtures -- --tasks test-citation-canonical (file-discovered automatically)
 
 import * as sys from "./lib/sys.mjs";
 import { canonicalCitationUrl, hasHref } from "./lib/reference-contract.mjs";

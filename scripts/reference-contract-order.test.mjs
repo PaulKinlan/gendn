@@ -9,7 +9,7 @@
 // that moved the pure citation assertions into citation-canonical.test.mjs (gendn-4ck).
 //
 // THE CONTROL FOR THIS FILE IS THE RUNNER'S EXIT CODE, NOT A COUNT OF ITS PASS LINES (gendn-ijf).
-//     deno task test-fixtures --tasks test-reference-contract-order; echo "exit=$?"      <- the verdict is the exit code
+//     npm run test-fixtures -- --tasks test-reference-contract-order; echo "exit=$?"      <- the verdict is the exit code
 //
 // WHAT IT LOCKS IN. collectReferenceContracts() used to await readJson() one ownerId at a time and report
 // the FIRST failing ownerId in INPUT order. Its first concurrent form used Promise.all, which reports

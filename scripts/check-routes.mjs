@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-read --allow-run
+#!/usr/bin/env node
 // check-routes.mjs — the route regression gate for gendn's durable demo compatibility contract.
 //
 // Run this before every push. It compares the PREVIOUSLY PUBLISHED manifest (baseline) against the
@@ -29,7 +29,7 @@
 // PASS for: additive new ids, honest new stubs, in-place fixes that preserve the same id + identity +
 // previously selected demo URL + live route, and any change explicitly listed in migrations.json.
 //
-// Usage: deno run --allow-read --allow-run scripts/check-routes.mjs [--baseline <ref>]
+// Usage: node scripts/check-routes.mjs [--baseline <ref>]
 //
 // `--baseline <ref>` answers the question a lane actually has when this gate goes red: does MY
 // CHANGE remove a route, or does my BASE not have one yet? Without it a red verdict is
@@ -477,7 +477,7 @@ async function main() {
   } catch (err) {
     failures.push(
       `${BINDING_LEDGER} unavailable or unreadable: ${err.message}; ` +
-        `run deno task refresh-bindings and review the diff`,
+        `run npm run refresh-bindings and review the diff`,
     );
   }
 

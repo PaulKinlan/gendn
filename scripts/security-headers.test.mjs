@@ -23,7 +23,7 @@
 // status/headers. The OS assigns the ephemeral port (PORT=0), and the spawned server process is
 // unconditionally terminated with SIGKILL in a finally block.
 //
-// Run: deno task test-fixtures --tasks test-security-headers  (file-discovered automatically)
+// Run: npm run test-fixtures -- --tasks test-security-headers  (file-discovered automatically)
 
 import * as sys from "./lib/sys.mjs";
 import { CSP_DIRECTIVES, CSP_HEADER_VALUE, RELEASE_INERT_SCRIPT_MIME } from "../server.ts";

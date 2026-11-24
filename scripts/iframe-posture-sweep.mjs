@@ -13,8 +13,8 @@
 //   3. three sample pages are screenshotted for the record.
 //
 // One headless Chrome, OS-assigned ports, everything torn down in finally.
-// Run: deno run --allow-read --allow-net --allow-run --allow-env --allow-write scripts/iframe-posture-sweep.mjs
-// Read-only discovery: deno run --allow-read scripts/iframe-posture-sweep.mjs --check-corpus
+// Run: node scripts/iframe-posture-sweep.mjs
+// Read-only discovery: node scripts/iframe-posture-sweep.mjs --check-corpus
 // The discovery check is NOT evidence that any served iframe works.
 
 import * as sys from "./lib/sys.mjs";

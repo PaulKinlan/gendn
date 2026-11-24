@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-read --allow-write --allow-run --allow-net --allow-env
+#!/usr/bin/env node
 // conformance.mjs — deterministic, headless-Chrome-backed runner for gendn's conformance suites,
 // plus the mobile+desktop responsive-check harness.
 //
@@ -10,10 +10,10 @@
 // (external showcase iframes / CDNs are out of gendn's control and don't fail the doc-quality gate).
 //
 // Modes:
-//   deno task conformance                      # run all suites, CLI + HTML rollup
-//   deno task conformance --page v149/webmcp   # run one suite, CLI table
-//   deno task responsive                       # mobile+desktop responsive-check across pages
-//   deno task responsive --page v149/webmcp --screenshots  # + save screenshots for agent review
+//   npm run conformance                      # run all suites, CLI + HTML rollup
+//   npm run conformance -- --page v149/webmcp   # run one suite, CLI table
+//   npm run responsive                       # mobile+desktop responsive-check across pages
+//   npm run responsive -- --page v149/webmcp --screenshots  # + save screenshots for agent review
 //   (--limit N samples the first N pages; --update-support writes responsive-support.json)
 //
 // Outputs: reports/conformance/results.json, reports/conformance/index.html (run-all rollup),

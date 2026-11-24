@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-read --allow-write
+#!/usr/bin/env node
 // gen-conformance.mjs — derive a genuine immutable conformance suite for every published page.
 //
 // Assertions are DERIVED from each page's own real metadata (chromestatus feature id, route,
@@ -13,9 +13,9 @@
 // To grow an existing suite, add assertions by hand — never regenerate to go green.
 //
 // Usage (new suites need network access to verify CPS breadcrumbs/suite identities):
-//   deno task gen-conformance                       # write missing suites
-//   deno task gen-conformance --dry-run             # report only
-//   deno task gen-conformance --page v149/webmcp
+//   npm run gen-conformance                       # write missing suites
+//   npm run gen-conformance -- --dry-run             # report only
+//   npm run gen-conformance -- --page v149/webmcp
 
 import * as sys from "./lib/sys.mjs";
 import {

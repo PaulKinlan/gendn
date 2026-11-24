@@ -8,7 +8,7 @@
 // The five REAL-BROWSER scenarios (record / refuse-overwrite / no-drift compare / mismatched corpus
 // / a real CSS mutation detected at both widths, plus the --changed scoping pass against a live
 // server) moved to the NAMED suite scripts/css-drift-browser.test.mjs, invoked as
-// `deno task test-css-drift-browser`. They are deliberately NOT auto-discovered: they cost ~29s of
+// `npm run test-css-drift-browser`. They are deliberately NOT auto-discovered: they cost ~29s of
 // real Chrome, and paying that for an unrelated landing is what gendn-ohot is about. The changed-path
 // map in scripts/gate-map.mjs makes that suite MANDATORY for changes to the CSS-drift sources, the
 // shared stylesheet, routing/server code or the browser-capture helpers, and reports it as
@@ -106,5 +106,5 @@ delete lost.pages["/v147/a/"];
 assert(compareSnapshots(baseline, lost).length === 2, "missing route fails at both widths");
 
 console.log(
-  "css-drift fixture: all selection/comparison assertions passed (browser half: deno task test-css-drift-browser)",
+  "css-drift fixture: all selection/comparison assertions passed (browser half: npm run test-css-drift-browser)",
 );

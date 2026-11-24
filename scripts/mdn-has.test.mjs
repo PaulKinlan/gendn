@@ -19,7 +19,7 @@
 //      are hardcoded hrefs, and the routine prompt writes its MDN URLs by hand. See the gendn-76k
 //      note beside the pins for why that matters.)
 //
-// Run: deno task test-fixtures --tasks test-mdn-has (includes deno check lib/mdn.ts first)
+// Run: npm run test-fixtures -- --tasks test-mdn-has (includes deno check lib/mdn.ts first)
 
 import * as sys from "./lib/sys.mjs";
 import { mdnApiUrl, mdnCssUrl, mdnHas } from "../lib/mdn.ts";

@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-read --allow-run
+#!/usr/bin/env node
 // validate-artifacts.mjs — well-formedness gate for the lifecycle artifacts.
 //
 // Checks, for the working tree:
@@ -16,7 +16,7 @@
 // This is the schema+hash half of immutability enforcement. The git-baseline weakening check
 // (assertion removed/changed vs origin/main without a migration) lives in check-conformance.mjs.
 //
-// Exit 1 on any violation. Usage: deno run --allow-read scripts/validate-artifacts.mjs
+// Exit 1 on any violation. Usage: node scripts/validate-artifacts.mjs
 
 import * as sys from "./lib/sys.mjs";
 import {

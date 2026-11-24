@@ -1,8 +1,8 @@
-#!/usr/bin/env -S deno run
+#!/usr/bin/env node
 // cdp.test.mjs — committed fixtures for the cdp profile-dir tooling (gendn-bmi): the ps parse
 // anomaly warning, its per-line dedupe, parse fidelity vs the merged dfc4c2c behaviour, and
 // TMPDIR root resolution (incl. the empty-string → /tmp-like-unset case). No Chrome. Runs as
-// `deno task test-fixtures --tasks test-cdp` and chained first in `deno task test-reference-contract`.
+// `npm run test-fixtures -- --tasks test-cdp` and chained first in `npm run test-reference-contract`.
 import * as sys from "./lib/sys.mjs";
 import {
   CDP_TIMEOUT_MAX_MS,

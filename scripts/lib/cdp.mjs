@@ -62,7 +62,7 @@ export async function raceWithTimeout(promise, timeoutMs, fallback) {
 export const CDP_TIMEOUT_MS = 30_000;
 export const CDP_TIMEOUT_MIN_MS = 1_000;
 export const CDP_TIMEOUT_MAX_MS = 120_000;
-// Example: GENDN_CDP_TIMEOUT_MS=60000 deno task conformance --page v147/js-profiling-in-dedicated-workers.
+// Example: GENDN_CDP_TIMEOUT_MS=60000 npm run conformance -- --page v147/js-profiling-in-dedicated-workers.
 const CDP_TIMEOUT_ENV = "GENDN_CDP_TIMEOUT_MS";
 const warnedCdpTimeoutValues = new Set();
 

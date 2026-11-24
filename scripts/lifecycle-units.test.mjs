@@ -38,7 +38,7 @@
 // one level up. It is now the s-status ROW alone, and the suite-wide check is a separate assertion
 // whose name says AGGREGATE.
 //
-// Run: deno task test-fixtures --tasks test-lifecycle-units
+// Run: npm run test-fixtures -- --tasks test-lifecycle-units
 import * as sys from "./lib/sys.mjs";
 
 const REPO = new URL("..", import.meta.url).pathname.replace(/\/$/, "");

@@ -30,7 +30,7 @@
 // would rename published routes, so the divergence is recorded, tested as-is, and reported on the
 // bead rather than "fixed" here.
 //
-// Run: deno task test-fixtures --tasks test-chromestatus-units
+// Run: npm run test-fixtures -- --tasks test-chromestatus-units
 
 import * as sys from "./lib/sys.mjs";
 

@@ -1,6 +1,6 @@
-#!/usr/bin/env -S deno run --allow-read --allow-write --allow-run
+#!/usr/bin/env node
 // check-verdict-emission.test.mjs — fail-closed regression tests for the verdict-emission check
-// (gendn-aj6). Runs as `deno task test-verdict-emission` and as a CI step, so the check cannot
+// (gendn-aj6). Runs as `npm run test-verdict-emission` and as a CI step, so the check cannot
 // silently stop failing: every FAIL case below asserts the exit code a landing gate would read.
 //
 // The log fixtures are byte-faithful to the real gate logs of the gendn-jeq landing — the summary
@@ -131,7 +131,7 @@ const LOGS = {
   // gendn-3t2 the probe runs through scripts/kill-probe.sh, which appends the kill-evidence line
   // the checker now requires — so a REAL probe log carries it.
   killProbe: [
-    "Task conformance deno run --allow-read scripts/conformance.mjs '--page' 'v149/webmcp'",
+    "Task conformance node scripts/conformance.mjs '--page' 'v149/webmcp'",
     "kill-probe: signal=KILL exit=137",
   ].join("\n"),
   // The same log byte-for-byte, colour escapes included (that is what /tmp/merger-l5b-kill.log is).
@@ -316,7 +316,7 @@ for (const [name, log] of Object.entries(LOGS.forgedEvidence)) {
       "--",
       "sh",
       "-c",
-      'printf "Task conformance deno run --allow-read scripts/conformance.mjs\\nv149/webmcp  tested 19/24"; sleep 30',
+      'printf "Task conformance node scripts/conformance.mjs\\nv149/webmcp  tested 19/24"; sleep 30',
     ],
     stdout: "piped",
     stderr: "piped",
@@ -565,6 +565,13 @@ assert(
     classifyPhase(LOGS.crashedRunAll.replace(HARNESS_BANNER, "")).name === "unknown",
 );
 assert(
+  "the npm harness banner (`npm run conformance`) is probe-initiation evidence like the deno one",
+  classifyPhase(
+    "\n> conformance\n> node scripts/conformance.mjs --page v149/webmcp\n\nkill-probe: signal=KILL exit=137",
+  ).name === "behavioural" &&
+    classifyPhase("\n> lint\n> node scripts/lint.mjs\n").name === "unknown",
+);
+assert(
   "[MAJOR] the byte-real kill probe classifies as behavioural from its ANSI-coloured banner",
   classifyPhase(LOGS.killProbeRealBytes).name === "behavioural" &&
     classifyPhase(LOGS.killProbeRealBytes).evidence.startsWith("Task conformance"),
@@ -578,12 +585,12 @@ const ci = await sys.readTextFile(
 assert(
   "the CI step names its own scope (it self-tests the CHECKER, it is not evidence about the runner)",
   /name: Verdict-emission checker self-test \(validates the checker/.test(ci) &&
-    ci.includes("run: deno task test-verdict-emission"),
+    ci.includes("run: npm run test-verdict-emission"),
 );
 const claude = await sys.readTextFile(new URL("../CLAUDE.md", import.meta.url).pathname);
 assert(
   "CLAUDE.md says the check meets REAL gate logs and that the probe carries --phase behavioural",
-  /check-verdict-emission <log>[^\n]*LANDING GATE/.test(claude) &&
+  /check-verdict-emission (?:-- )?<log>[^\n]*LANDING GATE/.test(claude) &&
     /test-verdict-emission[^\n]*CHECKER/.test(claude) &&
     /--phase behavioural[^\n]*kill probe|kill probe[^\n]*--phase behavioural/.test(claude),
 );

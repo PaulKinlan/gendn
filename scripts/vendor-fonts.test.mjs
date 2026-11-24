@@ -19,7 +19,7 @@
 // byte-unchanged — never a partial install — and a static sweep backstops the invariant so a
 // new bare `fetch(` cannot land in the repo's scripts quietly.
 //
-// Run: deno task test-fixtures --tasks test-vendor-fonts
+// Run: npm run test-fixtures -- --tasks test-vendor-fonts
 
 import * as sys from "./lib/sys.mjs";
 
@@ -763,8 +763,8 @@ try {
   );
 
   // 6b. LIVE (the INTERNET's state, opt-in): compares the repo sheet to Google Fonts right now.
-  // Run `deno run --allow-read --allow-write --allow-net --allow-run scripts/vendor-fonts.test.mjs --live` deliberately. A red here means UPSTREAM CHANGED (run
-  // `deno task vendor-fonts` to re-vendor), not that the repo is broken; it is not in the aggregate
+  // Run `node scripts/vendor-fonts.test.mjs --live` deliberately. A red here means UPSTREAM CHANGED (run
+  // `npm run vendor-fonts` to re-vendor), not that the repo is broken; it is not in the aggregate
   // because a transient upstream mismatch must not red every lane (gendn-c6w).
   if (!sys.args.includes("--live")) {
     console.log(

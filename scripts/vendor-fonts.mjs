@@ -22,8 +22,8 @@
 // and style is kept; nothing about which faces the page uses changes for latin text.
 //
 // USAGE
-//   deno task vendor-fonts            # fetch and rewrite the block in public/styles.css
-//   deno task vendor-fonts --check    # report whether the vendored block is up to date
+//   npm run vendor-fonts            # fetch and rewrite the block in public/styles.css
+//   npm run vendor-fonts -- --check    # report whether the vendored block is up to date
 //
 // The block is delimited by the BEGIN/END markers below; this script only ever rewrites inside
 // them, so hand-written CSS around it is never touched.
@@ -119,7 +119,7 @@ export function renderBlock(blocks) {
   const lines = [
     `${BEGIN} — generated, do not edit by hand --- */`,
     `/* Source: ${CSS_URL}`,
-    ` * Regenerate: deno task vendor-fonts`,
+    ` * Regenerate: npm run vendor-fonts`,
     ` * Subsets kept: ${
       DEFAULT_SUBSETS.join(", ")
     } (the full css2 response carries 49 rules across`,
@@ -232,7 +232,7 @@ if (sys.isMain(import.meta.url)) {
     if (check && !blockHasRules(sheet)) {
       throw new Error(
         "public/styles.css's vendored block contains no @font-face rules, so --check has nothing " +
-          "to compare against and must not report it current. Restore the rules (deno task " +
+          "to compare against and must not report it current. Restore the rules (npm run " +
           "vendor-fonts) and re-check.",
       );
     }
@@ -280,7 +280,7 @@ if (sys.isMain(import.meta.url)) {
     if (check) {
       console.log(
         changed
-          ? "vendor-fonts: OUT OF DATE — run `deno task vendor-fonts`"
+          ? "vendor-fonts: OUT OF DATE — run `npm run vendor-fonts`"
           : "vendor-fonts: up to date",
       );
       process.exit(changed ? 1 : 0);

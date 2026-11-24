@@ -54,7 +54,7 @@
 //     showcase embed pages carry deliberate postures. The deferral mechanism remains in place
 //     for future deferrals if needed.
 //
-// Run: deno task test-fixtures --tasks test-iframe-posture
+// Run: npm run test-fixtures -- --tasks test-iframe-posture
 
 import * as sys from "./lib/sys.mjs";
 import { PENDING_HARDENING, SANCTIONED_SANDBOX } from "./lib/iframe-posture.mjs";

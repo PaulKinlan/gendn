@@ -1,7 +1,7 @@
-#!/usr/bin/env -S deno run --allow-read --allow-run
+#!/usr/bin/env node
 // check-conformance.mjs — the conformance + coverage gate (sibling of the route regression gate).
 //
-// Run before every push, alongside `deno task check-routes`. It enforces the immutable-conformance
+// Run before every push, alongside `npm run check-routes`. It enforces the immutable-conformance
 // contract and reports lifecycle coverage denominators. FAILS (exit 1) on:
 //   1. a published page with NO conformance suite (missing coverage);
 //   2. an orphan suite id that maps to no published page;
@@ -17,7 +17,7 @@
 // Immutability weakening is caught two ways: validate-artifacts.mjs recomputes each suiteHash (tamper
 // signal); this gate diffs the assertions array against origin/main (semantic weakening).
 //
-// Usage: deno run --allow-read --allow-run scripts/check-conformance.mjs
+// Usage: node scripts/check-conformance.mjs
 
 import * as sys from "./lib/sys.mjs";
 import {

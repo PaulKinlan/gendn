@@ -17,16 +17,20 @@ jobs:
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Deno
-        uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+      - name: Install Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          deno-version: v2.x
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Type check
-        run: deno check server.ts
+        run: npm run typecheck
 
       - name: Format check
-        run: deno fmt --check
+        run: npm run fmt:check
 
   routes:
     name: Route regression gate (durable demo contract)
@@ -40,16 +44,20 @@ jobs:
         with:
           fetch-depth: 0 # need origin/main history to derive the published baseline
 
-      - name: Install Deno
-        uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+      - name: Install Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          deno-version: v2.x
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Ensure origin/main is available for the baseline
         run: git fetch --no-tags origin main
 
       - name: Route regression gate
-        run: deno task check-routes
+        run: npm run check-routes
 
   conformance:
     name: Conformance + coverage gate (critique/immutable-conformance lifecycle)
@@ -63,39 +71,43 @@ jobs:
         with:
           fetch-depth: 0 # need origin/main to diff assertions for the immutability check
 
-      - name: Install Deno
-        uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+      - name: Install Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          deno-version: v2.x
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Ensure origin/main is available for the baseline
         run: git fetch --no-tags origin main
 
       - name: Validate lifecycle artifacts (schema + suiteHash)
-        run: deno task validate-artifacts
+        run: npm run validate-artifacts
 
       - name: Conformance + coverage gate
-        run: deno task check-conformance
+        run: npm run check-conformance
 
       # Browser-backed visibility checks are excluded from test-fixtures; run them explicitly
       # so a hidden reference contract cannot pass every automatic gate.
       - name: Reference-contract browser regression suite
-        run: deno task test-reference-contract
+        run: npm run test-reference-contract
 
       # The CSS-drift real-browser suite is excluded from the deterministic fixture tier so an
       # unrelated landing does not pay ~29s of Chrome for it (gendn-xe6f); the fast tier selects it
       # by changed path. CI is the BACKSTOP that makes that skip safe: it runs unconditionally here,
       # so the browser half of the CSS coverage is never silently discarded.
       - name: CSS-drift browser regression suite (record/no-drift/mutation, mobile + desktop)
-        run: deno task test-css-drift-browser
+        run: npm run test-css-drift-browser
 
       # This step validates the CHECKER against synthetic logs; it is not evidence about the runner,
-      # whose real output is only read at the landing gate (`deno task check-verdict-emission <log>`).
+      # whose real output is only read at the landing gate (`npm run check-verdict-emission -- <log>`).
       - name: Verdict-emission checker self-test (validates the checker, not the runner)
-        run: deno task test-verdict-emission
+        run: npm run test-verdict-emission
 
-      # Every scripts/*.test.mjs fixture is file-discovered with narrow per-file permission
-      # metadata; browser-backed files are listed as exclusions (the reference suite runs above).
-      # Adding a fixture file enrolls it without touching deno.json.
+      # Every scripts/*.test.mjs fixture is file-discovered and run with node; browser-backed
+      # files are listed as exclusions (the reference suite runs above).
+      # Adding a fixture file enrolls it without touching package.json.
       - name: Fixture suite (all discovered fixture files)
-        run: deno task test-fixtures
+        run: npm run test-fixtures

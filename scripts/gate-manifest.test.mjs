@@ -11,7 +11,7 @@
 //     (never "nothing to run");
 //   - that the REAL map is complete: every discovered fixture is named by a rule, no rule names a
 //     fixture that no longer exists, and the CSS browser suite is actually reachable.
-// The real-browser half of the CSS coverage itself is executed by `deno task test-css-drift-browser`
+// The real-browser half of the CSS coverage itself is executed by `npm run test-css-drift-browser`
 // (a mapped change selects it, and CI runs it unconditionally); this fixture must stay browser-free
 // so that a change to the gate does not cost 29s of Chrome to verify.
 
