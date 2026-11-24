@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebTransport connection statistics — Chrome 160 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 36rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .scroll-table { min-width: 30rem; }
+    .example-embed { margin: 1rem 0 1.25rem; }
+    .example-embed iframe { display: block; inline-size: 100%; max-inline-size: 100%; border: 1px solid var(--border-rule); border-radius: 2px; background: var(--bg-paper); }
+    .example-embed figcaption { font-family: var(--font-sans); font-size: 0.85rem; color: var(--text-muted); margin-top: 0.45rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v160/">&larr; Chrome 160 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v160 &middot; webtransport &middot; enabled by default</p>
+    <h1>WebTransport connection statistics</h1>
+
+    <p class="lede">Ships <code>WebTransport.getStats()</code>, returning an asynchronous <code>WebTransportConnectionStats</code> snapshot for an active or closed <code>WebTransport</code> session: QUIC round-trip time metrics (<code>smoothedRtt</code>, <code>rttVariation</code>, <code>minRtt</code>), congestion-estimated sending rate (<code>estimatedSendRate</code>), and <code>datagrams</code> counters (<code>droppedIncoming</code>, <code>expiredIncoming</code>, <code>expiredOutgoing</code>, <code>lostOutgoing</code>). Chromium 160 does not yet expose connection-level byte/packet totals or <code>atSendCapacity</code>.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; <code>WebTransport.getStats()</code> fields vary across engines (base <code>WebTransport</code> is Baseline Newly available since 2026-03-24)</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 160 (RTT, send rate, datagram stats; no byte/packet totals)</li>
+        <li>Edge &middot; Chromium-based (BCD mirror)</li>
+        <li>Firefox &middot; 158 (full method; BCD still shows 114 not-implemented stub)</li>
+        <li class="limited">Safari &middot; 26.4 / 27.2 (WebKit-7625.2.8 returns default-initialized stats)</li>
+      </ul>
+      <p>The base <a href="https://webstatus.dev/features/webtransport" target="_blank" rel="noopener"><code>webtransport</code> web-feature</a> is <strong>Baseline Newly available</strong> since 2026-03-24 per <a href="https://api.webstatus.dev/v1/features?q=id:webtransport" target="_blank" rel="noopener">webstatus.dev</a>, while <code>WebTransport.getStats()</code> has substantial cross-engine differences in populated dictionary fields (<a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebTransport.json" target="_blank" rel="noopener">BCD <code>api/WebTransport.json</code></a>, <a href="https://developer.mozilla.org/en-US/docs/Mozilla/Firefox/Releases/158#apis" target="_blank" rel="noopener">Firefox 158 release notes</a>, <a href="https://github.com/WebKit/WebKit/blob/WebKit-7625.2.8/Source/WebKit/NetworkProcess/webtransport/cocoa/NetworkTransportSessionCocoa.mm#L410-L413" target="_blank" rel="noopener">WebKit-7625.2.8 source</a>, checked 2026-11-24). Always feature-check individual properties on the returned dictionary.</p>
+    </div>
+  </header>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#at-a-glance">At a glance</a></li>
+      <li><a href="#why">Why it exists</a></li>
+      <li><a href="#syntax">Syntax &amp; API surface</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#security-and-privacy">Security &amp; privacy</a></li>
+      <li><a href="#specifications">Specifications</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Shipped in</th><td>Chrome 160 (desktop, Android, Android WebView), enabled by default &mdash; filed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=160" target="_blank" rel="noopener">milestone=160 listing</a> and <a href="https://chromestatus.com/api/v0/features/5120203192139776" target="_blank" rel="noopener">ChromeStatus API record</a></td></tr>
+      <tr><th scope="row">Runtime flag</th><td>Enabled by default (<code>status: "stable"</code> for <code>WebTransportStats</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>); previously behind <code>chrome://flags/#enable-experimental-web-platform-features</code></td></tr>
+      <tr><th scope="row">Specification</th><td><a href="https://w3c.github.io/webtransport/#dom-webtransport-getstats" target="_blank" rel="noopener">W3C WebTransport &mdash; <code>getStats()</code></a>, <a href="https://w3c.github.io/webtransport/#dictdef-webtransportconnectionstats" target="_blank" rel="noopener"><code>WebTransportConnectionStats</code></a>, <a href="https://w3c.github.io/webtransport/#dictdef-webtransportdatagramstats" target="_blank" rel="noopener"><code>WebTransportDatagramStats</code></a></td></tr>
+      <tr><th scope="row">Explainer</th><td><a href="https://github.com/w3c/webtransport/blob/main/explainer.md#stats" target="_blank" rel="noopener">W3C WebTransport Explainer &mdash; Stats</a></td></tr>
+      <tr><th scope="row">Intent</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6aecbed8.dafb4d6f.4865.0071.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a></td></tr>
+      <tr><th scope="row">Tracking bug</th><td><a href="https://issues.chromium.org/issues/573538454" target="_blank" rel="noopener">issues.chromium.org/573538454</a></td></tr>
+      <tr><th scope="row">Web platform tests</th><td><a href="https://wpt.fyi/results/webtransport/stats.https.any.html" target="_blank" rel="noopener">webtransport/stats.https.any.html</a> (<a href="https://github.com/web-platform-tests/wpt/blob/master/webtransport/stats.https.any.js" target="_blank" rel="noopener">WPT source</a>)</td></tr>
+      <tr><th scope="row">TAG review</th><td><a href="https://github.com/w3ctag/design-reviews/issues/1212#issuecomment-5071009850" target="_blank" rel="noopener">w3ctag/design-reviews#1212</a></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5120203192139776" target="_blank" rel="noopener">5120203192139776 &mdash; WebTransport connection statistics</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>Real-time WebTransport applications (live video, cloud gaming, collaborative editors, telemetry) need to separate network latency, congestion, and datagram drops from application-side queuing delays. Without connection-level stats, an application cannot tell whether incoming datagrams are overflowing the client receive buffer, whether outgoing datagrams are expiring before transmission or being lost on the wire, or how much bandwidth the QUIC congestion controller estimates is available. <code>WebTransport.getStats()</code> exposes a single asynchronous snapshot of underlying connection health without altering transmission behavior, complementing the per-stream and per-group byte counters added in <a href="/v159/webtransport-send-groups-and-send-stream-prioritization/">Chrome 159 send groups</a>.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5120203192139776" target="_blank" rel="noopener">ChromeStatus motivation (5120203192139776)</a>; <a href="https://github.com/w3c/webtransport/blob/main/explainer.md#stats" target="_blank" rel="noopener">W3C WebTransport Explainer &mdash; Stats</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>Chromium 160 Blink WebIDL (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport.idl" target="_blank" rel="noopener"><code>web_transport.idl</code></a>, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport_connection_stats.idl" target="_blank" rel="noopener"><code>web_transport_connection_stats.idl</code></a>, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport_datagram_stats.idl" target="_blank" rel="noopener"><code>web_transport_datagram_stats.idl</code></a>):</p>
+    <pre><code>[Exposed=(Window,Worker), SecureContext]
+partial interface WebTransport {
+  Promise&lt;WebTransportConnectionStats&gt; getStats();
+};
+
+dictionary WebTransportConnectionStats {
+  DOMHighResTimeStamp smoothedRtt;
+  DOMHighResTimeStamp rttVariation;
+  DOMHighResTimeStamp minRtt;
+  required WebTransportDatagramStats datagrams;
+  unsigned long long? estimatedSendRate = null;
+};
+
+dictionary WebTransportDatagramStats {
+  unsigned long long droppedIncoming;
+  unsigned long long expiredIncoming;
+  unsigned long long expiredOutgoing;
+  unsigned long long lostOutgoing;
+};</code></pre>
+    <p>This reference covers all three parts of the Chrome 160 surface: <a href="#getstats"><code>WebTransport.getStats()</code></a>, <a href="#connection-stats"><code>WebTransportConnectionStats</code></a> (including the 9 W3C spec members omitted in Chrome 160), and <a href="#datagram-stats"><code>WebTransportDatagramStats</code></a>.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport.idl" target="_blank" rel="noopener">Blink web_transport.idl</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport_connection_stats.idl" target="_blank" rel="noopener">Blink web_transport_connection_stats.idl</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport_datagram_stats.idl" target="_blank" rel="noopener">Blink web_transport_datagram_stats.idl</a>.</span>
+
+    <h3 id="getstats"><code>WebTransport.getStats()</code></h3>
+    <p><strong>Inputs.</strong> Takes no arguments (<code>WebTransport.prototype.getStats.length === 0</code>). Invoked on a <code>WebTransport</code> instance.</p>
+    <p><strong>Outputs.</strong> Returns a fresh <code>Promise&lt;WebTransportConnectionStats&gt;</code> on every invocation (two concurrent calls return distinct Promise objects: <code>wt.getStats() !== wt.getStats()</code>). In Chromium&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport.cc" target="_blank" rel="noopener"><code>web_transport.cc</code></a>, concurrent calls while an IPC stats request is already in flight are coalesced into one network-service round trip and resolved with the resulting snapshot.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/webtransport/#dom-webtransport-getstats" target="_blank" rel="noopener">W3C WebTransport &mdash; getStats()</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport.cc" target="_blank" rel="noopener">Blink web_transport.cc</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/webtransport/stats.https.any.js" target="_blank" rel="noopener">WPT stats.https.any.js</a>.</span>
+
+    <h3 id="connection-stats"><code>WebTransportConnectionStats</code> dictionary</h3>
+    <p><strong>Populated members in Chrome 160.</strong> All RTT and send-rate members are <em>pooled connection stats</em> under <a href="https://w3c.github.io/webtransport/#dictdef-webtransportconnectionstats" target="_blank" rel="noopener">W3C WebTransport &sect;6.13</a>:</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="conn-stats-caption">
+    <table class="doc-table scroll-table">
+      <caption id="conn-stats-caption"><code>WebTransportConnectionStats</code> members exposed by Chrome 160 (from Blink <code>web_transport.cc</code> and W3C WebTransport &sect;6.13)</caption>
+      <thead><tr><th scope="col">Member</th><th scope="col">Type / unit</th><th scope="col">Pooled?</th><th scope="col">Chrome 160 behavior</th></tr></thead>
+      <tr><td><code>smoothedRtt</code></td><td><code>DOMHighResTimeStamp</code> (ms)</td><td>Yes</td><td>Smoothed QUIC RTT (<a href="https://datatracker.ietf.org/doc/html/rfc9002#section-5.3" target="_blank" rel="noopener">RFC 9002 &sect;5.3</a>); omitted until QUIC has a positive <code>min_rtt</code> sample</td></tr>
+      <tr><td><code>rttVariation</code></td><td><code>DOMHighResTimeStamp</code> (ms)</td><td>Yes</td><td>Mean RTT variation (<a href="https://datatracker.ietf.org/doc/html/rfc9002#section-5.3" target="_blank" rel="noopener">RFC 9002 &sect;5.3</a>); omitted until QUIC has a positive <code>min_rtt</code> sample</td></tr>
+      <tr><td><code>minRtt</code></td><td><code>DOMHighResTimeStamp</code> (ms)</td><td>Yes</td><td>Minimum RTT observed on the connection (<a href="https://datatracker.ietf.org/doc/html/rfc9002#section-5.2" target="_blank" rel="noopener">RFC 9002 &sect;5.2</a>); omitted until positive</td></tr>
+      <tr><td><code>estimatedSendRate</code></td><td><code>unsigned long long?</code> (bits/s)</td><td>Yes</td><td>Congestion-controller payload send rate estimate excluding framing; defaults to <code>null</code> when unavailable (<code>&lt;= 0</code>) and may revert to <code>null</code> on later calls. Blink notes estimates are most accurate when BBRv1/BBRv2 is active (see <a href="/v159/webtransport-congestion-control/"><code>congestionControl</code></a>)</td></tr>
+      <tr><td><code>datagrams</code></td><td><code>WebTransportDatagramStats</code> (required)</td><td>No (counters)</td><td>Always present as a non-null object; see <a href="#datagram-stats"><code>WebTransportDatagramStats</code></a></td></tr>
+    </table>
+    </div>
+    <p><strong>W3C spec members omitted in Chrome 160.</strong> The <a href="https://w3c.github.io/webtransport/#dictdef-webtransportconnectionstats" target="_blank" rel="noopener">W3C WebTransport specification</a> also defines eight connection byte/packet totals (<code>bytesSent</code>, <code>bytesSentOverhead</code>, <code>bytesAcknowledged</code> [at risk], <code>packetsSent</code>, <code>bytesLost</code>, <code>packetsLost</code>, <code>bytesReceived</code>, <code>packetsReceived</code>) and <code>atSendCapacity</code> (default <code>false</code>). Chromium 160 does <strong>not</strong> expose these nine members; they are absent (<code>undefined</code>) on returned dictionaries. Check <code>"bytesSent" in stats</code> before reading them.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/webtransport/#dictdef-webtransportconnectionstats" target="_blank" rel="noopener">W3C WebTransport &sect;6.13</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport.cc" target="_blank" rel="noopener">Blink ConvertStatsFromMojom</a>; <a href="https://chromestatus.com/api/v0/features/5120203192139776" target="_blank" rel="noopener">ChromeStatus interop notes (5120203192139776)</a>.</span>
+
+    <h3 id="datagram-stats"><code>WebTransportDatagramStats</code> dictionary</h3>
+    <p><strong>Inputs &amp; outputs.</strong> Returned as the required <code>stats.datagrams</code> property of <code>WebTransportConnectionStats</code>. Every counter is a non-negative <code>unsigned long long</code> integer:</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="dgram-stats-caption">
+    <table class="doc-table scroll-table">
+      <caption id="dgram-stats-caption"><code>WebTransportDatagramStats</code> members (from W3C WebTransport &sect;6.14 and Blink <code>web_transport.cc</code>)</caption>
+      <thead><tr><th scope="col">Member</th><th scope="col">Meaning</th><th scope="col">Source in Chromium 160</th></tr></thead>
+      <tr><td><code>droppedIncoming</code></td><td>Incoming datagrams dropped because the application did not read from <code>datagrams.readable</code> before the receive buffer (<code>incomingMaxBufferedDatagrams</code>) overflowed</td><td>Computed in Blink (<code>datagram_queue_</code> after applying queue limits)</td></tr>
+      <tr><td><code>expiredIncoming</code></td><td>Incoming datagrams dropped because they exceeded <code>datagrams.incomingMaxAge</code> before being read</td><td>Computed in Blink (<code>datagram_queue_</code>)</td></tr>
+      <tr><td><code>expiredOutgoing</code></td><td>Outgoing datagrams dropped in the send queue because they exceeded <code>datagrams.outgoingMaxAge</code> before transmission</td><td>Network service (QUIC)</td></tr>
+      <tr><td><code>lostOutgoing</code></td><td>Sent datagrams declared lost per <a href="https://datatracker.ietf.org/doc/html/rfc9002#section-6.1" target="_blank" rel="noopener">RFC 9002 &sect;6.1</a></td><td>Network service (QUIC)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://w3c.github.io/webtransport/#dictdef-webtransportdatagramstats" target="_blank" rel="noopener">W3C WebTransport &sect;6.14</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport.cc" target="_blank" rel="noopener">Blink ConvertStatsFromMojom / UpdateIncomingDatagramStats</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/webtransport/stats.https.any.js" target="_blank" rel="noopener">WPT stats.https.any.js</a>.</span>
+
+    <h3 id="lifecycle">Lifecycle and state transitions</h3>
+    <ul>
+      <li><strong>Before connection establishment (<code>[[State]] === "connecting"</code>):</strong> calling <code>wt.getStats()</code> before <code>await wt.ready</code> does not throw; the returned promise waits until the connection transitions out of <code>"connecting"</code>, then resolves with stats if it connects or rejects with <code>InvalidStateError</code> if the handshake fails.</li>
+      <li><strong>While connected (<code>[[State]] === "connected"</code>):</strong> queries the network service asynchronously and updates Chromium&rsquo;s cached <code>latest_stats_</code> snapshot. Per W3C &sect;6.13, whether a UA chooses to expose a member is fixed once per session (except <code>estimatedSendRate</code>, which can transition to or from <code>null</code>, and RTT fields before the first sample).</li>
+      <li><strong>During and after normal closure (<code>[[State]] === "closed"</code>):</strong> calls issued immediately before <code>wt.close()</code> or after <code>wt.close()</code> resolve with the most recent cached stats snapshot (including updated incoming datagram drop/expiry counters flushed during cleanup).</li>
+      <li><strong>Failed connection (<code>[[State]] === "failed"</code>):</strong> rejects with <code>DOMException("InvalidStateError")</code> on both initial and repeated <code>getStats()</code> calls.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://w3c.github.io/webtransport/#dom-webtransport-getstats" target="_blank" rel="noopener">W3C WebTransport &mdash; getStats() steps</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport.cc" target="_blank" rel="noopener">Blink WebTransport::getStats / Cleanup</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/webtransport/stats.https.any.js" target="_blank" rel="noopener">WPT stats.https.any.js</a>.</span>
+
+    <h3 id="errors">Errors and defensive handling</h3>
+    <ul>
+      <li><strong><code>InvalidStateError</code> (<code>DOMException</code>, code <code>11</code>):</strong> <code>wt.getStats()</code> returns a rejected promise if the <code>WebTransport</code> connection is in the <code>"failed"</code> state (for example DNS/TLS/HTTP3 handshake failure or abrupt transport failure with no prior snapshot).</li>
+      <li><strong>Missing optional members:</strong> <code>smoothedRtt</code>, <code>rttVariation</code>, and <code>minRtt</code> are absent until QUIC records a positive RTT sample; <code>estimatedSendRate</code> is <code>null</code> when no bandwidth estimate exists; non-pooled byte/packet counters and <code>WebTransportDatagramStats</code> fields may be omitted on pooled connections or in other engines. Always guard with <code>"smoothedRtt" in stats</code>, <code>stats.estimatedSendRate !== null</code>, and <code>stats.datagrams?.lostOutgoing ?? 0</code>.</li>
+      <li><strong>Pre-160 Chrome / older Firefox:</strong> feature-detect <code>typeof wt.getStats === "function"</code> and catch rejections (Firefox 114&ndash;157 exposed <code>getStats</code> as a stub that rejected with a not-implemented error before Firefox 158 implemented it).</li>
+    </ul>
+    <span class="citation">Source: <a href="https://w3c.github.io/webtransport/#dom-webtransport-getstats" target="_blank" rel="noopener">W3C WebTransport &mdash; getStats()</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/webtransport/stats.https.any.js" target="_blank" rel="noopener">WPT stats.https.any.js</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebTransport.json" target="_blank" rel="noopener">BCD api/WebTransport.json</a>.</span>
+
+    <h3 id="context">Context and exposure</h3>
+    <p><code>WebTransport.getStats()</code>, <code>WebTransportConnectionStats</code>, and <code>WebTransportDatagramStats</code> are exposed in <code>Window</code> and <code>Worker</code> contexts (dedicated, shared, and service workers) and require a <code>SecureContext</code> (HTTPS or localhost). No user permission or user activation is required.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport.idl" target="_blank" rel="noopener">Blink web_transport.idl</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/webtransport/stats.https.any.js" target="_blank" rel="noopener">WPT stats.https.any.js (global=window,worker)</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/webtransport-connection-statistics/stats-snapshot/"
+        title="Live example — WebTransport connection statistics snapshot" loading="lazy" width="100%" height="520"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live interactive snapshot inspector for <code>WebTransport.getStats()</code>. <span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/webtransport-connection-statistics/stats-snapshot/" target="_blank" rel="noopener">Chrome Platform Showcase (stats-snapshot)</a>; more demos at <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/webtransport-connection-statistics/" target="_blank" rel="noopener">v160/webtransport-connection-statistics</a> and <a href="https://microsoftedge.github.io/Demos/webtransport-getstats" target="_blank" rel="noopener">Microsoft Edge webtransport-getstats demo</a>.</span></figcaption>
+    </figure>
+
+    <h3 id="example-snapshot">Polling RTT and estimated send rate safely across engines</h3>
+    <pre><code>async function inspectConnectionHealth(wt) {
+  if (typeof wt.getStats !== "function") {
+    return { supported: false };
+  }
+
+  try {
+    const stats = await wt.getStats();
+    return {
+      supported: true,
+      smoothedRttMs: "smoothedRtt" in stats ? stats.smoothedRtt : null,
+      rttVariationMs: "rttVariation" in stats ? stats.rttVariation : null,
+      minRttMs: "minRtt" in stats ? stats.minRtt : null,
+      estimatedSendRateBps: stats.estimatedSendRate ?? null,
+      // Optional in W3C spec; absent in Chrome 160
+      bytesSent: "bytesSent" in stats ? stats.bytesSent : null,
+    };
+  } catch (err) {
+    if (err.name === "InvalidStateError") {
+      // Connection failed before establishing
+      return { supported: true, failed: true };
+    }
+    throw err;
+  }
+}</code></pre>
+    <span class="citation">Source: <a href="https://w3c.github.io/webtransport/#dictdef-webtransportconnectionstats" target="_blank" rel="noopener">W3C WebTransport &sect;6.13</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/webtransport/stats.https.any.js" target="_blank" rel="noopener">WPT stats.https.any.js</a>.</span>
+
+    <h3 id="example-datagram-loss">Monitoring <code>WebTransportDatagramStats</code> and post-close telemetry</h3>
+    <pre><code>const wt = new WebTransport("https://example.com:4433/wt", {
+  congestionControl: "low-latency",
+});
+await wt.ready;
+
+// Read final connection and datagram counters even after closing
+wt.close({ closeCode: 0, reason: "session complete" });
+const finalStats = await wt.getStats();
+
+const {
+  droppedIncoming = 0,
+  expiredIncoming = 0,
+  expiredOutgoing = 0,
+  lostOutgoing = 0,
+} = finalStats.datagrams;
+
+console.log({
+  droppedIncoming,
+  expiredIncoming,
+  expiredOutgoing,
+  lostOutgoing,
+});</code></pre>
+    <span class="citation">Source: <a href="https://w3c.github.io/webtransport/#dictdef-webtransportdatagramstats" target="_blank" rel="noopener">W3C WebTransport &sect;6.14</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/webtransport/stats.https.any.js" target="_blank" rel="noopener">WPT stats.https.any.js</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Browser support for <code>WebTransport.getStats()</code>, <code>WebTransportConnectionStats</code>, and <code>WebTransportDatagramStats</code>. Compiled from <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebTransport.json" target="_blank" rel="noopener">BCD <code>api/WebTransport.json</code></a>, ChromeStatus, Firefox 158 release notes, and WebKit source (checked 2026-11-24).</caption>
+      <thead><tr><th scope="col">Browser / runtime</th><th scope="col">Version</th><th scope="col">Notes &amp; exposed fields</th></tr></thead>
+      <tr><th scope="row">Chrome (desktop, Android, WebView)</th><td>160</td><td>Enabled by default (<a href="https://chromestatus.com/feature/5120203192139776" target="_blank" rel="noopener">ChromeStatus 5120203192139776</a>; BCD currently lists <code>"preview"</code>). Exposes <code>smoothedRtt</code>, <code>rttVariation</code>, <code>minRtt</code>, <code>estimatedSendRate</code>, and <code>datagrams</code>; omits connection byte/packet totals and <code>atSendCapacity</code></td></tr>
+      <tr><th scope="row">Edge</th><td>160<br>(mirror)</td><td>Chromium-based (BCD mirror); Microsoft Edge authored the <a href="https://github.com/MicrosoftEdge/Demos/tree/main/webtransport-getstats" target="_blank" rel="noopener">webtransport-getstats demo</a></td></tr>
+      <tr><th scope="row">Firefox (desktop, Android)</th><td>158</td><td>Shipped in <a href="https://developer.mozilla.org/en-US/docs/Mozilla/Firefox/Releases/158#apis" target="_blank" rel="noopener">Firefox 158</a> (Oct 2026); BCD currently still records 114 as a partial not-implemented stub</td></tr>
+      <tr><th scope="row">Safari (macOS, iOS)</th><td>26.4 / 27.2<br>(partial)</td><td>BCD records 26.4; ChromeStatus notes Safari 27.2 (<a href="https://github.com/WebKit/WebKit/blob/WebKit-7625.2.8/Source/WebKit/NetworkProcess/webtransport/cocoa/NetworkTransportSessionCocoa.mm#L410-L413" target="_blank" rel="noopener">WebKit-7625.2.8</a>) returns default-initialized stats, with <code>bytesSent</code>/<code>bytesReceived</code> added on WebKit main</td></tr>
+      <tr><th scope="row">Deno</th><td>2.2 (flag)</td><td>Behind <code>--unstable-net</code> per <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebTransport.json" target="_blank" rel="noopener">BCD</a></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebTransport.json" target="_blank" rel="noopener">BCD api/WebTransport.json</a>; <a href="https://chromestatus.com/api/v0/features/5120203192139776" target="_blank" rel="noopener">ChromeStatus API record (5120203192139776)</a>; <a href="https://wpt.fyi/results/webtransport/stats.https.any.html" target="_blank" rel="noopener">wpt.fyi stats results</a>; <a href="https://webstatus.dev/features/webtransport" target="_blank" rel="noopener">webstatus.dev webtransport</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <p><code>WebTransport.getStats()</code> returns only aggregate transport statistics for a <code>WebTransport</code> session the caller already owns; it reveals neither payloads nor peer credentials and creates no new network capability. However, RTT metrics and <code>estimatedSendRate</code> can reveal characteristics of a user&rsquo;s network path or correlate concurrent activity.</p>
+    <p><strong>Connection pooling boundary.</strong> Under <a href="https://w3c.github.io/webtransport/#web-transport-connection-stats" target="_blank" rel="noopener">W3C WebTransport &sect;6.13</a>, when a session shares a pooled underlying HTTP/3 connection (<code>allowPooling: true</code>, <code>[[NewConnection]] === "no"</code>), non-pooled connection and datagram counters MUST be withheld so one session cannot observe another pooled session&rsquo;s traffic volume; only pooled connection stats (<code>smoothedRtt</code>, <code>rttVariation</code>, <code>minRtt</code>, <code>estimatedSendRate</code>) may be disclosed across pooled sessions sharing the same network partition key. User agents may also withhold additional members for privacy as long as that choice remains consistent across calls within a session.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/webtransport/#web-transport-connection-stats" target="_blank" rel="noopener">W3C WebTransport &sect;6.13</a>; <a href="https://chromestatus.com/api/v0/features/5120203192139776" target="_blank" rel="noopener">ChromeStatus security_risks (5120203192139776)</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Specification</th><th scope="col">Section</th></tr></thead>
+      <tr><td><a href="https://w3c.github.io/webtransport/" target="_blank" rel="noopener">W3C WebTransport</a></td><td><a href="https://w3c.github.io/webtransport/#dom-webtransport-getstats" target="_blank" rel="noopener"><code>WebTransport.getStats()</code></a>, <a href="https://w3c.github.io/webtransport/#dictdef-webtransportconnectionstats" target="_blank" rel="noopener">&sect;6.13 <code>WebTransportConnectionStats</code></a>, <a href="https://w3c.github.io/webtransport/#dictdef-webtransportdatagramstats" target="_blank" rel="noopener">&sect;6.14 <code>WebTransportDatagramStats</code></a></td></tr>
+      <tr><td><a href="https://datatracker.ietf.org/doc/html/rfc9002" target="_blank" rel="noopener">IETF RFC 9002</a></td><td><a href="https://datatracker.ietf.org/doc/html/rfc9002#section-5.2" target="_blank" rel="noopener">&sect;5.2&ndash;5.3 RTT estimation</a> &amp; <a href="https://datatracker.ietf.org/doc/html/rfc9002#section-6.1" target="_blank" rel="noopener">&sect;6.1 Packet loss detection</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/webtransport-connection-statistics/" target="_blank" rel="noopener">Chrome Platform Showcase &mdash; WebTransport connection statistics demos</a> (<a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/webtransport-connection-statistics/member-inventory/" target="_blank" rel="noopener">member inventory</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/webtransport-connection-statistics/adaptive-bitrate-monitor/" target="_blank" rel="noopener">adaptive bitrate monitor</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/webtransport-connection-statistics/datagram-loss-lab/" target="_blank" rel="noopener">datagram loss lab</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/webtransport-connection-statistics/lifecycle-edges/" target="_blank" rel="noopener">lifecycle edges</a>)</li>
+      <li><a href="/v159/webtransport-send-groups-and-send-stream-prioritization/">gendn Chrome 159 &mdash; WebTransport send groups and send-stream prioritization</a> (stream/group <code>getStats()</code>)</li>
+      <li><a href="/v159/webtransport-congestion-control/">gendn Chrome 159 &mdash; WebTransport congestionControl</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/WebTransport/getStats" target="_blank" rel="noopener">MDN &mdash; <code>WebTransport.getStats()</code></a></li>
+      <li><a href="https://microsoftedge.github.io/Demos/webtransport-getstats" target="_blank" rel="noopener">Microsoft Edge live demo &mdash; webtransport-getstats</a> (<a href="https://github.com/MicrosoftEdge/Demos/tree/main/webtransport-getstats" target="_blank" rel="noopener">source</a>)</li>
+      <li><a href="https://github.com/web-platform-tests/interop/issues/1121" target="_blank" rel="noopener">Interop 2026 WebTransport proposal (web-platform-tests/interop#1121)</a></li>
+      <li><a href="https://chromestatus.com/feature/5120203192139776" target="_blank" rel="noopener">ChromeStatus &mdash; WebTransport connection statistics (5120203192139776)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
