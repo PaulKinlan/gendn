@@ -2,6 +2,7 @@
 //
 import { chromeStatusUrl } from "./chromestatus.ts";
 import { safeExternalUrl } from "./external-url.ts";
+import { readSiteText, siteFS } from "./site-fs.ts";
 //
 // Additive, read-only views over the colocated artifacts (v<N>/<slug>/conformance.json and
 // _questions.json) plus the run-all rollup the runner writes to reports/conformance/. No article
@@ -102,7 +103,8 @@ function safeCpsConformanceUrl(host: unknown, route: unknown): string | null {
 
 async function readJson<T>(path: string): Promise<T | null> {
   try {
-    return JSON.parse(await Deno.readTextFile(path)) as T;
+    const text = await readSiteText(siteFS(), path);
+    return text === null ? null : JSON.parse(text) as T;
   } catch {
     return null;
   }
@@ -110,9 +112,10 @@ async function readJson<T>(path: string): Promise<T | null> {
 
 async function collectSuiteFiles(): Promise<Suite[]> {
   const out: Suite[] = [];
-  for await (const rel of Deno.readDir(".")) {
+  const fs = siteFS();
+  for (const rel of await fs.readDir(".")) {
     if (!(rel.isDirectory && /^v\d+$/.test(rel.name))) continue;
-    for await (const slug of Deno.readDir(rel.name)) {
+    for (const slug of await fs.readDir(rel.name)) {
       if (!slug.isDirectory) continue;
       const s = await readJson<Suite>(`${rel.name}/${slug.name}/conformance.json`);
       if (s) out.push(s);
@@ -167,7 +170,7 @@ export async function renderConformanceIndex(): Promise<string> {
 
 export async function renderRunAll(): Promise<string | null> {
   try {
-    return await Deno.readTextFile("reports/conformance/index.html");
+    return await readSiteText(siteFS(), "reports/conformance/index.html");
   } catch {
     return null;
   }

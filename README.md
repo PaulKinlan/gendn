@@ -16,7 +16,7 @@ infer signatures, protocol fields, errors, lifecycle behavior, or edge cases.
    - the explainer (when available)
    - the spec (typically WHATWG or W3C)
    - the IDL from Chromium source (`third_party/blink/renderer/`)
-4. Pages get committed and pushed; Deno Deploy redeploys.
+4. Pages get committed and pushed; Cloudflare Workers Builds redeploys the Worker.
 5. When MDN ships its own page, the routine notices on the next pass and the gendn entry switches to
    a "see MDN" stub.
 
@@ -54,11 +54,15 @@ that edit. Shared CSS changes require an explicit `--all` or an honestly partial
 
 ```
 gendn/
-  server.ts             Deno HTTP entry. Routes / and /v<N>/<api-slug>/.
-  deno.json             Tasks + fmt config.
+  server.ts             Routing + rendering, runtime-neutral (serveRequest). Routes / and /v<N>/<api-slug>/.
+  worker.ts             Cloudflare Workers entry (production). wrangler.jsonc configures it.
+  serve.ts              Node entry for local dev: `npm run dev` (Node 22.18+, no build step).
+  package.json          npm scripts (dev/start/build/deploy) + pinned wrangler.
+  deno.json             Legacy Deno tasks (gates/tests still run under Deno until they move to Node).
   lib/
     chromestatus.ts     JSON API wrapper (shared with chrome-platform-showcase).
     mdn.ts              Heuristics for "is this API on MDN yet?".
+    site-fs.ts          Read-only file access: node:fs locally, the ASSETS binding on Workers.
   public/styles.css     Shared editorial design system.
   docs/reference-contract.md
   schema/reference-contract.schema.json

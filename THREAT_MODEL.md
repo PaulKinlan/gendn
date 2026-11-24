@@ -86,7 +86,9 @@ Components:
   checks out PR code).
 - **Routine — Claude Code, cron `30 */2 * * *`** (CLAUDE.md), fresh checkout of `main`, one
   commit per feature, pushes directly to `main`.
-- **Runtime:** Deno (Deno Deploy or a local/CI process); no database, no user accounts, no
+- **Runtime:** Cloudflare Workers in production (`worker.ts`, static assets read only through the
+  ASSETS binding with `run_worker_first`, so every response passes the CSP/inert-MIME pipeline);
+  Node (`serve.ts`) or the legacy Deno entry locally and in CI. No database, no user accounts, no
   server-side session state, **no third-party runtime dependencies** (`deno.json` has no
   `imports` key).
 

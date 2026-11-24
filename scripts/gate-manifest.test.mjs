@@ -353,7 +353,8 @@ assert(
 //     A check that looks where the code looks is a restatement, not an invariant.
 async function ownWalk(dir, out = new Map()) {
   for await (const entry of Deno.readDir(dir)) {
-    if ([".git", "node_modules", ".beads"].includes(entry.name)) continue;
+    // dist/ and .wrangler/ are gitignored Cloudflare Worker build output (npm run build), not source.
+    if ([".git", "node_modules", ".beads", "dist", ".wrangler"].includes(entry.name)) continue;
     const path = `${dir}/${entry.name}`;
     if (entry.isDirectory) await ownWalk(path, out);
     else if (/\.(?:ts|mjs|js|cjs)$/.test(entry.name)) {

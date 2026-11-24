@@ -6,7 +6,7 @@
 // flags each as "on MDN → link out" or "generated here → link to local page".
 
 import {
-  Channels,
+  type Channels,
   chromeStatusUrl,
   fetchBounded,
   getChannels,
@@ -22,6 +22,9 @@ import {
   renderRunAll,
   renderSuite,
 } from "./lib/lifecycle.ts";
+import { readSiteText, siteFS } from "./lib/site-fs.ts";
+// Bundled at build time (Workers have no filesystem); Node and Deno load it as a JSON module.
+import MIGRATIONS from "./migrations.json" with { type: "json" };
 
 // ----- Durable-demo route aliases (301 redirects) -----
 //
@@ -62,21 +65,9 @@ export function validateMigrationRecord(m: Migration): void {
 }
 
 export function loadRedirects(
-  source: string | Migration[] = "./migrations.json",
+  source: unknown = MIGRATIONS,
 ): { from: string; to: string }[] {
-  let migrations: Migration[];
-  if (Array.isArray(source)) {
-    migrations = source;
-  } else {
-    let raw: string;
-    try {
-      raw = Deno.readTextFileSync(source);
-    } catch (err) {
-      if (err instanceof Deno.errors.NotFound) return [];
-      throw err;
-    }
-    migrations = JSON.parse(raw) as Migration[];
-  }
+  const migrations = source as Migration[];
   if (!Array.isArray(migrations)) {
     throw new Error("migrations.json must be an array");
   }
@@ -236,7 +227,8 @@ export async function readPublicAsset(path: string): Promise<Response> {
   // beyond the same explicit early-exit its sibling already has.
   if (path.includes("..")) return new Response("Not found", { status: 404 });
   try {
-    const file = await Deno.readFile("." + path);
+    const file = await siteFS().readFile(path);
+    if (file === null) return new Response("Not found", { status: 404 });
     const ext = path.split(".").pop() ?? "";
     return new Response(file, {
       headers: {
@@ -256,7 +248,8 @@ async function readReleaseAsset(release: string, sub: string): Promise<Response 
   if (key.endsWith("/")) key += "index.html";
   else if (!/\.[a-z0-9]+$/i.test(key)) key += "/index.html";
   try {
-    const file = await Deno.readFile(`./${release}/${key}`);
+    const file = await siteFS().readFile(`${release}/${key}`);
+    if (file === null) return null;
     const ext = key.split(".").pop() ?? "";
     return new Response(file, {
       headers: {
@@ -293,7 +286,7 @@ export async function renderIndex(channels: Channels): Promise<string> {
 
   const seen = new Set(releases.map((r) => r.mstone));
   try {
-    for await (const entry of Deno.readDir(".")) {
+    for (const entry of await siteFS().readDir(".")) {
       if (entry.isDirectory && /^v\d+$/.test(entry.name)) {
         const m = Number(entry.name.slice(1));
         if (!seen.has(m)) {
@@ -383,12 +376,7 @@ export async function renderIndex(channels: Channels): Promise<string> {
 // ----- Per-release index -----
 
 async function featureHasDoc(release: string, slug: string): Promise<boolean> {
-  try {
-    await Deno.stat(`./${release}/${slug}/index.html`);
-    return true;
-  } catch {
-    return false;
-  }
+  return await siteFS().exists(`${release}/${slug}/index.html`);
 }
 
 // ----- Cross-release identity index -----
@@ -468,9 +456,10 @@ function getIdentityIndex(): Promise<Map<string, string>> {
     identityIndexPromise = (async () => {
       const map = new Map<string, string>();
       const routes: string[] = [];
-      for (const dir of Deno.readDirSync(".")) {
+      const fs = siteFS();
+      for (const dir of await fs.readDir(".")) {
         if (!dir.isDirectory || !/^v\d+$/.test(dir.name)) continue;
-        for (const sub of Deno.readDirSync(`./${dir.name}`)) {
+        for (const sub of await fs.readDir(dir.name)) {
           if (!sub.isDirectory) continue;
           routes.push(`/${dir.name}/${sub.name}/`);
         }
@@ -482,7 +471,7 @@ function getIdentityIndex(): Promise<Map<string, string>> {
       const htmls = await mapPool(
         routes,
         IO_CONCURRENCY,
-        (route) => Deno.readTextFile(`.${route}index.html`).catch(() => null),
+        (route) => readSiteText(fs, `${route}index.html`).catch(() => null),
       );
       htmls.forEach((html, i) => {
         const m = html?.match(/chromestatus\.com\/feature\/(\d+)/);
@@ -935,7 +924,7 @@ export async function knownReleaseMilestones(channels: Channels): Promise<Set<nu
     if (seg !== null) set.add(Number(seg));
   }
   try {
-    for await (const entry of Deno.readDir(".")) {
+    for (const entry of await siteFS().readDir(".")) {
       if (entry.isDirectory && /^v\d+$/.test(entry.name)) {
         const seg = milestonePathSegment(entry.name.slice(1));
         if (seg !== null) set.add(Number(seg));
@@ -1217,15 +1206,22 @@ export async function handleRequest(req: Request): Promise<Response> {
   return new Response("Not found", { status: 404 });
 }
 
-if (import.meta.main) {
+// The full response pipeline every runtime entry shares: route, revalidate, add security headers,
+// and turn an unhandled throw into the generic 502. Used by the Deno entry below, the Node dev
+// server (serve.ts) and the Cloudflare Worker (worker.ts), so all three answer identically.
+export async function serveRequest(req: Request): Promise<Response> {
+  try {
+    return addSecurityHeaders(await withRevalidation(req, await handleRequest(req)));
+  } catch (err) {
+    return addSecurityHeaders(serverError(req, "unhandled request", err));
+  }
+}
+
+// Legacy Deno entry (`deno task start`), kept while the tooling still runs under Deno. It is a
+// no-op on Node (import.meta.main is undefined on Node 22) and on Workers.
+if (import.meta.main && "Deno" in globalThis) {
   const PORT = Number(Deno.env.get("PORT") ?? 3000);
-  const server = Deno.serve({ port: PORT, automaticCompression: true }, async (req) => {
-    try {
-      return addSecurityHeaders(await withRevalidation(req, await handleRequest(req)));
-    } catch (err) {
-      return addSecurityHeaders(serverError(req, "unhandled request", err));
-    }
-  });
+  const server = Deno.serve({ port: PORT, automaticCompression: true }, serveRequest);
 
   console.log(`Listening on http://localhost:${server.addr.port}`);
 }

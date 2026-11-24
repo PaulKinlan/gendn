@@ -19,12 +19,18 @@ Sister project: [chrome-platform-showcase](https://github.com/PaulKinlan/chrome-
 ## Repo layout
 
 ```
-server.ts             Deno HTTP entry. Routes /, /features, /v<N>/, /v<N>/<api-slug>/.
+server.ts             Routing + rendering. Routes /, /features, /v<N>/, /v<N>/<api-slug>/.
                       Index + /features + /v<N>/ render server-side from the chromestatus.com API.
-deno.json             Tasks (dev/start/check/fmt). HTML/CSS excluded from deno fmt.
+                      Runtime-neutral: serveRequest() is shared by every entry below. Never call
+                      Deno.* (or node:fs) directly here; read files through lib/site-fs.ts.
+worker.ts             Cloudflare Workers entry (PRODUCTION). wrangler.jsonc; deployed by Workers Builds.
+serve.ts              Node entry for local dev (`npm run dev` / `npm start`, Node 22.18+).
+scripts/build-worker-assets.mjs  Copies v<N>/, public/, reports/conformance/ into dist/site + file index.
+package.json          npm scripts + pinned wrangler. deno.json: legacy tasks for the gates (moving to Node).
 lib/
   chromestatus.ts     Wrapper around chromestatus.com/api/v0. Strips the )]}' XSSI prefix. In-memory cache.
   mdn.ts              MDN existence heuristics (HEAD-checks the canonical MDN URL, hour cache).
+  site-fs.ts          Read-only file access: node:fs locally/in tests, ASSETS binding + index on Workers.
 public/styles.css     Shared editorial design system. Same one as chrome-platform-showcase.
 v<N>/                 One folder per Chrome milestone. Each contains <api-slug>/index.html.
 .claude/
@@ -41,6 +47,23 @@ routines-per-day cap. If you bump it back to hourly, watch the cap.
 
 Routine prompt lives in `.claude/routine-prompt.md`. When you change it, also push to the live
 routine via the `RemoteTrigger` MCP tool (action `update`).
+
+### Hosting: Cloudflare Workers (moving off Deno)
+
+Deno Deploy shuts down in April 2027 and Deno runtime development ends about a year after the
+Oct 2026 announcement, so gendn is moving off Deno in two phases. Phase 1 (done): the site runs on
+Cloudflare Workers (`worker.ts`, Worker `gendn`) and locally on Node
+(`npm run dev`). Phase 2 (pending): port the scripts, gates and CI from Deno to Node; until then the
+`deno task` commands below stay authoritative.
+
+- **Workers have no filesystem.** Any file server.ts or lib/ reads at request time must be copied
+  by `scripts/build-worker-assets.mjs`, or it renders locally and 404s in production. Check
+  `npx wrangler dev` after adding a new read.
+- Node, Deno and the Worker must answer byte-identically: all three call `serveRequest()`.
+- **Deploys: Cloudflare Workers Builds**, connected to this repo (no GitHub secrets, no Actions
+  workflow). Trigger "Deploy on push to main" runs `npx wrangler deploy`; "Branch previews" runs
+  `npx wrangler versions upload` on every other branch, which shows up as a check on PRs. Build logs
+  are in the Cloudflare dashboard under Workers > gendn > Builds.
 
 ### Weekly hardening routine and auto-merge
 
