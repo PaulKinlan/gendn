@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shared MessagePort for AudioWorklet — Chrome 160 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .mdn-card a { font-weight: 600; }
+    .mdn-card ul { margin: 0.5rem 0 0; }
+    .example-embed { margin: 1.5rem 0; }
+    .example-embed iframe { max-width: 100%; display: block; }
+    .example-embed figcaption { font-size: 0.85rem; margin-top: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v160/">&larr; Chrome 160 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v160 &middot; web audio &middot; covered on mdn</p>
+    <h1>Shared MessagePort for AudioWorklet</h1>
+
+    <p class="lede">Chrome 160 exposes a shared, read-only <code>MessagePort</code> as <code>AudioWorklet.prototype.port</code> on the main thread and <code>AudioWorkletGlobalScope.prototype.port</code> inside the audio rendering thread. Applications can exchange global configuration, WebAssembly modules, or control messages directly with the worklet global scope without creating a dummy bootstrap <code>AudioWorkletNode</code> and <code>AudioWorkletProcessor</code>.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; not Baseline</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 160 (desktop, Android, WebView)</li>
+        <li>Edge &middot; Chromium-based (mirrors Chrome)</li>
+        <li>Firefox &middot; 138 (shipped)</li>
+        <li class="limited">Safari &middot; No (WebKit standards-positions#739)</li>
+      </ul>
+      <p>The parent <a href="https://webstatus.dev/features/audio-worklet" target="_blank" rel="noopener"><code>audio-worklet</code> web-feature</a> is <strong>Baseline Widely available</strong> (since 2023-10-26 per <a href="https://api.webstatus.dev/v1/features/audio-worklet" target="_blank" rel="noopener">webstatus.dev</a>), but the shared <code>port</code> properties are <strong>Limited availability</strong> (unsupported in Safari). Note that <a href="https://github.com/mdn/browser-compat-data/blob/main/api/AudioWorklet.json" target="_blank" rel="noopener">BCD <code>api/AudioWorklet.json</code></a> currently lists Chrome as <code>preview</code> while <a href="https://github.com/mdn/browser-compat-data/blob/main/api/AudioWorkletGlobalScope.json" target="_blank" rel="noopener">BCD <code>api/AudioWorkletGlobalScope.json</code></a> still reads <code>false</code> (checked 2026-11-24).</p>
+    </div>
+  </header>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#mdn-reference">MDN reference</a></li>
+      <li><a href="#chrome-behavior">Chrome 160 details</a></li>
+      <li><a href="#example">Live example</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#quick-reference">Quick reference</a></li>
+      <li><a href="#references">References</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="mdn-reference">this feature is documented on MDN</h2>
+    <div class="mdn-card">
+      <a href="https://developer.mozilla.org/en-US/docs/Web/API/AudioWorklet/port" target="_blank" rel="noopener">MDN: AudioWorklet: port property</a>
+      <ul>
+        <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/AudioWorkletGlobalScope/port" target="_blank" rel="noopener">MDN: AudioWorkletGlobalScope: port property</a></li>
+      </ul>
+      <p style="margin: 0.5rem 0 0">Both MDN pages are live and substantive (verified HTTP 200 on 2026-11-24): each includes Value, Examples, Specifications, and BCD-backed Browser compatibility tables. ChromeStatus itself links <code>AudioWorkletGlobalScope/port</code> as its primary documentation URL.</p>
+    </div>
+    <p>Why gendn doesn&rsquo;t duplicate MDN: when MDN already publishes dedicated references for every interface member in a feature, gendn points directly to MDN and adds the Chrome 160 shipping metadata, Blink runtime flag, lifecycle/GC caveats, BCD lag disclosure, and live showcase embed.</p>
+  </section>
+
+  <section>
+    <h2 id="chrome-behavior">Chrome 160 details, WebIDL &amp; lifecycle notes</h2>
+    <p>In <a href="https://webaudio.github.io/web-audio-api/#AudioWorklet" target="_blank" rel="noopener">Web Audio API 1.1</a> (added by <a href="https://github.com/WebAudio/web-audio-api/pull/2507" target="_blank" rel="noopener">WebAudio/web-audio-api#2507</a> for <a href="https://github.com/WebAudio/web-audio-api/issues/2456" target="_blank" rel="noopener">issue #2456</a>), both ends expose an entangled <code>MessagePort</code> gated in Chromium behind <code>[RuntimeEnabled=AudioWorkletSharedPort]</code> (now <code>status: "stable"</code>):</p>
+    <pre tabindex="0"><code>// Main thread (Window, SecureContext):
+// context.audioWorklet.port exists BEFORE addModule() resolves.
+const context = new AudioContext();
+if ("port" in context.audioWorklet) {
+  context.audioWorklet.port.addEventListener("message", (event) =&gt; {
+    console.log("From AudioWorkletGlobalScope:", event.data);
+  });
+  context.audioWorklet.port.start(); // required when using addEventListener()
+  await context.audioWorklet.addModule("worklet.js");
+  context.audioWorklet.port.postMessage({ type: "init", gain: 0.5 });
+}
+
+// Inside worklet.js (AudioWorkletGlobalScope):
+// `port` is already available during top-level module evaluation!
+port.postMessage({ type: "module-evaluation" });
+port.onmessage = (event) =&gt; {
+  if (event.data?.type === "init") {
+    // Store global state shared across processors without a dummy processor.
+  }
+};</code></pre>
+    <ul>
+      <li><strong>Available before <code>addModule()</code> and during module evaluation:</strong> As verified by <a href="https://github.com/web-platform-tests/wpt/blob/master/webaudio/the-audio-api/the-audioworklet-interface/audioworklet-messageport.https.html" target="_blank" rel="noopener">WPT <code>audioworklet-messageport.https.html</code></a>, <code>context.audioWorklet.port</code> is an instance of <code>MessagePort</code> immediately on context creation (before <code>addModule()</code> is called), and <code>globalThis.port</code> inside the worklet can call <code>postMessage()</code> during top-level module evaluation.</li>
+      <li><strong>Resource collection note:</strong> Both <a href="https://webaudio.github.io/web-audio-api/#dom-audioworklet-port" target="_blank" rel="noopener"><code>AudioWorklet.port</code></a> and <a href="https://webaudio.github.io/web-audio-api/#dom-audioworkletglobalscope-port" target="_blank" rel="noopener"><code>AudioWorkletGlobalScope.port</code></a> carry a normative note warning authors that if they register a <code>"message"</code> listener on this port, they should call <code>port.close()</code> on either end when done so the entangled <code>MessageChannel</code> and scope resources can be garbage-collected.</li>
+      <li><strong>Ecosystem driver:</strong> Removes bootstrap-processor workarounds required by Emscripten audio worklets (see <a href="https://github.com/emscripten-core/emscripten/pull/25354" target="_blank" rel="noopener">emscripten-core/emscripten#25354</a>).</li>
+    </ul>
+    <span class="citation">Source: <a href="https://webaudio.github.io/web-audio-api/#dom-audioworklet-port" target="_blank" rel="noopener">Web Audio API 1.1 &sect;1.32.1 <code>AudioWorklet.port</code></a>; <a href="https://webaudio.github.io/web-audio-api/#dom-audioworkletglobalscope-port" target="_blank" rel="noopener">&sect;1.32.3.1 <code>AudioWorkletGlobalScope.port</code></a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/webaudio/the-audio-api/the-audioworklet-interface/audioworklet-messageport.https.html" target="_blank" rel="noopener">WPT audioworklet-messageport.https.html</a>; <a href="https://chromestatus.com/feature/5079784523694080" target="_blank" rel="noopener">ChromeStatus 5079784523694080</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="example">live example</h2>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/shared-messageport-for-audioworklet/port-inspector/"
+        title="Live example — Port inspector for Shared MessagePort for AudioWorklet" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase (route HEAD-checked 200, 2026-11-24): inspects <code>AudioWorklet.port</code> before and after <code>addModule()</code>. Sibling concept demos (all HEAD 200): <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/shared-messageport-for-audioworklet/global-scope-handshake/" target="_blank" rel="noopener">global scope handshake</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/shared-messageport-for-audioworklet/bootstrap-migration/" target="_blank" rel="noopener">bootstrap migration</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/shared-messageport-for-audioworklet/shared-tuning-bus/" target="_blank" rel="noopener">shared tuning bus</a>, and <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/shared-messageport-for-audioworklet/worker-direct-line/" target="_blank" rel="noopener">worker direct line</a>.<span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/shared-messageport-for-audioworklet/" target="_blank" rel="noopener">chrome-platform-showcase</a></span></figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Support for <code>AudioWorklet.port</code> and <code>AudioWorkletGlobalScope.port</code> from BCD <code>api/AudioWorklet.json</code> and <code>api/AudioWorkletGlobalScope.json</code> alongside ChromeStatus 5079784523694080 (checked 2026-11-24).</caption>
+      <thead>
+        <tr><th scope="col">Browser</th><th scope="col"><code>AudioWorklet.port</code></th><th scope="col"><code>AudioWorkletGlobalScope.port</code></th><th scope="col">Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr><th scope="row">Chrome (desktop, Android, WebView)</th><td>160</td><td>160</td><td>Enabled by default in Chrome 160 (<a href="https://chromestatus.com/api/v0/features?milestone=160" target="_blank" rel="noopener">milestone=160 listing</a>); BCD currently lags (<code>"preview"</code> on <code>AudioWorklet.port</code>, <code>false</code> on <code>AudioWorkletGlobalScope.port</code>)</td></tr>
+        <tr><th scope="row">Edge</th><td>160 (mirror)</td><td>160 (mirror)</td><td>Chromium-based; BCD mirrors Chrome</td></tr>
+        <tr><th scope="row">Firefox</th><td>138</td><td>138</td><td>Shipped in Firefox 138 per BCD and ChromeStatus</td></tr>
+        <tr><th scope="row">Safari</th><td>No</td><td>No</td><td><code>false</code> in BCD; <a href="https://github.com/WebKit/standards-positions/issues/739" target="_blank" rel="noopener">WebKit standards-positions#739</a> (&ldquo;No signal&rdquo;)</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/AudioWorklet.json" target="_blank" rel="noopener">BCD api/AudioWorklet.json</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/AudioWorkletGlobalScope.json" target="_blank" rel="noopener">BCD api/AudioWorkletGlobalScope.json</a>; <a href="https://chromestatus.com/api/v0/features/5079784523694080" target="_blank" rel="noopener">ChromeStatus API record (5079784523694080)</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="quick-reference">quick reference</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Quick reference">
+    <table class="doc-table">
+      <tr><th scope="row">Shipped in</th><td>Chrome 160 (desktop, Android, Android WebView; iOS <code>null</code>) &mdash; filed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=160" target="_blank" rel="noopener">milestone=160 listing</a></td></tr>
+      <tr><th scope="row">Runtime flag</th><td><code>AudioWorkletSharedPort</code>, status <code>stable</code> in Blink&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a> (verified 2026-11-24; previously behind <code>chrome://flags/#enable-experimental-web-platform-features</code>)</td></tr>
+      <tr><th scope="row">IDL source</th><td><a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webaudio/audio_worklet.idl" target="_blank" rel="noopener">Chromium <code>audio_worklet.idl</code></a> (<code>[Exposed=Window, SecureContext]</code>) &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webaudio/audio_worklet_global_scope.idl" target="_blank" rel="noopener">Chromium <code>audio_worklet_global_scope.idl</code></a> (<code>[Exposed=AudioWorklet]</code>)</td></tr>
+      <tr><th scope="row">Specification</th><td><a href="https://webaudio.github.io/web-audio-api/#dom-audioworklet-port" target="_blank" rel="noopener">Web Audio API 1.1 &mdash; <code>AudioWorklet.port</code></a> &middot; <a href="https://webaudio.github.io/web-audio-api/#dom-audioworkletglobalscope-port" target="_blank" rel="noopener"><code>AudioWorkletGlobalScope.port</code></a> &middot; <a href="https://www.w3.org/TR/webaudio-1.1/#dom-audioworkletglobalscope-port" target="_blank" rel="noopener">W3C TR Web Audio 1.1</a></td></tr>
+      <tr><th scope="row">Spec discussion</th><td><a href="https://github.com/WebAudio/web-audio-api/issues/2456" target="_blank" rel="noopener">WebAudio/web-audio-api#2456</a> &middot; <a href="https://github.com/WebAudio/web-audio-api/pull/2507" target="_blank" rel="noopener">WebAudio/web-audio-api#2507</a> &middot; <a href="https://github.com/emscripten-core/emscripten/pull/25354" target="_blank" rel="noopener">emscripten-core/emscripten#25354</a></td></tr>
+      <tr><th scope="row">Blink-dev intents</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/69cca30d.050a0220.219f27.0c37.GAE%40google.com" target="_blank" rel="noopener">Intent to Prototype</a> &middot; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6aea48de.e5ec2bf0.2ba4f6.01b9.GAE%40google.com" target="_blank" rel="noopener">Intent to Ship</a></td></tr>
+      <tr><th scope="row">Tracking bug</th><td><a href="https://issues.chromium.org/issues/446920095" target="_blank" rel="noopener">issues.chromium.org/446920095</a></td></tr>
+      <tr><th scope="row">Web platform tests</th><td><a href="https://wpt.fyi/results/webaudio/the-audio-api/the-audioworklet-interface/audioworklet-messageport.https.html" target="_blank" rel="noopener">webaudio/the-audio-api/the-audioworklet-interface/audioworklet-messageport.https.html</a></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5079784523694080" target="_blank" rel="noopener">5079784523694080 &mdash; Shared MessagePort for AudioWorklet</a> (component <code>Blink&gt;WebAudio</code>)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5079784523694080" target="_blank" rel="noopener">ChromeStatus 5079784523694080</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Blink runtime_enabled_features.json5</a>; <a href="https://webaudio.github.io/web-audio-api/#dom-audioworklet-port" target="_blank" rel="noopener">Web Audio API 1.1</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="references">references</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/AudioWorklet/port" target="_blank" rel="noopener">MDN &mdash; <code>AudioWorklet.port</code> (canonical reference)</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/AudioWorkletGlobalScope/port" target="_blank" rel="noopener">MDN &mdash; <code>AudioWorkletGlobalScope.port</code> (canonical reference)</a></li>
+      <li><a href="https://webaudio.github.io/web-audio-api/#dom-audioworklet-port" target="_blank" rel="noopener">Web Audio API 1.1 &mdash; <code>AudioWorklet.port</code></a> &middot; <a href="https://webaudio.github.io/web-audio-api/#dom-audioworkletglobalscope-port" target="_blank" rel="noopener"><code>AudioWorkletGlobalScope.port</code></a></li>
+      <li><a href="https://wpt.fyi/results/webaudio/the-audio-api/the-audioworklet-interface/audioworklet-messageport.https.html" target="_blank" rel="noopener">WPT &mdash; <code>audioworklet-messageport.https.html</code></a></li>
+      <li><a href="https://chromestatus.com/feature/5079784523694080" target="_blank" rel="noopener">Chrome Platform Status &mdash; Shared MessagePort for AudioWorklet (5079784523694080)</a> (<a href="https://chromestatus.com/api/v0/features/5079784523694080" target="_blank" rel="noopener">API record</a>)</li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/shared-messageport-for-audioworklet/" target="_blank" rel="noopener">Chrome Platform Showcase &mdash; interactive demos</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Spec-compliant XML MIME type detection — Chrome 160 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .scroll-table { min-width: 30rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v160/">&larr; Chrome 160 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v160 &middot; network &middot; enabled by default</p>
+    <h1>Spec-compliant XML MIME type detection</h1>
+
+    <p class="lede">Chrome 160 updates Blink&rsquo;s <code>blink::IsXMLMimeType</code> helper to recognize any valid MIME type whose subtype ends in <code>+xml</code> &mdash; including non-<code>application</code> types such as <code>text/example+xml</code>, <code>image/example+xml</code>, and <code>font/example+xml</code> &mdash; per the WHATWG MIME Sniffing Standard. As a result, <code>PerformanceResourceTiming.contentType</code> minimizes those non-SVG XML types to <code>"application/xml"</code>, while <code>"image/svg+xml"</code> remains unchanged.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; non-<code>application/*+xml</code> Resource Timing minimization is Chrome-only so far</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 160 (desktop, Android, WebView)</li>
+        <li>Edge &middot; 160 (Chromium-based, mirrors Chrome)</li>
+        <li class="limited">Firefox &middot; Retains raw non-<code>application</code> <code>+xml</code> strings in <code>contentType</code> (tested 157.0.1)</li>
+        <li class="limited">Safari &middot; <code>PerformanceResourceTiming.contentType</code> unsupported (BCD: <code>false</code>)</li>
+      </ul>
+      <p>While the parent <a href="https://webstatus.dev/features/resource-timing" target="_blank" rel="noopener"><code>resource-timing</code> web-feature</a> is <strong>Baseline Widely available</strong> (since 2020-03-19 per <a href="https://api.webstatus.dev/v1/features/resource-timing" target="_blank" rel="noopener">webstatus.dev</a>), <a href="https://github.com/mdn/browser-compat-data/blob/main/api/PerformanceResourceTiming.json" target="_blank" rel="noopener">BCD <code>api.PerformanceResourceTiming.contentType</code></a> is supported only in Chrome 148+ and Firefox 129+ (Safari <code>false</code>), and has no subfeature yet for Chrome 160&rsquo;s non-<code>application/*+xml</code> minimization (checked 2026-11-24).</p>
+    </div>
+  </header>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#at-a-glance">At a glance</a></li>
+      <li><a href="#why">Why it exists</a></li>
+      <li><a href="#syntax">Syntax &amp; rules</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#security-and-privacy">Security &amp; privacy</a></li>
+      <li><a href="#specifications">Specifications</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="At a glance">
+    <table class="doc-table">
+      <tr><th scope="row">Shipped in</th><td>Chrome 160 (desktop, Android, Android WebView; iOS <code>null</code>) &mdash; filed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=160" target="_blank" rel="noopener">milestone=160 listing</a></td></tr>
+      <tr><th scope="row">Runtime flag</th><td><code>SpecCompliantXmlMimeTypes</code>, status <code>stable</code> in Blink&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a> (previously behind <code>--enable-features=SpecCompliantXmlMimeTypes</code> / <code>chrome://flags/#enable-experimental-web-platform-features</code>)</td></tr>
+      <tr><th scope="row">Specification</th><td><a href="https://mimesniff.spec.whatwg.org/#xml-mime-type" target="_blank" rel="noopener">WHATWG MIME Sniffing &mdash; XML MIME type</a> &middot; <a href="https://mimesniff.spec.whatwg.org/#minimize-a-supported-mime-type" target="_blank" rel="noopener">Minimize a supported MIME type</a> &middot; <a href="https://fetch.spec.whatwg.org/#fetch-response-handover" target="_blank" rel="noopener">Fetch response handover</a> &middot; <a href="https://w3c.github.io/resource-timing/#dom-performanceresourcetiming-contenttype" target="_blank" rel="noopener">Resource Timing <code>contentType</code></a> &middot; <a href="https://www.rfc-editor.org/info/rfc7303" target="_blank" rel="noopener">RFC 7303</a></td></tr>
+      <tr><th scope="row">Implementation CL</th><td><a href="https://chromium-review.googlesource.com/c/chromium/src/+/8301932" target="_blank" rel="noopener">CL 8301932</a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/common/mime_util/mime_util.cc" target="_blank" rel="noopener"><code>blink::IsXMLMimeType</code> in <code>mime_util.cc</code></a></td></tr>
+      <tr><th scope="row">Blink-dev intents</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a922400.e8a51b51.6abb3.033c.GAE%40google.com" target="_blank" rel="noopener">Intent to Prototype</a> &middot; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6ac46a00.082f26cb.22c2b.02d5.GAE%40google.com" target="_blank" rel="noopener">Intent to Ship</a></td></tr>
+      <tr><th scope="row">Tracking bug</th><td><a href="https://issues.chromium.org/issues/362282752" target="_blank" rel="noopener">issues.chromium.org/362282752</a></td></tr>
+      <tr><th scope="row">Web platform tests</th><td><a href="https://github.com/web-platform-tests/wpt/pull/62420" target="_blank" rel="noopener">WPT PR #62420</a> adding cases to <a href="https://github.com/web-platform-tests/wpt/blob/master/mimesniff/mime-types/resources/mime-types-minimized.json" target="_blank" rel="noopener"><code>mimesniff/mime-types/resources/mime-types-minimized.json</code></a>, exercised by <a href="https://github.com/web-platform-tests/wpt/blob/master/resource-timing/content-type-minimization.html" target="_blank" rel="noopener"><code>resource-timing/content-type-minimization.html</code></a> (<a href="https://wpt.fyi/results/resource-timing/content-type-minimization.html" target="_blank" rel="noopener">wpt.fyi results</a>)</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5092584283308032" target="_blank" rel="noopener">5092584283308032 &mdash; Spec-compliant XML MIME type detection</a> (component <code>Blink&gt;Network</code>)</td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>Chromium&rsquo;s <code>blink::IsXMLMimeType</code> helper previously matched only <code>text/xml</code>, <code>application/xml</code>, and <code>application/*+xml</code> (ignoring non-<code>application</code> structured XML suffixes such as <code>text/example+xml</code>, <code>image/example+xml</code>, and <code>font/example+xml</code>). The <a href="https://mimesniff.spec.whatwg.org/#xml-mime-type" target="_blank" rel="noopener">WHATWG MIME Sniffing Standard</a> defines an XML MIME type independently of its top-level type, and Fetch&rsquo;s <a href="https://mimesniff.spec.whatwg.org/#minimize-a-supported-mime-type" target="_blank" rel="noopener">minimize a supported MIME type</a> algorithm relies on that predicate to populate <code>PerformanceResourceTiming.contentType</code>. Updating <code>blink::IsXMLMimeType</code> brings Chromium&rsquo;s Resource Timing minimization into alignment with the standard.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5092584283308032" target="_blank" rel="noopener">ChromeStatus motivation (5092584283308032)</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/common/mime_util/mime_util.cc" target="_blank" rel="noopener">Blink <code>mime_util.cc</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>No new JavaScript API surface or HTTP header syntax is introduced. The change updates the WHATWG XML MIME type predicate (<code>+xml</code> matching in <code>blink::IsXMLMimeType</code>, guarded by <code>SpecCompliantXmlMimeTypes</code>) and the resulting minimized string exposed by <code>PerformanceResourceTiming.contentType</code> (<code>"application/xml"</code> vs <code>"image/svg+xml"</code>):</p>
+    <pre tabindex="0"><code>// Resource Timing 2 — existing read-only attribute exposed in Window and Worker
+partial interface PerformanceResourceTiming {
+  readonly attribute DOMString contentType;
+};
+
+// WHATWG MIME Sniffing — XML MIME type &amp; minimization rules
+// 1. XML MIME type: essence is "text/xml" or "application/xml", OR subtype ends with "+xml"
+// 2. Minimize a supported MIME type:
+//    - JavaScript MIME type     -&gt; "text/javascript"
+//    - JSON MIME type           -&gt; "application/json"
+//    - essence == "image/svg+xml" -&gt; "image/svg+xml"
+//    - XML MIME type            -&gt; "application/xml"
+//    - other supported MIME     -&gt; mimeType's essence
+//    - unsupported / CORS-fail  -&gt; ""</code></pre>
+    <blockquote class="spec-quote" cite="https://mimesniff.spec.whatwg.org/#xml-mime-type">
+      <p>&ldquo;An XML MIME type is any MIME type whose subtype ends in &lsquo;<code>+xml</code>&rsquo; or whose essence is &lsquo;<code>text/xml</code>&rsquo; or &lsquo;<code>application/xml</code>&rsquo;.&rdquo;</p>
+    </blockquote>
+    <p>This reference documents three aspects of the Chrome 160 behavior: <a href="#xml-mime-type-matching"><code>blink::IsXMLMimeType</code> classification rules</a>, <a href="#resource-timing-content-type"><code>PerformanceResourceTiming.contentType</code> minimization outputs</a>, and <a href="#scope-and-actor">unchanged XHR/document paths, Chrome Actor checks, and migration</a>.</p>
+    <span class="citation">Source: <a href="https://mimesniff.spec.whatwg.org/#xml-mime-type" target="_blank" rel="noopener">WHATWG MIME Sniffing &mdash; XML MIME type</a> (normative quote fetched 2026-11-24); <a href="https://mimesniff.spec.whatwg.org/#minimize-a-supported-mime-type" target="_blank" rel="noopener">Minimize a supported MIME type</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/timing/performance_resource_timing.idl" target="_blank" rel="noopener">Blink <code>performance_resource_timing.idl</code></a>.</span>
+
+    <h3 id="xml-mime-type-matching">XML MIME type matching (<code>blink::IsXMLMimeType</code>) &mdash; inputs and outputs</h3>
+    <p><strong>Inputs.</strong> A parsed HTTP <code>Content-Type</code> MIME type essence (ASCII case-insensitive <code>type/subtype</code>, after parameters such as <code>; charset=utf-8</code> are parsed out). In <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/common/mime_util/mime_util.cc" target="_blank" rel="noopener"><code>third_party/blink/common/mime_util/mime_util.cc</code></a>, when <code>SpecCompliantXmlMimeTypes</code> is enabled, <code>blink::IsXMLMimeType</code> checks <code>text/xml</code>, <code>application/xml</code>, and then <code>net::MatchesMimeType("*+xml", mime_type, net::MimeTypeValidationLevel::kWildcardSlashAndTokens)</code>.</p>
+    <p><strong>Outputs.</strong> Returns <code>true</code> for any syntactically valid HTTP MIME type whose subtype ends in <code>+xml</code> (ASCII case-insensitively), regardless of whether the top-level type is <code>application</code>, <code>text</code>, <code>image</code>, <code>font</code>, <code>model</code>, or another valid token. Malformed MIME strings (missing slash, invalid HTTP token characters, empty type or subtype) fail token validation and return <code>false</code>.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/common/mime_util/mime_util.cc" target="_blank" rel="noopener">Blink <code>mime_util.cc</code> lines 161&ndash;175</a>; <a href="https://mimesniff.spec.whatwg.org/#xml-mime-type" target="_blank" rel="noopener">WHATWG MIME Sniffing &mdash; XML MIME type</a>.</span>
+
+    <h3 id="resource-timing-content-type"><code>PerformanceResourceTiming.contentType</code> minimization &mdash; inputs and outputs</h3>
+    <p><strong>Inputs.</strong> During Fetch response handover, the browser minimizes the response&rsquo;s parsed <code>Content-Type</code> MIME type before exposing it on the entry&rsquo;s <code>contentType</code> attribute. The server&rsquo;s raw HTTP <code>Content-Type</code> header (visible in DevTools Network panel and <code>response.headers.get("content-type")</code>) is NOT modified.</p>
+    <p><strong>Outputs.</strong> Step&nbsp;3 of <a href="https://mimesniff.spec.whatwg.org/#minimize-a-supported-mime-type" target="_blank" rel="noopener">minimize a supported MIME type</a> still checks <code>image/svg+xml</code> first, so SVG stays <code>"image/svg+xml"</code>. Step&nbsp;4 checks whether the type is an XML MIME type and now minimizes non-<code>application</code> <code>+xml</code> responses to <code>"application/xml"</code>:</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="min-caption">
+    <table class="doc-table scroll-table">
+      <caption id="min-caption"><code>PerformanceResourceTiming.contentType</code> minimization in Chrome 160 (from WPT <code>mimesniff/mime-types/resources/mime-types-minimized.json</code>)</caption>
+      <thead><tr><th scope="col">HTTP <code>Content-Type</code> header</th><th scope="col">Chrome 160 <code>contentType</code></th><th scope="col">Chrome &le; 159</th><th scope="col">Changed?</th></tr></thead>
+      <tbody>
+        <tr><td><code>text/example+xml</code></td><td><code>"application/xml"</code></td><td><code>"text/example+xml"</code> (or <code>""</code> if unsupported)</td><td><strong>Yes</strong></td></tr>
+        <tr><td><code>image/example+xml</code></td><td><code>"application/xml"</code></td><td><code>"image/example+xml"</code> (or <code>""</code> if unsupported)</td><td><strong>Yes</strong></td></tr>
+        <tr><td><code>font/example+xml</code></td><td><code>"application/xml"</code></td><td><code>"font/example+xml"</code> (or <code>""</code> if unsupported)</td><td><strong>Yes</strong></td></tr>
+        <tr><td><code>TEXT/EXAMPLE+XML</code></td><td><code>"application/xml"</code></td><td>Not minimized via <code>+xml</code></td><td><strong>Yes</strong> (ASCII case-insensitive)</td></tr>
+        <tr><td><code>text/example+xml; charset=utf-8</code></td><td><code>"application/xml"</code></td><td>Not minimized via <code>+xml</code></td><td><strong>Yes</strong> (parameters stripped)</td></tr>
+        <tr><td><code>image/svg+xml</code></td><td><code>"image/svg+xml"</code></td><td><code>"image/svg+xml"</code></td><td>No (explicitly preserved in step&nbsp;3)</td></tr>
+        <tr><td><code>application/atom+xml</code>, <code>application/rss+xml</code>, <code>application/xhtml+xml</code></td><td><code>"application/xml"</code></td><td><code>"application/xml"</code></td><td>No (already matched <code>application/*+xml</code>)</td></tr>
+        <tr><td><code>text/xml</code>, <code>application/xml</code></td><td><code>"application/xml"</code></td><td><code>"application/xml"</code></td><td>No</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/web-platform-tests/wpt/blob/master/mimesniff/mime-types/resources/mime-types-minimized.json" target="_blank" rel="noopener">WPT <code>mime-types-minimized.json</code></a> (added by <a href="https://github.com/web-platform-tests/wpt/pull/62420" target="_blank" rel="noopener">WPT PR #62420</a>); <a href="https://mimesniff.spec.whatwg.org/#minimize-a-supported-mime-type" target="_blank" rel="noopener">WHATWG MIME Sniffing &mdash; Minimize a supported MIME type</a>.</span>
+
+    <h3 id="scope-and-actor">Scope boundaries, Chrome Actor, and migration</h3>
+    <p><strong>Inputs and outputs.</strong> Changing <code>blink::IsXMLMimeType</code> behind <code>SpecCompliantXmlMimeTypes</code> intentionally does <em>not</em> alter Chromium&rsquo;s separate <code>MIMETypeRegistry::IsXMLMIMEType</code> helper used by <code>XMLHttpRequest</code> document parsing, text decoding, direct navigation, and <code>&lt;object&gt;</code> embedding. Local Chromium 157 comparisons with <code>SpecCompliantXmlMimeTypes</code> disabled vs enabled confirmed identical behavior across all four paths.</p>
+    <ul>
+      <li><strong>RUM / analytics migration:</strong> Telemetry or Real User Monitoring (RUM) pipelines that group resources by <code>PerformanceResourceTiming.contentType</code> will see non-<code>application</code> <code>+xml</code> assets bucketed under <code>"application/xml"</code> starting in Chrome 160 (including Android WebView). If you need the exact server MIME type for same-origin or CORS-exposed fetches, read <code>response.headers.get("content-type")</code> instead of <code>entry.contentType</code>.</li>
+      <li><strong>Chrome Actor navigation checks:</strong> Chrome Actor also calls <code>blink::IsXMLMimeType</code> in its dangerous-MIME-type navigation guard, so when both those checks and <code>SpecCompliantXmlMimeTypes</code> are active, additional non-<code>application</code> <code>+xml</code> responses (including <code>image/svg+xml</code>) may be blocked from Actor navigation.</li>
+      <li><strong>Kill switch:</strong> Enterprise or local debugging can revert to legacy <code>application/*+xml</code> matching via <code>--disable-features=SpecCompliantXmlMimeTypes</code> while the feature flag remains present.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5092584283308032" target="_blank" rel="noopener">ChromeStatus motivation, interop, WebView &amp; security notes (5092584283308032)</a>; <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8301932" target="_blank" rel="noopener">CL 8301932</a>.</span>
+
+    <h3 id="errors">Errors, invalid MIME types, and CORS filtering</h3>
+    <p><code>PerformanceResourceTiming.contentType</code> and <code>blink::IsXMLMimeType</code> never throw exceptions on malformed headers. Two non-XML return cases apply:</p>
+    <ul>
+      <li><strong>Invalid MIME syntax:</strong> Headers that fail HTTP token validation (for example missing <code>/</code>, illegal whitespace/delimiters, or empty type/subtype around <code>+xml</code>) are rejected by <code>net::MimeTypeValidationLevel::kWildcardSlashAndTokens</code> and do not match as XML.</li>
+      <li><strong>CORS / Timing-Allow-Origin gating:</strong> Cross-origin resources that fail the Resource Timing access check (no matching <code>Timing-Allow-Origin</code> header) still report <code>""</code> (empty string) for <code>contentType</code> regardless of whether <code>SpecCompliantXmlMimeTypes</code> is enabled or the response has a <code>+xml</code> subtype.</li>
+      <li><strong>Lifecycle &amp; timing:</strong> Minimization runs once during Fetch response handover when creating the <code>PerformanceResourceTiming</code> entry; existing entries are immutable, and <code>PerformanceObserver</code> delivers them asynchronously after response completion.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://fetch.spec.whatwg.org/#fetch-response-handover" target="_blank" rel="noopener">Fetch Standard &mdash; response handover</a>; <a href="https://w3c.github.io/resource-timing/#dom-performanceresourcetiming-contenttype" target="_blank" rel="noopener">Resource Timing <code>contentType</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/common/mime_util/mime_util.cc" target="_blank" rel="noopener">Blink <code>mime_util.cc</code></a>.</span>
+
+    <h3 id="context">Context and exposure</h3>
+    <p><code>PerformanceResourceTiming.contentType</code> is exposed in both <code>Window</code> and <code>Worker</code> contexts (<code>[Exposed=(Window,Worker)]</code>) without requiring a secure context, permission, or user activation. The underlying <code>blink::IsXMLMimeType</code> classification applies across Chrome desktop, Chrome for Android, and Android WebView.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/timing/performance_resource_timing.idl" target="_blank" rel="noopener">Blink <code>performance_resource_timing.idl</code></a>; <a href="https://chromestatus.com/api/v0/features/5092584283308032" target="_blank" rel="noopener">ChromeStatus platform milestones (5092584283308032)</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+    <p>No interactive demo exists yet on the Chrome Platform Showcase for Chrome 160 (HEAD checked 404 on 2026-11-24). You can observe the minimized value directly via <code>PerformanceObserver</code> against any same-origin endpoint returning a non-<code>application</code> <code>+xml</code> <code>Content-Type</code>.</p>
+
+    <h3 id="example-observe-contenttype">Inspecting minimized <code>contentType</code> for non-<code>application</code> <code>+xml</code> responses</h3>
+    <pre tabindex="0"><code>// Observe Resource Timing entries for custom +xml MIME types (e.g. text/example+xml).
+// Assumes the server responds with: Content-Type: text/example+xml; charset=utf-8
+const observer = new PerformanceObserver((list) =&gt; {
+  for (const entry of list.getEntries()) {
+    if (entry.name.endsWith("/feed.xml")) {
+      // Chrome 160 (SpecCompliantXmlMimeTypes enabled via blink::IsXMLMimeType):
+      // entry.contentType === "application/xml"
+      // Note: image/svg+xml still reports "image/svg+xml".
+      console.log("Minimized Resource Timing contentType:", entry.contentType);
+    }
+  }
+});
+observer.observe({ type: "resource", buffered: true });
+
+const response = await fetch("/feed.xml");
+// The raw HTTP header is untouched:
+console.log("Raw HTTP Content-Type:", response.headers.get("content-type"));</code></pre>
+    <span class="citation">Source: <a href="https://github.com/web-platform-tests/wpt/blob/master/resource-timing/content-type-minimization.html" target="_blank" rel="noopener">WPT <code>content-type-minimization.html</code></a>; <a href="https://chromestatus.com/api/v0/features/5092584283308032" target="_blank" rel="noopener">ChromeStatus debuggability walkthrough (5092584283308032)</a>.</span>
+
+    <h3 id="example-rum-grouping">Handling <code>application/xml</code> minimization in RUM / telemetry code</h3>
+    <pre tabindex="0"><code>// Classify Resource Timing entries safely across Chrome 160+, Firefox, and older Chrome
+// (where non-application +xml types like text/example+xml are not yet minimized,
+// and while MIMETypeRegistry::IsXMLMIMEType for XHR stays unchanged).
+function classifyResourceType(entry) {
+  const ct = entry.contentType; // "" when blocked by CORS/TAO or unsupported
+  if (!ct) return "unknown";
+  if (ct === "image/svg+xml") return "svg";
+  if (ct === "application/xml" || ct === "text/xml" || ct.endsWith("+xml")) {
+    // Matches both Chrome 160 ("application/xml") and Firefox ("text/example+xml")
+    return "xml";
+  }
+  return ct;
+}</code></pre>
+    <span class="citation">Source: <a href="https://mimesniff.spec.whatwg.org/#minimize-a-supported-mime-type" target="_blank" rel="noopener">WHATWG MIME Sniffing &mdash; Minimize a supported MIME type</a>; <a href="https://chromestatus.com/api/v0/features/5092584283308032" target="_blank" rel="noopener">ChromeStatus interop &amp; WebView risks</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Support for minimizing non-<code>application</code> <code>+xml</code> MIME types to <code>"application/xml"</code> in <code>PerformanceResourceTiming.contentType</code>. BCD has no subfeature for this change yet; base <code>contentType</code> column is from BCD <code>api/PerformanceResourceTiming.json</code> (checked 2026-11-24).</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col">Non-<code>application</code> <code>+xml</code> minimization</th><th scope="col">Base <code>contentType</code> (BCD)</th><th scope="col">Notes</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Chrome (desktop, Android, WebView)</th><td>160</td><td>148</td><td>Enabled by default in Chrome 160 via <code>SpecCompliantXmlMimeTypes</code> (<a href="https://chromestatus.com/api/v0/features/5092584283308032" target="_blank" rel="noopener">ChromeStatus API record</a>)</td></tr>
+        <tr><th scope="row">Edge</th><td>160 (mirror)</td><td>148</td><td>Chromium-based; BCD mirrors Chrome</td></tr>
+        <tr><th scope="row">Firefox</th><td>No (retains raw string)</td><td>129</td><td>Per ChromeStatus local testing on Firefox 157.0.1 (Oct 2026), XHR parses non-<code>application</code> <code>+xml</code> as XML, but <code>PerformanceResourceTiming.contentType</code> retains <code>text/example+xml</code>, <code>image/example+xml</code>, and <code>font/example+xml</code>; Mozilla confirmation pending on <a href="https://github.com/mozilla/standards-positions/issues/705" target="_blank" rel="noopener">standards-positions#705</a></td></tr>
+        <tr><th scope="row">Safari</th><td>Unsupported</td><td>No (<code>false</code>)</td><td>WebKit confirmed alignment on <a href="https://github.com/WebKit/standards-positions/issues/88#issuecomment-6032223882" target="_blank" rel="noopener">standards-positions#88</a> (MIME minimization is a condition of support), but <code>PerformanceResourceTiming.contentType</code> is not yet implemented in Safari (undefined in Safari 26.5; <code>false</code> in BCD)</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/PerformanceResourceTiming.json" target="_blank" rel="noopener">BCD api/PerformanceResourceTiming.json</a>; <a href="https://chromestatus.com/api/v0/features/5092584283308032" target="_blank" rel="noopener">ChromeStatus API record (5092584283308032)</a>; <a href="https://wpt.fyi/results/resource-timing/content-type-minimization.html" target="_blank" rel="noopener">wpt.fyi content-type-minimization.html</a>; <a href="https://webstatus.dev/features/resource-timing" target="_blank" rel="noopener">webstatus.dev resource-timing</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <p>MIME type minimization in Resource Timing exists specifically to reduce cross-origin and content-type fingerprinting while still distinguishing MIME types with different processing models (such as <code>image/svg+xml</code> vs generic XML). Updating <code>blink::IsXMLMimeType</code> does not rewrite HTTP response headers or bodies, does not select parsers or external handlers, and does not relax existing <code>Timing-Allow-Origin</code> / CORS checks governing <code>PerformanceResourceTiming.contentType</code>. In Chrome Actor, expanding <code>blink::IsXMLMimeType</code> means additional structured <code>+xml</code> MIME types (including <code>image/svg+xml</code>) can be blocked by dangerous-MIME-type navigation checks, reducing the risk of model ingestion and prompt-injection exfiltration of structured XML data. ChromeStatus lists formal Security and Privacy reviews as <code>Pending</code> (checked 2026-11-24).</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5092584283308032" target="_blank" rel="noopener">ChromeStatus security_risks &amp; review status (5092584283308032)</a>; <a href="https://mimesniff.spec.whatwg.org/#minimize-a-supported-mime-type" target="_blank" rel="noopener">WHATWG MIME Sniffing &mdash; Minimize a supported MIME type</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Specification</th><th scope="col">Section</th></tr></thead>
+      <tbody>
+        <tr><td><a href="https://mimesniff.spec.whatwg.org/" target="_blank" rel="noopener">MIME Sniffing Standard (WHATWG)</a></td><td><a href="https://mimesniff.spec.whatwg.org/#xml-mime-type" target="_blank" rel="noopener">XML MIME type</a> &middot; <a href="https://mimesniff.spec.whatwg.org/#minimize-a-supported-mime-type" target="_blank" rel="noopener">Minimize a supported MIME type</a></td></tr>
+        <tr><td><a href="https://fetch.spec.whatwg.org/" target="_blank" rel="noopener">Fetch Standard (WHATWG)</a></td><td><a href="https://fetch.spec.whatwg.org/#fetch-response-handover" target="_blank" rel="noopener">Fetch response handover</a></td></tr>
+        <tr><td><a href="https://w3c.github.io/resource-timing/" target="_blank" rel="noopener">Resource Timing (W3C Working Draft)</a></td><td><a href="https://w3c.github.io/resource-timing/#dom-performanceresourcetiming-contenttype" target="_blank" rel="noopener"><code>PerformanceResourceTiming.contentType</code></a></td></tr>
+        <tr><td><a href="https://www.rfc-editor.org/info/rfc7303" target="_blank" rel="noopener">RFC 7303 (IETF)</a></td><td><a href="https://www.rfc-editor.org/info/rfc7303" target="_blank" rel="noopener">XML Media Types (<code>+xml</code> structured syntax suffix)</a></td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/PerformanceResourceTiming/contentType" target="_blank" rel="noopener">MDN &mdash; <code>PerformanceResourceTiming.contentType</code></a></li>
+      <li><a href="https://chromium-review.googlesource.com/c/chromium/src/+/8301932" target="_blank" rel="noopener">Chromium CL 8301932 &mdash; implementation &amp; C++ unit tests</a></li>
+      <li><a href="https://github.com/web-platform-tests/wpt/pull/62420" target="_blank" rel="noopener">WPT PR #62420 &mdash; non-application <code>+xml</code> minimization test cases</a></li>
+      <li><a href="https://issues.chromium.org/issues/362282752" target="_blank" rel="noopener">issues.chromium.org/362282752</a></li>
+      <li><a href="https://chromestatus.com/feature/5092584283308032" target="_blank" rel="noopener">ChromeStatus &mdash; Spec-compliant XML MIME type detection (5092584283308032)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
