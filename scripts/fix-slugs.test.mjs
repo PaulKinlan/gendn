@@ -1,4 +1,3 @@
-// @fixture-permissions --allow-read --allow-write --allow-run=python3
 // scripts/fix-slugs.test.mjs — scratch-catalogue coverage for the DESTRUCTIVE maintenance
 // script .claude/fix-slugs.py (gendn-9ec).
 //
@@ -11,7 +10,7 @@
 // SHAPE: this fixture NEVER runs the script against the worktree. A python3 harness loads
 // .claude/fix-slugs.py via importlib (the __main__ guard keeps import side-effect-free),
 // MONKEYPATCHES get_json with canned listing data, and patches urllib.request.urlopen to RAISE
-// — so any code path that tries the real network fails the test (the deno task also carries no
+// — so any code path that tries the real network fails the test (the npm run also carries no
 // --allow-net). cleanup() then runs over a synthesized TEMP catalogue covering every summary
 // bucket; the deno side asserts the summary JSON, the resulting filesystem, and CONSERVATION:
 // the real catalogue's v-dir/slug listings are byte-identical before and after.
@@ -27,7 +26,8 @@
 // script diff. A suite that has never been shown to fail on a plausible wrong implementation
 // is a claim, not a detector.
 //
-// Run: deno task test-fixtures --tasks test-fix-slugs
+// Run: npm run test-fixtures -- --tasks test-fix-slugs
+import * as sys from "./lib/sys.mjs";
 
 const REPO = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
 const SCRIPT = `${REPO}/.claude/fix-slugs.py`;
@@ -47,10 +47,10 @@ function assert(name, ok, detail = "") {
 // ---------- snapshot the REAL catalogue for the conservation check ------------------------
 async function catalogueSnapshot(root) {
   const out = [];
-  for await (const rel of await Deno.readDir(root)) {
+  for await (const rel of await sys.readDir(root)) {
     if (!rel.isDirectory || !/^v\d+$/.test(rel.name)) continue;
     const slugs = [];
-    for await (const s of await Deno.readDir(`${root}/${rel.name}`)) {
+    for await (const s of await sys.readDir(`${root}/${rel.name}`)) {
       if (s.isDirectory) slugs.push(s.name);
     }
     out.push(`${rel.name}:${slugs.sort().join(",")}`);
@@ -60,11 +60,11 @@ async function catalogueSnapshot(root) {
 const before = await catalogueSnapshot(REPO);
 
 // ---------- build the temp catalogue -------------------------------------------------------
-const tmp = await Deno.makeTempDir({ prefix: "fix-slugs-test-" });
+const tmp = await sys.makeTempDir({ prefix: "fix-slugs-test-" });
 async function mkPage(rel, html) {
   const dir = `${tmp}/${rel}`;
-  await Deno.mkdir(dir, { recursive: true });
-  await Deno.writeTextFile(`${dir}/index.html`, html);
+  await sys.mkdir(dir, { recursive: true });
+  await sys.writeTextFile(`${dir}/index.html`, html);
 }
 const link = (id) => `<p><a href="https://chromestatus.com/feature/${id}">cs</a></p>`;
 
@@ -85,15 +85,15 @@ await mkPage("v149/webmcp", `<h1>Seed, no ID</h1>`);
 // a v149 non-seed page with no ID — must be deleted (proves the skip is seed-specific)
 await mkPage("v149/not-a-seed", `<h1>Delete me</h1>`);
 // no index.html: skipped, folder stays
-await Deno.mkdir(`${tmp}/v900/no-index`, { recursive: true });
+await sys.mkdir(`${tmp}/v900/no-index`, { recursive: true });
 // deep child: cleanup walks exactly two levels — the child must be untouched
 await mkPage("v900/alpha-thing/child", `<h1>Deep</h1>`);
 // non-v dir: ignored entirely
 await mkPage("public/whatever", `<h1>Asset</h1>`);
 // stray FILE directly under a milestone dir: ignored (not a dir)
-await Deno.writeTextFile(`${tmp}/v900/stray.txt`, "x");
+await sys.writeTextFile(`${tmp}/v900/stray.txt`, "x");
 
-const targetBefore = await Deno.readTextFile(`${tmp}/v900/dup-target/index.html`);
+const targetBefore = await sys.readTextFile(`${tmp}/v900/dup-target/index.html`);
 
 // ---------- python harness: import, trap the network, canned listings, run cleanup ----------
 const PY = String.raw`
@@ -148,7 +148,7 @@ print(json.dumps({
 
 let harness;
 try {
-  const cmd = new Deno.Command("python3", {
+  const cmd = new sys.Command("python3", {
     args: ["-c", PY, SCRIPT, tmp],
     stdout: "piped",
     stderr: "piped",
@@ -156,12 +156,12 @@ try {
   harness = await cmd.output();
 } catch (e) {
   console.error(`FAIL: python harness could not run :: ${e}`);
-  Deno.exit(1);
+  process.exit(1);
 }
 const stderrText = new TextDecoder().decode(harness.stderr);
 if (harness.code !== 0) {
   console.error(`FAIL: python harness exited ${harness.code}\n--- stderr ---\n${stderrText}`);
-  Deno.exit(1);
+  process.exit(1);
 }
 assert(
   "harness never touched the real network (urlopen trap armed; no fetch-failure stderr)",
@@ -176,7 +176,7 @@ try {
   out = JSON.parse(jsonLine);
 } catch {
   console.error(`FAIL: harness JSON unreadable\n--- stdout ---\n${stdoutText}`);
-  Deno.exit(1);
+  process.exit(1);
 }
 const S = out.summary;
 
@@ -194,7 +194,7 @@ for (const [name, ok] of Object.entries(out.slug_checks)) {
 // ---------- destructive-path buckets ----------------------------------------------------------
 const exists = async (p) => {
   try {
-    await Deno.stat(p);
+    await sys.stat(p);
     return true;
   } catch {
     return false;
@@ -226,7 +226,7 @@ assert(
   S.deleted_overwritten.some((d) => d.includes("v900/weird-name -> v900/dup-target")) &&
     !(await exists(`${tmp}/v900/weird-name`)) &&
     (await exists(`${tmp}/v900/dup-target/index.html`)) &&
-    (await Deno.readTextFile(`${tmp}/v900/dup-target/index.html`)) === targetBefore,
+    (await sys.readTextFile(`${tmp}/v900/dup-target/index.html`)) === targetBefore,
 );
 assert(
   "skipped_seed: SEEDS['gendn'] ('v149','webmcp') is untouched even with no ID",
@@ -254,10 +254,10 @@ assert(
   `${before.length} chars`,
 );
 
-await Deno.remove(tmp, { recursive: true }).catch(() => {});
+await sys.remove(tmp, { recursive: true }).catch(() => {});
 
 if (failures > 0) {
   console.error(`fix-slugs.test.mjs: ${failures} assertion(s) failed`);
-  Deno.exit(1);
+  process.exit(1);
 }
 console.log(`fix-slugs fixture: all ${passed} assertions passed`);

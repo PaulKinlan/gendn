@@ -1,12 +1,13 @@
-#!/usr/bin/env -S deno run --allow-all
-// run-fixtures.mjs — run EVERY scripts/*.test.mjs fixture without registering a deno.json task
-// for each file. New fixtures join the suite by filename, avoiding deno.json merge collisions.
+#!/usr/bin/env node
+// run-fixtures.mjs — run EVERY scripts/*.test.mjs fixture without registering a package.json
+// script for each file. New fixtures join the suite by filename, avoiding merge collisions.
 //
-// The aggregate and CI browser task remain stable deno.json entry points. The browser-backed
+// The aggregate and CI browser task remain stable package.json scripts. The browser-backed
 // reference-contract and reference-browser files are explicitly excluded from this aggregate and
-// run through `deno task test-reference-contract` in CI. `test-mdn-has` retains its preceding
-// `deno check lib/mdn.ts`. Each standalone fixture declares its former narrow Deno permissions
-// in a first-block @fixture-permissions comment; missing/invalid metadata refuses the run.
+// run through `npm run test-reference-contract` in CI. `test-mdn-has` retains its preceding type
+// check (tsc). Each fixture runs as `node scripts/<name>.test.mjs`. Under Deno each fixture carried
+// narrow --allow-* flags; Node has no equivalent per-process sandbox in use here, so fixtures run
+// with the runner's own access (they always could spawn processes, which is equivalent).
 //
 // THE RECURSION GUARD IS NAME-INDEPENDENT (gendn-0bm/r3b): GENDN_FIXTURE_RUN carries the
 // originating runner pid AND a depth. Discovery inside a fixture is refused; narrowed --tasks is
@@ -31,22 +32,13 @@
 // unreadable /proc/<pid>/environ is SKIPPED (ownership unknown), not called a survivor; this
 // prefers an explicitly unknown process to a false positive that could kill an unrelated process.
 //
-// WHY THE AGGREGATE TASK IS --allow-all (gendn-ebf): Deno refuses `Deno.readDir("/proc")` and
-// `Deno.readFile("/proc/<pid>/environ")` under --allow-read, --allow-read=/proc and even
-// --allow-read --allow-sys; the permission gate requires --allow-all (measured on deno 2.9.7: any
-// narrower flag yields `NotCapable: Requires all access to "/proc"`). Reading a descendant's
-// environment is the identity mechanism the sweep depends on, so the runner process needs it. This is
-// NOT a capability widening: the aggregate already holds --allow-run (it spawns fixtures),
-// which is arbitrary code execution as this user; each fixture retains its former narrow flags
-// through its own mandatory @fixture-permissions declaration.
-//
 // EXCLUSIONS are explicit and printed, never silent (see EXCLUDED below): the browser-backed
 // reference suite runs as a dedicated CI step, where Chrome is available.
 //
 // USAGE
-//   deno task test-fixtures                     # run every discovered fixture
-//   deno task test-fixtures --list               # print what would run, and what is excluded
-//   deno task test-fixtures --tasks a,b          # run only these fixture names or retained tasks
+//   npm run test-fixtures                        # run every discovered fixture
+//   npm run test-fixtures -- --list              # print what would run, and what is excluded
+//   npm run test-fixtures -- --tasks a,b         # run only these fixture names or retained tasks
 //
 // BOUNDS: each fixture gets FIXTURE_TIMEOUT_MS (GENDN_FIXTURE_TIMEOUT_MS overrides it, for tests).
 // A fixture that exceeds it is reported FAILED and the runner KEEPS GOING — see the kill below for
@@ -54,7 +46,9 @@
 //
 // EXIT: 0 when every discovered fixture passed; 1 when one failed or timed out.
 
-const FIXTURE_TIMEOUT_MS = Number(Deno.env.get("GENDN_FIXTURE_TIMEOUT_MS") ?? 300_000);
+import * as sys from "./lib/sys.mjs";
+
+const FIXTURE_TIMEOUT_MS = Number(sys.env.get("GENDN_FIXTURE_TIMEOUT_MS") ?? 300_000);
 // How long to wait for the group kill to take effect before giving up on a fixture's output.
 const KILL_GRACE_MS = 10_000;
 // Hard bounds on the post-timeout descendant sweep (gendn-ebf): at most this many pids killed per
@@ -159,8 +153,8 @@ export async function scanForToken(
   token,
   deadline,
   {
-    entries = Deno.readDir("/proc"),
-    readEnviron = (pid) => Deno.readFile(`/proc/${pid}/environ`),
+    entries = sys.readDir("/proc"),
+    readEnviron = (pid) => sys.readFile(`/proc/${pid}/environ`),
     now = Date.now,
   } = {},
 ) {
@@ -172,7 +166,7 @@ export async function scanForToken(
   for await (const entry of entries) {
     if (!/^\d+$/.test(entry.name)) continue;
     const pid = Number(entry.name);
-    if (pid === Deno.pid) continue;
+    if (pid === process.pid) continue;
     if (now() > deadline) {
       truncated = true;
       break;
@@ -212,7 +206,7 @@ export function scanProcessListForToken(out, token) {
     if (!match) continue;
     if (!line.includes(token)) continue;
     const pid = Number(match[1]);
-    if (pid !== Deno.pid) pids.push(pid);
+    if (pid !== process.pid) pids.push(pid);
   }
   return pids;
 }
@@ -220,7 +214,7 @@ export function scanProcessListForToken(out, token) {
 /** Scan for the token through `ps eww -eo pid,args`, which also shows each process's environment. */
 export async function scanForTokenViaPs(token, deadline, { now = Date.now } = {}) {
   const started = now();
-  const output = await new Deno.Command("ps", {
+  const output = await new sys.Command("ps", {
     args: ["eww", "-eo", "pid,args"],
     stdout: "piped",
     stderr: "null",
@@ -253,7 +247,7 @@ export async function sweepByToken(token, { maxPids, budgetMs, scan = scanForTok
     if (Date.now() > deadline) break;
     attempted++;
     try {
-      Deno.kill(pid, "SIGKILL");
+      process.kill(pid, "SIGKILL");
       killed++;
     } catch {
       // Already exited between the scan and the kill: nothing to reclaim.
@@ -357,46 +351,29 @@ export function discoverFixtures(files, tasks) {
   return new Map([...fixtures].sort(([a], [b]) => a.localeCompare(b)));
 }
 
-export function fixturePermissions(source, file) {
-  const banner = source.split("\n").slice(0, 12).find((line) =>
-    line.startsWith("// @fixture-permissions ")
-  );
-  if (!banner) throw new Error(`${file}: missing @fixture-permissions in the first 12 lines`);
-  const flags = banner.slice("// @fixture-permissions ".length).trim().split(/\s+/);
-  if (
-    flags.length === 0 ||
-    flags.some((flag) =>
-      !/^--allow-(?:read|write|run|net|env)(?:=[A-Za-z0-9_.,/:=-]+)?$/.test(flag)
-    ) || new Set(flags).size !== flags.length
-  ) {
-    throw new Error(`${file}: invalid @fixture-permissions: ${banner}`);
-  }
-  return flags.join(" ");
-}
-
 /** Preserve the historical MDN typecheck and the retained CI browser-composite task. */
-export function fixtureCommand(name, file, permissions) {
-  if (!file || name === "test-reference-contract") return `deno task ${name}`;
-  const run = `deno run ${permissions} ${file}`;
-  return name === "test-mdn-has" ? `deno check lib/mdn.ts && ${run}` : run;
+export function fixtureCommand(name, file) {
+  if (!file || name === "test-reference-contract") return `npm run --silent ${name}`;
+  const run = `node ${file}`;
+  return name === "test-mdn-has" ? `node_modules/.bin/tsc -p . && ${run}` : run;
 }
 
 // Everything below runs only when this file IS the program: the pure guards above are imported
 // by the fixture, and top-level code here would otherwise execute the whole suite on import
 // (measured: the fixture died instantly because importing the runner refused and exited).
-if (import.meta.main) {
+if (sys.isMain(import.meta.url)) {
   // Arguments are parsed FIRST: the refusal decision needs to know whether this is a discovery run
   // (the recursion case) or a narrowed --tasks run (legitimate). Referencing `requested` before its
   // declaration was a crash, and it is why the wrapped block must start here.
-  const requestedFlag = Deno.args.indexOf("--tasks");
-  const requestedArg = requestedFlag === -1 ? null : (Deno.args[requestedFlag + 1] ?? "");
+  const requestedFlag = sys.args.indexOf("--tasks");
+  const requestedArg = requestedFlag === -1 ? null : (sys.args[requestedFlag + 1] ?? "");
   const requested = requestedArg === null
     ? null
     : requestedArg.split(",").map((t) => t.trim()).filter(Boolean);
-  const listOnly = Deno.args.includes("--list");
+  const listOnly = sys.args.includes("--list");
   const refusal = listOnly
     ? null
-    : recursionRefusal(Deno.env.toObject(), { discovery: requested === null });
+    : recursionRefusal(sys.env.toObject(), { discovery: requested === null });
   if (refusal) {
     console.error(`test-fixtures: REFUSING — ${refusal}.`);
     console.error(
@@ -404,13 +381,13 @@ if (import.meta.main) {
         "prevent it when the aggregate is renamed or reached through --tasks. Invoke a specific " +
         "fixture with --tasks <name>, or check whether a fixture shells out to an aggregate task.",
     );
-    Deno.exit(1);
+    process.exit(1);
   }
 
   const repoRoot = new URL("..", import.meta.url).pathname;
-  const denoJson = JSON.parse(await Deno.readTextFile(`${repoRoot}deno.json`));
+  const packageJson = JSON.parse(await sys.readTextFile(`${repoRoot}package.json`));
 
-  const tasks = denoJson.tasks ?? {};
+  const tasks = packageJson.scripts ?? {};
   if (requested) {
     const aggregates = requested.filter((name) => isAggregateTaskCommand(tasks[name]));
     if (aggregates.length) {
@@ -418,29 +395,15 @@ if (import.meta.main) {
         `test-fixtures: REFUSING — ${aggregates.join(", ")} would run this aggregate recursively ` +
           "(detected by the task's COMMAND, not its name, so renaming it changes nothing).",
       );
-      Deno.exit(1);
+      process.exit(1);
     }
   }
 
   const files = [];
-  for await (const entry of Deno.readDir(`${repoRoot}scripts`)) {
+  for await (const entry of sys.readDir(`${repoRoot}scripts`)) {
     if (entry.isFile) files.push(entry.name);
   }
   const fixtures = discoverFixtures(files, tasks);
-  const permissions = new Map();
-  try {
-    for (const [name, file] of fixtures) {
-      if (file) {
-        permissions.set(
-          name,
-          fixturePermissions(await Deno.readTextFile(`${repoRoot}${file}`), file),
-        );
-      }
-    }
-  } catch (error) {
-    console.error(`test-fixtures: REFUSING — ${error.message}`);
-    Deno.exit(1);
-  }
   const discovered = [...fixtures.keys()];
   const runnable = requested ?? discovered.filter((name) => !EXCLUDED.has(name));
   const excluded = discovered.filter((name) => EXCLUDED.has(name));
@@ -451,12 +414,12 @@ if (import.meta.main) {
   console.log(`  running  (${runnable.length}): ${runnable.join(", ") || "none"}`);
   for (const name of excluded) console.log(`  excluded (${name}): ${EXCLUDED.get(name)}`);
 
-  if (Deno.args.includes("--list")) {
-    Deno.exit(0);
+  if (sys.args.includes("--list")) {
+    process.exit(0);
   }
   if (runnable.length === 0) {
     console.error("test-fixtures: no fixture tasks were discovered — refusing to report success");
-    Deno.exit(1);
+    process.exit(1);
   }
 
   const results = [];
@@ -468,8 +431,8 @@ if (import.meta.main) {
     // Both inherited states are set in ONE place: nesting increments and attribution extends rather
     // than resetting. This is the common fix for the two environment-overwrite hazards.
     const { token, childEnv } = fixtureEnvironment(
-      Deno.env.toObject(),
-      Deno.pid,
+      sys.env.toObject(),
+      process.pid,
       name,
       ++fixtureCounter,
     );
@@ -480,15 +443,13 @@ if (import.meta.main) {
     //    timeout was detected — the runner would identify the timeout and then hang on it, which is
     //    the worst possible place for this bug (a loaded CI job instead of a 300s failure).
     // A group kill plus file redirection removes both: nothing of ours is a pipe the orphan can hold.
-    const logPath = await Deno.makeTempFile({ prefix: `fixture-${name.replace(/\W+/g, "_")}-` });
+    const logPath = await sys.makeTempFile({ prefix: `fixture-${name.replace(/\W+/g, "_")}-` });
     try {
-      const child = new Deno.Command("setsid", {
+      const child = new sys.Command("setsid", {
         args: [
           "sh",
           "-c",
-          `${fixtureCommand(name, fixtures.get(name), permissions.get(name))} > ${
-            JSON.stringify(logPath)
-          } 2>&1`,
+          `${fixtureCommand(name, fixtures.get(name))} > ${JSON.stringify(logPath)} 2>&1`,
         ],
         cwd: repoRoot,
         stdout: "null",
@@ -514,7 +475,7 @@ if (import.meta.main) {
           // `--` is REQUIRED: GNU kill parses a bare `-<pgid>` as a SIGNAL NUMBER, so
           // `kill -KILL -12345` fails (silently, since this is wrapped) and the group survives — measured
           // as orphans plus a 10s grace wait. `kill -KILL -- -12345` reaches the group.
-          new Deno.Command("kill", { args: ["-KILL", "--", `-${pid}`] }).outputSync();
+          new sys.Command("kill", { args: ["-KILL", "--", `-${pid}`] }).outputSync();
         } catch (err) {
           // Already gone, or kill refused: either way do not hide it, because the next step is a wait
           // that will time out and the operator needs to know why.
@@ -560,7 +521,7 @@ if (import.meta.main) {
       }
 
       const ms = Date.now() - started;
-      const log = await Deno.readTextFile(logPath).catch(() => "");
+      const log = await sys.readTextFile(logPath).catch(() => "");
       const last = (log.trim().split("\n").pop() ?? "").slice(0, 120);
       const verdict = timedOut ? "TIMEOUT" : code === 0 ? "PASS" : "FAIL";
       if (timedOut) code = code === 0 ? 124 : code;
@@ -574,7 +535,7 @@ if (import.meta.main) {
         console.error(log.split("\n").slice(-15).join("\n"));
       }
     } finally {
-      await Deno.remove(logPath).catch(() => {});
+      await sys.remove(logPath).catch(() => {});
     }
   }
 
@@ -585,5 +546,5 @@ if (import.meta.main) {
       (leaks.length ? ` — LEAKED: ${leaks.join(", ")}` : "") +
       (sweepFailures.length ? ` — SWEEP FAILED: ${sweepFailures.join(", ")}` : ""),
   );
-  Deno.exit(aggregateExitCode(results, leaks, sweepFailures));
+  process.exit(aggregateExitCode(results, leaks, sweepFailures));
 }

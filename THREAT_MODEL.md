@@ -25,7 +25,8 @@ reader does not re-believe them:
 2. The draft scoped itself to "repository `gendn-merger`" — that is a factory lane name, not
    the repository.
 3. The draft listed "the `modern-web-guidance` npm package … fetched at run time" as a
-   dependency surface — `deno.json` HAS NO `imports` KEY AT ALL (absent, not empty) and
+   dependency surface — the project declared no runtime imports at all (then in `deno.json`; now
+   `package.json` has no `dependencies`, only dev tools) and
    `server.ts`/`lib/*.ts` import no third-party modules; the package is referenced only as
    guidance text inside lifecycle views.
 4. The draft's finding TM-1 (and this document's first draft, copying it) named THREE unescaped
@@ -46,7 +47,8 @@ that writes the pages.
 
 Components:
 
-- **HTTP server — `server.ts`.** A Deno `Deno.serve` process (default port 3000) with no
+- **HTTP server — `server.ts`.** `serveRequest()`, run by the Worker or by Node (`serve.ts`, default
+  port 3000), with no
   authentication and no write endpoints. Routes: `/`, `/features`, `/v<N>/`, `/v<N>/<slug>/` and
   deep assets, `/public/*`, `/conformance`, `/conformance/run-all`, and
   `/v<N>/<slug>/(conformance|critique)`. It reads page/asset files from disk, renders
@@ -88,15 +90,15 @@ Components:
   commit per feature, pushes directly to `main`.
 - **Runtime:** Cloudflare Workers in production (`worker.ts`, static assets read only through the
   ASSETS binding with `run_worker_first`, so every response passes the CSP/inert-MIME pipeline);
-  Node (`serve.ts`) or the legacy Deno entry locally and in CI. No database, no user accounts, no
-  server-side session state, **no third-party runtime dependencies** (`deno.json` has no
-  `imports` key).
+  Node (`serve.ts`) locally and in CI. No database, no user accounts, no
+  server-side session state, **no third-party runtime dependencies** (`package.json` has no
+  `dependencies`; its `devDependencies` are build and check tools only).
 
 ## 2. Trust Boundaries & Actors
 
 | Actor | Trust | Notes |
 | --- | --- | --- |
-| **System Owner / Developer** (Paul Kinlan) | Trusted | Owns `server.ts`, `lib/`, `public/`, `deno.json`, CI, the routine prompt. |
+| **System Owner / Developer** (Paul Kinlan) | Trusted | Owns `server.ts`, `lib/`, `public/`, `package.json`, CI, the routine prompt. |
 | **Autonomous routine agent** | Semi-trusted / content-authoring | Writes `v<N>/` page HTML, `conformance.json`, `_questions.json`, `reference-contract.json`. Its output is treated as potentially adversarial markup (invariant #4) — the *trust boundary is the authored HTML*, not the agent's intent. |
 | **End user / browser** | Untrusted for input, trusted reader | Supplies arbitrary request paths and query strings; reads responses. No privileged action is possible from the request. |
 | **chromestatus.com API** | Untrusted data source | External JSON (`id`, `name`, `summary`, `category`, channels, dates) fed directly into SSR templates. |
@@ -104,7 +106,7 @@ Components:
 | **developer.mozilla.org** | Untrusted availability signal | HEAD existence checks; a transport failure must read as UNKNOWN, not "no page". |
 | **chrome-platform-showcase.paulkinlan-ea.deno.net** | Untrusted framed content | Third-party interactive demos embedded via `<iframe>`; also referenced by lifecycle contracts. |
 | **fonts.googleapis.com / fonts.gstatic.com** | Untrusted asset origin | Only reached by the offline `vendor-fonts.mjs` vendoring script, not at request time. |
-| **Local repo / worktree** | Trusted | `migrations.json`, `deno.json`, schemas, and CI scripts are operator-controlled. |
+| **Local repo / worktree** | Trusted | `migrations.json`, `package.json`, schemas, and CI scripts are operator-controlled. |
 | **Loopback server in gates** | Trusted | The gate server binds an ephemeral OS port on localhost and is only driven by the local runner. |
 | **Local tooling (git, Chrome, `ps`, `setsid`, `/proc`)** | Trusted mechanism, hazardous lifecycle | Bounded and guarded, but capable of orphan processes / hangs if unbounded. |
 
@@ -184,7 +186,7 @@ Audits **must not** flag the following as vulnerabilities:
 8. **Process environment / `/proc`.** The fixture runner reads descendants'
    `/proc/<pid>/environ`; a deliberately cleared environment can bypass the recursion guard
    (bounded accidental recursion, not a hostile fixture).
-9. **Declared external runtime dependencies.** None: `deno.json` has no `imports` key and the
+9. **Declared external runtime dependencies.** None: `package.json` has no `dependencies` and the
    server/lib code imports no third-party modules. Upstream *data* (chromestatus, GitHub, MDN)
    is the dependency surface, covered above.
 
@@ -257,7 +259,7 @@ firing when this note lived inside #7), so the entry must carry the phrase exact
 9. **Every response is wrapped by `addSecurityHeaders`** — including error paths — and any
    state/status value used in an attribute is drawn from a closed allowlist. _Anchors:
    `server.ts` `addSecurityHeaders` (CSP `script-src 'self' 'sha256-…'`, nosniff,
-   Referrer-Policy) applied in the `Deno.serve` handler's try AND catch; `lib/lifecycle.ts`
+   Referrer-Policy) applied in `serveRequest()`'s try AND catch; `lib/lifecycle.ts`
    verdict whitelist `["pass","fail","blocked"]`._
 10. **Every gate shell-out is bounded and every browser navigation is whitelisted.** _Anchors:
     `scripts/lib/bounded-git.mjs`; `scripts/lib/cdp.mjs` hostname allowlist

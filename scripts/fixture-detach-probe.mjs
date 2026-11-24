@@ -26,18 +26,20 @@
 // the detached sleeper by its recorded pid in a `finally`. The earlier unbounded proof in this area
 // reached 1292 processes / 6 GB before the VM reaper killed it; this probe is intentionally finite.
 
-const ownPidFile = Deno.env.get("PROBE_PID_FILE");
-const childPidFile = Deno.env.get("PROBE_CHILD_PID_FILE");
-const mode = Deno.env.get("PROBE_MODE") ?? "hang";
+import * as sys from "./lib/sys.mjs";
 
-if (ownPidFile) await Deno.writeTextFile(ownPidFile, String(Deno.pid));
+const ownPidFile = sys.env.get("PROBE_PID_FILE");
+const childPidFile = sys.env.get("PROBE_CHILD_PID_FILE");
+const mode = sys.env.get("PROBE_MODE") ?? "hang";
+
+if (ownPidFile) await sys.writeTextFile(ownPidFile, String(process.pid));
 
 // Pass the FULL environment explicitly rather than relying on merge semantics, because the detached
 // child MUST inherit GENDN_FIXTURE_TOKEN — that token is the only thing that makes it attributable.
-const env = { ...Deno.env.toObject(), PROBE_CHILD_PID_FILE: childPidFile ?? "" };
+const env = { ...sys.env.toObject(), PROBE_CHILD_PID_FILE: childPidFile ?? "" };
 let child = null;
 if (childPidFile) {
-  child = new Deno.Command("setsid", {
+  child = new sys.Command("setsid", {
     args: ["--fork", "sh", "-c", 'printf %s "$$" > "$PROBE_CHILD_PID_FILE"; exec sleep 600'],
     stdout: "null",
     stderr: "null",
@@ -48,14 +50,16 @@ if (childPidFile) {
     "fixture-detach-probe: PROBE_CHILD_PID_FILE unset; refusing to spawn an unrecorded detached sleeper",
   );
 }
-console.log(`fixture-detach-probe: mode=${mode} own=${Deno.pid} detached=${child?.pid ?? "none"}`);
+console.log(
+  `fixture-detach-probe: mode=${mode} own=${process.pid} detached=${child?.pid ?? "none"}`,
+);
 
 // Wait until the sleeper has recorded its own pid, so the test's pid assertions are never racing the
 // child's startup. Bounded, so a broken probe fails fast instead of sleeping for the whole bound.
 if (childPidFile) {
   const deadline = Date.now() + 5_000;
   while (Date.now() < deadline) {
-    const text = await Deno.readTextFile(childPidFile).catch(() => "");
+    const text = await sys.readTextFile(childPidFile).catch(() => "");
     if (Number(text.trim()) > 0) break;
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
@@ -65,6 +69,6 @@ if (mode === "hang") {
   // A pending TIMER-backed promise, not a never-resolving top-level await: Deno reports "Top-level await promise
   // never resolved" and exits for the latter, which would make the probe pass-by-exiting.
   // Self-limited (gendn-vxp): exits on its own after PROBE_HANG_MS so a manual run cannot leak.
-  const hangMs = Number(Deno.env.get("PROBE_HANG_MS")) || 120_000;
+  const hangMs = Number(sys.env.get("PROBE_HANG_MS")) || 120_000;
   await new Promise((resolve) => setTimeout(resolve, hangMs));
 }

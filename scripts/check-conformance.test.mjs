@@ -1,4 +1,3 @@
-// @fixture-permissions --allow-read --allow-write --allow-run --allow-net --allow-env
 // scripts/check-conformance.test.mjs — staged-then-reverted declared-surface checks in check-conformance (gendn-rtvp).
 //
 // When an HTML surface change is staged and the working tree is reverted to baseline (git status MM),
@@ -8,6 +7,7 @@
 // Also pin the independent origin/main baseline: committed assertion removal must be detected
 // with the ref and explicitly refused without it, never checked against HEAD itself.
 
+import * as sys from "./lib/sys.mjs";
 import { suiteHash } from "./lib/artifacts.mjs";
 
 const REPO = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
@@ -19,23 +19,23 @@ function assert(name, ok, detail = "") {
   if (!ok) failures++;
 }
 
-const scratch = await Deno.makeTempDir({ prefix: "rtvp-check-conformance-" });
+const scratch = await sys.makeTempDir({ prefix: "rtvp-check-conformance-" });
 
 try {
   // Set up schema directory
-  await Deno.mkdir(`${scratch}/schema`, { recursive: true });
-  for await (const entry of Deno.readDir(`${REPO}/schema`)) {
+  await sys.mkdir(`${scratch}/schema`, { recursive: true });
+  for await (const entry of sys.readDir(`${REPO}/schema`)) {
     if (entry.isFile) {
-      await Deno.copyFile(`${REPO}/schema/${entry.name}`, `${scratch}/schema/${entry.name}`);
+      await sys.copyFile(`${REPO}/schema/${entry.name}`, `${scratch}/schema/${entry.name}`);
     }
   }
 
   // Set up a real implementation-sufficient feature page
   const FEATURE = "v150/webrtc-diagnostic-logging-api";
-  await Deno.mkdir(`${scratch}/${FEATURE}`, { recursive: true });
-  for await (const entry of Deno.readDir(`${REPO}/${FEATURE}`)) {
+  await sys.mkdir(`${scratch}/${FEATURE}`, { recursive: true });
+  for await (const entry of sys.readDir(`${REPO}/${FEATURE}`)) {
     if (entry.isFile) {
-      await Deno.copyFile(
+      await sys.copyFile(
         `${REPO}/${FEATURE}/${entry.name}`,
         `${scratch}/${FEATURE}/${entry.name}`,
       );
@@ -44,8 +44,8 @@ try {
 
   // Set up a legacy built page with no contract and no IDL surface (for denominator checking)
   const LEGACY = "v999/legacy-feature";
-  await Deno.mkdir(`${scratch}/${LEGACY}`, { recursive: true });
-  await Deno.writeTextFile(
+  await sys.mkdir(`${scratch}/${LEGACY}`, { recursive: true });
+  await sys.writeTextFile(
     `${scratch}/${LEGACY}/index.html`,
     `<!DOCTYPE html>
 <html><body>
@@ -57,9 +57,9 @@ try {
   );
 
   const legacyAssertions = [
-    JSON.parse(await Deno.readTextFile(`${scratch}/${FEATURE}/conformance.json`)).assertions[0],
+    JSON.parse(await sys.readTextFile(`${scratch}/${FEATURE}/conformance.json`)).assertions[0],
   ];
-  await Deno.writeTextFile(
+  await sys.writeTextFile(
     `${scratch}/${LEGACY}/conformance.json`,
     JSON.stringify(
       {
@@ -82,7 +82,7 @@ try {
     ),
   );
 
-  await Deno.writeTextFile(
+  await sys.writeTextFile(
     `${scratch}/responsive-support.json`,
     JSON.stringify({
       routes: {
@@ -91,10 +91,10 @@ try {
       },
     }),
   );
-  await Deno.writeTextFile(`${scratch}/migrations.json`, "[]");
+  await sys.writeTextFile(`${scratch}/migrations.json`, "[]");
 
   const g = async (...args) => {
-    const c = new Deno.Command("git", { args, cwd: scratch, stdout: "piped", stderr: "piped" });
+    const c = new sys.Command("git", { args, cwd: scratch, stdout: "piped", stderr: "piped" });
     const o = await c.output();
     if (!o.success) {
       throw new Error(`git ${args.join(" ")} failed: ${new TextDecoder().decode(o.stderr)}`);
@@ -110,14 +110,8 @@ try {
   await g("update-ref", "refs/remotes/origin/main", "HEAD");
 
   const runGate = async () => {
-    const cmd = new Deno.Command(Deno.execPath(), {
+    const cmd = new sys.Command(sys.execPath(), {
       args: [
-        "run",
-        "--allow-read",
-        "--allow-write",
-        "--allow-run",
-        "--allow-net",
-        "--allow-env",
         CHECK_CONFORMANCE,
       ],
       cwd: scratch,
@@ -156,12 +150,12 @@ try {
 
   // Case 2: Ordinary uncommitted edit to declared surface in working tree fails gate
   const indexPath = `${scratch}/${FEATURE}/index.html`;
-  const baseHtml = await Deno.readTextFile(indexPath);
+  const baseHtml = await sys.readTextFile(indexPath);
   const mutatedHtml = baseHtml.replace(
     "static undefined stopDiagnosticLogging();",
     "static undefined stopDiagnosticLogging();\n  static undefined rogueDiagnosticLoggingMember();",
   );
-  await Deno.writeTextFile(indexPath, mutatedHtml);
+  await sys.writeTextFile(indexPath, mutatedHtml);
   r = await runGate();
   assert(
     "rtvp check-conformance Case 2 (uncommitted): working tree declared surface change fails gate",
@@ -180,7 +174,7 @@ try {
 
   // Case 4: Staged-then-reverted (git status shows MM) on declared surface check
   // Worktree restored to baseline, but git index carries the rogue declared member
-  await Deno.writeTextFile(indexPath, baseHtml);
+  await sys.writeTextFile(indexPath, baseHtml);
   const status = await g("status", "--short");
   assert(
     "rtvp check-conformance Case 4: git status shows MM for staged-then-reverted index.html",
@@ -200,14 +194,14 @@ try {
   // Case 5: Staged-then-reverted on legacy page noIdlSurface denominator (line 355)
   // Baseline had 1 noIdlSurface. Stage an IDL interface into LEGACY/index.html, but restore working copy.
   const legacyPath = `${scratch}/${LEGACY}/index.html`;
-  const legacyBaseHtml = await Deno.readTextFile(legacyPath);
+  const legacyBaseHtml = await sys.readTextFile(legacyPath);
   const legacyMutatedHtml = legacyBaseHtml.replace(
     "<p>Legacy CSS property with no WebIDL interface.</p>",
     `<h2 id="syntax">Syntax</h2><pre><code>interface LegacyIdl { void dummy(); };</code></pre>`,
   );
-  await Deno.writeTextFile(legacyPath, legacyMutatedHtml);
+  await sys.writeTextFile(legacyPath, legacyMutatedHtml);
   await g("add", `${LEGACY}/index.html`);
-  await Deno.writeTextFile(legacyPath, legacyBaseHtml); // restore worktree copy
+  await sys.writeTextFile(legacyPath, legacyBaseHtml); // restore worktree copy
   const legacyStatus = await g("status", "--short");
   assert(
     "rtvp check-conformance Case 5: git status shows MM for staged-then-reverted legacy index.html",
@@ -237,10 +231,10 @@ try {
   // The legacy page has no implementation-sufficient reference contract. Its assertion-only
   // mutation exercises the immutability gate without scheduling a browser visibility check.
   const suitePath = `${scratch}/${LEGACY}/conformance.json`;
-  const weakened = JSON.parse(await Deno.readTextFile(suitePath));
+  const weakened = JSON.parse(await sys.readTextFile(suitePath));
   const removedId = weakened.assertions.shift().id;
   weakened.suiteHash = await suiteHash(weakened.assertions);
-  await Deno.writeTextFile(suitePath, JSON.stringify(weakened, null, 2) + "\n");
+  await sys.writeTextFile(suitePath, JSON.stringify(weakened, null, 2) + "\n");
   await g("add", `${LEGACY}/conformance.json`);
   await g("commit", "-qm", "fixture-only committed assertion removal");
   r = await runGate();
@@ -264,8 +258,8 @@ try {
   // The independent baseline has two published pages and suites. Erasing every working
   // page AND suite used to print 0/0 and PASS; it must now fail with the real prior floor.
   await g("update-ref", "refs/remotes/origin/main", "HEAD~1");
-  await Deno.remove(`${scratch}/v150`, { recursive: true });
-  await Deno.remove(`${scratch}/v999`, { recursive: true });
+  await sys.remove(`${scratch}/v150`, { recursive: true });
+  await sys.remove(`${scratch}/v999`, { recursive: true });
   r = await runGate();
   assert(
     "rtvp check-conformance Case 9: zero pages and zero suites vs independent catalogue is rc1, never PASS",
@@ -284,8 +278,8 @@ try {
 
   // gendn-1bin: one lost owner previously made 1/1 PASS, because DirEntry
   // reports a symlink as !isDirectory and the empty-corpus floor still had v999.
-  await Deno.remove(`${scratch}/${FEATURE}`, { recursive: true });
-  await Deno.symlink("missing-feature", `${scratch}/${FEATURE}`);
+  await sys.remove(`${scratch}/${FEATURE}`, { recursive: true });
+  await sys.symlink("missing-feature", `${scratch}/${FEATURE}`);
   r = await runGate();
   assert(
     "1bin dangling release MEMBER is a named rc1, never a partial 1/1 PASS",
@@ -293,13 +287,13 @@ try {
       !r.text.includes("PASS —"),
     r.text,
   );
-  await Deno.remove(`${scratch}/${FEATURE}`);
+  await sys.remove(`${scratch}/${FEATURE}`);
   await g("reset", "--hard", "HEAD");
 
-  const emptyOutside = await Deno.makeTempDir({ prefix: "1bin-outside-empty-" });
+  const emptyOutside = await sys.makeTempDir({ prefix: "1bin-outside-empty-" });
   try {
-    await Deno.remove(`${scratch}/${FEATURE}`, { recursive: true });
-    await Deno.symlink(emptyOutside, `${scratch}/${FEATURE}`);
+    await sys.remove(`${scratch}/${FEATURE}`, { recursive: true });
+    await sys.symlink(emptyOutside, `${scratch}/${FEATURE}`);
     r = await runGate();
     assert(
       "1bin release MEMBER symlink to a real empty outside directory fails proactively",
@@ -308,13 +302,13 @@ try {
       r.text,
     );
   } finally {
-    await Deno.remove(`${scratch}/${FEATURE}`);
-    await Deno.remove(emptyOutside, { recursive: true });
+    await sys.remove(`${scratch}/${FEATURE}`);
+    await sys.remove(emptyOutside, { recursive: true });
     await g("reset", "--hard", "HEAD");
   }
 
-  await Deno.remove(`${scratch}/v150`, { recursive: true });
-  await Deno.symlink("missing-milestone", `${scratch}/v150`);
+  await sys.remove(`${scratch}/v150`, { recursive: true });
+  await sys.symlink("missing-milestone", `${scratch}/v150`);
   r = await runGate();
   assert(
     "1bin dangling MILESTONE is a named rc1 while legacy corpus remains non-empty",
@@ -322,14 +316,14 @@ try {
       !r.text.includes("PASS —"),
     r.text,
   );
-  await Deno.remove(`${scratch}/v150`);
+  await sys.remove(`${scratch}/v150`);
   await g("reset", "--hard", "HEAD");
 
-  const suiteCopy = await Deno.makeTempFile({ prefix: "1bin-real-suite-" });
+  const suiteCopy = await sys.makeTempFile({ prefix: "1bin-real-suite-" });
   try {
-    await Deno.copyFile(`${scratch}/${LEGACY}/conformance.json`, suiteCopy);
-    await Deno.remove(`${scratch}/${LEGACY}/conformance.json`);
-    await Deno.symlink(suiteCopy, `${scratch}/${LEGACY}/conformance.json`);
+    await sys.copyFile(`${scratch}/${LEGACY}/conformance.json`, suiteCopy);
+    await sys.remove(`${scratch}/${LEGACY}/conformance.json`);
+    await sys.symlink(suiteCopy, `${scratch}/${LEGACY}/conformance.json`);
     r = await runGate();
     assert(
       "1bin readable external suite symlink is a named rc1, not counted as inspected",
@@ -338,8 +332,8 @@ try {
       r.text,
     );
   } finally {
-    await Deno.remove(`${scratch}/${LEGACY}/conformance.json`);
-    await Deno.remove(suiteCopy);
+    await sys.remove(`${scratch}/${LEGACY}/conformance.json`);
+    await sys.remove(suiteCopy);
     await g("reset", "--hard", "HEAD");
   }
 
@@ -361,11 +355,11 @@ try {
     r.text,
   );
 } finally {
-  await Deno.remove(scratch, { recursive: true });
+  await sys.remove(scratch, { recursive: true });
 }
 
 if (failures) {
   console.error(`check-conformance fixture: ${failures} assertion(s) failed`);
-  Deno.exit(1);
+  process.exit(1);
 }
 console.log("check-conformance fixture: all assertions passed");

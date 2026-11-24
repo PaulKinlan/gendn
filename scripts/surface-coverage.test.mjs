@@ -1,4 +1,3 @@
-// @fixture-permissions --allow-read --allow-write --allow-run
 // gendn-m7e fixture — SURFACE-COVERAGE ASSERTION. The defect class: a contract can pass
 // every gate while mapping a dimension to the WRONG surface (id exists, slice 40+ chars,
 // but the claimed surface is not in the slice). Origin instance: gendn-5ao's css-scroll-state
@@ -10,6 +9,7 @@
 // trap gendn-impl recorded: on v149/css-scroll-state-container-queries the true rule yields
 // three fragments (~360/#syntax, ~189/#scroll-state-query, ~3005/#features); the misread
 // 'to the next h2' yields one ~3562-char slice. A copied rule silently inherits the misread.
+import * as sys from "./lib/sys.mjs";
 import { fragmentAfterId, stripMarkup } from "./lib/reference-contract.mjs";
 import { plainCorpusPath } from "./lib/plain-corpus-path.mjs";
 import {
@@ -32,11 +32,11 @@ function assert(name, ok, detail = "") {
   if (!ok) failures++;
 }
 
-const root = Deno.cwd();
+const root = process.cwd();
 
 // ---- 1. Slicer self-check on the divergence page (impl's recorded trap) ----
 {
-  const html = await Deno.readTextFile(
+  const html = await sys.readTextFile(
     `${root}/v149/css-scroll-state-container-queries/index.html`,
   );
   const syn = stripMarkup(fragmentAfterId(html, "syntax")).length;
@@ -226,7 +226,7 @@ const root = Deno.cwd();
     r.error ?? JSON.stringify(r.failures.slice(0, 2)),
   );
   const gitOut = async (args) => {
-    const c = new Deno.Command("git", { args, cwd: root, stdout: "piped", stderr: "null" });
+    const c = new sys.Command("git", { args, cwd: root, stdout: "piped", stderr: "null" });
     const o = await c.output();
     return o.success ? new TextDecoder().decode(o.stdout).trim() : null;
   };
@@ -256,7 +256,7 @@ const root = Deno.cwd();
     owners.join(","),
   );
 
-  const scratch = await Deno.makeTempDir({ prefix: "j9vz-surface-" });
+  const scratch = await sys.makeTempDir({ prefix: "j9vz-surface-" });
   const probe = "v147/probe";
   const child = `${probe}/child`;
   const page = (text) =>
@@ -272,15 +272,15 @@ const root = Deno.cwd();
     dimensions: { syntax: { status: "documented", selector: "#syntax" } },
   });
   const g = async (...args) => {
-    const c = new Deno.Command("git", { args, cwd: scratch, stdout: "piped", stderr: "piped" });
+    const c = new sys.Command("git", { args, cwd: scratch, stdout: "piped", stderr: "piped" });
     const o = await c.output();
     if (!o.success) {
       throw new Error(`git ${args.join(" ")} failed: ${new TextDecoder().decode(o.stderr)}`);
     }
   };
   try {
-    await Deno.mkdir(`${scratch}/${child}`, { recursive: true });
-    await Deno.writeTextFile(
+    await sys.mkdir(`${scratch}/${child}`, { recursive: true });
+    await sys.writeTextFile(
       `${scratch}/${probe}/reference-contract.json`,
       JSON.stringify({
         id: probe,
@@ -288,7 +288,7 @@ const root = Deno.cwd();
         documentation: [doc("#syntax"), doc("child/#syntax")],
       }),
     );
-    await Deno.writeTextFile(
+    await sys.writeTextFile(
       `${scratch}/${child}/reference-contract.json`,
       JSON.stringify({
         id: child,
@@ -296,8 +296,8 @@ const root = Deno.cwd();
         documentation: [doc("#syntax")],
       }),
     );
-    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, page(named));
-    await Deno.writeTextFile(`${scratch}/${child}/index.html`, page(named));
+    await sys.writeTextFile(`${scratch}/${probe}/index.html`, page(named));
+    await sys.writeTextFile(`${scratch}/${child}/index.html`, page(named));
     await g("init", "-q", "-b", "main");
     await g("config", "user.email", "fixture@example.test");
     await g("config", "user.name", "fixture");
@@ -305,11 +305,8 @@ const root = Deno.cwd();
     await g("commit", "-qm", "clean baseline");
     await g("update-ref", "refs/remotes/origin/main", "HEAD");
     const runSurfaceGate = async (all = false) => {
-      const out = await new Deno.Command(Deno.execPath(), {
+      const out = await new sys.Command(sys.execPath(), {
         args: [
-          "run",
-          "--allow-read",
-          "--allow-run",
           new URL("./check-surface-coverage.mjs", import.meta.url).pathname,
           ...(all ? ["--all"] : []),
         ],
@@ -337,7 +334,7 @@ const root = Deno.cwd();
       cli.text,
     );
     const aliasRoot = `${scratch}-alias`;
-    await Deno.symlink(scratch, aliasRoot);
+    await sys.symlink(scratch, aliasRoot);
     try {
       const plain = await plainCorpusPath(aliasRoot, `${probe}/index.html`, "file");
       assert(
@@ -352,7 +349,7 @@ const root = Deno.cwd();
         JSON.stringify(dotHref),
       );
     } finally {
-      await Deno.remove(aliasRoot);
+      await sys.remove(aliasRoot);
     }
     const baseline = await scanCorpus(scratch);
     assert(
@@ -372,7 +369,7 @@ const root = Deno.cwd();
 
     // Only the overview PAGE changes; both contracts are conservatively checked, but the
     // wrong-surface finding belongs to the overview slice. The old ratchet checked ZERO.
-    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, page(neutral));
+    await sys.writeTextFile(`${scratch}/${probe}/index.html`, page(neutral));
     let r = await runRatchet(scratch);
     assert(
       "page-only mutation: contract JSON unchanged but owner and nested contracts are gated",
@@ -393,7 +390,7 @@ const root = Deno.cwd();
       JSON.stringify(report.byClass),
     );
 
-    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, page(`${named} Updated prose.`));
+    await sys.writeTextFile(`${scratch}/${probe}/index.html`, page(`${named} Updated prose.`));
     r = await runRatchet(scratch);
     assert(
       "page-only edit retaining the named surface remains green",
@@ -402,8 +399,8 @@ const root = Deno.cwd();
     );
 
     // A nested child PAGE can be documented by its ancestor AND its local contract. Gate both.
-    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, page(named));
-    await Deno.writeTextFile(`${scratch}/${child}/index.html`, page(neutral));
+    await sys.writeTextFile(`${scratch}/${probe}/index.html`, page(named));
+    await sys.writeTextFile(`${scratch}/${child}/index.html`, page(neutral));
     r = await runRatchet(scratch);
     assert(
       "nested page-only edit gates both ancestor and member contract, finding both wrong slices",
@@ -471,7 +468,7 @@ const root = Deno.cwd();
       nonemptyReport.text,
     );
 
-    await Deno.writeTextFile(`${scratch}/${probe}/reference-contract.json`, "{ malformed json");
+    await sys.writeTextFile(`${scratch}/${probe}/reference-contract.json`, "{ malformed json");
     cli = await runSurfaceGate();
     assert(
       "malformed touched contract fails with named file and parse reason (CLI rc1, no PASS)",
@@ -480,7 +477,7 @@ const root = Deno.cwd();
       cli.text,
     );
     for (const malformed of ["null", "{}", "[]"]) {
-      await Deno.writeTextFile(`${scratch}/${probe}/reference-contract.json`, malformed);
+      await sys.writeTextFile(`${scratch}/${probe}/reference-contract.json`, malformed);
       cli = await runSurfaceGate();
       assert(
         `parseable but malformed touched contract ${malformed} cannot be skipped`,
@@ -499,8 +496,8 @@ const root = Deno.cwd();
 
     // NotFound from the owner's readDir or the contract read is ambiguous: a dangling
     // directory symlink exists according to lstat, unlike a genuinely deleted owner.
-    await Deno.remove(`${scratch}/${probe}`, { recursive: true });
-    await Deno.symlink("missing-dir", `${scratch}/${probe}`);
+    await sys.remove(`${scratch}/${probe}`, { recursive: true });
+    await sys.symlink("missing-dir", `${scratch}/${probe}`);
     cli = await runSurfaceGate();
     assert(
       "dangling touched DIRECTORY fails by name and never claims its contract was checked",
@@ -510,7 +507,7 @@ const root = Deno.cwd();
         cli.text.includes("checked contracts 0") && !cli.text.includes("PASS —"),
       cli.text,
     );
-    await Deno.remove(`${scratch}/${probe}`);
+    await sys.remove(`${scratch}/${probe}`);
     await g("reset", "--hard", "HEAD");
     cli = await runSurfaceGate();
     assert(
@@ -519,8 +516,8 @@ const root = Deno.cwd();
       cli.text,
     );
 
-    await Deno.remove(`${scratch}/v147`, { recursive: true });
-    await Deno.symlink("missing-milestone", `${scratch}/v147`);
+    await sys.remove(`${scratch}/v147`, { recursive: true });
+    await sys.symlink("missing-milestone", `${scratch}/v147`);
     cli = await runSurfaceGate();
     assert(
       "dangling MILESTONE component fails with named summary and zero inspected contracts",
@@ -528,11 +525,11 @@ const root = Deno.cwd();
         cli.text.includes("checked contracts 0") && !cli.text.includes("PASS —"),
       cli.text,
     );
-    await Deno.remove(`${scratch}/v147`);
+    await sys.remove(`${scratch}/v147`);
     await g("reset", "--hard", "HEAD");
 
-    await Deno.remove(`${scratch}/${child}`, { recursive: true });
-    await Deno.symlink("missing-member", `${scratch}/${child}`);
+    await sys.remove(`${scratch}/${child}`, { recursive: true });
+    await sys.symlink("missing-member", `${scratch}/${child}`);
     cli = await runSurfaceGate();
     assert(
       "dangling MEMBER component fails with named summary",
@@ -540,13 +537,13 @@ const root = Deno.cwd();
         !cli.text.includes("PASS —"),
       cli.text,
     );
-    await Deno.remove(`${scratch}/${child}`);
+    await sys.remove(`${scratch}/${child}`);
     await g("reset", "--hard", "HEAD");
 
-    const outside = await Deno.makeTempDir({ prefix: "surface-outside-empty-" });
+    const outside = await sys.makeTempDir({ prefix: "surface-outside-empty-" });
     try {
-      await Deno.remove(`${scratch}/${child}`, { recursive: true });
-      await Deno.symlink(outside, `${scratch}/${child}`);
+      await sys.remove(`${scratch}/${child}`, { recursive: true });
+      await sys.symlink(outside, `${scratch}/${child}`);
       cli = await runSurfaceGate();
       assert(
         "symlink to REAL EMPTY OUTSIDE directory fails proactively",
@@ -555,17 +552,17 @@ const root = Deno.cwd();
         cli.text,
       );
     } finally {
-      await Deno.remove(`${scratch}/${child}`);
-      await Deno.remove(outside, { recursive: true });
+      await sys.remove(`${scratch}/${child}`);
+      await sys.remove(outside, { recursive: true });
       await g("reset", "--hard", "HEAD");
     }
 
     const contractPath = `${scratch}/${probe}/reference-contract.json`;
-    const externalContract = await Deno.makeTempFile({ prefix: "surface-real-contract-" });
+    const externalContract = await sys.makeTempFile({ prefix: "surface-real-contract-" });
     try {
-      await Deno.copyFile(contractPath, externalContract);
-      await Deno.remove(contractPath);
-      await Deno.symlink(externalContract, contractPath);
+      await sys.copyFile(contractPath, externalContract);
+      await sys.remove(contractPath);
+      await sys.symlink(externalContract, contractPath);
       cli = await runSurfaceGate();
       assert(
         "symlinked regular contract file is rejected even when target is readable",
@@ -574,14 +571,14 @@ const root = Deno.cwd();
         cli.text,
       );
     } finally {
-      await Deno.remove(contractPath);
-      await Deno.remove(externalContract);
+      await sys.remove(contractPath);
+      await sys.remove(externalContract);
       await g("reset", "--hard", "HEAD");
     }
 
-    await Deno.mkdir(`${scratch}/${probe}/private`);
-    await Deno.writeTextFile(`${scratch}/${probe}/private/index.html`, page(named));
-    await Deno.chmod(`${scratch}/${probe}/private`, 0o000);
+    await sys.mkdir(`${scratch}/${probe}/private`);
+    await sys.writeTextFile(`${scratch}/${probe}/private/index.html`, page(named));
+    await sys.chmod(`${scratch}/${probe}/private`, 0o000);
     try {
       cli = await runSurfaceGate();
       assert(
@@ -591,8 +588,8 @@ const root = Deno.cwd();
         cli.text,
       );
     } finally {
-      await Deno.chmod(`${scratch}/${probe}/private`, 0o700);
-      await Deno.remove(`${scratch}/${probe}/private`, { recursive: true });
+      await sys.chmod(`${scratch}/${probe}/private`, 0o700);
+      await sys.remove(`${scratch}/${probe}/private`, { recursive: true });
     }
     cli = await runSurfaceGate();
     assert(
@@ -614,13 +611,13 @@ const root = Deno.cwd();
       cli.text,
     );
   } finally {
-    await Deno.remove(scratch, { recursive: true });
+    await sys.remove(scratch, { recursive: true });
   }
 }
 
 // ---- 8. gendn-waa3: staged-then-reverted edit (git status MM) must not escape ----
 {
-  const scratch = await Deno.makeTempDir({ prefix: "waa3-surface-" });
+  const scratch = await sys.makeTempDir({ prefix: "waa3-surface-" });
   const probe = "v147/probe";
   const page = (text) =>
     `<html><body><h2 id="syntax">syntax</h2><p>${text}</p><h2 id="next">next</h2></body></html>`;
@@ -633,20 +630,20 @@ const root = Deno.cwd();
     dimensions: { syntax: { status: "documented", selector: "#syntax" } },
   };
   const g = async (...args) => {
-    const c = new Deno.Command("git", { args, cwd: scratch, stdout: "piped", stderr: "piped" });
+    const c = new sys.Command("git", { args, cwd: scratch, stdout: "piped", stderr: "piped" });
     const o = await c.output();
     if (!o.success) {
       throw new Error(`git ${args.join(" ")} failed: ${new TextDecoder().decode(o.stderr)}`);
     }
   };
   try {
-    await Deno.mkdir(`${scratch}/${probe}`, { recursive: true });
-    await Deno.writeTextFile(
+    await sys.mkdir(`${scratch}/${probe}`, { recursive: true });
+    await sys.writeTextFile(
       `${scratch}/${probe}/reference-contract.json`,
       JSON.stringify({ id: probe, inventory, documentation: [doc] }),
     );
     // Baseline starts with neutral placeholder: pre-existing debt on origin/main
-    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, page(neutral));
+    await sys.writeTextFile(`${scratch}/${probe}/index.html`, page(neutral));
     await g("init", "-q", "-b", "main");
     await g("config", "user.email", "waa3@example.test");
     await g("config", "user.name", "waa3");
@@ -663,7 +660,7 @@ const root = Deno.cwd();
     );
 
     // Case 2: Uncommitted edit to page with debt fails before commit
-    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, page(neutral) + "<!-- touch -->");
+    await sys.writeTextFile(`${scratch}/${probe}/index.html`, page(neutral) + "<!-- touch -->");
     r = await runRatchet(scratch);
     assert(
       "uncommitted touch to page with debt FAILS before commit (resolve-on-touch)",
@@ -683,8 +680,8 @@ const root = Deno.cwd();
     // Case 4: Staged-then-worktree-reverted (git status shows MM)
     // Working file restored to base content: base -> working tree diff is empty,
     // but the index holds the change, so union of git diff --cached keeps owner in the key.
-    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, page(neutral));
-    const statusCmd = new Deno.Command("git", {
+    await sys.writeTextFile(`${scratch}/${probe}/index.html`, page(neutral));
+    const statusCmd = new sys.Command("git", {
       args: ["status", "--short"],
       cwd: scratch,
       stdout: "piped",
@@ -717,7 +714,7 @@ const root = Deno.cwd();
     );
 
     // Case 6: Resolved — updating to named surface clears the failure
-    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, page(named));
+    await sys.writeTextFile(`${scratch}/${probe}/index.html`, page(named));
     await g("add", `${probe}/index.html`);
     await g("commit", "-qm", "resolve surface");
     r = await runRatchet(scratch);
@@ -727,13 +724,13 @@ const root = Deno.cwd();
       JSON.stringify(r.failures),
     );
   } finally {
-    await Deno.remove(scratch, { recursive: true });
+    await sys.remove(scratch, { recursive: true });
   }
 }
 
 if (failures > 0) {
   console.error(`surface-coverage fixture: ${failures} assertion(s) FAILED`);
-  Deno.exit(1);
+  process.exit(1);
 }
 console.log(
   "surface-coverage fixture: all assertions passed (5ao replay caught, alias path works, tiers hold, slicer self-check green)",

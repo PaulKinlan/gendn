@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-read --allow-write
+#!/usr/bin/env node
 // gen-conformance.mjs — derive a genuine immutable conformance suite for every published page.
 //
 // Assertions are DERIVED from each page's own real metadata (chromestatus feature id, route,
@@ -13,10 +13,11 @@
 // To grow an existing suite, add assertions by hand — never regenerate to go green.
 //
 // Usage (new suites need network access to verify CPS breadcrumbs/suite identities):
-//   deno task gen-conformance                       # write missing suites
-//   deno task gen-conformance --dry-run             # report only
-//   deno task gen-conformance --page v149/webmcp
+//   npm run gen-conformance                       # write missing suites
+//   npm run gen-conformance -- --dry-run             # report only
+//   npm run gen-conformance -- --page v149/webmcp
 
+import * as sys from "./lib/sys.mjs";
 import {
   collectPublishedPages,
   conformancePath,
@@ -339,7 +340,7 @@ async function buildSuite(meta) {
 }
 
 async function main() {
-  const args = Deno.args;
+  const args = sys.args;
   const dryRun = args.includes("--dry-run");
   const pageIdx = args.indexOf("--page");
   const only = pageIdx >= 0 ? args[pageIdx + 1] : undefined;
@@ -351,7 +352,7 @@ async function main() {
   });
   if (selection.error) {
     console.error(`gen-conformance: ${selection.error}`);
-    Deno.exit(1);
+    process.exit(1);
   }
   // Only prefetch independent disk reads. Keep suite generation (live CPS requests, warning
   // lines), writes, immutable skips, and the first error in input order as before.
@@ -359,13 +360,13 @@ async function main() {
     const pageId = pagePath.replace(/\/index\.html$/, "");
     const outPath = conformancePath(pageId, ".");
     try {
-      await Deno.stat(outPath);
+      await sys.stat(outPath);
       return { outPath, exists: true };
     } catch {
       // Existing behaviour treats any stat error as an absent suite.
     }
     try {
-      return { outPath, html: await Deno.readTextFile(`./${pagePath}`) };
+      return { outPath, html: await sys.readTextFile(`./${pagePath}`) };
     } catch (error) {
       return { error };
     }
@@ -389,7 +390,7 @@ async function main() {
     if (dryRun) {
       console.log(`would write ${outPath} (${suite.assertions.length} assertions)`);
     } else {
-      await Deno.writeTextFile(outPath, JSON.stringify(suite, null, 2) + "\n");
+      await sys.writeTextFile(outPath, JSON.stringify(suite, null, 2) + "\n");
       written++;
     }
   }
@@ -398,4 +399,4 @@ async function main() {
   );
 }
 
-if (import.meta.main) await main();
+if (sys.isMain(import.meta.url)) await main();

@@ -1,4 +1,3 @@
-// @fixture-permissions --allow-read --allow-write --allow-run=deno
 // scripts/lifecycle-units.test.mjs — direct renderer coverage for lib/lifecycle.ts (gendn-lny).
 //
 // THE GAP: /conformance, /conformance/run-all, /v<N>/<slug>/conformance and .../critique
@@ -39,7 +38,8 @@
 // one level up. It is now the s-status ROW alone, and the suite-wide check is a separate assertion
 // whose name says AGGREGATE.
 //
-// Run: deno task test-fixtures --tasks test-lifecycle-units
+// Run: npm run test-fixtures -- --tasks test-lifecycle-units
+import * as sys from "./lib/sys.mjs";
 
 const REPO = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
 const LIB = `file://${REPO}/lib/lifecycle.ts`;
@@ -57,7 +57,7 @@ function assert(name, ok, detail = "") {
 }
 
 // ---------- synthesize a temp catalogue root with hostile + benign artifacts ---------------
-const tmp = await Deno.makeTempDir({ prefix: "lifecycle-units-" });
+const tmp = await sys.makeTempDir({ prefix: "lifecycle-units-" });
 const j = (o) => JSON.stringify(o, null, 1);
 
 const EVIL = `<script>alert(1)</script>`;
@@ -70,8 +70,8 @@ const EVIL_ATTR = `"><script>alert(9)</script>`;
 // startsWith one is which STATE the row gets - hence the count-based canaries below.
 const PREFIX_VERDICT = `pass${EVIL_ATTR}`;
 
-await Deno.mkdir(`${tmp}/v900/evil`, { recursive: true });
-await Deno.writeTextFile(
+await sys.mkdir(`${tmp}/v900/evil`, { recursive: true });
+await sys.writeTextFile(
   `${tmp}/v900/evil/conformance.json`,
   j({
     id: "v900/evil",
@@ -111,7 +111,7 @@ await Deno.writeTextFile(
     ],
   }),
 );
-await Deno.writeTextFile(
+await sys.writeTextFile(
   `${tmp}/v900/evil/_questions.json`,
   j({
     id: `v900/evil${EVIL}`,
@@ -139,8 +139,8 @@ await Deno.writeTextFile(
     summary: `sum${EVIL}`,
   }),
 );
-await Deno.mkdir(`${tmp}/v900/ok`, { recursive: true });
-await Deno.writeTextFile(
+await sys.mkdir(`${tmp}/v900/ok`, { recursive: true });
+await sys.writeTextFile(
   `${tmp}/v900/ok/conformance.json`,
   j({
     id: "v900/ok",
@@ -166,8 +166,8 @@ await Deno.writeTextFile(
   }),
 );
 // gendn-i3yx: unverified CPS contracts must be plain text, never a fabricated href.
-await Deno.mkdir(`${tmp}/v900/unverified`, { recursive: true });
-await Deno.writeTextFile(
+await sys.mkdir(`${tmp}/v900/unverified`, { recursive: true });
+await sys.writeTextFile(
   `${tmp}/v900/unverified/conformance.json`,
   j({
     id: "v900/unverified",
@@ -193,8 +193,8 @@ await Deno.writeTextFile(
 // which would just assert the function agrees with itself). A leak at one site therefore fails
 // that row's pin and nothing else - unlike the presence check below, whose name ("appear ESCAPED")
 // overstates it, because any OTHER field's escaped form satisfies it.
-await Deno.mkdir(`${tmp}/v900/sites`, { recursive: true });
-await Deno.writeTextFile(
+await sys.mkdir(`${tmp}/v900/sites`, { recursive: true });
+await sys.writeTextFile(
   `${tmp}/v900/sites/conformance.json`,
   j({
     id: "v900/sites",
@@ -217,8 +217,8 @@ await Deno.writeTextFile(
     ],
   }),
 );
-await Deno.mkdir(`${tmp}/reports/conformance`, { recursive: true });
-await Deno.writeTextFile(
+await sys.mkdir(`${tmp}/reports/conformance`, { recursive: true });
+await sys.writeTextFile(
   `${tmp}/reports/conformance/results.json`,
   j({
     generatedAt: `2026-01-02T00:00:00Z${EVIL}`,
@@ -257,7 +257,7 @@ await Deno.writeTextFile(
   }),
 );
 const ROLLUP = `<!doctype html><html><body>ROLLUP-EXACT-CONTENT</body></html>`;
-await Deno.writeTextFile(`${tmp}/reports/conformance/index.html`, ROLLUP);
+await sys.writeTextFile(`${tmp}/reports/conformance/index.html`, ROLLUP);
 
 // ---------- render everything in a subprocess whose CWD is the temp root --------------------
 const HARNESS = `
@@ -275,9 +275,9 @@ const out = {
 };
 console.log(JSON.stringify(out));
 `;
-await Deno.writeTextFile(`${tmp}/_harness.ts`, HARNESS);
-const proc = await new Deno.Command("deno", {
-  args: ["run", "--allow-read", "_harness.ts"],
+await sys.writeTextFile(`${tmp}/_harness.ts`, HARNESS);
+const proc = await new sys.Command(sys.execPath(), {
+  args: ["_harness.ts"],
   cwd: tmp,
   stdout: "piped",
   stderr: "piped",
@@ -286,21 +286,21 @@ if (proc.code !== 0) {
   console.error(
     `FAIL: render subprocess exited ${proc.code}\n${new TextDecoder().decode(proc.stderr)}`,
   );
-  Deno.exit(1);
+  process.exit(1);
 }
 const R = JSON.parse(new TextDecoder().decode(proc.stdout));
 
 // run-all missing case: a second, reports-less root
-const tmp2 = await Deno.makeTempDir({ prefix: "lifecycle-units-empty-" });
-await Deno.writeTextFile(
+const tmp2 = await sys.makeTempDir({ prefix: "lifecycle-units-empty-" });
+await sys.writeTextFile(
   `${tmp2}/_harness.ts`,
   `
 import { renderRunAll, renderConformanceIndex } from "${LIB}";
 console.log(JSON.stringify({ runAll: await renderRunAll(), index: await renderConformanceIndex() }));
 `,
 );
-const proc2 = await new Deno.Command("deno", {
-  args: ["run", "--allow-read", "_harness.ts"],
+const proc2 = await new sys.Command(sys.execPath(), {
+  args: ["_harness.ts"],
   cwd: tmp2,
   stdout: "piped",
   stderr: "piped",
@@ -309,7 +309,7 @@ if (proc2.code !== 0) {
   console.error(
     `FAIL: empty-root subprocess exited ${proc2.code}\n${new TextDecoder().decode(proc2.stderr)}`,
   );
-  Deno.exit(1);
+  process.exit(1);
 }
 const R2 = JSON.parse(new TextDecoder().decode(proc2.stdout));
 
@@ -523,11 +523,11 @@ assert(
     !R.suiteEvil.includes("Embedded demo behavior governed"),
 );
 
-await Deno.remove(tmp, { recursive: true }).catch(() => {});
-await Deno.remove(tmp2, { recursive: true }).catch(() => {});
+await sys.remove(tmp, { recursive: true }).catch(() => {});
+await sys.remove(tmp2, { recursive: true }).catch(() => {});
 
 if (failures > 0) {
   console.error(`lifecycle-units.test.mjs: ${failures} assertion(s) failed`);
-  Deno.exit(1);
+  process.exit(1);
 }
 console.log(`lifecycle-units fixture: all ${passed} assertions passed`);

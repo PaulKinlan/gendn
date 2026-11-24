@@ -13,6 +13,7 @@
 // fragmentAfterId/stripMarkup/nameTokens from reference-contract.mjs); this script never
 // re-implements it. The /<h[1-3]\b/i rule ends a slice at the next h1/h2/h3 — the misread
 // 'next h2' produced gendn-5ao's self-confirming probe; the fixture replays that trap.
+import * as sys from "./lib/sys.mjs";
 import { surfaceCoverageFindings } from "./lib/surface-coverage.mjs";
 import { plainCorpusPath } from "./lib/plain-corpus-path.mjs";
 import { runGit } from "./lib/bounded-git.mjs";
@@ -53,7 +54,7 @@ async function* contractIdsUnder(root, id) {
   if (verdict.state === "missing") return; // genuine deletion: check-routes owns it
   if (verdict.state !== "ok") throw new Error(`${id}: ${verdict.reason}`);
   try {
-    for await (const entry of Deno.readDir(`${root}/${id}`)) {
+    for await (const entry of sys.readDir(`${root}/${id}`)) {
       const child = `${id}/${entry.name}`;
       if (entry.isSymlink) {
         throw new Error(`${child}: ${(await plainCorpusPath(root, child)).reason}`);
@@ -62,7 +63,7 @@ async function* contractIdsUnder(root, id) {
       if (entry.isDirectory) yield* contractIdsUnder(root, child);
     }
   } catch (err) {
-    if (err instanceof Deno.errors.NotFound) {
+    if (err instanceof sys.errors.NotFound) {
       const recheck = await plainCorpusPath(root, id);
       if (recheck.state === "missing") return; // genuine deletion, not a dangling component
     }
@@ -85,9 +86,9 @@ async function readHtml(root, path) {
   if (verdict.state === "missing") return null; // missing href is handled by contract validation
   if (verdict.state !== "ok") throw new Error(`${relative}: ${verdict.reason}`);
   try {
-    return await Deno.readTextFile(path);
+    return await sys.readTextFile(path);
   } catch (err) {
-    if (err instanceof Deno.errors.NotFound) {
+    if (err instanceof sys.errors.NotFound) {
       const recheck = await plainCorpusPath(root, relative, "file");
       if (recheck.state === "missing") return null;
     }
@@ -101,7 +102,7 @@ async function loadContract(root, id) {
   if (verdict.state === "missing") return null; // genuine removal: check-routes owns it
   if (verdict.state !== "ok") throw new Error(`${path}: ${verdict.reason}`);
   try {
-    const contract = JSON.parse(await Deno.readTextFile(`${root}/${path}`));
+    const contract = JSON.parse(await sys.readTextFile(`${root}/${path}`));
     if (
       !contract || typeof contract !== "object" || Array.isArray(contract) ||
       contract.id !== id || !Array.isArray(contract.inventory) ||
@@ -111,7 +112,7 @@ async function loadContract(root, id) {
     }
     return contract;
   } catch (err) {
-    if (err instanceof Deno.errors.NotFound) {
+    if (err instanceof sys.errors.NotFound) {
       const recheck = await plainCorpusPath(root, path, "file");
       if (recheck.state === "missing") return null;
     }
@@ -121,11 +122,11 @@ async function loadContract(root, id) {
 
 async function countCurrentContracts(root) {
   let count = 0;
-  for await (const rel of Deno.readDir(root)) {
+  for await (const rel of sys.readDir(root)) {
     if (!/^v\d+$/.test(rel.name)) continue;
     const milestone = await plainCorpusPath(root, rel.name);
     if (milestone.state !== "ok") throw new Error(`${rel.name}: ${milestone.reason}`);
-    for await (const slug of Deno.readDir(`${root}/${rel.name}`)) {
+    for await (const slug of sys.readDir(`${root}/${rel.name}`)) {
       if (!slug.isDirectory && !slug.isSymlink) continue;
       const owner = `${rel.name}/${slug.name}`;
       const verdict = await plainCorpusPath(root, owner);
@@ -248,11 +249,11 @@ export async function scanCorpus(root) {
   const byClass = {};
   let contracts = 0;
   let strictDims = 0;
-  for await (const rel of Deno.readDir(root)) {
+  for await (const rel of sys.readDir(root)) {
     if (!/^v\d+$/.test(rel.name)) continue;
     const milestone = await plainCorpusPath(root, rel.name);
     if (milestone.state !== "ok") throw new Error(`${rel.name}: ${milestone.reason}`);
-    for await (const slug of Deno.readDir(`${root}/${rel.name}`)) {
+    for await (const slug of sys.readDir(`${root}/${rel.name}`)) {
       if (!slug.isDirectory && !slug.isSymlink) continue;
       const owner = `${rel.name}/${slug.name}`;
       const verdict = await plainCorpusPath(root, owner);
@@ -281,22 +282,22 @@ export async function scanCorpus(root) {
   return { contracts, strictDims, byClass };
 }
 
-if (import.meta.main) {
-  const root = Deno.cwd();
-  const all = Deno.args.includes("--all");
+if (sys.isMain(import.meta.url)) {
+  const root = process.cwd();
+  const all = sys.args.includes("--all");
   if (all) {
     let r;
     try {
       r = await scanCorpus(root);
     } catch (err) {
       console.error(`FAIL — cannot scan published contract: ${err.message}`);
-      Deno.exit(1);
+      process.exit(1);
     }
     if (r.contracts === 0) {
       console.error(
         "FAIL — surface-coverage report cannot assess an empty published contract corpus (zero reference-contract.json files scanned)",
       );
-      Deno.exit(1);
+      process.exit(1);
     }
     console.log(
       `surface-coverage report: ${r.contracts} contracts, ${r.strictDims} strict-tier documented mappings`,
@@ -318,14 +319,14 @@ if (import.meta.main) {
     console.log(
       "\nreport mode: findings are measurement, not gate failures (gendn-m7e design constraint).",
     );
-    Deno.exit(0);
+    process.exit(0);
   }
   let r;
   try {
     r = await runRatchet(root);
   } catch (err) {
     console.error(`FAIL — cannot inspect published contract: ${err.message}`);
-    Deno.exit(1);
+    process.exit(1);
   }
   if (r.error) {
     // No independent baseline is a precondition failure (landing-preflight's rc6), not a
@@ -333,7 +334,7 @@ if (import.meta.main) {
     console.error(
       `FAIL — PRECONDITION (exit 6): surface-coverage ratchet could not verify: ${r.error}`,
     );
-    Deno.exit(6);
+    process.exit(6);
   }
   for (const w of r.warnings) console.log(`WARNING: ${w}`);
   const unchangedNote = r.vacuous
@@ -349,7 +350,7 @@ if (import.meta.main) {
     console.error(
       `FAIL — ${r.failures.length} surface-coverage violation(s) on touched contracts/pages (base ${r.base}; checked contracts ${r.inspected}; page owners ${r.pageOwners.length}).`,
     );
-    Deno.exit(1);
+    process.exit(1);
   }
   console.log(
     `PASS — no wrong-surface mappings on touched contracts/pages (base ${r.base}; checked contracts ${r.inspected}; page owners ${r.pageOwners.length}; warnings ${r.warnings.length})${unchangedNote}.`,

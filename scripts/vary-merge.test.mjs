@@ -1,4 +1,3 @@
-// @fixture-permissions --allow-read --allow-env=PORT
 // scripts/vary-merge.test.mjs — vary-header merging unit tests for withRevalidation (gendn-a3q).
 //
 // WHY THIS FILE EXISTS:
@@ -14,8 +13,9 @@
 // existing Vary values (e.g. "Accept-Language") and fails the assertion that checks for merged
 // "Accept-Language, accept-encoding".
 //
-// Run: deno task test-fixtures --tasks test-vary-merge
+// Run: npm run test-fixtures -- --tasks test-vary-merge
 
+import * as sys from "./lib/sys.mjs";
 import { withRevalidation } from "../server.ts";
 
 let failures = 0;
@@ -185,6 +185,6 @@ const etag = await computeEtag(body);
 
 if (failures > 0) {
   console.error(`vary-merge.test.mjs: ${failures} assertion(s) failed (${passed} passed)`);
-  Deno.exit(1);
+  process.exit(1);
 }
 console.log(`PASS — vary merge (${passed} assertions)`);

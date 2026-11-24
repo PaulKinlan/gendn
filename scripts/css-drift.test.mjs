@@ -1,4 +1,3 @@
-// @fixture-permissions --allow-read --allow-write --allow-run --allow-net=127.0.0.1,localhost --allow-env
 // scripts/css-drift.test.mjs — the DETERMINISTIC half of the CSS-drift coverage (gendn-xe6f).
 //
 // This file holds every assertion that needs no browser, no served tree and no git: route glob/list
@@ -9,7 +8,7 @@
 // The five REAL-BROWSER scenarios (record / refuse-overwrite / no-drift compare / mismatched corpus
 // / a real CSS mutation detected at both widths, plus the --changed scoping pass against a live
 // server) moved to the NAMED suite scripts/css-drift-browser.test.mjs, invoked as
-// `deno task test-css-drift-browser`. They are deliberately NOT auto-discovered: they cost ~29s of
+// `npm run test-css-drift-browser`. They are deliberately NOT auto-discovered: they cost ~29s of
 // real Chrome, and paying that for an unrelated landing is what gendn-ohot is about. The changed-path
 // map in scripts/gate-map.mjs makes that suite MANDATORY for changes to the CSS-drift sources, the
 // shared stylesheet, routing/server code or the browser-capture helpers, and reports it as
@@ -54,10 +53,12 @@ assert(
   "changed member and another leaf select their exact routes",
 );
 for (
-  const paths of [[], ["public/styles.css"], ["v149/new/index.html"], [
-    "v147/a/index.html",
-    "server.ts",
-  ]]
+  const paths of [
+    [],
+    ["public/styles.css"],
+    ["v149/new/index.html"],
+    ["v147/a/index.html", "server.ts"],
+  ]
 ) {
   let refused = false;
   try {
@@ -105,5 +106,5 @@ delete lost.pages["/v147/a/"];
 assert(compareSnapshots(baseline, lost).length === 2, "missing route fails at both widths");
 
 console.log(
-  "css-drift fixture: all selection/comparison assertions passed (browser half: deno task test-css-drift-browser)",
+  "css-drift fixture: all selection/comparison assertions passed (browser half: npm run test-css-drift-browser)",
 );

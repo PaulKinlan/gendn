@@ -21,9 +21,11 @@
 //   const { consoleErrors, failedRequests } = page.diagnostics();
 //   await page.close(); await browser.close();
 
+import * as sys from "./sys.mjs";
+
 function findChrome() {
   const candidates = [
-    Deno.env.get("CHROME_BIN"),
+    sys.env.get("CHROME_BIN"),
     "google-chrome-stable",
     "google-chrome",
     "chromium",
@@ -60,7 +62,7 @@ export async function raceWithTimeout(promise, timeoutMs, fallback) {
 export const CDP_TIMEOUT_MS = 30_000;
 export const CDP_TIMEOUT_MIN_MS = 1_000;
 export const CDP_TIMEOUT_MAX_MS = 120_000;
-// Example: GENDN_CDP_TIMEOUT_MS=60000 deno task conformance --page v147/js-profiling-in-dedicated-workers.
+// Example: GENDN_CDP_TIMEOUT_MS=60000 npm run conformance -- --page v147/js-profiling-in-dedicated-workers.
 const CDP_TIMEOUT_ENV = "GENDN_CDP_TIMEOUT_MS";
 const warnedCdpTimeoutValues = new Set();
 
@@ -83,7 +85,7 @@ export function configuredCdpTimeoutMs() {
   let raw;
   try {
     // Read lazily: some Chrome-free fixtures import this module without --allow-env.
-    raw = Deno.env.get(CDP_TIMEOUT_ENV);
+    raw = sys.env.get(CDP_TIMEOUT_ENV);
   } catch (error) {
     if (error?.name === "NotCapable" || error?.name === "PermissionDenied") return CDP_TIMEOUT_MS;
     throw error;
@@ -187,7 +189,7 @@ export function parseProcessListForDir(out, path) {
       }
       continue;
     }
-    if (pid === Deno.pid) continue;
+    if (pid === process.pid) continue;
     const args = trimmed.slice(sp + 1).trim();
     const argv0 = args.split(" ")[0] ?? "";
     if (args.includes(`--user-data-dir=${path}`) || argv0.includes("chrom")) pids.push(pid);
@@ -197,7 +199,7 @@ export function parseProcessListForDir(out, path) {
 
 async function pidsUsingDir(path) {
   try {
-    const cmd = new Deno.Command("ps", { args: ["-eo", "pid=,args="], stdout: "piped" });
+    const cmd = new sys.Command("ps", { args: ["-eo", "pid=,args="], stdout: "piped" });
     const { stdout } = await cmd.output();
     return parseProcessListForDir(new TextDecoder().decode(stdout), path);
   } catch (err) {
@@ -216,7 +218,7 @@ async function killProcessesUsingDir(path, timeoutMs = 5000) {
     if (pids.length === 0) return true;
     for (const pid of pids) {
       try {
-        Deno.kill(pid, "SIGKILL");
+        process.kill(pid, "SIGKILL");
       } catch {
         // already gone
       }
@@ -237,10 +239,10 @@ const liveProfileDirs = new Set();
 // (e.g. PermissionDenied for another user's process) count as ALIVE so we never sweep on doubt.
 function processAlive(pid) {
   try {
-    Deno.kill(pid, 0);
+    process.kill(pid, 0);
     return true;
   } catch (err) {
-    return !(err instanceof Deno.errors.NotFound);
+    return !(err instanceof sys.errors.NotFound);
   }
 }
 
@@ -251,7 +253,7 @@ function processAlive(pid) {
 function chromeHoldsLock(dir) {
   let target = null;
   try {
-    target = Deno.readLinkSync(`${dir}/SingletonLock`);
+    target = sys.readLinkSync(`${dir}/SingletonLock`);
   } catch {
     // absent, or not a symlink
   }
@@ -261,12 +263,12 @@ function chromeHoldsLock(dir) {
     return true; // present but unparseable: assume live
   }
   try {
-    Deno.lstatSync(`${dir}/SingletonLock`); // lock present but unreadable: assume live
+    sys.lstatSync(`${dir}/SingletonLock`); // lock present but unreadable: assume live
     return true;
   } catch (err) {
     // Absent → not held. Any OTHER failure (e.g. EACCES) means we cannot tell — assume
     // live, matching the conservative contract above; never report "not held" on doubt.
-    return err instanceof Deno.errors.NotFound ? false : true;
+    return err instanceof sys.errors.NotFound ? false : true;
   }
 }
 
@@ -294,9 +296,9 @@ const LEGACY_MIN_AGE_MS = 15 * 60 * 1000;
 // and the ps substring match (string-exact) always sees the same path Chrome was given.
 // Exported for the committed root-resolution fixture.
 export function tmpRoot() {
-  const raw = Deno.env.get("TMPDIR");
+  const raw = sys.env.get("TMPDIR");
   if (raw === undefined || raw === "") return "/tmp"; // unset and empty both mean the default
-  const abs = raw.startsWith("/") ? raw : `${Deno.cwd()}/${raw}`;
+  const abs = raw.startsWith("/") ? raw : `${process.cwd()}/${raw}`;
   return abs.replace(/\/+$/, "") || "/";
 }
 
@@ -305,7 +307,7 @@ async function sweepStaleProfileDirs() {
   let reclaimed = 0;
   const failed = [];
   try {
-    for (const entry of Deno.readDirSync(root)) {
+    for (const entry of sys.readDirSync(root)) {
       if (!entry.isDirectory || !entry.name.startsWith(PROFILE_PREFIX)) continue;
       const path = root === "/" ? `/${entry.name}` : `${root}/${entry.name}`;
       const m = /^gendn-cdp-(\d+)-/.exec(entry.name);
@@ -316,21 +318,21 @@ async function sweepStaleProfileDirs() {
         // dir is retained until that pid next exits — it leaks disk (visible as /tmp residue)
         // but can never delete a live run's dir, which is the safe direction. Rare on a large
         // pid space; the next reboot clears /tmp.
-        if (pid !== Deno.pid && processAlive(pid)) continue; // another live run owns it
-        if (pid === Deno.pid && liveProfileDirs.has(path)) continue; // our current browser
+        if (pid !== process.pid && processAlive(pid)) continue; // another live run owns it
+        if (pid === process.pid && liveProfileDirs.has(path)) continue; // our current browser
       } else {
         if (chromeHoldsLock(path)) continue;
-        const mtime = await Deno.stat(path).then((s) => s.mtime?.getTime()).catch(() => undefined);
+        const mtime = await sys.stat(path).then((s) => s.mtime?.getTime()).catch(() => undefined);
         if (mtime === undefined || Date.now() - mtime < LEGACY_MIN_AGE_MS) continue;
       }
       try {
         // The owning deno process is gone, but its Chrome may live on (reparented orphan) and
         // would recreate profile files after our remove — kill anything still using the dir.
         await killProcessesUsingDir(path);
-        await Deno.remove(path, { recursive: true });
+        await sys.remove(path, { recursive: true });
         reclaimed++;
       } catch (err) {
-        if (!(err instanceof Deno.errors.NotFound)) failed.push(`${path} (${err.message})`);
+        if (!(err instanceof sys.errors.NotFound)) failed.push(`${path} (${err.message})`);
       }
     }
   } catch (err) {
@@ -364,11 +366,11 @@ async function removeProfileDir(path, delays = [0, 150, 400, 900, 1900]) {
   for (const delay of delays) {
     if (delay > 0) await sleep(delay);
     try {
-      await Deno.remove(path, { recursive: true });
+      await sys.remove(path, { recursive: true });
       liveProfileDirs.delete(path);
       return true;
     } catch (err) {
-      if (err instanceof Deno.errors.NotFound) {
+      if (err instanceof sys.errors.NotFound) {
         liveProfileDirs.delete(path); // already gone (e.g. concurrent sweep) — fine
         return true;
       }
@@ -435,9 +437,9 @@ export function isLocalNavigation(url) {
 export async function ownedDevToolsPort(userDataDir) {
   let content;
   try {
-    content = await Deno.readTextFile(`${userDataDir}/DevToolsActivePort`);
+    content = await sys.readTextFile(`${userDataDir}/DevToolsActivePort`);
   } catch (error) {
-    if (error instanceof Deno.errors.NotFound) return null;
+    if (error instanceof sys.errors.NotFound) return null;
     throw error;
   }
   const [portText, path] = content.trim().split(/\r?\n/);
@@ -454,16 +456,16 @@ export async function ownedDevToolsPort(userDataDir) {
 export async function launch({ port = 9333 } = {}) {
   const bins = findChrome();
   await sweepStaleProfileDirs();
-  const userDataDir = await Deno.makeTempDir({
+  const userDataDir = await sys.makeTempDir({
     dir: tmpRoot(),
-    prefix: `${PROFILE_PREFIX}${Deno.pid}-`,
+    prefix: `${PROFILE_PREFIX}${process.pid}-`,
   });
   liveProfileDirs.add(userDataDir);
   let child = null;
   let lastErr = null;
   for (const bin of bins) {
     try {
-      const cmd = new Deno.Command(bin, {
+      const cmd = new sys.Command(bin, {
         args: [
           "--headless=new",
           "--no-sandbox",
@@ -722,7 +724,7 @@ class Page {
   }
   async screenshot(path) {
     const { data } = await this.sendSession("Page.captureScreenshot", { format: "png" });
-    await Deno.writeFile(path, Uint8Array.from(atob(data), (c) => c.charCodeAt(0)));
+    await sys.writeFile(path, Uint8Array.from(atob(data), (c) => c.charCodeAt(0)));
   }
   diagnostics() {
     return { consoleErrors: this.consoleErrors, failedRequests: this.failedRequests };

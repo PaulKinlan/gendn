@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-read
+#!/usr/bin/env node
 // check-verdict-emission.mjs — the verdict-emission check (sibling of check-routes.mjs,
 // validate-artifacts.mjs, and check-conformance.mjs): given ONE gate log, assert that the
 // conformance/responsive runner's end-of-run verdict block emitted exactly as many `verdict:` lines
@@ -55,7 +55,7 @@
 //     A signal leaves no trace in the command's OWN output, which is exactly why the wrapper writes
 //     it: the evidence cannot be produced by a run that merely died.
 //
-// A COMPLETED single-suite run (`deno task conformance --page <id>`, the landing gate's behavioural
+// A COMPLETED single-suite run (`npm run conformance -- --page <id>`, the landing gate's behavioural
 // accumulation runs) takes the run-all arm and prints `run-all: 1 suite(s) scanned (merged into …)`, so it is a run-all
 // phase log and owes exactly 1 (measured in the gendn-jeq landing logs). Only the SIGKILLed probe
 // log has no summary and owes 0.
@@ -67,7 +67,7 @@
 // expectations — the caller's phase and the derived one — because the caller asked about theirs.
 //
 // WHERE IT RUNS: the landing gate runs this against the REAL log of the phase it just ran, which is
-// the only place a regression in the runner's own output can be observed. `deno task
+// the only place a regression in the runner's own output can be observed. `npm run
 // test-verdict-emission` (and the CI step that calls it) exercises the CHECKER against synthetic
 // logs: it is a property of this script and NOT evidence about the runner — if scripts/conformance.mjs
 // stopped printing `verdict:` altogether, only a real-log landing run would notice.
@@ -77,12 +77,14 @@
 // log without kill evidence; 2 = usage error (bad arguments or an unreadable log).
 //
 // Usage:
-//   deno run --allow-read scripts/check-verdict-emission.mjs <log-path> [--phase <name>]
-//   deno task check-verdict-emission /tmp/gate-conformance.log --phase run-all
-//   deno task check-verdict-emission /tmp/gate-kill-probe.log --phase behavioural
+//   node scripts/check-verdict-emission.mjs <log-path> [--phase <name>]
+//   npm run check-verdict-emission -- /tmp/gate-conformance.log --phase run-all
+//   npm run check-verdict-emission -- /tmp/gate-kill-probe.log --phase behavioural
 //
 // The behavioural log must have been produced by scripts/kill-probe.sh, which appends the required
 // evidence line. A hand-run probe that bypasses the wrapper will be refused.
+
+import * as sys from "./lib/sys.mjs";
 
 const VERDICT_LINE = /^verdict:/;
 
@@ -112,7 +114,7 @@ const PHASES = {
     summary:
       /^run-all: (\d+) (?:suites · assertions \d+ pass \/ \d+ fail \/ \d+ blocked \(of \d+\)|suite\(s\) scanned \(merged into reports\/conformance\/results\.json; report now \d+ suites\))$/m,
     shape: "run-all: <n> suites · assertions … or run-all: <n> suite(s) scanned (merged into …)",
-    command: "deno task conformance [--page <id>]",
+    command: "npm run conformance [-- --page <id>]",
   },
   responsive: {
     // The scoped form (gendn-jvh) reads `responsive-check: <n> page(s) scanned (merged into …)`
@@ -121,7 +123,7 @@ const PHASES = {
     // scoped log and refuse it for missing kill evidence.
     summary: /^responsive-check: (\d+) page\(?s\)? scanned\b/m,
     shape: "responsive-check: <n> pages scanned",
-    command: "deno task responsive",
+    command: "npm run responsive",
   },
   behavioural: {
     summary: null,
@@ -141,7 +143,10 @@ export const PHASE_UNKNOWN = "unknown";
 // run that crashed carries the same banner, which is why this is evidence of a GATE LOG and not
 // proof of the kill probe — the proof is the caller's `--phase behavioural` declaration PLUS the
 // kill-evidence line below.
-const PROBE_INITIATION = /^Task \S+\b[^\n]*scripts\/conformance\.mjs/m;
+// Two harness shapes: npm's (`> <script>` then `> node scripts/conformance.mjs …`, possibly with a
+// `<package>@<version> ` prefix) and the legacy `deno task` one (`Task <name> … conformance.mjs`).
+const PROBE_INITIATION =
+  /^(?:Task \S+\b[^\n]*scripts\/conformance\.mjs|> (?:\S+@\S* )?\S+\r?\n> [^\n]*scripts\/conformance\.mjs)/m;
 
 // EVIDENCE OF A KILL (gendn-3t2), written by scripts/kill-probe.sh as the last line of the probe
 // log: `kill-probe: signal=<NAME|none> exit=<code>`. Its absence means the log was not produced by
@@ -242,13 +247,13 @@ export function expectedVerdictLines(phaseName) {
 function usage(message) {
   if (message) console.error(`check-verdict-emission: ${message}`);
   console.error(
-    "usage: deno run --allow-read scripts/check-verdict-emission.mjs <log-path> [--phase " +
+    "usage: node scripts/check-verdict-emission.mjs <log-path> [--phase " +
       PHASE_NAMES.join("|") + "]",
   );
 }
 
 async function main() {
-  const args = Deno.args;
+  const args = sys.args;
   let logPath = null;
   let declared = null;
   for (let i = 0; i < args.length; i++) {
@@ -259,7 +264,7 @@ async function main() {
       // and exited 0 without running the cross-check the caller asked for. It is a usage error.
       if (i + 1 >= args.length) {
         usage("--phase requires an argument");
-        Deno.exit(2);
+        process.exit(2);
       }
       declared = args[++i];
       continue;
@@ -269,23 +274,23 @@ async function main() {
       continue;
     }
     usage(`unexpected argument: ${args[i]}`);
-    Deno.exit(2);
+    process.exit(2);
   }
   if (logPath === null) {
     usage("a log path is required");
-    Deno.exit(2);
+    process.exit(2);
   }
   if (declared !== null && !PHASE_NAMES.includes(declared)) {
     usage(`unknown phase: ${declared}`);
-    Deno.exit(2);
+    process.exit(2);
   }
 
   let logText;
   try {
-    logText = stripAnsi(await Deno.readTextFile(logPath));
+    logText = stripAnsi(await sys.readTextFile(logPath));
   } catch (error) {
     usage(`cannot read ${logPath}: ${error.message}`);
-    Deno.exit(2);
+    process.exit(2);
   }
 
   const emitted = emittedVerdictLines(logText);
@@ -390,9 +395,9 @@ async function main() {
   if (problems.length) {
     console.error(`\nFAIL — ${problems.length} verdict-emission problem(s):`);
     for (const p of problems) console.error(`  - ${p}`);
-    Deno.exit(1);
+    process.exit(1);
   }
   console.log(`\nPASS — the ${derived.name} phase emitted exactly ${expected} verdict line(s).`);
 }
 
-if (import.meta.main) await main();
+if (sys.isMain(import.meta.url)) await main();

@@ -1,8 +1,8 @@
-// @fixture-permissions --allow-read --allow-write --allow-run
 // Fast, aggregate-discovered detectors for gendn's published-route identity and gate decisions.
 // These synthetic manifests exercise both failure and harmless-change directions without git or pages
 // - with ONE exception at the end (gendn-r1q), which calls git locally against a ref that cannot
 // exist, to pin that a non-zero exit NAMES what git said rather than only its exit code.
+import * as sys from "./lib/sys.mjs";
 import { evaluateRouteContract, loadMigrations, validateMigrationRecord } from "./check-routes.mjs";
 import { buildManifest, PAGE_RE, pathToIdentityFields } from "./route-manifest.mjs";
 import { metadataFromHtml } from "./lib/artifacts.mjs";
@@ -126,8 +126,8 @@ assert(
 // :playing/:paused ChromeStatus entry is context only, not v150's canonical identity.
 const v150MediaId = "v150/media-element-pseudo-classes";
 const v152MediaId = "v152/media-element-pseudo-classes";
-const v150MediaHtml = await Deno.readTextFile(`${v150MediaId}/index.html`);
-const v152MediaHtml = await Deno.readTextFile(`${v152MediaId}/index.html`);
+const v150MediaHtml = await sys.readTextFile(`${v150MediaId}/index.html`);
+const v152MediaHtml = await sys.readTextFile(`${v152MediaId}/index.html`);
 const v150Media = pathToIdentityFields(`${v150MediaId}/index.html`, v150MediaHtml);
 const v152Media = pathToIdentityFields(`${v152MediaId}/index.html`, v152MediaHtml);
 assert(
@@ -222,9 +222,9 @@ for (
   ]
 ) {
   const pagePath = `${id}/index.html`;
-  const pageHtml = await Deno.readTextFile(new URL(`../${pagePath}`, import.meta.url));
+  const pageHtml = await sys.readTextFile(new URL(`../${pagePath}`, import.meta.url));
   const suite = JSON.parse(
-    await Deno.readTextFile(new URL(`../${id}/conformance.json`, import.meta.url)),
+    await sys.readTextFile(new URL(`../${id}/conformance.json`, import.meta.url)),
   );
   const manifestFields = pathToIdentityFields(pagePath, pageHtml);
   const metadataFields = metadataFromHtml(pagePath, pageHtml);
@@ -240,7 +240,7 @@ for (
     }),
   );
 }
-const webnnPageHtml = await Deno.readTextFile(
+const webnnPageHtml = await sys.readTextFile(
   new URL("../v147/web-neural-network-api-webnn/index.html", import.meta.url),
 );
 assert(
@@ -250,7 +250,7 @@ assert(
     !webnnPageHtml.includes(`${showcase}/v147/web-neural-network-api-webnn/`) &&
     webnnPageHtml.includes("different ChromeStatus feature (5176273954144256)"),
 );
-const workerPageHtml = await Deno.readTextFile(
+const workerPageHtml = await sys.readTextFile(
   new URL("../v153/expose-cssstylevalue-hierarchy-to-worker-contexts/index.html", import.meta.url),
 );
 assert(
@@ -319,14 +319,19 @@ assert(
 );
 assert(
   "demo-change migration authorizes deliberate demo removal",
-  (await evaluate([withDemo], [base], [{
-    id: "v153/foo",
-    action: "demo-change",
-  }])).failures.length === 0,
+  (await evaluate(
+    [withDemo],
+    [base],
+    [{
+      id: "v153/foo",
+      action: "demo-change",
+    }],
+  )).failures.length === 0,
 );
-const repointedDemo = await evaluate([withDemo], [
-  entry("v153/foo", { demo: `${showcase}/v150/out-of-order-streaming/` }),
-]);
+const repointedDemo = await evaluate(
+  [withDemo],
+  [entry("v153/foo", { demo: `${showcase}/v150/out-of-order-streaming/` })],
+);
 assert(
   "repointing showcase demo link to another demo fails",
   mentions(repointedDemo, "demo link changed for v153/foo"),
@@ -347,15 +352,19 @@ assert(
     mentions(sameFeatureSwap, "demo-change"),
   JSON.stringify(sameFeatureSwap.failures),
 );
-const authorizedSameFeatureSwap = await evaluate([autofill], [autofillLog], [{
-  id: autofill.id,
-  action: "demo-change",
-  from: autofill.demo,
-  to: autofillLog.demo,
-  reason: "Deliberately switch the primary concept after review",
-  evidence: "Reviewed demo and critique evidence for this behavior change",
-  date: "2026-10-07",
-}]);
+const authorizedSameFeatureSwap = await evaluate(
+  [autofill],
+  [autofillLog],
+  [{
+    id: autofill.id,
+    action: "demo-change",
+    from: autofill.demo,
+    to: autofillLog.demo,
+    reason: "Deliberately switch the primary concept after review",
+    evidence: "Reviewed demo and critique evidence for this behavior change",
+    date: "2026-10-07",
+  }],
+);
 assert(
   "same-feature concept swap PASSES with reviewed demo-change migration",
   authorizedSameFeatureSwap.failures.length === 0 &&
@@ -366,21 +375,25 @@ assert(
 );
 assert(
   "demo-change migration authorizes deliberate demo repointing",
-  (await evaluate([withDemo], [
-    entry("v153/foo", { demo: `${showcase}/v150/out-of-order-streaming/` }),
-  ], [{
-    id: "v153/foo",
-    action: "demo-change",
-  }])).failures.length === 0,
+  (await evaluate(
+    [withDemo],
+    [entry("v153/foo", { demo: `${showcase}/v150/out-of-order-streaming/` })],
+    [{
+      id: "v153/foo",
+      action: "demo-change",
+    }],
+  )).failures.length === 0,
 );
 assert(
   "identity-change migration also authorizes deliberate demo repointing",
-  (await evaluate([withDemo], [
-    entry("v153/foo", { demo: `${showcase}/v150/out-of-order-streaming/` }),
-  ], [{
-    id: "v153/foo",
-    action: "identity-change",
-  }])).failures.length === 0,
+  (await evaluate(
+    [withDemo],
+    [entry("v153/foo", { demo: `${showcase}/v150/out-of-order-streaming/` })],
+    [{
+      id: "v153/foo",
+      action: "identity-change",
+    }],
+  )).failures.length === 0,
 );
 assert(
   "route that never had a demo staying null passes",
@@ -442,10 +455,14 @@ assert(
 );
 assert(
   "identity-change migration authorizes a deliberate repurpose",
-  (await evaluate([base], [entry("v153/foo", { identity: "456" })], [{
-    id: "v153/foo",
-    action: "identity-change",
-  }])).failures.length === 0,
+  (await evaluate(
+    [base],
+    [entry("v153/foo", { identity: "456" })],
+    [{
+      id: "v153/foo",
+      action: "identity-change",
+    }],
+  )).failures.length === 0,
 );
 // gendn-p9ko: removing all feature links leaves identity null, which must fail the route gate
 // rather than bypassing the comparison.
@@ -456,9 +473,10 @@ assert(
 );
 
 const stubBase = entry("v153/stub", { status: "stub" });
-const removedIdentityStub = await evaluate([stubBase], [
-  entry("v153/stub", { status: "stub", identity: null }),
-]);
+const removedIdentityStub = await evaluate(
+  [stubBase],
+  [entry("v153/stub", { status: "stub", identity: null })],
+);
 assert(
   "removing feature identity from a published stub fails",
   mentions(removedIdentityStub, "missing identity for published route v153/stub"),
@@ -466,10 +484,14 @@ assert(
 
 assert(
   "identity-change migration authorizes deliberate identity removal",
-  (await evaluate([base], [entry("v153/foo", { identity: null })], [{
-    id: "v153/foo",
-    action: "identity-change",
-  }])).failures.length === 0,
+  (await evaluate(
+    [base],
+    [entry("v153/foo", { identity: null })],
+    [{
+      id: "v153/foo",
+      action: "identity-change",
+    }],
+  )).failures.length === 0,
 );
 assert(
   "built route resolution check is reachable when the page disappears",
@@ -486,24 +508,31 @@ assert(
 );
 assert(
   "child reference route replacement passes only with a same-feature alias",
-  (await evaluate([withReference], [entry("v153/foo", {
-    referenceRoutes: ["/v153/foo/replacement/"],
-  })], [{
-    id: "v153/foo",
-    action: "alias",
-    from: reference,
-    to: "/v153/foo/replacement/",
-  }])).failures.length === 0,
+  (await evaluate(
+    [withReference],
+    [entry("v153/foo", {
+      referenceRoutes: ["/v153/foo/replacement/"],
+    })],
+    [{
+      id: "v153/foo",
+      action: "alias",
+      from: reference,
+      to: "/v153/foo/replacement/",
+    }],
+  )).failures.length === 0,
 );
 const supported = entry("v153/foo", { support: { desktop: "ok", mobile: "ok" } });
 assert(
   "ok to unsupported is allowed when capability is honestly unavailable",
-  (await evaluate([supported], [entry("v153/foo", {
-    support: {
-      desktop: "unsupported",
-      mobile: "ok",
-    },
-  })])).failures.length === 0,
+  (await evaluate(
+    [supported],
+    [entry("v153/foo", {
+      support: {
+        desktop: "unsupported",
+        mobile: "ok",
+      },
+    })],
+  )).failures.length === 0,
 );
 assert(
   "ok to untested support regression fails without a migration",
@@ -512,12 +541,15 @@ assert(
 assert(
   "broken support fails even for a newly added page",
   mentions(
-    await evaluate([], [entry("v154/broken", {
-      support: {
-        desktop: "broken",
-        mobile: "untested",
-      },
-    })]),
+    await evaluate(
+      [],
+      [entry("v154/broken", {
+        support: {
+          desktop: "broken",
+          mobile: "untested",
+        },
+      })],
+    ),
     "recorded broken on desktop",
   ),
 );
@@ -681,9 +713,11 @@ try {
   );
 
   // evaluateRouteContract reports a failure when a non-slash migration is present
-  const gateResult = await evaluate([base], [base], [
-    { id: "v149/foo", action: "move", from: "/v149/foo", to: "/v150/foo/" },
-  ]);
+  const gateResult = await evaluate(
+    [base],
+    [base],
+    [{ id: "v149/foo", action: "move", from: "/v149/foo", to: "/v150/foo/" }],
+  );
   assert(
     "evaluateRouteContract rejects non-slash-terminated move migration",
     mentions(gateResult, "must end in '/' (path boundary invariant"),
@@ -692,7 +726,7 @@ try {
 
 // gendn-ip0z: staged-then-reverted edit (git status MM) must not escape check-routes / route-manifest
 {
-  const scratch = await Deno.makeTempDir({ prefix: "ip0z-route-manifest-" });
+  const scratch = await sys.makeTempDir({ prefix: "ip0z-route-manifest-" });
   const probe = "v900/probe";
   const probePage = (featureId, extra = "") =>
     `<!doctype html><html><head></head><body><h1>Probe</h1>` +
@@ -701,7 +735,7 @@ try {
   const mutatedFeature = "9999999999";
 
   const g = async (...args) => {
-    const c = new Deno.Command("git", { args, cwd: scratch, stdout: "piped", stderr: "piped" });
+    const c = new sys.Command("git", { args, cwd: scratch, stdout: "piped", stderr: "piped" });
     const o = await c.output();
     if (!o.success) {
       throw new Error(`git ${args.join(" ")} failed: ${new TextDecoder().decode(o.stderr)}`);
@@ -710,8 +744,8 @@ try {
   };
 
   try {
-    await Deno.mkdir(`${scratch}/${probe}`, { recursive: true });
-    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, probePage(baseFeature));
+    await sys.mkdir(`${scratch}/${probe}`, { recursive: true });
+    await sys.writeTextFile(`${scratch}/${probe}/index.html`, probePage(baseFeature));
     await g("init", "-q", "-b", "main");
     await g("config", "user.email", "ip0z@example.test");
     await g("config", "user.name", "ip0z");
@@ -734,7 +768,7 @@ try {
 
     // Case 2: Uncommitted edit in working tree (mutating identity) — fails gate
     invalidateJudgedCache();
-    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, probePage(mutatedFeature));
+    await sys.writeTextFile(`${scratch}/${probe}/index.html`, probePage(mutatedFeature));
     current = await buildManifest({ root: scratch });
     assert(
       "ip0z Case 2 (uncommitted): manifest reflects worktree identity",
@@ -764,7 +798,7 @@ try {
     // Worktree file restored to base content: base -> worktree diff is empty,
     // but the index holds the change, so route-manifest reads from the index.
     invalidateJudgedCache();
-    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, probePage(baseFeature));
+    await sys.writeTextFile(`${scratch}/${probe}/index.html`, probePage(baseFeature));
     const statusOut = (await g("status", "--short")).trim();
     assert(
       "ip0z Case 4: git status shows MM for staged-then-reverted page",
@@ -783,7 +817,7 @@ try {
 
     // Case 5: Committed edit — fails gate
     invalidateJudgedCache();
-    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, probePage(mutatedFeature));
+    await sys.writeTextFile(`${scratch}/${probe}/index.html`, probePage(mutatedFeature));
     await g("commit", "-am", "commit mutated identity");
     current = await buildManifest({ root: scratch });
     evaluated = await evaluate(baselineManifest, current);
@@ -794,7 +828,7 @@ try {
 
     // Case 6: Resolved — passes gate
     invalidateJudgedCache();
-    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, probePage(baseFeature));
+    await sys.writeTextFile(`${scratch}/${probe}/index.html`, probePage(baseFeature));
     await g("commit", "-am", "resolve identity");
     current = await buildManifest({ root: scratch });
     evaluated = await evaluate(baselineManifest, current);
@@ -804,9 +838,9 @@ try {
     // Worktree identity reverted to base, but carries an unrelated comment (git status MM with worktree != base).
     // The reader must still read the staged index content and fail the gate.
     invalidateJudgedCache();
-    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, probePage(mutatedFeature));
+    await sys.writeTextFile(`${scratch}/${probe}/index.html`, probePage(mutatedFeature));
     await g("add", `${probe}/index.html`);
-    await Deno.writeTextFile(
+    await sys.writeTextFile(
       `${scratch}/${probe}/index.html`,
       probePage(baseFeature, "<!-- unrelated decoy edit -->"),
     );
@@ -849,12 +883,12 @@ try {
     // Worktree reverts identity to base, but eyebrow becomes "Covered on MDN" (tolerated status drift).
     // The reader must still read the staged index content and fail the gate.
     invalidateJudgedCache();
-    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, probePage(mutatedFeature));
+    await sys.writeTextFile(`${scratch}/${probe}/index.html`, probePage(mutatedFeature));
     await g("add", `${probe}/index.html`);
     const mdnStubPage =
       `<!doctype html><html><head></head><body><p class="eyebrow">Covered on MDN</p><h1>Probe</h1>` +
       `<a href="https://chromestatus.com/feature/${baseFeature}">ChromeStatus</a></body></html>`;
-    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, mdnStubPage);
+    await sys.writeTextFile(`${scratch}/${probe}/index.html`, mdnStubPage);
     const adv2Status = (await g("status", "--short")).trim();
     assert(
       "0n5s Case 9 (ADV2): git status shows MM for staged mutation with tolerated status decoy",
@@ -880,8 +914,8 @@ try {
     // and passing gate with a reviewed move migration.
     const probe2 = `${probe}2`;
     await g("mv", probe, probe2);
-    await Deno.mkdir(`${scratch}/${probe}`, { recursive: true });
-    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, probePage(baseFeature));
+    await sys.mkdir(`${scratch}/${probe}`, { recursive: true });
+    await sys.writeTextFile(`${scratch}/${probe}/index.html`, probePage(baseFeature));
     const renameStatus = (await g("status", "--short")).trim();
     assert(
       "0n5s Case 10: git status shows staged rename (R ) and untracked restored old dir (??)",
@@ -918,8 +952,8 @@ try {
     // git rm deletes probe/index.html from index, but file is re-created on disk (status D + ??).
     // The reader must read the index deletion, omit the route from current manifest, and fail gate.
     await g("rm", "-q", `${probe}/index.html`);
-    await Deno.mkdir(`${scratch}/${probe}`, { recursive: true });
-    await Deno.writeTextFile(`${scratch}/${probe}/index.html`, probePage(baseFeature));
+    await sys.mkdir(`${scratch}/${probe}`, { recursive: true });
+    await sys.writeTextFile(`${scratch}/${probe}/index.html`, probePage(baseFeature));
     const deleteStatus = (await g("status", "--short")).trim();
     assert(
       "0n5s Case 11: git status shows staged deletion (D ) and untracked file on disk (??)",
@@ -950,9 +984,9 @@ try {
       errorNamedDeletion,
     );
   } finally {
-    await Deno.remove(scratch, { recursive: true });
+    await sys.remove(scratch, { recursive: true });
   }
 }
 
-if (failures) Deno.exit(1);
+if (failures) process.exit(1);
 console.log(`route contract fixture: all ${passed} assertions passed`);

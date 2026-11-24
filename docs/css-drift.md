@@ -9,9 +9,9 @@ or conformance gate and does not replace browser interaction/accessibility revie
 > recording after the edit cannot measure the change that already happened.
 >
 1. Before a CSS convergence wave, record a baseline from the unmodified tree:
-   `deno task css-drift --record wave-name --routes 'v147/*'`
+   `npm run css-drift -- --record wave-name --routes 'v147/*'`
 2. After the edit, with the same worktree and Chrome version:
-   `deno task css-drift --compare wave-name --routes 'v147/*'`
+   `npm run css-drift -- --compare wave-name --routes 'v147/*'`
 3. Inspect `reports/css-drift/wave-name.diff.json` and the first route's
    `wave-name.{record,compare}.{desktop,mobile}.png` screenshots. Zero differences
    exits 0; computed-style differences exit 1; incomplete scans/invalid state exit 2.
@@ -21,8 +21,8 @@ nested reference routes. For a fast lane check of **leaf reference edits**, use
 `--changed` in both commands **only if the branch already has a stable leaf-route
 diff before the CSS edit**: it selects published routes touched since the merge-base
 of fetched `origin/main` and `HEAD`, including staged and untracked edits. Record
-with `deno task css-drift --record pr-42 --changed` **before the CSS edit**,
-then compare with `deno task css-drift --compare pr-42 --changed` after it.
+with `npm run css-drift -- --record pr-42 --changed` **before the CSS edit**,
+then compare with `npm run css-drift -- --compare pr-42 --changed` after it.
 On a clean tree before the first edit, `--changed` has no routes: instead record
 with explicit `--routes` **before** editing and compare with that same explicit
 route list. Never record a baseline after the edit to make `--changed` work. Keep the
@@ -41,6 +41,6 @@ against a different route set or Chrome version, and aborts on failed local load
 The check samples up to three nodes of each designated element/component selector
 and selected computed CSS properties. Changes deeper in repeated tables or in
 unselected selectors/properties are **not detected**. Animations/transitions are
-disabled during collection; web fonts are awaited. Use `deno task responsive` and
+disabled during collection; web fonts are awaited. Use `npm run responsive` and
 visual inspection for broader UI coverage. For longer runs use a bounded
 `fleet-gate` job rather than tying up a foreground lane.

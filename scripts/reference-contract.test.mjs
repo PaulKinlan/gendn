@@ -1,12 +1,11 @@
-// @fixture-permissions --allow-read --allow-write
 // THE CONTROL FOR THIS FILE IS THE RUNNER'S EXIT CODE, NOT A COUNT OF ITS PASS LINES (gendn-ijf).
 //
 // This is written here rather than in a bead because a rule survives only if it is in the artefact the
 // next worker reads. A count of `PASS` lines is a PLURALITY OF READINGS: a red suite that emits 33 PASS
 // lines satisfies `33 == $(... | grep -c ^PASS)`, and the count cannot distinguish that from a green run.
 // The exit code is the fact that differs when this file is broken, so:
-//     deno task test-reference-contract; echo "exit=$?"      <- the verdict is the exit code
-//     deno task test-reference-contract | grep -c ^PASS      <- context only, NEVER the control
+//     npm run test-reference-contract; echo "exit=$?"      <- the verdict is the exit code
+//     npm run test-reference-contract | grep -c ^PASS      <- context only, NEVER the control
 // `deno task` already propagates this file's exit status, so any caller that checks `$?` - a gate, a
 // fleet-check, a person at a prompt - is asserting it. There is deliberately NO in-file assertion of the
 // exit code: the exit code is produced BY these assertions, so asserting it here would be circular.
@@ -15,6 +14,7 @@
 // see the exact-length assertions below, and the surfaceNotePages pins, each of which names the value it
 // expects rather than printing a number for a reader to judge.
 //
+import * as sys from "./lib/sys.mjs";
 import { referenceRouteMigration } from "./check-routes.mjs";
 import { isMdnStubHtml } from "./lib/artifacts.mjs";
 import {
@@ -33,10 +33,10 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-const root = await Deno.makeTempDir({ prefix: "gendn-reference-contract-" });
+const root = await sys.makeTempDir({ prefix: "gendn-reference-contract-" });
 try {
   const id = "v999/example-api";
-  await Deno.mkdir(`${root}/${id}/thing/do-work`, { recursive: true });
+  await sys.mkdir(`${root}/${id}/thing/do-work`, { recursive: true });
   const source = "https://example.com/spec#do-work";
   const sections = [
     [
@@ -79,7 +79,7 @@ try {
   const body = sections.map(([name, body]) =>
     `<section><h2 id=\"${name}\">${name}</h2>${body}<p><a href=\"${source}\">Normative source</a></p></section>`
   ).join("\n");
-  await Deno.writeTextFile(
+  await sys.writeTextFile(
     `${root}/${id}/thing/do-work/index.html`,
     `<!doctype html><main>${body}</main>`,
   );
@@ -223,10 +223,13 @@ dictionary D {
   );
   assert(
     validateDeclaredSurface(
-      surfaceContract(["alpha"], [{
-        name: "beta",
-        rationale: "Quoted context from the surrounding interface; not part of this feature.",
-      }]),
+      surfaceContract(
+        ["alpha"],
+        [{
+          name: "beta",
+          rationale: "Quoted context from the surrounding interface; not part of this feature.",
+        }],
+      ),
       idlPage,
     ).length === 0,
     "a specific outOfScope rationale did not account for a declared member",
@@ -240,10 +243,13 @@ dictionary D {
   );
   assert(
     validateDeclaredSurface(
-      surfaceContract(["alpha", "beta"], [{
-        name: "gamma",
-        rationale: "Names something the page never declares at all.",
-      }]),
+      surfaceContract(
+        ["alpha", "beta"],
+        [{
+          name: "gamma",
+          rationale: "Names something the page never declares at all.",
+        }],
+      ),
       idlPage,
     ).some((e) => e.includes("matches no member declared")),
     "an outOfScope entry naming an undeclared member was accepted",
@@ -591,10 +597,13 @@ dictionary D {
   assert(
     JSON.stringify(
       declaredSurfaceSummary(
-        surfaceContract(["alpha"], [{
-          name: "beta",
-          rationale: "Quoted context from the surrounding interface; not part of this feature.",
-        }]),
+        surfaceContract(
+          ["alpha"],
+          [{
+            name: "beta",
+            rationale: "Quoted context from the surrounding interface; not part of this feature.",
+          }],
+        ),
         idlPage,
       ),
     ) === JSON.stringify({ declared: 2, inventory: 1, outOfScope: 1 }),
@@ -604,7 +613,7 @@ dictionary D {
   // SCOPING (coord, 2026-10-06): the general validator must NOT apply this rule, because pre-existing
   // contracts that quote a surrounding interface as context would red for a pattern that is not the
   // defect. It is enforced by check-conformance for TOUCHED pages only.
-  await Deno.writeTextFile(`${root}/${id}/index.html`, idlPage);
+  await sys.writeTextFile(`${root}/${id}/index.html`, idlPage);
   const surfaceErrors = await validateReferenceContract(
     { ...structuredClone(contract), inventory: [{ id: "do-work", sourceRefs: ["spec"] }] },
     root,
@@ -613,7 +622,7 @@ dictionary D {
     !surfaceErrors.some((e) => e.includes("declared surface member")),
     "the general validator applied the declared-surface rule; it must be scoped to touched pages",
   );
-  await Deno.remove(`${root}/${id}/index.html`);
+  await sys.remove(`${root}/${id}/index.html`);
 
   assert(
     !isMdnStubHtml('<!-- documented on MDN --><p class="eyebrow">v999 · web api</p>'),
@@ -640,8 +649,8 @@ dictionary D {
     "contract stored under one feature was allowed to claim another feature",
   );
 
-  const originalHtml = await Deno.readTextFile(`${root}/${id}/thing/do-work/index.html`);
-  await Deno.writeTextFile(
+  const originalHtml = await sys.readTextFile(`${root}/${id}/thing/do-work/index.html`);
+  await sys.writeTextFile(
     `${root}/${id}/thing/do-work/index.html`,
     `<!doctype html><main><!--${body}--></main>`,
   );
@@ -650,7 +659,7 @@ dictionary D {
     commentOnlyErrors.some((error) => error.includes("selector #syntax does not exist")),
     "comment-only IDs/code/tables/source links were accepted as rendered documentation",
   );
-  await Deno.writeTextFile(
+  await sys.writeTextFile(
     `${root}/${id}/thing/do-work/index.html`,
     `<!doctype html><main><div hidden>${body}</div></main>`,
   );
@@ -659,7 +668,7 @@ dictionary D {
     hiddenOnlyErrors.some((error) => error.includes("selector #syntax does not exist")),
     "hidden-only IDs/code/tables/source links were accepted as visible documentation",
   );
-  await Deno.writeTextFile(
+  await sys.writeTextFile(
     `${root}/${id}/thing/do-work/index.html`,
     `<!doctype html><main><div style="display: none">${body}</div></main>`,
   );
@@ -668,7 +677,7 @@ dictionary D {
     inlineHiddenErrors.some((error) => error.includes("selector #syntax does not exist")),
     "inline-CSS-hidden documentation was accepted as visible documentation",
   );
-  await Deno.writeTextFile(
+  await sys.writeTextFile(
     `${root}/${id}/thing/do-work/index.html`,
     `<!doctype html><main><details><summary>Hidden reference</summary>${body}</details></main>`,
   );
@@ -678,7 +687,7 @@ dictionary D {
     "documentation available only inside closed details was accepted as visible",
   );
 
-  await Deno.writeTextFile(
+  await sys.writeTextFile(
     `${root}/${id}/thing/do-work/index.html`,
     originalHtml.replaceAll(`<a href="${source}">`, `<div data-href="${source}">`).replaceAll(
       "</a>",
@@ -690,7 +699,7 @@ dictionary D {
     fakeHrefErrors.some((error) => error.includes("target page does not link")),
     "data-href attributes were accepted as clickable source links",
   );
-  await Deno.writeTextFile(`${root}/${id}/thing/do-work/index.html`, originalHtml);
+  await sys.writeTextFile(`${root}/${id}/thing/do-work/index.html`, originalHtml);
 
   const unlinkedNotApplicable = structuredClone(contract);
   unlinkedNotApplicable.sources.push({ id: "other-spec", url: "https://example.com/other-spec" });
@@ -741,8 +750,8 @@ dictionary D {
   // only prose explaining that the change ships nothing declarable
   const grammarFreeSection =
     `<section><h2 id="no-grammar">No grammar</h2><p>This change ships no declaration grammar: it is a transport-level switch with no new property, no API and no policy surface, so an author declares nothing and there is no syntax surface to document.</p><p><a href="${source}">Normative source</a></p></section>`;
-  const page = await Deno.readTextFile(`${root}/${id}/thing/do-work/index.html`);
-  await Deno.writeTextFile(
+  const page = await sys.readTextFile(`${root}/${id}/thing/do-work/index.html`);
+  await sys.writeTextFile(
     `${root}/${id}/thing/do-work/index.html`,
     page.replace("</main>", `${grammarFreeSection}</main>`),
   );
@@ -1168,7 +1177,7 @@ dictionary D {
 
     // 4. Verify that v152/window-shape-api reference contract accounts for both current and legacy surfaces
     const wshapeContract = JSON.parse(
-      await Deno.readTextFile("v152/window-shape-api/reference-contract.json"),
+      await sys.readTextFile("v152/window-shape-api/reference-contract.json"),
     );
     const names = wshapeContract.inventory.map((item) => item.name);
     assert(
@@ -1183,5 +1192,5 @@ dictionary D {
 
   console.log("PASS — reference-contract structural tests");
 } finally {
-  await Deno.remove(root, { recursive: true });
+  await sys.remove(root, { recursive: true });
 }

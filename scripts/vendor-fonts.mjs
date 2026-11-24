@@ -22,8 +22,8 @@
 // and style is kept; nothing about which faces the page uses changes for latin text.
 //
 // USAGE
-//   deno task vendor-fonts            # fetch and rewrite the block in public/styles.css
-//   deno task vendor-fonts --check    # report whether the vendored block is up to date
+//   npm run vendor-fonts            # fetch and rewrite the block in public/styles.css
+//   npm run vendor-fonts -- --check    # report whether the vendored block is up to date
 //
 // The block is delimited by the BEGIN/END markers below; this script only ever rewrites inside
 // them, so hand-written CSS around it is never touched.
@@ -34,6 +34,7 @@
 // A hung upstream, a mid-body stall or an oversized response THROWS out of fetchBounded, which
 // the main catch below turns into a loud REFUSING exit(1) with the sheet untouched — a timeout
 // can never install a partial or truncated font sheet.
+import * as sys from "./lib/sys.mjs";
 import { fetchBounded, UPSTREAM_TIMEOUT_MS } from "../lib/chromestatus.ts";
 
 const CSS_URL =
@@ -118,7 +119,7 @@ export function renderBlock(blocks) {
   const lines = [
     `${BEGIN} — generated, do not edit by hand --- */`,
     `/* Source: ${CSS_URL}`,
-    ` * Regenerate: deno task vendor-fonts`,
+    ` * Regenerate: npm run vendor-fonts`,
     ` * Subsets kept: ${
       DEFAULT_SUBSETS.join(", ")
     } (the full css2 response carries 49 rules across`,
@@ -166,8 +167,8 @@ function replaceBlock(sheet, block) {
   return sheet.slice(0, begin) + block + sheet.slice(end + END.length);
 }
 
-if (import.meta.main) {
-  const argv = Deno.args;
+if (sys.isMain(import.meta.url)) {
+  const argv = sys.args;
   const check = argv.includes("--check");
   // --css-url is a test seam: it lets the fixture point the extractor at a local server that
   // serves a degenerate 200 (empty body, an HTML error page, or rules for subsets we do not
@@ -223,7 +224,7 @@ if (import.meta.main) {
     }
 
     const block = renderBlock(blocks);
-    const sheet = await Deno.readTextFile(SHEET);
+    const sheet = await sys.readTextFile(SHEET);
 
     // MIRROR GUARD (gendn-dmz): --check must never report "up to date" for a sheet whose own
     // vendored block has no rules. Without this, a rule-less sheet and a rule-less extraction
@@ -231,7 +232,7 @@ if (import.meta.main) {
     if (check && !blockHasRules(sheet)) {
       throw new Error(
         "public/styles.css's vendored block contains no @font-face rules, so --check has nothing " +
-          "to compare against and must not report it current. Restore the rules (deno task " +
+          "to compare against and must not report it current. Restore the rules (npm run " +
           "vendor-fonts) and re-check.",
       );
     }
@@ -274,20 +275,20 @@ if (import.meta.main) {
           `(${removed.slice(0, 4).join(", ")}${removed.length > 4 ? ", …" : ""}); writing needs ` +
           "--allow-rule-removal with a reason",
       );
-      Deno.exit(1);
+      process.exit(1);
     }
     if (check) {
       console.log(
         changed
-          ? "vendor-fonts: OUT OF DATE — run `deno task vendor-fonts`"
+          ? "vendor-fonts: OUT OF DATE — run `npm run vendor-fonts`"
           : "vendor-fonts: up to date",
       );
-      Deno.exit(changed ? 1 : 0);
+      process.exit(changed ? 1 : 0);
     }
     if (!changed) {
       console.log("vendor-fonts: already up to date (no write)");
     } else {
-      await Deno.writeTextFile(SHEET, updated);
+      await sys.writeTextFile(SHEET, updated);
       console.log(`vendor-fonts: wrote ${blocks.length} @font-face rules into public/styles.css`);
     }
   } catch (err) {
@@ -295,6 +296,6 @@ if (import.meta.main) {
     console.error(
       `vendor-fonts: REFUSING — ${err instanceof Error ? err.message : String(err)}`,
     );
-    Deno.exit(1);
+    process.exit(1);
   }
 }

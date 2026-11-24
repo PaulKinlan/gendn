@@ -1,4 +1,3 @@
-// @fixture-permissions --allow-read --allow-env --allow-net=127.0.0.1,localhost
 // scripts/speculation-rules.test.mjs — unit tests for same-origin speculation-rules prefetch (gendn-xdw).
 //
 // Verifies:
@@ -8,8 +7,10 @@
 //   4. Static leaf reference pages do not contain the block (recommendation B: no churn on 201+ files).
 //   5. CSP script-src includes the exact SHA-256 hash of the speculation rules script.
 
+import * as sys from "./lib/sys.mjs";
+
 const XSSI = ")]}'";
-const stubServer = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
+const stubServer = sys.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
   const url = new URL(req.url);
   const json = (body) => new Response(body, { headers: { "content-type": "application/json" } });
   if (url.pathname === "/channels") {
@@ -27,8 +28,9 @@ const stubServer = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
   }
   return new Response("Not found", { status: 404 });
 });
+await stubServer.ready;
 
-Deno.env.set("CHROMESTATUS_BASE", `http://127.0.0.1:${stubServer.addr.port}`);
+sys.env.set("CHROMESTATUS_BASE", `http://127.0.0.1:${stubServer.addr.port}`);
 
 const { CSP_DIRECTIVES, handleRequest, SPECULATION_RULES } = await import("../server.ts");
 
@@ -108,4 +110,4 @@ try {
 }
 
 console.log(`\nspeculation-rules unit tests: ${passed} passed, ${failed} failed`);
-if (failed > 0) Deno.exit(1);
+if (failed > 0) process.exit(1);

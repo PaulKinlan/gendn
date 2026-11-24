@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-read --allow-run
+#!/usr/bin/env node
 // check-routes.mjs — the route regression gate for gendn's durable demo compatibility contract.
 //
 // Run this before every push. It compares the PREVIOUSLY PUBLISHED manifest (baseline) against the
@@ -29,13 +29,14 @@
 // PASS for: additive new ids, honest new stubs, in-place fixes that preserve the same id + identity +
 // previously selected demo URL + live route, and any change explicitly listed in migrations.json.
 //
-// Usage: deno run --allow-read --allow-run scripts/check-routes.mjs [--baseline <ref>]
+// Usage: node scripts/check-routes.mjs [--baseline <ref>]
 //
 // `--baseline <ref>` answers the question a lane actually has when this gate goes red: does MY
 // CHANGE remove a route, or does my BASE not have one yet? Without it a red verdict is
 // indistinguishable from a stale baseline (gendn-cct), so the failure text names the baseline and
 // its commit, and the run warns when HEAD does not contain the baseline commit.
 
+import * as sys from "./lib/sys.mjs";
 import { buildManifest } from "./route-manifest.mjs";
 import { gitRefExists, runGit } from "./lib/bounded-git.mjs";
 import { judgedFileExists, readJudgedFile } from "./lib/judged-content.mjs";
@@ -91,14 +92,10 @@ async function bootstrapExtractorChanges(ref) {
     "scripts/lib/bounded-git.mjs",
   ];
   const changed = new Set();
-  const commands = [["diff", "--name-only", ref, "--", ...files], [
-    "diff",
-    "--cached",
-    "--name-only",
-    ref,
-    "--",
-    ...files,
-  ]];
+  const commands = [
+    ["diff", "--name-only", ref, "--", ...files],
+    ["diff", "--cached", "--name-only", ref, "--", ...files],
+  ];
   const results = await Promise.allSettled(
     commands.map((args) => runGit(args, { stdout: "piped", stderr: "piped" })),
   );
@@ -190,7 +187,7 @@ export async function loadMigrations(source = MIGRATIONS) {
       const raw = await readJudgedFile(source);
       parsed = JSON.parse(raw);
     } catch (err) {
-      if (err instanceof Deno.errors.NotFound) return [];
+      if (err instanceof sys.errors.NotFound) return [];
       throw err;
     }
   }
@@ -417,7 +414,7 @@ function parseBaselineArg(argv) {
 
 async function main() {
   const { source, ref, commit, manifest: baseline } = await loadBaseline(
-    parseBaselineArg(Deno.args),
+    parseBaselineArg(sys.args),
   );
   const current = await buildManifest();
   const migrations = await loadMigrations();
@@ -480,7 +477,7 @@ async function main() {
   } catch (err) {
     failures.push(
       `${BINDING_LEDGER} unavailable or unreadable: ${err.message}; ` +
-        `run deno task refresh-bindings and review the diff`,
+        `run npm run refresh-bindings and review the diff`,
     );
   }
 
@@ -523,7 +520,7 @@ async function main() {
       "\nAdditive changes, honest stubs, and same-id in-place fixes are allowed. Any removal, " +
         "rename, route move, identity change, or demo link change needs a reviewed record in migrations.json.",
     );
-    Deno.exit(1);
+    process.exit(1);
   }
 
   console.log("\nPASS — no published route or identity regressions.");
@@ -535,4 +532,4 @@ function countByStatus(manifest) {
   return `${built} built / ${stub} stub`;
 }
 
-if (import.meta.main) await main();
+if (sys.isMain(import.meta.url)) await main();

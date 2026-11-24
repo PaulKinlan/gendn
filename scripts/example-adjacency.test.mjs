@@ -1,4 +1,3 @@
-// @fixture-permissions --allow-read
 // scripts/example-adjacency.test.mjs — published-example invariants that are about POSITION, not
 // existence (gendn-rl0 bounce).
 //
@@ -13,7 +12,9 @@
 // then proves it is a detector by running the same assertion against a synthesized copy with the
 // exact defect this bead introduced — it must fail there and pass on the real file.
 //
-// Run: deno task test-fixtures --tasks test-example-adjacency
+// Run: npm run test-fixtures -- --tasks test-example-adjacency
+
+import * as sys from "./lib/sys.mjs";
 
 const REPO = new URL("..", import.meta.url).pathname;
 const EXAMPLE = "v152/notification-attribution-for-pwas-on-macos/requireinteraction/index.html";
@@ -68,7 +69,7 @@ function platformDetectionPrecedes(html) {
   return { ok: true, why: `${macPwa - platform} chars before the isMacPWA block` };
 }
 
-const html = await Deno.readTextFile(`${REPO}${EXAMPLE}`);
+const html = await sys.readTextFile(`${REPO}${EXAMPLE}`);
 
 const adjacent = robustPatternIsAdjacent(html);
 assert(
@@ -111,6 +112,6 @@ assert(
 
 if (failures > 0) {
   console.error(`example-adjacency.test.mjs: ${failures} assertion(s) failed`);
-  Deno.exit(1);
+  process.exit(1);
 }
 console.log(`example-adjacency fixture: all ${passed} assertions passed`);

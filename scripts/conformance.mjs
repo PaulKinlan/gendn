@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-read --allow-write --allow-run --allow-net --allow-env
+#!/usr/bin/env node
 // conformance.mjs — deterministic, headless-Chrome-backed runner for gendn's conformance suites,
 // plus the mobile+desktop responsive-check harness.
 //
@@ -10,15 +10,16 @@
 // (external showcase iframes / CDNs are out of gendn's control and don't fail the doc-quality gate).
 //
 // Modes:
-//   deno task conformance                      # run all suites, CLI + HTML rollup
-//   deno task conformance --page v149/webmcp   # run one suite, CLI table
-//   deno task responsive                       # mobile+desktop responsive-check across pages
-//   deno task responsive --page v149/webmcp --screenshots  # + save screenshots for agent review
+//   npm run conformance                      # run all suites, CLI + HTML rollup
+//   npm run conformance -- --page v149/webmcp   # run one suite, CLI table
+//   npm run responsive                       # mobile+desktop responsive-check across pages
+//   npm run responsive -- --page v149/webmcp --screenshots  # + save screenshots for agent review
 //   (--limit N samples the first N pages; --update-support writes responsive-support.json)
 //
 // Outputs: reports/conformance/results.json, reports/conformance/index.html (run-all rollup),
 // and, in responsive mode, reports/conformance/shots/*.png when --screenshots is given.
 
+import * as sys from "./lib/sys.mjs";
 import { launch } from "./lib/cdp.mjs";
 import {
   collectPublishedPages,
@@ -53,11 +54,11 @@ function sameOrigin(url, origin) {
 // be announced by THIS child, not inferred by probing another lane's server on a guessed port.
 export async function spawnServer(
   port = 0,
-  { script = "server.ts", startupTimeoutMs = 30_000 } = {},
+  { script = "serve.ts", startupTimeoutMs = 30_000 } = {},
 ) {
-  const child = new Deno.Command("deno", {
-    args: ["run", "--allow-net", "--allow-read", "--allow-env", script],
-    env: { ...Deno.env.toObject(), PORT: String(port) },
+  const child = new sys.Command(sys.execPath(), {
+    args: [script],
+    env: { ...sys.env.toObject(), PORT: String(port) },
     stdout: "piped",
     stderr: "piped",
   }).spawn();
@@ -347,13 +348,12 @@ async function responsiveCheck(pageId, meta, ctx, { screenshots }) {
       ),
     ).ok;
     const consoleClean = page.diagnostics().consoleErrors.length === 0;
-    const networkClean = page.diagnostics().failedRequests.filter((f) =>
-      sameOrigin(f.url, origin)
-    ).length === 0;
+    const networkClean =
+      page.diagnostics().failedRequests.filter((f) => sameOrigin(f.url, origin)).length === 0;
     out[cls] = { noOverflow, controlsInView, consoleClean, networkClean };
     if (screenshots) {
       const shot = `${OUT_DIR}/shots/${pageId.replace(/\//g, "__")}.${cls}.png`;
-      await Deno.mkdir(`${OUT_DIR}/shots`, { recursive: true });
+      await sys.mkdir(`${OUT_DIR}/shots`, { recursive: true });
       await page.screenshot(shot);
       out[cls].screenshot = shot;
     }
@@ -440,7 +440,7 @@ export async function readReportRows(
 ) {
   const shape = key ? `an object carrying an array of ${what} at ${key}` : `an array of ${what}`;
   try {
-    const parsed = JSON.parse(await Deno.readTextFile(path));
+    const parsed = JSON.parse(await sys.readTextFile(path));
     const rows = Array.isArray(parsed)
       ? parsed
       : (key && Array.isArray(parsed?.[key]) ? parsed[key] : null);
@@ -450,7 +450,7 @@ export async function readReportRows(
     }
     return rows.filter((row) => row && typeof row === "object" && typeof row.id === "string");
   } catch (err) {
-    if (err instanceof Deno.errors.NotFound) return []; // first scoped run: nothing to merge into
+    if (err instanceof sys.errors.NotFound) return []; // first scoped run: nothing to merge into
     // A CORRUPT report is the dangerous case, not the missing one: the merge would silently rewrite
     // it to just the pages this run scanned, so say so rather than degrade it quietly (gendn-jvh
     // review P2). The tolerant behaviour stays - the scan's own results are still worth writing.
@@ -616,7 +616,7 @@ export function selectPublishedRootPages(
 }
 
 async function main() {
-  const args = Deno.args;
+  const args = sys.args;
   const pageIdx = args.indexOf("--page");
   const only = pageIdx >= 0 ? args[pageIdx + 1] : null;
   const limitIdx = args.indexOf("--limit");
@@ -636,12 +636,12 @@ async function main() {
   });
   if (selection.error) {
     console.error(`ERROR: ${selection.error}`);
-    Deno.exitCode = 2;
+    process.exitCode = 2;
     return;
   }
   const considered = selection.pages;
 
-  await Deno.mkdir(OUT_DIR, { recursive: true });
+  await sys.mkdir(OUT_DIR, { recursive: true });
   const server = await startServer();
   const RECYCLE_EVERY = 40; // relaunch Chrome periodically to bound memory over a 155-page run
   let browser = await launch();
@@ -674,7 +674,7 @@ async function main() {
         await ensureServer(server);
         n++;
         const id = p.replace(/\/index\.html$/, "");
-        const html = await Deno.readTextFile(`./${p}`);
+        const html = await sys.readTextFile(`./${p}`);
         const meta = metadataFromHtml(p, html);
         const r = await responsiveCheck(id, meta, ctx, { screenshots });
         rows.push(r);
@@ -703,13 +703,13 @@ async function main() {
       }
       if (updateSupport) {
         support.updatedAt = new Date().toISOString();
-        await Deno.writeTextFile(`./${SUPPORT_SIDECAR}`, JSON.stringify(support, null, 2) + "\n");
+        await sys.writeTextFile(`./${SUPPORT_SIDECAR}`, JSON.stringify(support, null, 2) + "\n");
         console.log(`\nwrote ${SUPPORT_SIDECAR} (${Object.keys(support.routes).length} routes)`);
       }
       const scoped = Boolean(only) || Number.isFinite(limit);
       const existingRows = scoped ? await readResponsiveRows(`${OUT_DIR}/responsive.json`) : [];
       const reportRows = responsiveReportRows({ existing: existingRows, scanned: rows, scoped });
-      await Deno.writeTextFile(
+      await sys.writeTextFile(
         `${OUT_DIR}/responsive.json`,
         JSON.stringify(reportRows, null, 2) + "\n",
       );
@@ -795,7 +795,7 @@ async function main() {
         o.blocked += s.blocked;
         return o;
       }, { total: 0, pass: 0, fail: 0, blocked: 0 });
-      await Deno.writeTextFile(
+      await sys.writeTextFile(
         `${OUT_DIR}/results.json`,
         JSON.stringify(
           { generatedAt: new Date().toISOString(), agg: reportAgg, suites },
@@ -804,7 +804,7 @@ async function main() {
         ) +
           "\n",
       );
-      await Deno.writeTextFile(`${OUT_DIR}/index.html`, renderRollup(suites));
+      await sys.writeTextFile(`${OUT_DIR}/index.html`, renderRollup(suites));
       console.log(
         `\n${
           runAllReportLine({
@@ -848,7 +848,7 @@ async function main() {
       }
       // Single-page runs are the routine's per-page gate: don't push a red page. A full run-all is
       // the backlog snapshot (many known gaps during burn-down), so it reports without failing.
-      if (agg.fail > 0 && only) Deno.exitCode = 2;
+      if (agg.fail > 0 && only) process.exitCode = 2;
     }
   } finally {
     try {
@@ -871,4 +871,4 @@ async function main() {
   }
 }
 
-if (import.meta.main) await main();
+if (sys.isMain(import.meta.url)) await main();

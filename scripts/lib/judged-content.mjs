@@ -14,6 +14,7 @@
 // Lanes legitimately run gates mid-edit with a dirty worktree, so uncommitted edits and
 // standard git diff <base> cases keep judging the working tree exactly as before.
 
+import * as sys from "./sys.mjs";
 import { isAbsolute, relative, resolve } from "node:path";
 import { runGit } from "./bounded-git.mjs";
 
@@ -228,7 +229,7 @@ async function getRepoState(root = ".", { fresh = false } = {}) {
       if (stagedVsHead.has(p) || (stagedVsBase && stagedVsBase.has(p))) {
         let worktreeContent = null;
         try {
-          worktreeContent = await Deno.readTextFile(resolve(topLevel, p));
+          worktreeContent = await sys.readTextFile(resolve(topLevel, p));
         } catch {
           // file not on disk
         }
@@ -313,14 +314,14 @@ export async function readJudgedFile(path, root = ".", options = {}) {
       if (showRes.code === 0) {
         return showRes.stdout;
       }
-      throw new Deno.errors.NotFound(
+      throw new sys.errors.NotFound(
         `File ${rel} was deleted from the git index but is still present on disk - re-add it or commit the deletion: ${showRes.stderr}`,
       );
     }
   }
 
   const filePath = isAbsolute(path) ? path : resolve(root, path);
-  return await Deno.readTextFile(filePath);
+  return await sys.readTextFile(filePath);
 }
 
 /**
@@ -342,7 +343,7 @@ export async function judgedFileExists(path, root = ".", options = {}) {
 
   try {
     const filePath = isAbsolute(path) ? path : resolve(root, path);
-    await Deno.stat(filePath);
+    await sys.stat(filePath);
     return true;
   } catch {
     return false;
@@ -357,7 +358,7 @@ export async function readJudgedJson(path, root = ".", options = {}) {
     const text = await readJudgedFile(path, root, options);
     return JSON.parse(text);
   } catch (err) {
-    if (err instanceof Deno.errors.NotFound) return null;
+    if (err instanceof sys.errors.NotFound) return null;
     throw err;
   }
 }

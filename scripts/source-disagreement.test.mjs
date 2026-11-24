@@ -1,4 +1,3 @@
-// @fixture-permissions --allow-read
 // gendn-r3m — EXECUTABLE CHECK FOR SOURCE-DISAGREEMENT HANDLING (rule 92's third shape).
 //
 // The campaign distinguishes three contradiction shapes: a document contradicting ITSELF
@@ -64,7 +63,9 @@
 // Each restored to green. A check that cannot fail on a silently dropped side is a claim, not
 // a detector (rule 64: the signal must be shown to fire on the shape it was added for).
 //
-// Run: deno task test-fixtures --tasks test-source-disagreement
+// Run: npm run test-fixtures -- --tasks test-source-disagreement
+
+import * as sys from "./lib/sys.mjs";
 
 const PAGES = [
   {
@@ -1076,7 +1077,7 @@ for (const entry of PAGES) {
   const short = entry.page.split("/").at(-2);
   let html;
   try {
-    html = await Deno.readTextFile(entry.page);
+    html = await sys.readTextFile(entry.page);
   } catch (err) {
     assert(`${short}: page readable`, false, `${err.name}: ${err.message}`);
     continue;
@@ -1110,7 +1111,7 @@ for (const entry of PAGES) {
 
 if (failures > 0) {
   console.error(`source-disagreement fixture: ${failures} assertion(s) failed`);
-  Deno.exit(1);
+  process.exit(1);
 }
 console.log(
   `source-disagreement fixture: all assertions passed (${PAGES.length} carried-disagreement pages, both sides attributed, none adjudicated)`,

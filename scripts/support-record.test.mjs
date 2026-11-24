@@ -1,6 +1,6 @@
-// @fixture-permissions --allow-read --allow-write --allow-run
 // gendn-8krx: a support-only edit must fail the REAL validator when an unsupported claim
 // lacks class-specific evidence. The minimal schema engine ignores if/then conditionals.
+import * as sys from "./lib/sys.mjs";
 import { loadSchema, validate } from "./lib/artifacts.mjs";
 
 const REPO = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
@@ -13,14 +13,14 @@ const SCHEMAS = [
   "reference-contract.schema.json",
 ];
 const ROUTE = "/v900/support/";
-const tmp = await Deno.makeTempDir({ prefix: "8krx-support-" });
+const tmp = await sys.makeTempDir({ prefix: "8krx-support-" });
 let failures = 0;
 function assert(name, ok, detail = "") {
   console.log(`${ok ? "PASS" : "FAIL"}: ${name}${!ok && detail ? ` :: ${detail}` : ""}`);
   if (!ok) failures++;
 }
 async function gate(record) {
-  await Deno.writeTextFile(
+  await sys.writeTextFile(
     `${tmp}/responsive-support.json`,
     JSON.stringify({
       schemaVersion: 1,
@@ -28,8 +28,8 @@ async function gate(record) {
       routes: { [ROUTE]: record },
     }),
   );
-  const cmd = new Deno.Command(Deno.execPath(), {
-    args: ["run", "--allow-read", VALIDATOR],
+  const cmd = new sys.Command(sys.execPath(), {
+    args: [VALIDATOR],
     cwd: tmp,
     stdout: "piped",
     stderr: "piped",
@@ -39,12 +39,12 @@ async function gate(record) {
 }
 
 try {
-  await Deno.mkdir(`${tmp}/schema`);
+  await sys.mkdir(`${tmp}/schema`);
   for (const name of SCHEMAS) {
-    await Deno.copyFile(`${REPO}/schema/${name}`, `${tmp}/schema/${name}`);
+    await sys.copyFile(`${REPO}/schema/${name}`, `${tmp}/schema/${name}`);
   }
-  await Deno.mkdir(`${tmp}/v900/support`, { recursive: true });
-  await Deno.writeTextFile(
+  await sys.mkdir(`${tmp}/v900/support`, { recursive: true });
+  await sys.writeTextFile(
     `${tmp}/v900/support/index.html`,
     '<html><body><h1>Reference</h1><a href="https://chromestatus.com/feature/5637601087193088">ChromeStatus</a></body></html>',
   );
@@ -133,10 +133,10 @@ try {
     r.text.slice(-260),
   );
 } finally {
-  await Deno.remove(tmp, { recursive: true });
+  await sys.remove(tmp, { recursive: true });
 }
 if (failures) {
   console.error(`support-record fixture: ${failures} assertion(s) failed`);
-  Deno.exit(1);
+  process.exit(1);
 }
 console.log("support-record fixture: all assertions passed");

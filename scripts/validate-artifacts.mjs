@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-read --allow-run
+#!/usr/bin/env node
 // validate-artifacts.mjs — well-formedness gate for the lifecycle artifacts.
 //
 // Checks, for the working tree:
@@ -16,8 +16,9 @@
 // This is the schema+hash half of immutability enforcement. The git-baseline weakening check
 // (assertion removed/changed vs origin/main without a migration) lives in check-conformance.mjs.
 //
-// Exit 1 on any violation. Usage: deno run --allow-read scripts/validate-artifacts.mjs
+// Exit 1 on any violation. Usage: node scripts/validate-artifacts.mjs
 
+import * as sys from "./lib/sys.mjs";
 import {
   collectCritiques,
   collectPublishedPages,
@@ -245,9 +246,9 @@ async function main() {
   if (errors.length) {
     console.error(`\nFAIL — ${errors.length} artifact problem(s):`);
     for (const e of errors) console.error(`  - ${e}`);
-    Deno.exit(1);
+    process.exit(1);
   }
   console.log("\nPASS — all lifecycle artifacts are well-formed.");
 }
 
-if (import.meta.main) await main();
+if (sys.isMain(import.meta.url)) await main();

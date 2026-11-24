@@ -1,4 +1,3 @@
-// @fixture-permissions --allow-read --allow-write --allow-run
 // scripts/refresh-bindings.test.mjs
 // Focused tests for refresh-bindings guard behaviour.
 // Covers without Chrome:
@@ -8,6 +7,7 @@
 //   (4) added routes -> writes without a flag
 // Asserts byte-identity of tracked ledger on every refusal path. Supports --sabotage to prove failure if guard is bypassed.
 
+import * as sys from "./lib/sys.mjs";
 import {
   BINDING_LEDGER,
   evaluateLedgerRefresh,
@@ -123,12 +123,12 @@ assert(
 );
 
 // --- 3. Subprocess integration tests with temp ledger and files ---
-const tempDir = await Deno.makeTempDir({ prefix: "gendn-refresh-test-" });
-const isSabotage = Deno.args.includes("--sabotage");
+const tempDir = await sys.makeTempDir({ prefix: "gendn-refresh-test-" });
+const isSabotage = sys.args.includes("--sabotage");
 
 try {
   const trackedLedgerPath = BINDING_LEDGER;
-  const originalTrackedBytes = await Deno.readFile(trackedLedgerPath);
+  const originalTrackedBytes = await sys.readFile(trackedLedgerPath);
   // The live catalogue grows with every published page, so counts asserted against the real
   // tracked ledger are DERIVED here, never hard-coded: the literals 201/198 went stale the
   // moment the catalogue crossed them (weekly hardening 2026-10-11, 201 -> 209 routes).
@@ -137,31 +137,31 @@ try {
   // Set up temp scripts directory
   const tempScriptsDir = `${tempDir}/scripts`;
   const tempLibDir = `${tempScriptsDir}/lib`;
-  await Deno.mkdir(tempLibDir, { recursive: true });
+  await sys.mkdir(tempLibDir, { recursive: true });
 
   // Copy scripts needed for execution
-  const refreshScriptSource = await Deno.readTextFile(
+  const refreshScriptSource = await sys.readTextFile(
     new URL("./refresh-bindings.mjs", import.meta.url),
   );
-  let bindingLedgerSource = await Deno.readTextFile(
+  let bindingLedgerSource = await sys.readTextFile(
     new URL("./lib/binding-ledger.mjs", import.meta.url),
   );
-  const routeManifestSource = await Deno.readTextFile(
+  const routeManifestSource = await sys.readTextFile(
     new URL("./route-manifest.mjs", import.meta.url),
   );
-  const artifactsSource = await Deno.readTextFile(
+  const artifactsSource = await sys.readTextFile(
     new URL("./lib/artifacts.mjs", import.meta.url),
   );
-  const plainCorpusPathSource = await Deno.readTextFile(
+  const plainCorpusPathSource = await sys.readTextFile(
     new URL("./lib/plain-corpus-path.mjs", import.meta.url),
   );
-  const boundedGitSource = await Deno.readTextFile(
+  const boundedGitSource = await sys.readTextFile(
     new URL("./lib/bounded-git.mjs", import.meta.url),
   );
-  const mapPoolSource = await Deno.readTextFile(
+  const mapPoolSource = await sys.readTextFile(
     new URL("./lib/map-pool.mjs", import.meta.url),
   );
-  const judgedContentSource = await Deno.readTextFile(
+  const judgedContentSource = await sys.readTextFile(
     new URL("./lib/judged-content.mjs", import.meta.url),
   );
 
@@ -173,50 +173,47 @@ try {
     );
   }
 
-  await Deno.writeTextFile(`${tempScriptsDir}/refresh-bindings.mjs`, refreshScriptSource);
-  await Deno.writeTextFile(`${tempLibDir}/binding-ledger.mjs`, bindingLedgerSource);
-  await Deno.writeTextFile(`${tempScriptsDir}/route-manifest.mjs`, routeManifestSource);
-  await Deno.writeTextFile(`${tempLibDir}/artifacts.mjs`, artifactsSource);
-  await Deno.writeTextFile(`${tempLibDir}/plain-corpus-path.mjs`, plainCorpusPathSource);
-  await Deno.writeTextFile(`${tempLibDir}/bounded-git.mjs`, boundedGitSource);
-  await Deno.writeTextFile(`${tempLibDir}/map-pool.mjs`, mapPoolSource);
-  await Deno.writeTextFile(`${tempLibDir}/judged-content.mjs`, judgedContentSource);
+  await sys.writeTextFile(`${tempScriptsDir}/refresh-bindings.mjs`, refreshScriptSource);
+  await sys.writeTextFile(`${tempLibDir}/binding-ledger.mjs`, bindingLedgerSource);
+  await sys.writeTextFile(`${tempScriptsDir}/route-manifest.mjs`, routeManifestSource);
+  await sys.writeTextFile(`${tempLibDir}/artifacts.mjs`, artifactsSource);
+  await sys.writeTextFile(`${tempLibDir}/plain-corpus-path.mjs`, plainCorpusPathSource);
+  await sys.writeTextFile(`${tempLibDir}/bounded-git.mjs`, boundedGitSource);
+  await sys.writeTextFile(`${tempLibDir}/map-pool.mjs`, mapPoolSource);
+  await sys.writeTextFile(`${tempLibDir}/judged-content.mjs`, judgedContentSource);
+  await sys.copyFile(new URL("./lib/sys.mjs", import.meta.url), `${tempLibDir}/sys.mjs`);
 
   // Set up synthetic test pages
   const fixturePagesRoot = `${tempDir}/fixture-pages`;
   const shrunkPagesRoot = `${tempDir}/shrunk-pages`;
   const emptyPagesRoot = `${tempDir}/empty-pages`;
 
-  await Deno.mkdir(`${fixturePagesRoot}/v900/probe-a`, { recursive: true });
-  await Deno.mkdir(`${fixturePagesRoot}/v900/probe-b`, { recursive: true });
-  await Deno.writeTextFile(
+  await sys.mkdir(`${fixturePagesRoot}/v900/probe-a`, { recursive: true });
+  await sys.mkdir(`${fixturePagesRoot}/v900/probe-b`, { recursive: true });
+  await sys.writeTextFile(
     `${fixturePagesRoot}/v900/probe-a/index.html`,
     `<html><a href="https://chromestatus.com/feature/101">Feature A</a></html>`,
   );
-  await Deno.writeTextFile(
+  await sys.writeTextFile(
     `${fixturePagesRoot}/v900/probe-b/index.html`,
     `<html><a href="https://chromestatus.com/feature/102">Feature B</a></html>`,
   );
 
-  await Deno.mkdir(`${shrunkPagesRoot}/v900/probe-a`, { recursive: true });
-  await Deno.writeTextFile(
+  await sys.mkdir(`${shrunkPagesRoot}/v900/probe-a`, { recursive: true });
+  await sys.writeTextFile(
     `${shrunkPagesRoot}/v900/probe-a/index.html`,
     `<html><a href="https://chromestatus.com/feature/101">Feature A</a></html>`,
   );
 
-  await Deno.mkdir(emptyPagesRoot, { recursive: true });
+  await sys.mkdir(emptyPagesRoot, { recursive: true });
 
   const tempFixtureLedgerPath = `${tempDir}/fixture-ledger.json`;
   const baseFixtureRows = [rowA, rowB];
   const baseFixtureJson = JSON.stringify(baseFixtureRows, null, 2) + "\n";
 
   async function executeRefresh(args = []) {
-    const cmd = new Deno.Command(Deno.execPath(), {
+    const cmd = new sys.Command(sys.execPath(), {
       args: [
-        "run",
-        "--allow-read",
-        "--allow-run",
-        "--allow-write",
         `${tempScriptsDir}/refresh-bindings.mjs`,
         ...args,
       ],
@@ -233,7 +230,7 @@ try {
 
   // --- Case (1): Rows identical to committed ledger -> writes, rc0 ---
   // Subtest 1A: synthetic fixture
-  await Deno.writeTextFile(tempFixtureLedgerPath, baseFixtureJson);
+  await sys.writeTextFile(tempFixtureLedgerPath, baseFixtureJson);
   const res1A = await executeRefresh([
     `--ledger=${tempFixtureLedgerPath}`,
     `--root=${fixturePagesRoot}`,
@@ -246,12 +243,12 @@ try {
   );
   assert(
     "Case 1A: tracked ledger in repository remains byte-identical",
-    bytesEqual(await Deno.readFile(trackedLedgerPath), originalTrackedBytes),
+    bytesEqual(await sys.readFile(trackedLedgerPath), originalTrackedBytes),
   );
 
   // Subtest 1B: copy of full repository ledger with repository root
   const tempCommittedCopyPath = `${tempDir}/repo-ledger-copy.json`;
-  await Deno.writeFile(tempCommittedCopyPath, originalTrackedBytes);
+  await sys.writeFile(tempCommittedCopyPath, originalTrackedBytes);
   const res1B = await executeRefresh([
     `--ledger=${tempCommittedCopyPath}`,
     `--root=.`,
@@ -264,13 +261,13 @@ try {
   );
   assert(
     "Case 1B: tracked ledger in repository remains byte-identical",
-    bytesEqual(await Deno.readFile(trackedLedgerPath), originalTrackedBytes),
+    bytesEqual(await sys.readFile(trackedLedgerPath), originalTrackedBytes),
   );
 
   // --- Case (2): Rows empty while ledger is non-empty -> refuses, non-zero, names removed routes, byte-identical ---
   // Subtest 2A: fixture ledger vs empty pages
-  await Deno.writeTextFile(tempFixtureLedgerPath, baseFixtureJson);
-  const before2A = await Deno.readFile(tempFixtureLedgerPath);
+  await sys.writeTextFile(tempFixtureLedgerPath, baseFixtureJson);
+  const before2A = await sys.readFile(tempFixtureLedgerPath);
   const res2A = await executeRefresh([
     `--ledger=${tempFixtureLedgerPath}`,
     `--root=${emptyPagesRoot}`,
@@ -297,16 +294,16 @@ try {
   );
   assert(
     "Case 2A: temp ledger byte-identical after refusal (no write occurred)",
-    bytesEqual(await Deno.readFile(tempFixtureLedgerPath), before2A),
+    bytesEqual(await sys.readFile(tempFixtureLedgerPath), before2A),
   );
   assert(
     "Case 2A: tracked repo ledger remains byte-identical",
-    bytesEqual(await Deno.readFile(trackedLedgerPath), originalTrackedBytes),
+    bytesEqual(await sys.readFile(trackedLedgerPath), originalTrackedBytes),
   );
 
   // Subtest 2B: full-catalogue repository copy vs empty pages (verifies bounded output "... and N more")
-  await Deno.writeFile(tempCommittedCopyPath, originalTrackedBytes);
-  const before2B = await Deno.readFile(tempCommittedCopyPath);
+  await sys.writeFile(tempCommittedCopyPath, originalTrackedBytes);
+  const before2B = await sys.readFile(tempCommittedCopyPath);
   const res2B = await executeRefresh([
     `--ledger=${tempCommittedCopyPath}`,
     `--root=${emptyPagesRoot}`,
@@ -333,17 +330,17 @@ try {
   );
   assert(
     "Case 2B: temp ledger byte-identical after refusal (no write occurred)",
-    bytesEqual(await Deno.readFile(tempCommittedCopyPath), before2B),
+    bytesEqual(await sys.readFile(tempCommittedCopyPath), before2B),
   );
   assert(
     "Case 2B: tracked repo ledger remains byte-identical",
-    bytesEqual(await Deno.readFile(trackedLedgerPath), originalTrackedBytes),
+    bytesEqual(await sys.readFile(trackedLedgerPath), originalTrackedBytes),
   );
 
   // --- Case (3): Rows missing a published route -> refuses unless --allow-removals passed, and with flag writes ---
   // Subtest 3A: without flag -> refuses
-  await Deno.writeTextFile(tempFixtureLedgerPath, baseFixtureJson);
-  const before3A = await Deno.readFile(tempFixtureLedgerPath);
+  await sys.writeTextFile(tempFixtureLedgerPath, baseFixtureJson);
+  const before3A = await sys.readFile(tempFixtureLedgerPath);
   const res3A = await executeRefresh([
     `--ledger=${tempFixtureLedgerPath}`,
     `--root=${shrunkPagesRoot}`,
@@ -375,11 +372,11 @@ try {
   );
   assert(
     "Case 3A: temp ledger byte-identical after refusal (no write occurred)",
-    bytesEqual(await Deno.readFile(tempFixtureLedgerPath), before3A),
+    bytesEqual(await sys.readFile(tempFixtureLedgerPath), before3A),
   );
   assert(
     "Case 3A: tracked repo ledger remains byte-identical",
-    bytesEqual(await Deno.readFile(trackedLedgerPath), originalTrackedBytes),
+    bytesEqual(await sys.readFile(trackedLedgerPath), originalTrackedBytes),
   );
 
   // Subtest 3B: with --allow-removals -> writes
@@ -398,19 +395,19 @@ try {
     res3B.stdout.includes("1 published routes"),
     res3B.stdout,
   );
-  const updated3B = JSON.parse(await Deno.readTextFile(tempFixtureLedgerPath));
+  const updated3B = JSON.parse(await sys.readTextFile(tempFixtureLedgerPath));
   assert(
     "Case 3B: temp ledger now has exactly 1 route (/v900/probe-a/)",
     updated3B.length === 1 && updated3B[0].route === "/v900/probe-a/",
   );
   assert(
     "Case 3B: tracked repo ledger remains byte-identical",
-    bytesEqual(await Deno.readFile(trackedLedgerPath), originalTrackedBytes),
+    bytesEqual(await sys.readFile(trackedLedgerPath), originalTrackedBytes),
   );
 
   // --- Case (4): Added routes -> writes without a flag ---
   // Ledger starts with only probe-a; fixturePagesRoot has both probe-a and probe-b
-  await Deno.writeTextFile(tempFixtureLedgerPath, JSON.stringify([rowA], null, 2) + "\n");
+  await sys.writeTextFile(tempFixtureLedgerPath, JSON.stringify([rowA], null, 2) + "\n");
   const res4 = await executeRefresh([
     `--ledger=${tempFixtureLedgerPath}`,
     `--root=${fixturePagesRoot}`,
@@ -421,7 +418,7 @@ try {
     res4.stdout.includes("2 published routes"),
     res4.stdout,
   );
-  const updated4 = JSON.parse(await Deno.readTextFile(tempFixtureLedgerPath));
+  const updated4 = JSON.parse(await sys.readTextFile(tempFixtureLedgerPath));
   assert(
     "Case 4: temp ledger updated to contain both routes",
     updated4.length === 2 && updated4.some((r) => r.route === "/v900/probe-a/") &&
@@ -429,11 +426,11 @@ try {
   );
   assert(
     "Case 4: tracked repo ledger remains byte-identical",
-    bytesEqual(await Deno.readFile(trackedLedgerPath), originalTrackedBytes),
+    bytesEqual(await sys.readFile(trackedLedgerPath), originalTrackedBytes),
   );
 } finally {
-  await Deno.remove(tempDir, { recursive: true });
+  await sys.remove(tempDir, { recursive: true });
 }
 
 console.log(`refresh bindings: ${passed} passed, ${failed} failed`);
-if (failed) Deno.exit(1);
+if (failed) process.exit(1);

@@ -1,4 +1,3 @@
-// @fixture-permissions --allow-read --allow-write --allow-run --allow-env
 // scripts/run-fixtures.test.mjs — the fixture for the fixture RUNNER (gendn-cp7 review).
 //
 // WHY: the first version of run-fixtures.mjs detected a timed-out fixture and then hung on it. It
@@ -12,8 +11,11 @@
 // TIMEOUT, the runner EXITS promptly, and NOTHING is left behind. A second case pins the naming
 // decision that keeps the probe out of the aggregate.
 //
-// Run: deno task test-fixtures --tasks test-run-fixtures
+// Run: npm run test-fixtures -- --tasks test-run-fixtures
 
+import * as sys from "./lib/sys.mjs";
+import { tmpdir } from "node:os";
+import { dirname } from "node:path";
 import {
   aggregateExitCode,
   appendSweepToken,
@@ -22,7 +24,6 @@ import {
   environHasToken,
   fixtureCommand,
   fixtureEnvironment,
-  fixturePermissions,
   incomingDepth,
   isAggregateTaskCommand,
   MAX_NESTING_DEPTH,
@@ -42,17 +43,6 @@ const PROBE = "fixture-timeout-probe";
 const PROBE_SCRIPT = "fixture-timeout-probe.mjs";
 const BOUND_MS = 2000;
 
-// Run the runner with the SAME permission flags its real task declares, so this fixture cannot pass
-// under permissions production does not have (measured: the first gendn-ebf run spawned the runner
-// with --allow-read, and Deno gates /proc behind --allow-all, so the sweep crashed and the test
-// reported a false negative the real task never had). Derived from deno.json rather than copied, so
-// adding a flag to the task cannot silently leave the fixture testing a weaker runner.
-const RUNNER_TASK = JSON.parse(await Deno.readTextFile(`${REPO}deno.json`)).tasks["test-fixtures"];
-const RUNNER_FLAGS = RUNNER_TASK.match(/--allow-[\w-]+(?:=[^\s]+)?/g) ?? [];
-if (RUNNER_FLAGS.length === 0) {
-  throw new Error(`could not parse permission flags from the test-fixtures task: ${RUNNER_TASK}`);
-}
-
 let failures = 0;
 let passed = 0;
 function assert(name, ok, detail = "") {
@@ -68,11 +58,11 @@ function assert(name, ok, detail = "") {
 // The probe records its own pid, and liveness is checked BY PID. Pattern-matching was tried first and
 // removed after it matched this test's own `bash -c` command line twice — the second time the cleanup
 // SIGKILLed the shell running the test (exit 137). A pid cannot be confused with a string.
-const pidFile = `${await Deno.makeTempDir({ prefix: "run-fixtures-test-" })}/probe.pid`;
+const pidFile = `${await sys.makeTempDir({ prefix: "run-fixtures-test-" })}/probe.pid`;
 
 function alive(pid) {
   try {
-    Deno.kill(pid, 0); // signal 0: existence check only
+    process.kill(pid, 0); // signal 0: existence check only
     return true;
   } catch {
     return false;
@@ -80,7 +70,7 @@ function alive(pid) {
 }
 
 async function recordedPid() {
-  const text = await Deno.readTextFile(pidFile).catch(() => "");
+  const text = await sys.readTextFile(pidFile).catch(() => "");
   const pid = Number(text.trim());
   return Number.isInteger(pid) && pid > 0 ? pid : null;
 }
@@ -92,9 +82,9 @@ async function recordedPid() {
 // against that variant or it is not testing the thing 0bm exists for.
 
 async function scratchTree({ stripMarkerGuard }) {
-  const dir = await Deno.makeTempDir({ prefix: "run-fixtures-scratch-" });
-  await Deno.mkdir(`${dir}/scripts`, { recursive: true });
-  let runner = await Deno.readTextFile(`${REPO}scripts/run-fixtures.mjs`);
+  const dir = await sys.makeTempDir({ prefix: "run-fixtures-scratch-" });
+  await sys.mkdir(`${dir}/scripts`, { recursive: true });
+  let runner = await sys.readTextFile(`${REPO}scripts/run-fixtures.mjs`);
   if (stripMarkerGuard) {
     // Strip ONLY the refusal, not the marker CONSTANT: slicing from the comment also removed
     // `const RUN_MARKER`, so the variant crashed with a ReferenceError at level 1 and the detector
@@ -112,20 +102,23 @@ async function scratchTree({ stripMarkerGuard }) {
       );
     }
   }
-  await Deno.writeTextFile(`${dir}/scripts/run-fixtures.mjs`, runner);
-  await Deno.writeTextFile(`${dir}/scripts/noop.mjs`, 'console.log("noop fixture ok");\n');
-  await Deno.writeTextFile(
+  await sys.writeTextFile(`${dir}/scripts/run-fixtures.mjs`, runner);
+  await sys.mkdir(`${dir}/scripts/lib`, { recursive: true });
+  await sys.copyFile(`${REPO}scripts/lib/sys.mjs`, `${dir}/scripts/lib/sys.mjs`);
+  await sys.writeTextFile(`${dir}/scripts/noop.mjs`, 'console.log("noop fixture ok");\n');
+  await sys.writeTextFile(
     `${dir}/scripts/noop.test.mjs`,
-    '// @fixture-permissions --allow-read\nconsole.log("noop fixture ok");\n',
+    'console.log("noop fixture ok");\n',
   );
   // The aggregate is deliberately named something ELSE: that is the whole point.
-  await Deno.writeTextFile(
-    `${dir}/deno.json`,
+  await sys.writeTextFile(
+    `${dir}/package.json`,
     JSON.stringify(
       {
-        tasks: {
-          "test-everything": "deno run --allow-all scripts/run-fixtures.mjs",
-          "test-noop": "deno run scripts/noop.mjs",
+        type: "module",
+        scripts: {
+          "test-everything": "node scripts/run-fixtures.mjs",
+          "test-noop": "node scripts/noop.mjs",
         },
       },
       null,
@@ -136,8 +129,8 @@ async function scratchTree({ stripMarkerGuard }) {
 }
 
 function runIn(dir, args) {
-  return new Deno.Command(Deno.execPath(), {
-    args: ["task", "test-everything", ...args],
+  return new sys.Command("npm", {
+    args: ["run", "--silent", "test-everything", "--", ...args],
     cwd: dir,
     stdout: "piped",
     stderr: "piped",
@@ -151,16 +144,15 @@ function runIn(dir, args) {
 const discoveryBanners = (text) =>
   (text.match(/discovered \d+ file-backed\/retained test fixture\(s\)/g) ?? []).length;
 
-function runRunner(args, env = {}, flags = RUNNER_FLAGS) {
-  return new Deno.Command(Deno.execPath(), {
+function runRunner(args, env = {}, flags = []) {
+  return new sys.Command(sys.execPath(), {
     args: [
-      "run",
       ...flags,
       `${REPO}scripts/run-fixtures.mjs`,
       ...args,
     ],
     cwd: REPO,
-    env: { ...Deno.env.toObject(), [RUN_MARKER]: "", ...env },
+    env: { ...sys.env.toObject(), [RUN_MARKER]: "", ...env },
     stdout: "piped",
     stderr: "piped",
   }).output();
@@ -169,10 +161,10 @@ function runRunner(args, env = {}, flags = RUNNER_FLAGS) {
 try {
   const discovered = discoverFixtures(
     ["alpha.test.mjs", "check-verdict-emission.test.mjs", "reference-browser.test.mjs"],
-    { "test-fixtures": "deno run --allow-all scripts/run-fixtures.mjs" },
+    { "test-fixtures": "node scripts/run-fixtures.mjs" },
   );
   assert(
-    "new test file enrolls without a deno.json task; CI alias and retained aggregate stay distinct",
+    "new test file enrolls without a package.json script; CI alias and retained aggregate stay distinct",
     discovered.get("test-alpha") === "scripts/alpha.test.mjs" &&
       discovered.get("test-verdict-emission") === "scripts/check-verdict-emission.test.mjs" &&
       discovered.get("test-reference-browser") === "scripts/reference-browser.test.mjs" &&
@@ -180,18 +172,10 @@ try {
   );
   assert(
     "MDN fixture retains its preceding typecheck, browser composite retains its direct task",
-    fixtureCommand(
-          "test-mdn-has",
-          "scripts/mdn-has.test.mjs",
-          "--allow-read --allow-net=127.0.0.1",
-        ) ===
-        "deno check lib/mdn.ts && deno run --allow-read --allow-net=127.0.0.1 scripts/mdn-has.test.mjs" &&
-      fixtureCommand(
-          "test-reference-contract",
-          "scripts/reference-contract.test.mjs",
-          "--allow-read --allow-write",
-        ) ===
-        "deno task test-reference-contract",
+    fixtureCommand("test-mdn-has", "scripts/mdn-has.test.mjs") ===
+        "node_modules/.bin/tsc -p . && node scripts/mdn-has.test.mjs" &&
+      fixtureCommand("test-reference-contract", "scripts/reference-contract.test.mjs") ===
+        "npm run --silent test-reference-contract",
   );
   assert(
     "a .test.mjs file with an invalid task name fails closed rather than disappearing",
@@ -204,26 +188,7 @@ try {
       }
     })(),
   );
-  assert(
-    "missing and invalid per-file permission metadata refuse a permissive default",
-    fixturePermissions("// @fixture-permissions --allow-read\n", "good.test.mjs") ===
-        "--allow-read" &&
-      [
-        "console.log(1)",
-        "// @fixture-permissions --allow-all",
-        "// @fixture-permissions --allow-read --allow-read",
-      ].every(
-        (source) => {
-          try {
-            fixturePermissions(source, "bad.test.mjs");
-            return false;
-          } catch (error) {
-            return error.message.includes("bad.test.mjs");
-          }
-        },
-      ),
-  );
-  await Deno.remove(pidFile).catch(() => {});
+  await sys.remove(pidFile).catch(() => {});
 
   // 1. A fixture that sleeps past a shortened bound: reported TIMEOUT, runner exits promptly.
   const started = Date.now();
@@ -285,34 +250,21 @@ try {
     "",
   );
 
-  // A scratch test file enrolls automatically with no deno.json task, and missing permissions
-  // refuse the WHOLE run before any fixture executes (the union-merge fail-closed property).
+  // A scratch test file enrolls automatically with no package.json script.
   {
     const tree = await scratchTree({ stripMarkerGuard: false });
     try {
       const novel = `${tree}/scripts/zz-new.test.mjs`;
       const before = new TextDecoder().decode((await runIn(tree, ["--list"])).stdout);
-      await Deno.writeTextFile(
-        novel,
-        '// @fixture-permissions --allow-read\nconsole.log("new");\n',
-      );
+      await sys.writeTextFile(novel, 'console.log("new");\n');
       const added = await runIn(tree, ["--list"]);
       const withFile = new TextDecoder().decode(added.stdout);
       assert(
-        "file discovery enrolls a new fixture absent from deno.json",
+        "file discovery enrolls a new fixture absent from package.json",
         !before.includes("test-zz-new") && added.code === 0 && withFile.includes("test-zz-new"),
       );
-      await Deno.writeTextFile(novel, 'console.log("no permissions");\n');
-      const missing = await runIn(tree, ["--list"]);
-      const failure = new TextDecoder().decode(missing.stderr);
-      assert(
-        "file discovery refuses missing permissions before reporting a runnable suite",
-        missing.code !== 0 && failure.includes("zz-new.test.mjs") &&
-          failure.includes("missing @fixture-permissions") &&
-          !new TextDecoder().decode(missing.stdout).includes("running  ("),
-      );
     } finally {
-      await Deno.remove(tree, { recursive: true }).catch(() => {});
+      await sys.remove(tree, { recursive: true }).catch(() => {});
     }
   }
 
@@ -331,7 +283,7 @@ try {
         `exit=${r.code}, discovery banners=${discoveryBanners(out)}`,
       );
     } finally {
-      await Deno.remove(tree, { recursive: true }).catch(() => {});
+      await sys.remove(tree, { recursive: true }).catch(() => {});
     }
   }
 
@@ -349,7 +301,7 @@ try {
         `exit=${r.code}, refusal=${/recursively/.test(out)}`,
       );
     } finally {
-      await Deno.remove(tree, { recursive: true }).catch(() => {});
+      await sys.remove(tree, { recursive: true }).catch(() => {});
     }
   }
 
@@ -392,12 +344,12 @@ try {
     }
     assert(
       "0bm: the aggregate is detected by its COMMAND, not its name",
-      isAggregateTaskCommand("deno run --allow-read scripts/run-fixtures.mjs") &&
-        !isAggregateTaskCommand("deno run scripts/vendor-fonts.test.mjs"),
+      isAggregateTaskCommand("node scripts/run-fixtures.mjs") &&
+        !isAggregateTaskCommand("node scripts/vendor-fonts.test.mjs"),
     );
     // The name-keyed protection alone is insufficient, stated as the property it lacks.
-    const runnerSource = await Deno.readTextFile(`${REPO}scripts/run-fixtures.mjs`);
-    // Tolerates both shapes deno fmt produces: ["name", …] on one line and the name on its own
+    const runnerSource = await sys.readTextFile(`${REPO}scripts/run-fixtures.mjs`);
+    // Tolerates both shapes npm run fmt produces: ["name", …] on one line and the name on its own
     // line after a bare bracket (an earlier regex only matched the first and reported "excluded: []").
     const excludedNames = [...runnerSource.matchAll(/^\s*\[?\s*"(test-[a-z-]+)"/gm)].map((m) =>
       m[1]
@@ -584,7 +536,7 @@ try {
   // exceeds its bound. The group kill cannot reach that child; before gendn-ebf it survived the
   // timeout silently, which is exactly the leak this proves is now reclaimed.
   {
-    const dir = await Deno.makeTempDir({ prefix: "run-fixtures-detach-" });
+    const dir = await sys.makeTempDir({ prefix: "run-fixtures-detach-" });
     const childPidFile2 = `${dir}/child.pid`;
     const detachBound = 4000;
     const startedA = Date.now();
@@ -596,7 +548,7 @@ try {
     const elapsedA = Date.now() - startedA;
     const outA = new TextDecoder().decode(r.stdout);
     const bothA = outA + new TextDecoder().decode(r.stderr);
-    const childPid2 = Number((await Deno.readTextFile(childPidFile2).catch(() => "")).trim());
+    const childPid2 = Number((await sys.readTextFile(childPidFile2).catch(() => "")).trim());
     try {
       assert(
         "ebf: a fixture with a DETACHED child is reported TIMEOUT and exits non-zero",
@@ -633,12 +585,12 @@ try {
     } finally {
       if (Number.isInteger(childPid2) && childPid2 > 0 && alive(childPid2)) {
         try {
-          Deno.kill(childPid2, "SIGKILL");
+          process.kill(childPid2, "SIGKILL");
         } catch {
           // already gone
         }
       }
-      await Deno.remove(dir, { recursive: true }).catch(() => {});
+      await sys.remove(dir, { recursive: true }).catch(() => {});
     }
   }
 
@@ -646,7 +598,7 @@ try {
   // The runner must NOT touch it — the sweep is a TIMEOUT behaviour, not a general reaper. This is the
   // assertion that keeps a fix for a leak from becoming a worse defect (killing a fixture's own server).
   {
-    const dir = await Deno.makeTempDir({ prefix: "run-fixtures-detach-" });
+    const dir = await sys.makeTempDir({ prefix: "run-fixtures-detach-" });
     const childPidFile3 = `${dir}/child.pid`;
     const r = await runRunner(["--tasks", "fixture-detach-exit"], {
       GENDN_FIXTURE_TIMEOUT_MS: "15000",
@@ -654,7 +606,7 @@ try {
       PROBE_CHILD_PID_FILE: childPidFile3,
     });
     const outB = new TextDecoder().decode(r.stdout);
-    const childPid3 = Number((await Deno.readTextFile(childPidFile3).catch(() => "")).trim());
+    const childPid3 = Number((await sys.readTextFile(childPidFile3).catch(() => "")).trim());
     try {
       assert(
         "ebf NEGATIVE CONTROL: a fixture with a detached child that COMPLETES is PASS",
@@ -671,12 +623,12 @@ try {
     } finally {
       if (Number.isInteger(childPid3) && childPid3 > 0 && alive(childPid3)) {
         try {
-          Deno.kill(childPid3, "SIGKILL");
+          process.kill(childPid3, "SIGKILL");
         } catch {
           // already gone
         }
       }
-      await Deno.remove(dir, { recursive: true }).catch(() => {});
+      await sys.remove(dir, { recursive: true }).catch(() => {});
     }
   }
 
@@ -684,7 +636,7 @@ try {
   // inner runner. Without the token chain, the inner runner overwrites outer attribution and this
   // recorded setsid sleeper SURVIVES. One inner invocation, one fixture, one sleeper — no recursion.
   {
-    const dir = await Deno.makeTempDir({ prefix: "run-fixtures-nested-" });
+    const dir = await sys.makeTempDir({ prefix: "run-fixtures-nested-" });
     const own = `${dir}/inner.pid`;
     const detached = `${dir}/child.pid`;
     const bound = 4500;
@@ -698,7 +650,7 @@ try {
       const duration = Date.now() - startedNested;
       const stdout = new TextDecoder().decode(r.stdout);
       const output = stdout + new TextDecoder().decode(r.stderr);
-      const childPid = Number((await Deno.readTextFile(detached).catch(() => "")).trim());
+      const childPid = Number((await sys.readTextFile(detached).catch(() => "")).trim());
       await new Promise((resolve) => setTimeout(resolve, 250));
       assert(
         "ebf/r3b nested: outer runner reports TIMEOUT and exits non-zero promptly",
@@ -719,29 +671,38 @@ try {
       );
     } finally {
       for (const file of [own, detached]) {
-        const pid = Number((await Deno.readTextFile(file).catch(() => "")).trim());
+        const pid = Number((await sys.readTextFile(file).catch(() => "")).trim());
         if (Number.isInteger(pid) && pid > 0 && alive(pid)) {
           try {
-            Deno.kill(pid, "SIGKILL");
+            process.kill(pid, "SIGKILL");
           } catch {
             // already gone
           }
         }
       }
-      await Deno.remove(dir, { recursive: true }).catch(() => {});
+      await sys.remove(dir, { recursive: true }).catch(() => {});
     }
   }
 
-  // CASE D: the sweep genuinely cannot read /proc under weaker Deno permissions. The runner must
+  // CASE D: the sweep genuinely cannot read /proc under a restricted permission set. The runner must
   // still exit non-zero and say SWEEP FAILED / survivor count UNKNOWN, not misreport a clean zero.
   {
-    const dir = await Deno.makeTempDir({ prefix: "run-fixtures-denied-" });
+    const dir = await sys.makeTempDir({ prefix: "run-fixtures-denied-" });
     const probeFile = `${dir}/probe.pid`;
     try {
       const r = await runRunner(
         ["--tasks", PROBE],
         { GENDN_FIXTURE_TIMEOUT_MS: "1500", PROBE_PID_FILE: probeFile },
-        ["--allow-read", "--allow-write", "--allow-run", "--allow-env"],
+        // Node's permission model: everything the runner needs except /proc.
+        [
+          "--permission",
+          `--allow-fs-read=${REPO}`,
+          // npm and node themselves (the probe runs through `npm run`, which inherits the model).
+          `--allow-fs-read=${dirname(dirname(process.execPath))}`,
+          `--allow-fs-read=${tmpdir()}`,
+          `--allow-fs-write=${tmpdir()}`,
+          "--allow-child-process",
+        ],
       );
       const out = new TextDecoder().decode(r.stdout) + new TextDecoder().decode(r.stderr);
       assert(
@@ -751,15 +712,15 @@ try {
         out.split("\n").find((line) => line.includes("sweep FAILED"))?.slice(0, 200) ?? "",
       );
     } finally {
-      const pid = Number((await Deno.readTextFile(probeFile).catch(() => "")).trim());
+      const pid = Number((await sys.readTextFile(probeFile).catch(() => "")).trim());
       if (Number.isInteger(pid) && pid > 0 && alive(pid)) {
         try {
-          Deno.kill(pid, "SIGKILL");
+          process.kill(pid, "SIGKILL");
         } catch {
           // already gone
         }
       }
-      await Deno.remove(dir, { recursive: true }).catch(() => {});
+      await sys.remove(dir, { recursive: true }).catch(() => {});
     }
   }
 
@@ -768,9 +729,9 @@ try {
   // observe its own non-invocation, so that witness is the documented invariant plus coord's
   // landing-time check.
   {
-    const tasks = JSON.parse(await Deno.readTextFile(`${REPO}deno.json`)).tasks;
+    const tasks = JSON.parse(await sys.readTextFile(`${REPO}package.json`)).scripts;
     assert(
-      "0bm: the aggregate task is still defined in deno.json (discovery depends on it)",
+      "0bm: the aggregate task is still defined in package.json (discovery depends on it)",
       typeof tasks["test-fixtures"] === "string" &&
         /run-fixtures\.mjs/.test(tasks["test-fixtures"]),
     );
@@ -787,16 +748,16 @@ try {
   const pid = await recordedPid();
   if (pid !== null && alive(pid)) {
     try {
-      Deno.kill(pid, "SIGKILL");
+      process.kill(pid, "SIGKILL");
     } catch {
       // already gone
     }
   }
-  await Deno.remove(pidFile).catch(() => {});
+  await sys.remove(pidFile).catch(() => {});
 }
 
 if (failures > 0) {
   console.error(`run-fixtures.test.mjs: ${failures} assertion(s) failed`);
-  Deno.exit(1);
+  process.exit(1);
 }
 console.log(`run-fixtures fixture: all ${passed} assertions passed`);

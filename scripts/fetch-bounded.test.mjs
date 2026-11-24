@@ -1,4 +1,3 @@
-// @fixture-permissions --allow-net=127.0.0.1 --allow-read
 // scripts/fetch-bounded.test.mjs — fixtures for the bounded upstream fetch (gendn-snd).
 //
 // Proves the two guards are real rather than paper, against a LOCAL server (no network):
@@ -23,8 +22,9 @@
 //     that bound is enforced BEFORE the hop: an off-allowlist destination receives ZERO
 //     requests (gendn-lr61 - the destination hit counter is the discriminating assertion)
 //
-// Run: deno task test-fixtures --tasks test-fetch-bounded  (or: deno run --allow-net=127.0.0.1 --allow-read scripts/fetch-bounded.test.mjs)
+// Run: npm run test-fixtures -- --tasks test-fetch-bounded  (or: node scripts/fetch-bounded.test.mjs)
 
+import * as sys from "./lib/sys.mjs";
 import { ALLOWED_ORIGINS, fetchBounded, readCapped } from "../lib/chromestatus.ts";
 
 let failures = 0;
@@ -64,7 +64,7 @@ function onRelease(fn) {
   hangCleanups.push(fn);
 }
 
-const server = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
+const server = sys.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
   const path = new URL(req.url).pathname;
   if (path === "/ok") {
     return new Response(JSON.stringify({ ok: true, n: 42 }), {
@@ -160,13 +160,14 @@ const server = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
   }
   return new Response("nope", { status: 404 });
 });
+await server.ready;
 // Stand-in for an off-allowlist destination origin (distinct port on loopback).
 // gendn-lr61: the destination server counts every request it receives. The
 // off-allowlist assertion below is discriminated by this counter staying at ZERO - a
 // thrown error alone does not prove the destination was never contacted (the old
 // guard threw AFTER following the redirect, having already reached it).
 let destHits = 0;
-const destServer = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
+const destServer = sys.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
   const path = new URL(req.url).pathname;
   if (path === "/dest") {
     destHits++;
@@ -239,6 +240,7 @@ const destServer = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
   }
   return new Response("nope", { status: 404 });
 });
+await destServer.ready;
 const destBase = `http://127.0.0.1:${destServer.addr.port}`;
 const destOrigin = new URL(destBase).origin;
 
@@ -615,6 +617,6 @@ try {
 
 if (failures > 0) {
   console.error(`fetch-bounded.test.mjs: ${failures} assertion(s) failed`);
-  Deno.exit(1);
+  process.exit(1);
 }
 console.log(`fetch-bounded fixture: all ${passed} assertions passed`);

@@ -1,15 +1,15 @@
-// @fixture-permissions --allow-read --allow-write --allow-run
 // Chrome-free preflight: zero embeds must not be reported as browser acceptance.
+import * as sys from "./lib/sys.mjs";
 import assert from "node:assert/strict";
 
 const repo = new URL("..", import.meta.url).pathname;
-const source = await Deno.readTextFile(`${repo}scripts/iframe-posture-sweep.mjs`);
-const root = await Deno.makeTempDir({ prefix: "gendn-iframe-sweep-preflight-" });
+const source = await sys.readTextFile(`${repo}scripts/iframe-posture-sweep.mjs`);
+const root = await sys.makeTempDir({ prefix: "gendn-iframe-sweep-preflight-" });
 const script = `${root}/scripts/iframe-posture-sweep.mjs`;
 let assertions = 0;
-async function run(args, permissions = ["--allow-read"]) {
-  const result = await new Deno.Command(Deno.execPath(), {
-    args: ["run", ...permissions, script, ...args],
+async function run(args) {
+  const result = await new sys.Command(sys.execPath(), {
+    args: [script, ...args],
     stdout: "piped",
     stderr: "piped",
   }).output();
@@ -25,10 +25,10 @@ const start = source.indexOf(guardStart);
 const end = source.indexOf(guardEnd, start);
 assert(start >= 0 && end > start, "sabotage must locate the real refusal block");
 try {
-  await Deno.mkdir(`${root}/scripts/lib`, { recursive: true });
-  await Deno.symlink(`${repo}scripts/lib/cdp.mjs`, `${root}/scripts/lib/cdp.mjs`);
-  await Deno.symlink(`${repo}scripts/lib/map-pool.mjs`, `${root}/scripts/lib/map-pool.mjs`);
-  await Deno.symlink(
+  await sys.mkdir(`${root}/scripts/lib`, { recursive: true });
+  await sys.symlink(`${repo}scripts/lib/cdp.mjs`, `${root}/scripts/lib/cdp.mjs`);
+  await sys.symlink(`${repo}scripts/lib/map-pool.mjs`, `${root}/scripts/lib/map-pool.mjs`);
+  await sys.symlink(
     `${repo}scripts/lib/iframe-posture.mjs`,
     `${root}/scripts/lib/iframe-posture.mjs`,
   );
@@ -41,12 +41,13 @@ try {
       "judged-content.mjs",
       "plain-corpus-path.mjs",
       "bounded-git.mjs",
+      "sys.mjs",
     ]
   ) {
-    await Deno.symlink(`${repo}scripts/lib/${name}`, `${root}/scripts/lib/${name}`);
+    await sys.symlink(`${repo}scripts/lib/${name}`, `${root}/scripts/lib/${name}`);
   }
   // Never touch the shared manual evidence directory, even if a future regression boots.
-  await Deno.writeTextFile(
+  await sys.writeTextFile(
     script,
     source.replace('const OUT = "/tmp/kjq-sweep";', `const OUT = "${root}/evidence";`),
   );
@@ -62,11 +63,11 @@ try {
   // Positive control: a real checked-in embed page qualifies for discovery, but only the
   // read-only preflight is green; it explicitly does NOT claim browser acceptance.
   const realPage = "v152/sub-apps/index.html";
-  const html = await Deno.readTextFile(`${repo}${realPage}`);
+  const html = await sys.readTextFile(`${repo}${realPage}`);
   assert.match(html, /<iframe\b[^>]*src="[^"]+"/s);
   assertions++;
-  await Deno.mkdir(`${root}/v152/sub-apps`, { recursive: true });
-  await Deno.writeTextFile(`${root}/${realPage}`, html);
+  await sys.mkdir(`${root}/v152/sub-apps`, { recursive: true });
+  await sys.writeTextFile(`${root}/${realPage}`, html);
   const valid = await run(["--check-corpus"]);
   assert.equal(valid.code, 0, valid.err);
   assert.match(valid.out, /sweep: 1 embed page\(s\) discovered/);
@@ -82,38 +83,32 @@ try {
     `spawnServer({ cwd: REPO, script: "${missingScript}" })`,
   );
   assert.notEqual(patched, source, "forced startup fixture must patch the real launch site");
-  await Deno.writeTextFile(
+  await sys.writeTextFile(
     script,
     patched.replace('const OUT = "/tmp/kjq-sweep";', `const OUT = "${root}/evidence";`),
   );
-  const failedStartup = await run([], [
-    "--allow-read",
-    "--allow-write",
-    "--allow-run",
-    "--allow-env",
-    "--allow-net=127.0.0.1,localhost",
-  ]);
+  const failedStartup = await run([]);
   assert.notEqual(failedStartup.code, 0);
   assert.match(failedStartup.err, /gendn server did not start for reference visibility validation/);
   assert.match(failedStartup.err, /__missing_iframe_sweep_fixture__\.ts/);
-  assert.match(failedStartup.err, /Module not found/);
+  assert.match(failedStartup.err, /Cannot find module/);
   assert.match(failedStartup.err, /child exit 1/);
   assert.doesNotMatch(failedStartup.out, /PASS:|all .* assertions passed/);
   assert.equal(
-    (await Array.fromAsync(Deno.readDir(`${root}/evidence`))).length,
+    (await Array.fromAsync(sys.readDir(`${root}/evidence`))).length,
     0,
     "failed startup must not emit browser evidence",
   );
   assertions += 7;
-  await Deno.remove(`${root}/evidence`, { recursive: true });
-  await Deno.writeTextFile(
+  await sys.remove(`${root}/evidence`, { recursive: true });
+  await sys.writeTextFile(
     script,
     source.replace('const OUT = "/tmp/kjq-sweep";', `const OUT = "${root}/evidence";`),
   );
 
   // A corpus containing only deferred embeds also performed no acceptance work.
-  await Deno.remove(`${root}/scripts/lib/iframe-posture.mjs`);
-  await Deno.writeTextFile(
+  await sys.remove(`${root}/scripts/lib/iframe-posture.mjs`);
+  await sys.writeTextFile(
     `${root}/scripts/lib/iframe-posture.mjs`,
     `export const PENDING_HARDENING = [{ file: "${realPage}" }];\n`,
   );
@@ -129,9 +124,9 @@ try {
 
   // Sabotage only the refusal branch, remove the copied embed, and prove the empty
   // corpus flips to a false-green discovery rather than an error.
-  await Deno.remove(`${root}/${realPage}`);
+  await sys.remove(`${root}/${realPage}`);
   const sabotaged = source.slice(0, start) + source.slice(end);
-  await Deno.writeTextFile(
+  await sys.writeTextFile(
     script,
     sabotaged.replace('const OUT = "/tmp/kjq-sweep";', `const OUT = "${root}/evidence";`),
   );
@@ -139,12 +134,12 @@ try {
   assert.equal(mutated.code, 0, "guard removal must flip empty refusal RED");
   assert.match(mutated.out, /preflight: 0 hardened embed\(s\) eligible/);
   assertions += 2;
-  const noEvidence = await Deno.stat(`${root}/evidence`).then(() => false, () => true);
+  const noEvidence = await sys.stat(`${root}/evidence`).then(() => false, () => true);
   assert(noEvidence, "read-only preflight wrote no evidence directory");
   assertions++;
   console.log(
     `iframe-posture sweep preflight: ${assertions} assertions passed; sabotage: 1 empty-refusal RED`,
   );
 } finally {
-  await Deno.remove(root, { recursive: true });
+  await sys.remove(root, { recursive: true });
 }

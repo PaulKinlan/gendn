@@ -41,7 +41,7 @@ independent source review.
 ## On-demand CSS drift checks
 
 Before a CSS edit, [record a computed-style baseline](docs/css-drift.md) with
-`deno task css-drift --record wave-name --routes 'v147/example'`. After editing,
+`npm run css-drift -- --record wave-name --routes 'v147/example'`. After editing,
 compare with the **same routes** using `--compare wave-name`; the baseline is
 uncommitted and must be kept in the same worktree. `--changed` may replace
 `--routes` on **both** passes only when the branch already has a stable changed-page
@@ -57,8 +57,8 @@ gendn/
   server.ts             Routing + rendering, runtime-neutral (serveRequest). Routes / and /v<N>/<api-slug>/.
   worker.ts             Cloudflare Workers entry (production). wrangler.jsonc configures it.
   serve.ts              Node entry for local dev: `npm run dev` (Node 22.18+, no build step).
-  package.json          npm scripts (dev/start/build/deploy) + pinned wrangler.
-  deno.json             Legacy Deno tasks (gates/tests still run under Deno until they move to Node).
+  package.json          Every task (`npm run <task>`) + pinned dev tools.
+  scripts/              Gates, generators and fixtures, plain Node.
   lib/
     chromestatus.ts     JSON API wrapper (shared with chrome-platform-showcase).
     mdn.ts              Heuristics for "is this API on MDN yet?".

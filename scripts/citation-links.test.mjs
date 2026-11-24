@@ -1,4 +1,3 @@
-// @fixture-permissions --allow-read --allow-write --allow-run
 // scripts/citation-links.test.mjs — fixture for the unlinked-citation ratchet (gendn-t7h).
 //
 // WHAT MUST NOT REGRESS:
@@ -18,6 +17,7 @@
 //      (diff of label sets instead of page gating) is killed by the third case:
 //      it would pass a touched page that retains its pre-existing label.
 
+import * as sys from "./lib/sys.mjs";
 import {
   changedPageIds,
   detectCsIdShapes,
@@ -34,7 +34,7 @@ function ok(cond, name) {
   n++;
   if (!cond) {
     console.log(`ASSERTION FAILED: ${name}`);
-    Deno.exit(1);
+    process.exit(1);
   }
 }
 
@@ -124,25 +124,25 @@ ok(
 
 // A symlink to a REAL, EMPTY directory never throws on readDir. Pin the shared
 // proactive lstat invariant before the older parallel/deletion assertions.
-const plainProbe = await Deno.makeTempDir({ prefix: "citation-plain-path-" });
-const realOutside = await Deno.makeTempDir({ prefix: "citation-real-outside-" });
+const plainProbe = await sys.makeTempDir({ prefix: "citation-plain-path-" });
+const realOutside = await sys.makeTempDir({ prefix: "citation-real-outside-" });
 try {
-  await Deno.mkdir(`${plainProbe}/v150`);
-  await Deno.symlink(realOutside, `${plainProbe}/v150/member`);
+  await sys.mkdir(`${plainProbe}/v150`);
+  await sys.symlink(realOutside, `${plainProbe}/v150/member`);
   const verdict = await plainCorpusPath(plainProbe, "v150/member");
   ok(
     verdict.state === "invalid" && verdict.reason.includes("symlink component v150/member"),
     "shared helper proactively rejects a real-but-empty external directory symlink",
   );
 } finally {
-  await Deno.remove(plainProbe, { recursive: true });
-  await Deno.remove(realOutside, { recursive: true });
+  await sys.remove(plainProbe, { recursive: true });
+  await sys.remove(realOutside, { recursive: true });
 }
 
 // --- 4. ratchet end-to-end in a scratch repo --------------------------------
-const dir = await Deno.makeTempDir({ prefix: "t7h-" });
+const dir = await sys.makeTempDir({ prefix: "t7h-" });
 async function g(...args) {
-  const cmd = new Deno.Command("git", { args, cwd: dir, stdout: "null", stderr: "null" });
+  const cmd = new sys.Command("git", { args, cwd: dir, stdout: "null", stderr: "null" });
   const { code } = await cmd.output();
   if (code !== 0) throw new Error(`git ${args.join(" ")} failed`);
 }
@@ -152,10 +152,10 @@ const unlinkedPage = (title) =>
   `<!doctype html><html><head><title>${title}</title></head><body><p>body</p><span class="citation">Source: Example Org report, 2026.</span></body></html>`;
 const cleanPage =
   `<!doctype html><html><head><title>b</title></head><body><p>body</p><span class="citation">Source: <a href="https://example.org/b">B</a></span></body></html>`;
-await Deno.mkdir(`${dir}/v147/legacy-page`, { recursive: true });
-await Deno.mkdir(`${dir}/v148/touched-page`, { recursive: true });
-await Deno.writeTextFile(`${dir}/${PAGE_A}`, unlinkedPage("a"));
-await Deno.writeTextFile(`${dir}/${PAGE_B}`, cleanPage);
+await sys.mkdir(`${dir}/v147/legacy-page`, { recursive: true });
+await sys.mkdir(`${dir}/v148/touched-page`, { recursive: true });
+await sys.writeTextFile(`${dir}/${PAGE_A}`, unlinkedPage("a"));
+await sys.writeTextFile(`${dir}/${PAGE_B}`, cleanPage);
 await g("init", "-q", "-b", "main");
 await g("config", "user.email", "t@t");
 await g("config", "user.name", "t");
@@ -165,7 +165,7 @@ await g("commit", "-qm", "base");
 await g("update-ref", "refs/remotes/origin/main", "HEAD");
 
 // case 4a: diff touches only the CLEAN page -> the legacy unlinked label is invisible
-await Deno.writeTextFile(`${dir}/${PAGE_B}`, cleanPage.replace("body", "body v2"));
+await sys.writeTextFile(`${dir}/${PAGE_B}`, cleanPage.replace("body", "body v2"));
 await g("add", ".");
 await g("commit", "-qm", "touch B only");
 let r = await runRatchet(dir);
@@ -176,7 +176,7 @@ ok(
 );
 
 // case 4b: diff touches the legacy page UNRELATED to the label -> it must fail
-await Deno.writeTextFile(`${dir}/${PAGE_A}`, unlinkedPage("a").replace("body", "body edited"));
+await sys.writeTextFile(`${dir}/${PAGE_A}`, unlinkedPage("a").replace("body", "body edited"));
 let r4bPre = await runRatchet(dir);
 ok(
   r4bPre.failures.length === 1 && r4bPre.failures[0].includes("v147/legacy-page"),
@@ -192,9 +192,9 @@ ok(
 // gendn-waa3: staged-then-worktree-reverted (git status shows MM) must not escape.
 // Overwrite working file back to base content: base -> working tree diff is empty,
 // but the index holds the change, so union of git diff --cached keeps it in the key.
-await Deno.writeTextFile(`${dir}/${PAGE_A}`, unlinkedPage("a"));
+await sys.writeTextFile(`${dir}/${PAGE_A}`, unlinkedPage("a"));
 const statusShort4b = new TextDecoder().decode(
-  (await (new Deno.Command("git", { args: ["status", "--short"], cwd: dir, stdout: "piped" }))
+  (await (new sys.Command("git", { args: ["status", "--short"], cwd: dir, stdout: "piped" }))
     .output()).stdout,
 ).trim();
 ok(
@@ -212,7 +212,7 @@ ok(
 );
 
 // Restore the edit in working tree before commit so the committed control runs as before
-await Deno.writeTextFile(`${dir}/${PAGE_A}`, unlinkedPage("a").replace("body", "body edited"));
+await sys.writeTextFile(`${dir}/${PAGE_A}`, unlinkedPage("a").replace("body", "body edited"));
 await g("commit", "-qm", "touch A unrelated to label");
 r = await runRatchet(dir);
 ok(r.changed.includes("v147/legacy-page"), "4b changed set includes A");
@@ -222,7 +222,7 @@ ok(
 );
 
 // case 4c: resolving the label on the touched page makes it pass again
-await Deno.writeTextFile(
+await sys.writeTextFile(
   `${dir}/${PAGE_A}`,
   unlinkedPage("a").replace(
     "Example Org report, 2026.",
@@ -238,8 +238,8 @@ ok(r.failures.length === 0, "4c linked label on touched page passes");
 
 // case 4d: member routes are gated too (the round-1 P1 bypass)
 const MEMBER = "v147/legacy-page/member/index.html";
-await Deno.mkdir(`${dir}/v147/legacy-page/member`, { recursive: true });
-await Deno.writeTextFile(`${dir}/${MEMBER}`, unlinkedPage("m"));
+await sys.mkdir(`${dir}/v147/legacy-page/member`, { recursive: true });
+await sys.writeTextFile(`${dir}/${MEMBER}`, unlinkedPage("m"));
 await g("add", ".");
 await g("commit", "-qm", "add member with unlinked label");
 r = await runRatchet(dir);
@@ -250,7 +250,7 @@ ok(
 
 // case 4e: touching ONLY a member file also inspects the whole page tree (no bypass
 // by splitting a touch across the tree); parent is clean here so still one failure
-await Deno.writeTextFile(`${dir}/${MEMBER}`, unlinkedPage("m").replace("body", "body v2"));
+await sys.writeTextFile(`${dir}/${MEMBER}`, unlinkedPage("m").replace("body", "body v2"));
 await g("add", ".");
 await g("commit", "-qm", "touch member only");
 r = await runRatchet(dir);
@@ -264,17 +264,17 @@ ok(
 );
 
 // case 4f: untracked new pages count as changed (ls-files --others)
-await Deno.mkdir(`${dir}/v149/fresh-page`, { recursive: true });
-await Deno.writeTextFile(`${dir}/v149/fresh-page/index.html`, unlinkedPage("f"));
+await sys.mkdir(`${dir}/v149/fresh-page`, { recursive: true });
+await sys.writeTextFile(`${dir}/v149/fresh-page/index.html`, unlinkedPage("f"));
 r = await runRatchet(dir);
 ok(
   r.changed.includes("v149/fresh-page") && r.failures.some((f) => f.includes("v149/fresh-page")),
   "4f untracked new page with unlinked label fails",
 );
-await Deno.remove(`${dir}/v149`, { recursive: true });
+await sys.remove(`${dir}/v149`, { recursive: true });
 
 // case 4g: id-shape scan is recursive into member trees
-await Deno.writeTextFile(
+await sys.writeTextFile(
   `${dir}/${MEMBER}`,
   unlinkedPage("m").replace("Example Org report, 2026.", '<a href="https://example.org/r">r</a>') +
     '<a href="https://chromestatus.com/feature/510985227337">t</a>',
@@ -295,13 +295,13 @@ ok(
   "4h missing origin/main ref explicitly refuses to verify citation changes",
 );
 
-await Deno.remove(dir, { recursive: true });
+await sys.remove(dir, { recursive: true });
 
 // case 4i: multi-page diff with nested types/*, deleted page, untracked page
 // ensures bounded parallel walk preserves exact deterministic input-order failures
-const dir4i = await Deno.makeTempDir({ prefix: "t7h-multi-" });
+const dir4i = await sys.makeTempDir({ prefix: "t7h-multi-" });
 async function g4i(...args) {
-  const cmd = new Deno.Command("git", { args, cwd: dir4i, stdout: "null", stderr: "null" });
+  const cmd = new sys.Command("git", { args, cwd: dir4i, stdout: "null", stderr: "null" });
   const { code } = await cmd.output();
   if (code !== 0) throw new Error(`git ${args.join(" ")} failed`);
 }
@@ -315,17 +315,17 @@ const cleanDoc = (title) =>
 // Create 10 base pages
 for (let i = 0; i < 10; i++) {
   const pad = String(i).padStart(2, "0");
-  await Deno.mkdir(`${dir4i}/v150/page-${pad}`, { recursive: true });
-  await Deno.writeTextFile(`${dir4i}/v150/page-${pad}/index.html`, cleanDoc(`p-${pad}`));
+  await sys.mkdir(`${dir4i}/v150/page-${pad}`, { recursive: true });
+  await sys.writeTextFile(`${dir4i}/v150/page-${pad}/index.html`, cleanDoc(`p-${pad}`));
 }
 // Nested types page
-await Deno.mkdir(`${dir4i}/v150/page-nested/types/sub`, { recursive: true });
-await Deno.writeTextFile(`${dir4i}/v150/page-nested/index.html`, cleanDoc("nested-root"));
-await Deno.writeTextFile(`${dir4i}/v150/page-nested/types/sub/index.html`, cleanDoc("nested-sub"));
+await sys.mkdir(`${dir4i}/v150/page-nested/types/sub`, { recursive: true });
+await sys.writeTextFile(`${dir4i}/v150/page-nested/index.html`, cleanDoc("nested-root"));
+await sys.writeTextFile(`${dir4i}/v150/page-nested/types/sub/index.html`, cleanDoc("nested-sub"));
 
 // Page to delete
-await Deno.mkdir(`${dir4i}/v150/page-to-delete`, { recursive: true });
-await Deno.writeTextFile(`${dir4i}/v150/page-to-delete/index.html`, cleanDoc("to-delete"));
+await sys.mkdir(`${dir4i}/v150/page-to-delete`, { recursive: true });
+await sys.writeTextFile(`${dir4i}/v150/page-to-delete/index.html`, cleanDoc("to-delete"));
 
 await g4i("add", ".");
 await g4i("commit", "-qm", "base commit");
@@ -336,19 +336,19 @@ await g4i("update-ref", "refs/remotes/origin/main", "HEAD");
 for (let i = 0; i < 10; i++) {
   const pad = String(i).padStart(2, "0");
   if (i % 2 === 0) {
-    await Deno.writeTextFile(
+    await sys.writeTextFile(
       `${dir4i}/v150/page-${pad}/index.html`,
       unlinkedPage(`p-${pad}`).replace("Example Org report, 2026.", `Report for ${pad}`),
     );
   } else {
-    await Deno.writeTextFile(
+    await sys.writeTextFile(
       `${dir4i}/v150/page-${pad}/index.html`,
       cleanDoc(`p-${pad}-v2`),
     );
   }
 }
 // Touch nested types child with an unlinked citation
-await Deno.writeTextFile(
+await sys.writeTextFile(
   `${dir4i}/v150/page-nested/types/sub/index.html`,
   unlinkedPage("nested-sub").replace("Example Org report, 2026.", "Nested report 2026"),
 );
@@ -358,8 +358,8 @@ await g4i("add", "v150/page-*");
 await g4i("commit", "-qm", "modify pages and delete one");
 
 // Untracked new page with unlinked citation
-await Deno.mkdir(`${dir4i}/v150/page-untracked`, { recursive: true });
-await Deno.writeTextFile(
+await sys.mkdir(`${dir4i}/v150/page-untracked`, { recursive: true });
+await sys.writeTextFile(
   `${dir4i}/v150/page-untracked/index.html`,
   unlinkedPage("untracked").replace("Example Org report, 2026.", "Untracked report 2026"),
 );
@@ -398,12 +398,12 @@ ok(
   "4i nested types route failure detected and reported under parent page id",
 );
 
-await Deno.remove(dir4i, { recursive: true });
+await sys.remove(dir4i, { recursive: true });
 
 // case 4j: gendn-u3i9 — uncommitted tracked page edit is gated before commit
-const dir4j = await Deno.makeTempDir({ prefix: "u3i9-uncommitted-" });
+const dir4j = await sys.makeTempDir({ prefix: "u3i9-uncommitted-" });
 async function g4j(...args) {
-  const cmd = new Deno.Command("git", { args, cwd: dir4j, stdout: "null", stderr: "null" });
+  const cmd = new sys.Command("git", { args, cwd: dir4j, stdout: "null", stderr: "null" });
   const { code } = await cmd.output();
   if (code !== 0) throw new Error(`git ${args.join(" ")} failed`);
 }
@@ -412,8 +412,8 @@ await g4j("config", "user.email", "t@t");
 await g4j("config", "user.name", "t");
 
 const TRACKED_PAGE = "v150/focusgroup/index.html";
-await Deno.mkdir(`${dir4j}/v150/focusgroup`, { recursive: true });
-await Deno.writeTextFile(`${dir4j}/${TRACKED_PAGE}`, cleanDoc("focusgroup"));
+await sys.mkdir(`${dir4j}/v150/focusgroup`, { recursive: true });
+await sys.writeTextFile(`${dir4j}/${TRACKED_PAGE}`, cleanDoc("focusgroup"));
 await g4j("add", ".");
 await g4j("commit", "-qm", "clean baseline");
 await g4j("update-ref", "refs/remotes/origin/main", "HEAD");
@@ -423,7 +423,7 @@ let r4j = await runRatchet(dir4j);
 ok(r4j.changed.length === 0 && r4j.failures.length === 0, "4j initial ratchet is clean");
 
 // Working tree mutation ONLY (tracked file, uncommitted, not staged)
-await Deno.writeTextFile(
+await sys.writeTextFile(
   `${dir4j}/${TRACKED_PAGE}`,
   cleanDoc("focusgroup") + '\n<span class="citation">Source: Unlinked Test Citation 2026.</span>',
 );
@@ -448,14 +448,14 @@ ok(
 );
 
 // gendn-waa3: staged-then-reverted edit is included in changed pages via cached diff
-await Deno.writeTextFile(`${dir4j}/${TRACKED_PAGE}`, cleanDoc("focusgroup"));
+await sys.writeTextFile(`${dir4j}/${TRACKED_PAGE}`, cleanDoc("focusgroup"));
 let r4jReverted = await runRatchet(dir4j);
 ok(
   r4jReverted.changed.includes("v150/focusgroup"),
   "4j staged-then-reverted tracked page edit is included in changed pages via cached diff (gendn-waa3)",
 );
 // Restore unlinked citation before committed control
-await Deno.writeTextFile(
+await sys.writeTextFile(
   `${dir4j}/${TRACKED_PAGE}`,
   cleanDoc("focusgroup") + '\n<span class="citation">Source: Unlinked Test Citation 2026.</span>',
 );
@@ -469,7 +469,7 @@ ok(
 );
 
 // Uncommitted clean resolution: resolving the citation in working tree clears failure
-await Deno.writeTextFile(
+await sys.writeTextFile(
   `${dir4j}/${TRACKED_PAGE}`,
   cleanDoc("focusgroup") +
     '\n<span class="citation">Source: <a href="https://example.org/resolved">Resolved</a></span>',
@@ -489,11 +489,8 @@ ok(r4j.failures.length === 0, "4j committed resolution passes");
 // CLI controls use a real committed bad page in this isolated repo. They pin the exit and
 // diagnostic, not only runRatchet's return shape; neither case needs Chrome or network.
 const runCitationGate = async (all = false) => {
-  const out = await new Deno.Command(Deno.execPath(), {
+  const out = await new sys.Command(sys.execPath(), {
     args: [
-      "run",
-      "--allow-read",
-      "--allow-run",
       new URL("./check-citation-links.mjs", import.meta.url).pathname,
       ...(all ? ["--all"] : []),
     ],
@@ -520,7 +517,7 @@ ok(
     ),
   "4j equal fetched baseline qualifies BOTH citation count and PASS line",
 );
-await Deno.writeTextFile(
+await sys.writeTextFile(
   `${dir4j}/${TRACKED_PAGE}`,
   cleanDoc("focusgroup") + '\n<span class="citation">Source: Unlinked Test Citation 2026.</span>',
 );
@@ -544,7 +541,7 @@ ok(
 
 // A published page in the fetched catalogue cannot be replaced by zero scanned pages.
 await g4j("update-ref", "refs/remotes/origin/main", "HEAD~1");
-await Deno.remove(`${dir4j}/v150`, { recursive: true });
+await sys.remove(`${dir4j}/v150`, { recursive: true });
 cli4j = await runCitationGate();
 ok(
   cli4j.code === 1 && cli4j.text.includes("published page corpus empty") &&
@@ -575,8 +572,8 @@ ok(
 );
 
 // A broken link to a touched index.html is unreadable even though the directory remains.
-await Deno.remove(`${dir4j}/${TRACKED_PAGE}`);
-await Deno.symlink("missing-page.html", `${dir4j}/${TRACKED_PAGE}`);
+await sys.remove(`${dir4j}/${TRACKED_PAGE}`);
+await sys.symlink("missing-page.html", `${dir4j}/${TRACKED_PAGE}`);
 cli4j = await runCitationGate();
 ok(
   cli4j.code === 1 && cli4j.text.includes(TRACKED_PAGE) &&
@@ -589,41 +586,41 @@ ok(cli4j.code === 0 && cli4j.text.includes("PASS —"), "4l readable page restor
 
 // A dangling symlink for the whole touched directory yields NotFound from readDir,
 // but lstat proves the owner path exists and must not be treated as a deleted route.
-await Deno.remove(`${dir4j}/v150/focusgroup`, { recursive: true });
-await Deno.symlink("missing-dir", `${dir4j}/v150/focusgroup`);
+await sys.remove(`${dir4j}/v150/focusgroup`, { recursive: true });
+await sys.symlink("missing-dir", `${dir4j}/v150/focusgroup`);
 cli4j = await runCitationGate();
 ok(
   cli4j.code === 1 && cli4j.text.includes("v150/focusgroup") &&
     cli4j.text.includes("symlink component") && !cli4j.text.includes("PASS —"),
   "4l dangling touched DIRECTORY is a named hard failure (CLI rc1, no PASS)",
 );
-await Deno.remove(`${dir4j}/v150/focusgroup`);
+await sys.remove(`${dir4j}/v150/focusgroup`);
 await g4j("reset", "--hard", "HEAD");
 cli4j = await runCitationGate();
 ok(cli4j.code === 0 && cli4j.text.includes("PASS —"), "4l readable directory restoration passes");
 
-await Deno.remove(`${dir4j}/v150`, { recursive: true });
-await Deno.symlink("missing-milestone", `${dir4j}/v150`);
+await sys.remove(`${dir4j}/v150`, { recursive: true });
+await sys.symlink("missing-milestone", `${dir4j}/v150`);
 cli4j = await runCitationGate();
 ok(
   cli4j.code === 1 && cli4j.text.includes("symlink component v150") &&
     !cli4j.text.includes("PASS —"),
   "4n dangling MILESTONE component is a named hard failure (CLI rc1)",
 );
-await Deno.remove(`${dir4j}/v150`);
+await sys.remove(`${dir4j}/v150`);
 await g4j("reset", "--hard", "HEAD");
 
-await Deno.symlink("missing-member", `${dir4j}/v150/focusgroup/member`);
+await sys.symlink("missing-member", `${dir4j}/v150/focusgroup/member`);
 cli4j = await runCitationGate();
 ok(
   cli4j.code === 1 && cli4j.text.includes("v150/focusgroup/member") &&
     cli4j.text.includes("symlink component") && !cli4j.text.includes("PASS —"),
   "4n dangling MEMBER component is a named hard failure (CLI rc1)",
 );
-await Deno.remove(`${dir4j}/v150/focusgroup/member`);
-const outside4j = await Deno.makeTempDir({ prefix: "citation-outside-empty-" });
+await sys.remove(`${dir4j}/v150/focusgroup/member`);
+const outside4j = await sys.makeTempDir({ prefix: "citation-outside-empty-" });
 try {
-  await Deno.symlink(outside4j, `${dir4j}/v150/focusgroup/member`);
+  await sys.symlink(outside4j, `${dir4j}/v150/focusgroup/member`);
   cli4j = await runCitationGate();
   ok(
     cli4j.code === 1 && cli4j.text.includes("v150/focusgroup/member") &&
@@ -631,12 +628,12 @@ try {
     "4n symlink to REAL EMPTY OUTSIDE directory fails proactively (CLI rc1)",
   );
 } finally {
-  await Deno.remove(`${dir4j}/v150/focusgroup/member`);
-  await Deno.remove(outside4j, { recursive: true });
+  await sys.remove(`${dir4j}/v150/focusgroup/member`);
+  await sys.remove(outside4j, { recursive: true });
 }
-await Deno.mkdir(`${dir4j}/v150/focusgroup/private`);
-await Deno.writeTextFile(`${dir4j}/v150/focusgroup/private/index.html`, cleanDoc("private"));
-await Deno.chmod(`${dir4j}/v150/focusgroup/private`, 0o000);
+await sys.mkdir(`${dir4j}/v150/focusgroup/private`);
+await sys.writeTextFile(`${dir4j}/v150/focusgroup/private/index.html`, cleanDoc("private"));
+await sys.chmod(`${dir4j}/v150/focusgroup/private`, 0o000);
 try {
   cli4j = await runCitationGate();
   ok(
@@ -645,8 +642,8 @@ try {
     "4n permission-denied member directory fails with named controlled summary",
   );
 } finally {
-  await Deno.chmod(`${dir4j}/v150/focusgroup/private`, 0o700);
-  await Deno.remove(`${dir4j}/v150/focusgroup/private`, { recursive: true });
+  await sys.chmod(`${dir4j}/v150/focusgroup/private`, 0o700);
+  await sys.remove(`${dir4j}/v150/focusgroup/private`, { recursive: true });
 }
 cli4j = await runCitationGate();
 ok(cli4j.code === 0 && cli4j.text.includes("PASS —"), "4n plain restored corpus passes");
@@ -663,6 +660,6 @@ ok(
   "4m fetched ref ahead of HEAD is not falsely labelled UNCHANGED",
 );
 
-await Deno.remove(dir4j, { recursive: true });
+await sys.remove(dir4j, { recursive: true });
 
 console.log(`citation-links fixture: all ${n} assertions passed`);

@@ -1,9 +1,9 @@
-#!/usr/bin/env -S deno run
-// @fixture-permissions --allow-read --allow-env
+#!/usr/bin/env node
 // cdp.test.mjs — committed fixtures for the cdp profile-dir tooling (gendn-bmi): the ps parse
 // anomaly warning, its per-line dedupe, parse fidelity vs the merged dfc4c2c behaviour, and
 // TMPDIR root resolution (incl. the empty-string → /tmp-like-unset case). No Chrome. Runs as
-// `deno task test-fixtures --tasks test-cdp` and chained first in `deno task test-reference-contract`.
+// `npm run test-fixtures -- --tasks test-cdp` and chained first in `npm run test-reference-contract`.
+import * as sys from "./lib/sys.mjs";
 import {
   CDP_TIMEOUT_MAX_MS,
   CDP_TIMEOUT_MIN_MS,
@@ -34,7 +34,7 @@ const wellFormed = [
   `48933 /bin/google-chrome-stable --headless=new --user-data-dir=${DIR} --remote-debugging-port=9333 about:blank`,
   `48972 /opt/google/chrome/chrome --type=utility --utility-sub-type=network.mojom.NetworkService --user-data-dir=${DIR}`,
   `60001 du -sb ${DIR}`, // references the dir, not Chrome-family: never signalled
-  `${Deno.pid} /bin/google-chrome-stable --user-data-dir=${DIR}`, // self: never signalled
+  `${process.pid} /bin/google-chrome-stable --user-data-dir=${DIR}`, // self: never signalled
   "1 /sbin/init --log-target=syslog", // unrelated: filtered before any pid parse
   "1234 /usr/bin/not-ours --user-data-dir=/tmp/other-dir-x", // different dir entirely
 ].join("\n");
@@ -71,20 +71,20 @@ console.error = origError;
 // TMPDIR root-resolution pins (env manipulated then restored). These pin the single source
 // of truth shared by makeTempDir's dir and the sweep: whatever TMPDIR says, creation and
 // sweeping must resolve to the same absolute root.
-const savedTmpdir = Deno.env.get("TMPDIR");
-Deno.env.delete("TMPDIR");
+const savedTmpdir = sys.env.get("TMPDIR");
+sys.env.delete("TMPDIR");
 assert('unset TMPDIR resolves to "/tmp"', tmpRoot() === "/tmp");
-Deno.env.set("TMPDIR", "");
+sys.env.set("TMPDIR", "");
 assert(
   'TMPDIR="" resolves to "/tmp" like unset (we own the makeTempDir dir, so Deno\'s cwd-relative quirk is overridden)',
   tmpRoot() === "/tmp",
 );
-Deno.env.set("TMPDIR", "/tmp/");
+sys.env.set("TMPDIR", "/tmp/");
 assert('TMPDIR="/tmp/" strips the trailing slash', tmpRoot() === "/tmp");
-Deno.env.set("TMPDIR", "rel/dir");
-assert("relative TMPDIR resolves against the CWD", tmpRoot() === `${Deno.cwd()}/rel/dir`);
-if (savedTmpdir === undefined) Deno.env.delete("TMPDIR");
-else Deno.env.set("TMPDIR", savedTmpdir);
+sys.env.set("TMPDIR", "rel/dir");
+assert("relative TMPDIR resolves against the CWD", tmpRoot() === `${process.cwd()}/rel/dir`);
+if (savedTmpdir === undefined) sys.env.delete("TMPDIR");
+else sys.env.set("TMPDIR", savedTmpdir);
 
 // gendn-ybg4: the default remains bounded, and the optional override cannot disable it.
 {
@@ -113,13 +113,13 @@ else Deno.env.set("TMPDIR", savedTmpdir);
   );
 
   const name = "GENDN_CDP_TIMEOUT_MS";
-  const saved = Deno.env.get(name);
+  const saved = sys.env.get(name);
   try {
-    Deno.env.delete(name);
+    sys.env.delete(name);
     assert("lazy unset env uses default", configuredCdpTimeoutMs() === CDP_TIMEOUT_MS);
-    Deno.env.set(name, "2500");
+    sys.env.set(name, "2500");
     assert("lazy env read picks up a new override", configuredCdpTimeoutMs() === 2500);
-    Deno.env.set(name, "1000");
+    sys.env.set(name, "1000");
     const stub = new Conn({ send() {}, onmessage: null });
     let rejected = "";
     try {
@@ -130,7 +130,7 @@ else Deno.env.set("TMPDIR", savedTmpdir);
     assert("the env override reaches CDP pendingCall", rejected.includes("within 1000ms"));
     assert("env-bounded call removes its pending entry", stub.pending.size === 0);
 
-    Deno.env.set(name, "invalid-value");
+    sys.env.set(name, "invalid-value");
     const warnings = [];
     const original = console.error;
     console.error = (...args) => warnings.push(args.join(" "));
@@ -145,8 +145,8 @@ else Deno.env.set("TMPDIR", savedTmpdir);
     }
     assert("invalid env warns once across repeated CDP calls", warnings.length === 1);
   } finally {
-    if (saved === undefined) Deno.env.delete(name);
-    else Deno.env.set(name, saved);
+    if (saved === undefined) sys.env.delete(name);
+    else sys.env.set(name, saved);
   }
 }
 
@@ -233,14 +233,14 @@ assert("garbage refused", !isLocalNavigation("not a url"));
 {
   const bad = [];
   let external = 0;
-  for await (const rel of Deno.readDir(".")) {
+  for await (const rel of sys.readDir(".")) {
     if (!(rel.isDirectory && /^v\d+$/.test(rel.name))) continue;
-    for await (const slug of Deno.readDir(rel.name)) {
+    for await (const slug of sys.readDir(rel.name)) {
       if (!slug.isDirectory) continue;
       const page = `${rel.name}/${slug.name}/index.html`;
       let html;
       try {
-        html = await Deno.readTextFile(page);
+        html = await sys.readTextFile(page);
       } catch {
         continue;
       }
@@ -304,6 +304,6 @@ assert("garbage refused", !isLocalNavigation("not a url"));
 
 if (failures > 0) {
   console.error(`cdp.test.mjs: ${failures} assertion(s) failed`);
-  Deno.exit(1);
+  process.exit(1);
 }
 console.log("cdp parse fixture: all assertions passed");

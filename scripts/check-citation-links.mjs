@@ -28,6 +28,7 @@
 //     RFC n, Intent) and no immediate <a href. Plain prose uses of the word
 //     "Source:" without a source-like token are not flagged.
 
+import * as sys from "./lib/sys.mjs";
 import { plainCorpusPath } from "./lib/plain-corpus-path.mjs";
 import { runGit } from "./lib/bounded-git.mjs";
 import { mapPool, PAGE_CONCURRENCY } from "./lib/map-pool.mjs";
@@ -96,11 +97,11 @@ async function pageTreeHtml(root, id, strict = false) {
   const walk = async (relative) => {
     const verdict = await plainCorpusPath(root, relative);
     if (verdict.state === "missing") {
-      throw new Deno.errors.NotFound(`${relative}: ${verdict.reason}`);
+      throw new sys.errors.NotFound(`${relative}: ${verdict.reason}`);
     }
     if (verdict.state !== "ok") throw new Error(`${relative}: ${verdict.reason}`);
     try {
-      for await (const e of Deno.readDir(`${root}/${relative}`)) {
+      for await (const e of sys.readDir(`${root}/${relative}`)) {
         const child = `${relative}/${e.name}`;
         // readDir marks even a real-directory symlink isDirectory=false. Inspect it
         // proactively, including an external-but-empty target with no index.html.
@@ -116,7 +117,7 @@ async function pageTreeHtml(root, id, strict = false) {
           try {
             out.push({
               path: `${root}/${child}`,
-              html: await Deno.readTextFile(`${root}/${child}`),
+              html: await sys.readTextFile(`${root}/${child}`),
             });
           } catch (err) {
             if (strict) throw new Error(`${child}: cannot read touched page: ${err.message}`);
@@ -124,7 +125,7 @@ async function pageTreeHtml(root, id, strict = false) {
         }
       }
     } catch (err) {
-      if (err instanceof Deno.errors.NotFound) {
+      if (err instanceof sys.errors.NotFound) {
         const recheck = await plainCorpusPath(root, relative);
         if (recheck.state === "missing") throw err; // genuine deletion: check-routes owns it
         throw new Error(
@@ -183,7 +184,7 @@ export async function runRatchet(root) {
     try {
       tree = await pageTreeHtml(root, id, true);
     } catch (err) {
-      if (err instanceof Deno.errors.NotFound) {
+      if (err instanceof sys.errors.NotFound) {
         const recheck = await plainCorpusPath(root, id);
         if (recheck.state === "missing") return []; // genuinely deleted route: check-routes owns it
       }
@@ -209,11 +210,11 @@ export async function runRatchet(root) {
 /** Every index.html under every vN/slug tree, any depth. */
 async function allPageHtml(root) {
   const out = [];
-  for await (const rel of Deno.readDir(root)) {
+  for await (const rel of sys.readDir(root)) {
     if (!/^v\d+$/.test(rel.name)) continue;
     const milestone = await plainCorpusPath(root, rel.name);
     if (milestone.state !== "ok") throw new Error(`${rel.name}: ${milestone.reason}`);
-    for await (const slug of Deno.readDir(`${root}/${rel.name}`)) {
+    for await (const slug of sys.readDir(`${root}/${rel.name}`)) {
       if (!slug.isDirectory && !slug.isSymlink) continue;
       const owner = `${rel.name}/${slug.name}`;
       const verdict = await plainCorpusPath(root, owner);
@@ -253,15 +254,15 @@ export async function countAll(root) {
   return { pages, spans, prose };
 }
 
-if (import.meta.main) {
+if (sys.isMain(import.meta.url)) {
   const root = ".";
-  const all = Deno.args.includes("--all");
+  const all = sys.args.includes("--all");
   let shapes;
   try {
     shapes = await scanIdShapes(root);
   } catch (err) {
     console.error(`FAIL — cannot scan published page: ${err.message}`);
-    Deno.exit(1);
+    process.exit(1);
   }
   if (all) {
     let c;
@@ -269,13 +270,13 @@ if (import.meta.main) {
       c = await countAll(root);
     } catch (err) {
       console.error(`FAIL — cannot count published page: ${err.message}`);
-      Deno.exit(1);
+      process.exit(1);
     }
     if (c.pages === 0) {
       console.error(
         "FAIL — citation-links report cannot assess an empty published page corpus (zero index.html pages scanned)",
       );
-      Deno.exit(1);
+      process.exit(1);
     }
     console.log(
       `citation-links report: ${c.pages} pages scanned; unlinked labels: ${c.spans} citation-span + ${c.prose} prose-source (report-only, cleanup tracked separately); id-shape failures: ${shapes.failures.length} of ${shapes.scanned} pages`,
@@ -283,10 +284,10 @@ if (import.meta.main) {
     for (const f of shapes.failures) console.log("  FAIL", f);
     if (shapes.failures.length) {
       console.log("FAIL — truncated chromestatus ids present");
-      Deno.exit(1);
+      process.exit(1);
     }
     console.log("PASS — id shapes clean (report mode does not gate unlinked labels)");
-    Deno.exit(0);
+    process.exit(0);
   }
   const r = await runRatchet(root);
   if (r.error) {
@@ -295,19 +296,18 @@ if (import.meta.main) {
     console.error(
       `FAIL — PRECONDITION (exit 6): citation-links ratchet could not verify: ${r.error}`,
     );
-    Deno.exit(6);
+    process.exit(6);
   }
   // An empty working corpus cannot certify clean citations. The floor comes from the
   // independently fetched published pages, not equality between two empty scans.
   const priorPaths = await git(["ls-tree", "-r", "--name-only", "origin/main"], root);
-  const priorPages = priorPaths?.split("\n").filter((path) =>
-    /^v\d+\/[^/]+\/index\.html$/.test(path)
-  ) ?? [];
+  const priorPages =
+    priorPaths?.split("\n").filter((path) => /^v\d+\/[^/]+\/index\.html$/.test(path)) ?? [];
   if (priorPaths === null || priorPages.length === 0) {
     console.error(
       "FAIL — PRECONDITION (exit 6): cannot verify a non-empty independent published page catalogue",
     );
-    Deno.exit(6);
+    process.exit(6);
   }
   const failures = [...r.failures, ...shapes.failures];
   if (shapes.scanned === 0) {
@@ -335,7 +335,7 @@ if (import.meta.main) {
     console.log(
       "FAIL — unlinked citation labels on changed pages, or truncated chromestatus ids (see above).",
     );
-    Deno.exit(1);
+    process.exit(1);
   }
   console.log(
     `PASS — no unlinked citation labels on changed pages; chromestatus id shapes clean.${unchangedNote}`,

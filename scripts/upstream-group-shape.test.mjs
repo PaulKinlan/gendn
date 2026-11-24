@@ -1,6 +1,7 @@
-// @fixture-permissions --allow-read --allow-net=127.0.0.1,localhost --allow-env
 // gendn-gne9: malformed features_by_type root and group lists must not 502 a release page.
 // For red-path evidence only: EXPECT_RELEASE_502=1 proves the two pre-fix 502s on main.
+
+import * as sys from "./lib/sys.mjs";
 const XSSI = ")]}'";
 const cases = new Map([
   [150, { features_by_type: null }],
@@ -13,7 +14,7 @@ const cases = new Map([
   [152, {}],
   [153, { features_by_type: { "Enabled by default": "not a list" } }],
 ]);
-const stub = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
+const stub = sys.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
   const url = new URL(req.url);
   const json = (value) =>
     new Response(`${XSSI}\n${JSON.stringify(value)}`, {
@@ -31,7 +32,8 @@ const stub = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
   }
   return json({ features_by_type: {} });
 });
-Deno.env.set("CHROMESTATUS_BASE", `http://127.0.0.1:${stub.addr.port}`);
+await stub.ready;
+sys.env.set("CHROMESTATUS_BASE", `http://127.0.0.1:${stub.addr.port}`);
 const { handleRequest } = await import("../server.ts");
 let failed = 0;
 function assert(label, ok) {
@@ -39,7 +41,7 @@ function assert(label, ok) {
   if (!ok) failed++;
 }
 try {
-  const red = Deno.env.get("EXPECT_RELEASE_502") === "1";
+  const red = sys.env.get("EXPECT_RELEASE_502") === "1";
   for (
     const [milestone, label] of [
       [150, "null root"],
@@ -77,5 +79,5 @@ try {
 } finally {
   await stub.shutdown();
 }
-if (failed) Deno.exit(1);
+if (failed) process.exit(1);
 console.log("upstream-group-shape fixture: all assertions passed");

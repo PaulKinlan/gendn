@@ -1,19 +1,19 @@
-// @fixture-permissions --allow-read --allow-write --allow-run
 // Chrome-free CLI contract: malformed/zero-match page selectors cannot produce a green no-op.
+import * as sys from "./lib/sys.mjs";
 import assert from "node:assert/strict";
 const assertEquals = assert.equal;
 const assertMatch = assert.match;
 
-const source = await Deno.readTextFile("scripts/gen-conformance.mjs");
+const source = await sys.readTextFile("scripts/gen-conformance.mjs");
 const guard = `  if (selection.error) {
     console.error(\`gen-conformance: \${selection.error}\`);
-    Deno.exit(1);
+    process.exit(1);
   }`;
 assert(source.includes(guard), "sabotage anchor must match the actual preflight guard");
 
 async function run(script, args) {
-  const result = await new Deno.Command(Deno.execPath(), {
-    args: ["run", "--allow-read", script, ...args],
+  const result = await new sys.Command(sys.execPath(), {
+    args: [script, ...args],
     stdout: "piped",
     stderr: "piped",
   }).output();
@@ -52,14 +52,14 @@ assertions += 3;
 
 // Mutation proof: neutralizing only the refusal branch restores the historical false GREEN.
 // The assertion intentionally fails for the sabotage, so the fixture proves the guard matters.
-const sabotaged = await Deno.makeTempFile({
+const sabotaged = await sys.makeTempFile({
   dir: "scripts",
   prefix: ".gen-conformance-sabotage-",
   suffix: ".mjs",
 });
 let sabotageRed = 0;
 try {
-  await Deno.writeTextFile(
+  await sys.writeTextFile(
     sabotaged,
     source.replace(guard, "  // sabotage: do not refuse empty selection"),
   );
@@ -71,7 +71,7 @@ try {
     sabotageRed++;
   }
 } finally {
-  await Deno.remove(sabotaged);
+  await sys.remove(sabotaged);
 }
 console.log(
   `gen-conformance selector fixture: ${assertions} assertions passed; sabotage: ${sabotageRed} refusal assertions RED`,

@@ -54,9 +54,9 @@ milestone whose listing returned the feature.
 This routine is almost always **additive**: you write NEW `v<N>/<slug>/` pages. You must never
 rename, repurpose, replace, merge, or delete a page that is already published just because this wave
 would design it differently. Before editing any existing page, **read its current implementation,
-its git history/rationale, and the route manifest** (`deno task manifest`), then make the SMALLEST
+its git history/rationale, and the route manifest** (`npm run manifest`), then make the SMALLEST
 change that satisfies the goal — never regenerate a working page from scratch. Run the route
-regression gate (`deno task check-routes`) before every push; it must pass.
+regression gate (`npm run check-routes`) before every push; it must pass.
 
 Embed verbatim (same wording as `CLAUDE.md` and `AGENTS.md`):
 
@@ -92,7 +92,7 @@ controls, its use-case intent, and all inbound links.** Routine and agent waves 
   regression gate. Stable does NOT mean frozen — improve existing demos when justified, and add new
   demos/use cases freely; just never replace an old one merely to present a new idea.
 
-**Gate before every push:** run the route regression gate (`deno task check-routes`). It compares
+**Gate before every push:** run the route regression gate (`npm run check-routes`). It compares
 the previously published manifest against the working tree and fails on any missing published ID,
 deleted route, renamed/repurposed slug, changed published identity, or unexplained concept-count
 reduction — while allowing additive entries, honest `blocked` records, and in-place fixes.
@@ -113,7 +113,7 @@ are additive only when the selected URL stays stable. The gate matches migration
 not `from`/`to`: green proves a record exists for this route, NOT that this exact repoint was
 authorized. Review old/new URLs, reason and evidence against the edit.
 A feature with no folder yet is `pending` — not published, not under contract. Emit the manifest
-with `deno task manifest`; gate with `deno task check-routes`; record exceptional moves/demo changes
+with `npm run manifest`; gate with `npm run check-routes`; record exceptional moves/demo changes
 in `migrations.json`. A legitimate slug/milestone correction that keeps a still-listed feature id live
 under the corrected route is a fix, not a break — record it as an `alias`/`move` migration so the
 old route stays honest and the gate stays green.
@@ -160,8 +160,8 @@ The authoring format and example are in [`docs/reference-contract.md`](../docs/r
   inventory and details with current primary sources. Authored text, page length, a green route, or
   an agent's self-attestation never establishes completeness.
 - Existing unassessed pages remain `legacy-unassessed`; partial contracts remain `partial`. New or
-  touched full references must pass `deno task validate-artifacts`, `deno task
-  test-reference-contract`, and `deno task check-conformance`, which fail unless the touched feature
+  touched full references must pass `npm run validate-artifacts`, `npm run
+  test-reference-contract`, and `npm run check-conformance`, which fail unless the touched feature
   is implementation-sufficient. MDN redirect stubs are exempt because MDN owns their detailed
   reference. A recorded migration move (`move`/`alias` in `migrations.json`) is also exempt for
   the diff that lands it: it is a filing correction, not a reference edit — the destination page
@@ -216,7 +216,7 @@ targeted compatibility fixes — never a destructive rewrite, never a new slug t
   it claims to support. Apply this to existing demos during audits with targeted compatibility
   fixes, wave by wave — the coverage number is the backlog burn-down, and it never regresses.
 
-**Run the responsive matrix before every push** with `deno task responsive` and record each touched
+**Run the responsive matrix before every push** with `npm run responsive` and record each touched
 demo's result in `responsive-support.json` (`ok` / `unsupported`+evidence per class).
 
 ## modern-web-guidance is mandatory for all frontend work
@@ -266,16 +266,16 @@ conformance contract (`cpsFeature`), it does not fork platform assertions.
 
 After you write/verify a page (Step 6b), before you commit (Step 7):
 
-1. `deno task gen-conformance` — writes an immutable `conformance.json` for the new page (derived
+1. `npm run gen-conformance` — writes an immutable `conformance.json` for the new page (derived
    from its real metadata). It NEVER overwrites an existing suite; to strengthen one, add assertions
    by hand — never weaken/regenerate to go green.
-2. `deno task conformance --page v<N>/<slug>` — headless-Chrome run of that page's suite. Don't push
+2. `npm run conformance -- --page v<N>/<slug>` — headless-Chrome run of that page's suite. Don't push
    a red page (fix the page). `blocked` (manual-evidenced/unavailable) is never a pass.
-3. `deno task responsive --page v<N>/<slug> --screenshots --update-support` — mobile+desktop matrix;
+3. `npm run responsive -- --page v<N>/<slug> --screenshots --update-support` — mobile+desktop matrix;
    READ the screenshots and set the route's `responsive-support.json` record to `ok` (or
    `unsupported`+evidence). The automated scan alone only marks `needs-review`.
 4. Write a `_questions.json` critique (reference-site rubric) with a NON-EMPTY `guidanceConsulted`
-   (the modern-web-guidance you consulted for the page's UI). Then `deno task build-goals` to roll
+   (the modern-web-guidance you consulted for the page's UI). Then `npm run build-goals` to roll
    its `followUpGoals` into `goals.json`.
 
 ## Step 1: Setup
@@ -285,6 +285,7 @@ Fresh checkout of PaulKinlan/gendn. Configure git author once:
 ```bash
 git config user.email 'paul.kinlan@gmail.com'
 git config user.name 'Paul Kinlan'
+npm ci   # Node 22.18+; installs the pinned check tools. Every task is `npm run <task>` (no Deno).
 ```
 
 Note Unix time at start. Soft 90-minute deadline. Cron fires once a day; the next run continues
@@ -482,7 +483,7 @@ is how we recover from glitches.
 You have no `chrome-devtools-mcp`; verify with headless Chrome + `Read` the screenshot:
 
 ```bash
-PORT=3100 deno run --allow-net --allow-read --allow-env server.ts > /tmp/gendn.log 2>&1 &
+PORT=3100 node serve.ts > /tmp/gendn.log 2>&1 &
 sleep 3
 google-chrome-stable --headless=new --no-sandbox --screenshot=/tmp/gendn-<slug>.png \
   --window-size=1280,2400 --dump-dom "http://localhost:3100/v<N>/<slug>/" > /tmp/gendn-dom.html 2>/dev/null
@@ -502,11 +503,11 @@ cross-browser. Fix before committing.
 **Run the route regression gate before every push. It must pass.**
 
 ```bash
-deno task check-routes        # durable-demo contract gate: fails on any deleted/renamed/repurposed
+npm run check-routes        # durable-demo contract gate: fails on any deleted/renamed/repurposed
                               # published route or identity. All-additive waves pass automatically.
-deno task validate-artifacts  # schemas, suiteHash, and implementation-sufficiency mappings
-deno task test-reference-contract # fail-closed validator regression tests
-deno task check-conformance   # coverage + immutability gate: missing suite / orphan / weakened
+npm run validate-artifacts  # schemas, suiteHash, and implementation-sufficiency mappings
+npm run test-reference-contract # fail-closed validator regression tests
+npm run check-conformance   # coverage + immutability gate: missing suite / orphan / weakened
                               # assertion / touched page left untested. Must pass.
 git add v<N>/<slug>/          # includes conformance.json + _questions.json for the page
 git commit -m "v<N>: reference for <listing name>
@@ -531,12 +532,12 @@ the MDN URLs.
 
 - Never overwrite existing `v<N>/<slug>/` (including its committed, immutable `conformance.json`).
 - Edit only inside `v<N>/` and `/tmp`, PLUS the two catalogue-state files the lifecycle owns:
-  `responsive-support.json` and `goals.json` (updated via `deno task responsive --update-support`
-  and `deno task build-goals`). `server.ts`, `lib/`, `public/`, `schema/`, and `scripts/` are
+  `responsive-support.json` and `goals.json` (updated via `npm run responsive -- --update-support`
+  and `npm run build-goals`). `server.ts`, `lib/`, `public/`, `schema/`, and `scripts/` are
   off-limits.
 - Pushes go to main. No branches. No issues.
 - Respect the 90-minute deadline.
 - **Slug from listing name; milestone from listing position. Both inviolable.**
 - **Durable-demo contract: additive by default. Read the existing page + its history + the manifest
   before any edit; make the smallest fix; never delete/rename/repurpose a published route or
-  identity. `deno task check-routes` must be green before every push.**
+  identity. `npm run check-routes` must be green before every push.**
