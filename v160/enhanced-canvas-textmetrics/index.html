@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Enhanced Canvas TextMetrics — Chrome 160 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .scroll-table { min-width: 30rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v160/">&larr; Chrome 160 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v160 &middot; graphics &middot; enabled by default</p>
+    <h1>Enhanced Canvas TextMetrics</h1>
+
+    <p class="lede">Adds first-class Canvas 2D text shaping, selection geometry, caret hit-testing, and per-run/per-cluster glyph rendering via <code>shapeText()</code>, <code>ShapedText</code>, <code>GlyphRun</code>, and <code>fillGlyphRun(s)</code> / <code>strokeGlyphRun(s)</code> on both <code>CanvasRenderingContext2D</code> and <code>OffscreenCanvasRenderingContext2D</code>. Although the feature retains its historical &ldquo;Enhanced Canvas TextMetrics&rdquo; name from the Chrome 144&ndash;149 Origin Trial, Chrome 160 ships the redesigned shaping architecture aligned with WebKit&rsquo;s <code>CanvasTextShaping</code> model, leaving <code>TextMetrics</code> itself unchanged and exposing per-run metrics via <code>GlyphRun.textMetrics()</code>.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; Canvas 2D text shaping is not Baseline (shipping in Chrome 160)</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 160 (desktop, Android, WebView)</li>
+        <li>Edge &middot; Mirrors Chromium (160)</li>
+        <li class="limited">Firefox &middot; No signal yet</li>
+        <li class="limited">Safari &middot; Neutral (aligned with WebKit <code>CanvasTextShaping</code> sketch; no release)</li>
+      </ul>
+      <p>No dedicated <code>web-features</code> entry exists on <a href="https://api.webstatus.dev/v1/features?q=canvas+text" target="_blank" rel="noopener">webstatus.dev</a> for <code>ShapedText</code> or <code>GlyphRun</code> (checked 2026-11-24; parent <a href="https://webstatus.dev/features/canvas-2d" target="_blank" rel="noopener"><code>canvas-2d</code></a> is Baseline Widely available). <a href="https://github.com/mdn/browser-compat-data/blob/main/api/CanvasRenderingContext2D.json" target="_blank" rel="noopener">BCD <code>api/CanvasRenderingContext2D.json</code></a> and <a href="https://github.com/mdn/browser-compat-data/blob/main/api/TextMetrics.json" target="_blank" rel="noopener">BCD <code>api/TextMetrics.json</code></a> do not yet include <code>shapeText()</code>, <code>ShapedText</code>, or <code>GlyphRun</code>.</p>
+    </div>
+  </header>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#at-a-glance">At a glance</a></li>
+      <li><a href="#why">Why it exists</a></li>
+      <li><a href="#syntax">Syntax &amp; interfaces</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#security-and-privacy">Security &amp; privacy</a></li>
+      <li><a href="#specifications">Specifications</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Shipped in</th><td>Chrome 160 (desktop, Android, Android WebView), enabled by default &mdash; listed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=160" target="_blank" rel="noopener">milestone=160 listing</a> and confirmed in the <a href="https://chromestatus.com/api/v0/features/5075532483657728" target="_blank" rel="noopener">ChromeStatus API record</a></td></tr>
+      <tr><th scope="row">Runtime flag &amp; OT history</th><td>Blink runtime feature <code>ExtendedTextMetrics</code> (in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>; Origin Trial ran Chrome 144&ndash;149 under the earlier <code>TextMetrics</code>/<code>TextCluster</code> design before the Chrome 160 <code>ShapedText</code>/<code>GlyphRun</code> redesign)</td></tr>
+      <tr><th scope="row">Spec &amp; explainers</th><td><a href="https://github.com/whatwg/html/pull/11000" target="_blank" rel="noopener">WHATWG HTML PR #11000</a> &middot; <a href="https://github.com/whatwg/html/issues/10677" target="_blank" rel="noopener">whatwg/html#10677</a> &middot; <a href="https://github.com/WebKit/explainers/pull/137" target="_blank" rel="noopener">WebKit CanvasTextShaping explainer (#137)</a> &middot; <a href="https://github.com/Igalia/explainers/blob/main/canvas-formatted-text/text-metrics-additions.md" target="_blank" rel="noopener">Igalia text-metrics-additions explainer</a></td></tr>
+      <tr><th scope="row">Intent</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/CADgYMVey-50Dg1b%3D7A7tgx%2BB7G4fzam52Vzx-bXTbrcYxqwmhw%40mail.gmail.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a> (prior: <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/CADgYMVfC-Naw8pFVaUUPMSfW-u3kC7SMdDeHJgwU5YmSHOOeeA%40mail.gmail.com" target="_blank" rel="noopener">Intent to Experiment</a>)</td></tr>
+      <tr><th scope="row">TAG review</th><td><a href="https://github.com/w3ctag/design-reviews/issues/1095" target="_blank" rel="noopener">w3ctag/design-reviews#1095</a> (Issues open)</td></tr>
+      <tr><th scope="row">Tracking bug</th><td><a href="https://issues.chromium.org/issues/341213359" target="_blank" rel="noopener">issues.chromium.org/341213359</a></td></tr>
+      <tr><th scope="row">Web platform tests</th><td><a href="https://wpt.fyi/results/html/canvas/element/text?label=master&amp;label=experimental&amp;aligned&amp;q=2d.text.shape" target="_blank" rel="noopener">element/text 2d.text.shape.*</a> &middot; <a href="https://wpt.fyi/results/html/canvas/offscreen/text?label=master&amp;label=experimental&amp;aligned&amp;q=2d.text.shape" target="_blank" rel="noopener">offscreen/text 2d.text.shape.*</a></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5075532483657728" target="_blank" rel="noopener">5075532483657728 &mdash; Enhanced Canvas TextMetrics</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p><code>ctx.measureText()</code> only returns aggregate metrics for an entire string. Canvas-rendered editors, design tools, and frameworks (such as Flutter Web&rsquo;s WebParagraph) previously had to approximate caret positions, selection highlight rectangles, and per-character animations by calling <code>measureText()</code> on substrings &mdash; which breaks ligatures, kerning, complex shaping, and bidirectional runs &mdash; or by synchronizing hidden DOM elements. Separating shaping into <code>ctx.shapeText(text)</code> creates an immutable <code>ShapedText</code> snapshot whose runs, grapheme clusters, bounding boxes, selection rectangles, and caret offsets can be queried accurately and rendered individually via <code>fillGlyphRun(s)</code> and <code>strokeGlyphRun(s)</code>.</p>
+    <p><strong>Design evolution note:</strong> Early Origin Trial builds (Chrome 144&ndash;149) added <code>getSelectionRects()</code>, <code>getTextClusters()</code>, and <code>fillTextCluster()</code> directly on <code>TextMetrics</code>/<code>TextCluster</code>. Following Origin Trial feedback and <a href="https://github.com/WebKit/explainers/pull/137" target="_blank" rel="noopener">WebKit&rsquo;s CanvasTextShaping explainer</a>, Chromium redesigned the shipped Chrome 160 surface around <code>shapeText()</code>, <code>ShapedText</code>, and <code>GlyphRun</code> so <code>TextMetrics</code> remains untouched and future multi-style <code>FormattedText</code> overloads can layer cleanly on top. Legacy <code>TextCluster</code> declarations still present under Blink&rsquo;s <code>ExtendedTextMetrics</code> flag during cleanup are not part of the Chrome 160 shipping contract.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5075532483657728" target="_blank" rel="noopener">ChromeStatus motivation &amp; interop notes (5075532483657728)</a>; <a href="https://github.com/WebKit/explainers/pull/137" target="_blank" rel="noopener">WebKit/explainers#137</a>; <a href="https://github.com/whatwg/html/issues/10677" target="_blank" rel="noopener">whatwg/html#10677</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>The Chrome 160 shaping surface adds five methods to the 2D rendering context (shared by <code>CanvasRenderingContext2D</code> and <code>OffscreenCanvasRenderingContext2D</code>) and introduces two new interfaces, <code>ShapedText</code> and <code>GlyphRun</code>:</p>
+    <pre><code>partial interface mixin CanvasText {
+  ShapedText shapeText(DOMString text);
+  undefined fillGlyphRun(GlyphRun glyphRun, double x, double y);
+  undefined strokeGlyphRun(GlyphRun glyphRun, double x, double y);
+  undefined fillGlyphRuns(sequence&lt;GlyphRun&gt; glyphRuns, double x, double y);
+  undefined strokeGlyphRuns(sequence&lt;GlyphRun&gt; glyphRuns, double x, double y);
+};
+
+[Exposed=(Window,Worker)]
+interface ShapedText {
+  readonly attribute double width;
+
+  sequence&lt;GlyphRun&gt; glyphRuns();
+  sequence&lt;GlyphRun&gt; glyphClusters();
+  sequence&lt;GlyphRun&gt; glyphClusters([EnforceRange] unsigned long start, [EnforceRange] unsigned long end);
+
+  sequence&lt;DOMRectReadOnly&gt; selectionRects([EnforceRange] unsigned long start, [EnforceRange] unsigned long end);
+  DOMRectReadOnly actualBoundingBox([EnforceRange] unsigned long start, [EnforceRange] unsigned long end);
+  unsigned long advanceToPosition(double advance);
+  double positionToAdvance([EnforceRange] unsigned long position);
+};
+
+[Exposed=(Window,Worker)]
+interface GlyphRun {
+  readonly attribute unsigned long start;
+  readonly attribute unsigned long end;
+  readonly attribute double x;
+  readonly attribute double y;
+  readonly attribute double width;
+
+  TextMetrics textMetrics();
+};</code></pre>
+    <p>All character offsets and ranges (<code>start</code>, <code>end</code>, <code>position</code>, and <code>advanceToPosition()</code> results) are <strong>0-based UTF-16 code units</strong>, matching JavaScript <code>String</code> indexing, DOM <code>Range</code>/<code>Selection</code>, and <code>Intl.Segmenter</code>. Detailed contracts follow for <a href="#shapetext"><code>shapeText()</code></a>, <a href="#shapedtext-runs-clusters"><code>ShapedText</code> width, <code>glyphRuns()</code>, and <code>glyphClusters()</code></a>, <a href="#shapedtext-geometry"><code>selectionRects()</code>, <code>actualBoundingBox()</code>, <code>advanceToPosition()</code>, and <code>positionToAdvance()</code></a>, <a href="#glyphrun"><code>GlyphRun</code></a>, and <a href="#glyphrun-rendering"><code>fillGlyphRun(s)</code> / <code>strokeGlyphRun(s)</code></a>.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.idl" target="_blank" rel="noopener">Blink <code>base_rendering_context_2d.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/shaped_text.idl" target="_blank" rel="noopener">Blink <code>shaped_text.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/glyph_run.idl" target="_blank" rel="noopener">Blink <code>glyph_run.idl</code></a>.</span>
+
+    <h3 id="shapetext"><code>ctx.shapeText(text)</code></h3>
+    <p><strong>Inputs.</strong> Accepts a single <code>DOMString</code> <code>text</code> (coerced per standard WebIDL string conversion). No optional arguments or max-width parameter are defined in Chrome 160.</p>
+    <p><strong>Outputs.</strong> Resolves the canvas element&rsquo;s style/layout tree (when attached to a document with a frame), snapshots the context&rsquo;s current <code>font</code>, resolved writing <code>direction</code> (<code>ltr</code> or <code>rtl</code>), <code>textAlign</code>, and <code>textBaseline</code>, shapes the string into visual runs via Blink&rsquo;s <code>PlainTextPainter</code>, and returns a new immutable <code>ShapedText</code> object. If called on an <code>HTMLCanvasElement</code> belonging to a frame-less document (for example created via <code>document.implementation.createHTMLDocument()</code>), Blink returns an empty <code>ShapedText</code> whose <code>width</code> is <code>0</code> and whose <code>glyphRuns()</code> / <code>glyphClusters()</code> are empty arrays.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc" target="_blank" rel="noopener">Blink <code>base_rendering_context_2d.cc</code> (<code>BaseRenderingContext2D::shapeText</code>)</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/shaped_text.cc" target="_blank" rel="noopener">Blink <code>shaped_text.cc</code></a>.</span>
+
+    <h3 id="shapedtext-runs-clusters"><code>ShapedText.width</code>, <code>glyphRuns()</code>, and <code>glyphClusters()</code></h3>
+    <p><strong>Inputs.</strong></p>
+    <ul>
+      <li><code>st.width</code>: read-only <code>double</code> attribute representing the total advance width of the shaped string.</li>
+      <li><code>st.glyphRuns()</code>: takes no parameters.</li>
+      <li><code>st.glyphClusters()</code>: takes either no arguments (full string) or two <code>[EnforceRange] unsigned long</code> UTF-16 code unit indices <code>(start, end)</code> representing the half-open slice <code>[start, end)</code>.</li>
+    </ul>
+    <p><strong>Outputs.</strong></p>
+    <ul>
+      <li><code>glyphRuns()</code> returns a <code>sequence&lt;GlyphRun&gt;</code> in <strong>visual left-to-right order</strong>. Adjacent clusters sharing the same resolved font and bidi direction are merged into a single <code>GlyphRun</code>; mixed-script font fallbacks (such as emoji or Hebrew/Arabic mixed with Latin) or bidi level changes split into separate runs.</li>
+      <li><code>glyphClusters()</code> returns minimal renderable grapheme clusters as <code>GlyphRun</code> instances so callers can style, transform, or animate individual characters/ligatures while preserving shaping context. Calling <code>glyphClusters()</code> with no arguments on an empty string returns <code>[]</code>; passing <code>(start, end)</code> returns every cluster whose <code>[cluster.start, cluster.end)</code> range intersects <code>[start, end)</code>.</li>
+      <li>Each returned <code>GlyphRun</code> has <code>x</code> already shifted by the snapshotted <code>textAlign</code> offset (for example, negative <code>x</code> when <code>textAlign</code> is <code>"center"</code> or <code>"right"</code>) and <code>y</code> set to <code>0</code> relative to the draw origin.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/shaped_text.cc" target="_blank" rel="noopener">Blink <code>shaped_text.cc</code> (<code>glyphRuns</code>, <code>glyphClusters</code>)</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/html/canvas/element/text/2d.text.shape.glyph-clusters-position.tentative.html" target="_blank" rel="noopener">WPT <code>2d.text.shape.glyph-clusters-position.tentative.html</code></a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/html/canvas/element/text/2d.text.shape.fillGlyphRuns-and-strokeGlyphRuns.tentative.html" target="_blank" rel="noopener">WPT <code>2d.text.shape.fillGlyphRuns-and-strokeGlyphRuns.tentative.html</code></a>.</span>
+
+    <h3 id="shapedtext-geometry"><code>selectionRects()</code>, <code>actualBoundingBox()</code>, <code>advanceToPosition()</code>, and <code>positionToAdvance()</code></h3>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="geometry-methods-caption">
+    <table class="doc-table scroll-table">
+      <caption id="geometry-methods-caption">Geometry and hit-testing methods on <code>ShapedText</code> (inputs and outputs verified from Blink <code>shaped_text.cc</code> and WPT)</caption>
+      <thead><tr><th scope="col">Method</th><th scope="col">Inputs</th><th scope="col">Output &amp; coordinate semantics</th></tr></thead>
+      <tr><td><code>selectionRects(start, end)</code></td><td>Two <code>[EnforceRange] unsigned long</code> UTF-16 indices defining <code>[start, end)</code></td><td>Returns <code>sequence&lt;DOMRectReadOnly&gt;</code> covering the selected highlight region(s) relative to the text alignment anchor and snapshotted baseline. Multiple disjoint rects may be returned for bidirectional text. Returns <code>[]</code> when <code>start &gt;= end</code> (within bounds).</td></tr>
+      <tr><td><code>actualBoundingBox(start, end)</code></td><td>Two <code>[EnforceRange] unsigned long</code> UTF-16 indices defining <code>[start, end)</code></td><td>Returns a single tight <code>DOMRectReadOnly</code> union of glyph ink bounds for the slice, offset by <code>(-textAlignDx, baselineY)</code> to match the draw origin.</td></tr>
+      <tr><td><code>advanceToPosition(advance)</code></td><td><code>double advance</code> (horizontal offset from the alignment anchor; may be negative when aligned center/right)</td><td>Returns the nearest 0-based UTF-16 caret index (<code>unsigned long</code>) via hit-testing. Values beyond the left/right edges clamp to <code>0</code> / <code>width</code>; mixed-bidi boundaries apply Blink&rsquo;s <code>CorrectForMixedBidi()</code> adjustment.</td></tr>
+      <tr><td><code>positionToAdvance(position)</code></td><td><code>[EnforceRange] unsigned long position</code> in <code>[0, text.length]</code></td><td>Returns a <code>double</code> horizontal caret advance offset relative to the alignment anchor (for LTR with <code>textAlign = "left"</code>: <code>0</code> at index <code>0</code>, up to <code>st.width</code> at <code>text.length</code>).</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/shaped_text.cc" target="_blank" rel="noopener">Blink <code>shaped_text.cc</code></a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/html/canvas/element/text/2d.text.shape.position-to-advance.tentative.html" target="_blank" rel="noopener">WPT <code>2d.text.shape.position-to-advance.tentative.html</code></a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/html/canvas/element/text/2d.text.shape.advance-to-position-edge-cases.tentative.html" target="_blank" rel="noopener">WPT <code>2d.text.shape.advance-to-position-edge-cases.tentative.html</code></a>.</span>
+
+    <h3 id="glyphrun"><code>GlyphRun</code> interface</h3>
+    <p><strong>Inputs &amp; construction.</strong> <code>GlyphRun</code> has no public constructor; instances are produced exclusively by <code>ShapedText.glyphRuns()</code> and <code>ShapedText.glyphClusters()</code> and retain an internal reference to their originating <code>ShapedText</code> and resolved font face.</p>
+    <p><strong>Outputs &amp; members.</strong></p>
+    <ul>
+      <li><code>start</code> / <code>end</code> (<code>readonly unsigned long</code>): inclusive start and exclusive end UTF-16 code unit indices into the original string passed to <code>shapeText()</code>.</li>
+      <li><code>x</code> / <code>y</code> (<code>readonly double</code>): shaped position offset of this run relative to the anchor point passed to <code>fillGlyphRun()</code> / <code>strokeGlyphRun()</code> (incorporating the snapshotted <code>textAlign</code>).</li>
+      <li><code>width</code> (<code>readonly double</code>): advance width of this run/cluster.</li>
+      <li><code>textMetrics()</code>: returns a <code>TextMetrics</code> object describing the exact ascent, descent, bounding box, and advance metrics for this <code>GlyphRun</code>&rsquo;s slice and resolved font. Blink lazily constructs and caches the <code>TextMetrics</code> instance on first call.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/glyph_run.idl" target="_blank" rel="noopener">Blink <code>glyph_run.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/glyph_run.cc" target="_blank" rel="noopener">Blink <code>glyph_run.cc</code></a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/html/canvas/element/text/2d.text.shape.glyph-clusters-position.tentative.html" target="_blank" rel="noopener">WPT <code>2d.text.shape.glyph-clusters-position.tentative.html</code></a>.</span>
+
+    <h3 id="glyphrun-rendering"><code>fillGlyphRun()</code>, <code>strokeGlyphRun()</code>, <code>fillGlyphRuns()</code>, and <code>strokeGlyphRuns()</code></h3>
+    <p><strong>Inputs.</strong> Each method takes either a single <code>GlyphRun</code> (<code>fillGlyphRun</code> / <code>strokeGlyphRun</code>) or a <code>sequence&lt;GlyphRun&gt;</code> (<code>fillGlyphRuns</code> / <code>strokeGlyphRuns</code>) followed by destination anchor coordinates <code>double x</code> and <code>double y</code>.</p>
+    <p><strong>Outputs &amp; style precedence.</strong> Each run renders at <code>(glyphRun.x + x, glyphRun.y + y)</code> using the <code>font</code>, <code>direction</code>, <code>textAlign</code>, and <code>textBaseline</code> snapshotted when <code>shapeText()</code> ran &mdash; mutating those four properties on the context afterwards does <em>not</em> shift or re-shape previously created <code>GlyphRun</code>s. By contrast, active paint and compositing state (<code>fillStyle</code>, <code>strokeStyle</code>, <code>lineWidth</code>, <code>shadow*</code>, <code>globalAlpha</code>, transforms, and clipping regions) <em>is</em> applied at draw time, enabling per-cluster color gradients, transforms, and animations. <code>fillGlyphRuns(runs, x, y)</code> and <code>strokeGlyphRuns(runs, x, y)</code> iterate through <code>runs</code> in order and draw each run at the shared anchor <code>(x, y)</code>.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc" target="_blank" rel="noopener">Blink <code>base_rendering_context_2d.cc</code> (lines 2132&ndash;2195)</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/html/canvas/element/text/2d.text.shape.fillGlyphRun-range.tentative.html" target="_blank" rel="noopener">WPT <code>2d.text.shape.fillGlyphRun-range.tentative.html</code></a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/html/canvas/element/text/2d.text.shape.fillGlyphRuns-and-strokeGlyphRuns.tentative.html" target="_blank" rel="noopener">WPT <code>2d.text.shape.fillGlyphRuns-and-strokeGlyphRuns.tentative.html</code></a>.</span>
+
+    <h3 id="errors-and-validation">Errors, bounds rules, and edge cases</h3>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="errors-caption">
+    <table class="doc-table scroll-table">
+      <caption id="errors-caption">Exception and edge-case matrix for <code>ShapedText</code>, <code>GlyphRun</code>, and glyph-run rendering methods in Chrome 160</caption>
+      <thead><tr><th scope="col">Condition</th><th scope="col">Affected methods</th><th scope="col">Behavior</th></tr></thead>
+      <tr><td>Negative index or value outside <code>unsigned long</code></td><td><code>glyphClusters(start, end)</code>, <code>selectionRects(start, end)</code>, <code>actualBoundingBox(start, end)</code>, <code>positionToAdvance(position)</code></td><td>Throws WebIDL <code>TypeError</code> via <code>[EnforceRange] unsigned long</code> conversion.</td></tr>
+      <tr><td><code>start &gt;= text.length</code> or <code>end &gt; text.length</code></td><td><code>actualBoundingBox(start, end)</code>, <code>glyphClusters(start, end)</code></td><td>Throws <code>DOMException</code> (<code>IndexSizeError</code>). Note Blink&rsquo;s <code>CheckRange()</code> rejects <code>start === text.length</code> here (tracked in Blink source comment for <a href="https://issues.chromium.org/issues/580852205" target="_blank" rel="noopener">crbug 580852205</a>).</td></tr>
+      <tr><td><code>start &gt; text.length</code> or <code>end &gt; text.length</code></td><td><code>selectionRects(start, end)</code></td><td>Throws <code>DOMException</code> (<code>IndexSizeError</code>); accepts <code>start === text.length</code> and returns <code>[]</code> when <code>start &gt;= end</code>.</td></tr>
+      <tr><td><code>position &gt; text.length</code></td><td><code>positionToAdvance(position)</code></td><td>Throws <code>DOMException</code> (<code>IndexSizeError</code>).</td></tr>
+      <tr><td>Out-of-bounds <code>advance</code></td><td><code>advanceToPosition(advance)</code></td><td>Does not throw; clamps to the visual start/end of the string and returns a valid UTF-16 index.</td></tr>
+      <tr><td>Non-finite <code>x</code> or <code>y</code> (<code>NaN</code>, <code>Infinity</code>)</td><td><code>fillGlyphRun()</code>, <code>strokeGlyphRun()</code>, <code>fillGlyphRuns()</code>, <code>strokeGlyphRuns()</code></td><td>WebIDL <code>double</code> (non-unrestricted) throws <code>TypeError</code> on non-finite coordinates before entering Blink&rsquo;s draw path.</td></tr>
+      <tr><td><code>shapeText("")</code> (empty string)</td><td><code>shapeText()</code>, <code>glyphRuns()</code>, <code>glyphClusters()</code>, <code>GlyphRun.textMetrics()</code></td><td>Succeeds with <code>width === 0</code>, <code>glyphRuns()</code> and no-arg <code>glyphClusters()</code> return <code>[]</code>; passing <code>(0, 0)</code> to <code>actualBoundingBox()</code> or 2-arg <code>glyphClusters()</code> throws <code>IndexSizeError</code> because <code>0 &gt;= 0</code>.</td></tr>
+    </table>
+    </div>
+    <p><strong>Feature detection:</strong> Test <code>"shapeText" in CanvasRenderingContext2D.prototype</code> (or <code>"shapeText" in OffscreenCanvasRenderingContext2D.prototype</code> inside workers) before invoking <code>shapeText()</code> or rendering <code>GlyphRun</code> objects.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/shaped_text.cc" target="_blank" rel="noopener">Blink <code>shaped_text.cc</code></a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/html/canvas/element/text/2d.text.shape.actualBoundingBox-exceptions.tentative.html" target="_blank" rel="noopener">WPT <code>actualBoundingBox-exceptions</code></a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/html/canvas/element/text/2d.text.shape.selection-rects-exceptions.tentative.html" target="_blank" rel="noopener">WPT <code>selection-rects-exceptions</code></a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/html/canvas/element/text/2d.text.shape.glyph-clusters-exceptions.tentative.html" target="_blank" rel="noopener">WPT <code>glyph-clusters-exceptions</code></a>.</span>
+
+    <h3 id="context-and-lifecycle">Context, exposure, and lifecycle</h3>
+    <p><strong>Exposure &amp; prerequisites.</strong> <code>ShapedText</code>, <code>GlyphRun</code>, <code>shapeText()</code>, <code>fillGlyphRun()</code>, <code>strokeGlyphRun()</code>, <code>fillGlyphRuns()</code>, and <code>strokeGlyphRuns()</code> are exposed in both <code>Window</code> and <code>Worker</code> (via <code>OffscreenCanvasRenderingContext2D</code>). No secure context, permission, or user activation is required. When using web fonts loaded via <code>@font-face</code> / <code>FontFaceSet</code>, await <code>document.fonts.ready</code> before calling <code>shapeText()</code> so shaping runs against the loaded typeface rather than a fallback font.</p>
+    <p><strong>Lifecycle &amp; immutability.</strong> A <code>ShapedText</code> instance is an immutable snapshot of the string and the context&rsquo;s <code>font</code>, <code>direction</code>, <code>textAlign</code>, and <code>textBaseline</code> at the time <code>shapeText()</code> was called. <code>GlyphRun</code> objects retain a GC-traced reference to their parent <code>ShapedText</code> and resolved font data, and cache their <code>textMetrics()</code> result on first access. Re-shape whenever the string, font size/family, alignment, baseline, or writing direction changes; reuse the same <code>ShapedText</code> and <code>GlyphRun</code> arrays across animation frames when only colors, shadows, or transforms change.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/shaped_text.idl" target="_blank" rel="noopener">Blink <code>shaped_text.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/glyph_run.cc" target="_blank" rel="noopener">Blink <code>glyph_run.cc</code></a>; <a href="https://wpt.fyi/results/html/canvas/offscreen/text?label=master&amp;label=experimental&amp;aligned&amp;q=2d.text.shape" target="_blank" rel="noopener">WPT offscreen <code>2d.text.shape.*</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+    <p>No Chrome Platform Showcase demo exists yet for Chrome 160 <code>enhanced-canvas-textmetrics</code> (checked 2026-11-24).</p>
+
+    <h3 id="example-selection-and-caret">Selection highlights, tight ink bounds, and pointer hit-testing with <code>shapeText()</code></h3>
+    <pre><code>if ("shapeText" in CanvasRenderingContext2D.prototype) {
+  const ctx = canvas.getContext("2d");
+  ctx.font = "28px system-ui, sans-serif";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+
+  const originX = 24;
+  const originY = 72;
+  const text = "Hello 👋 עולם";
+  const shaped = ctx.shapeText(text);
+
+  // 1. Draw selection highlight rectangles for UTF-16 range [0, 8)
+  ctx.fillStyle = "rgba(11, 87, 208, 0.25)";
+  for (const rect of shaped.selectionRects(0, 8)) {
+    ctx.fillRect(originX + rect.x, originY + rect.y, rect.width, rect.height);
+  }
+
+  // 2. Outline tight ink bounding box for the full shaped text
+  const ink = shaped.actualBoundingBox(0, text.length);
+  ctx.strokeStyle = "#b3261e";
+  ctx.strokeRect(originX + ink.x, originY + ink.y, ink.width, ink.height);
+
+  // 3. Render shaped text runs
+  ctx.fillStyle = "#111";
+  ctx.fillGlyphRuns(shaped.glyphRuns(), originX, originY);
+
+  // 4. Convert a pointer X coordinate to a UTF-16 caret index and back
+  canvas.addEventListener("pointerdown", (e) =&gt; {
+    const localX = e.offsetX - originX;
+    const caretIndex = shaped.advanceToPosition(localX);
+    const caretAdvance = shaped.positionToAdvance(caretIndex);
+    console.log({ caretIndex, caretAdvance, totalWidth: shaped.width });
+  });
+}</code></pre>
+    <span class="citation">Source: <a href="https://github.com/web-platform-tests/wpt/blob/master/html/canvas/element/text/2d.text.shape.position-to-advance.tentative.html" target="_blank" rel="noopener">WPT <code>2d.text.shape.position-to-advance.tentative.html</code></a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/html/canvas/element/text/2d.text.shape.fillGlyphRuns-and-strokeGlyphRuns.tentative.html" target="_blank" rel="noopener">WPT <code>2d.text.shape.fillGlyphRuns-and-strokeGlyphRuns.tentative.html</code></a>.</span>
+
+    <h3 id="example-glyph-rendering">Per-cluster styling, animation, and <code>GlyphRun.textMetrics()</code> inspection</h3>
+    <pre><code>const ctx = canvas.getContext("2d");
+ctx.font = "600 40px Georgia, serif";
+ctx.textAlign = "center";
+ctx.textBaseline = "middle";
+
+const shaped = ctx.shapeText("Wave");
+const clusters = shaped.glyphClusters(); // sequence&lt;GlyphRun&gt;
+
+// Mutating ctx.font / ctx.textAlign after shapeText() does NOT alter these GlyphRuns.
+const palette = ["#0b57d0", "#b3261e", "#146c2e", "#8f4e00"];
+
+clusters.forEach((run, i) =&gt; {
+  const metrics = run.textMetrics();
+  const dy = Math.sin(i * 0.9) * 10;
+
+  // Draw each cluster with its own fillStyle and strokeStyle while preserving kerning.
+  ctx.fillStyle = palette[i % palette.length];
+  ctx.strokeStyle = "#111";
+  ctx.lineWidth = 1.5;
+  ctx.fillGlyphRun(run, canvas.width / 2, canvas.height / 2 + dy);
+  ctx.strokeGlyphRun(run, canvas.width / 2, canvas.height / 2 + dy);
+
+  console.log({
+    range: [run.start, run.end],
+    pos: [run.x, run.y],
+    width: run.width,
+    ascent: metrics.actualBoundingBoxAscent,
+  });
+});
+
+// Batch-draw a subset of clusters via strokeGlyphRuns()
+ctx.strokeGlyphRuns(shaped.glyphClusters(1, 3), canvas.width / 2, canvas.height / 2 + 48);</code></pre>
+    <span class="citation">Source: <a href="https://github.com/web-platform-tests/wpt/blob/master/html/canvas/element/text/2d.text.shape.glyph-clusters-position.tentative.html" target="_blank" rel="noopener">WPT <code>2d.text.shape.glyph-clusters-position.tentative.html</code></a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/html/canvas/element/text/2d.text.shape.fillGlyphRun-range.tentative.html" target="_blank" rel="noopener">WPT <code>2d.text.shape.fillGlyphRun-range.tentative.html</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Support for <code>shapeText()</code>, <code>ShapedText</code>, <code>GlyphRun</code>, and <code>fillGlyphRun(s)</code> / <code>strokeGlyphRun(s)</code>. BCD has no entries for these APIs yet; status below reflects ChromeStatus 5075532483657728 and vendor standards positions (checked 2026-11-24).</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col"><code>shapeText()</code> / <code>ShapedText</code> / <code>GlyphRun</code></th><th scope="col">Evidence / notes</th><th scope="col">Base <code>TextMetrics</code> (BCD)</th></tr></thead>
+      <tr><th scope="row">Chrome (desktop, Android, WebView)</th><td>160</td><td>Enabled by default in Chrome 160 across desktop, Android, and WebView per <a href="https://chromestatus.com/api/v0/features/5075532483657728" target="_blank" rel="noopener">ChromeStatus API record</a> (prior Origin Trial in 144&ndash;149 used earlier <code>TextMetrics</code>/<code>TextCluster</code> methods)</td><td>1</td></tr>
+      <tr><th scope="row">Edge</th><td>160 (mirror)</td><td>Chromium-based; mirrors Chromium&rsquo;s <code>ExtendedTextMetrics</code> implementation</td><td>12 (mirror)</td></tr>
+      <tr><th scope="row">Firefox</th><td>No release</td><td><a href="https://github.com/mozilla/standards-positions/issues/1144" target="_blank" rel="noopener">Mozilla standards-positions#1144</a> (No signal yet)</td><td>3.5</td></tr>
+      <tr><th scope="row">Safari</th><td>No release</td><td><a href="https://github.com/WebKit/standards-positions/issues/436" target="_blank" rel="noopener">WebKit standards-positions#436</a> (Neutral; Chrome 160&rsquo;s <code>shapeText()</code> / <code>ShapedText</code> / <code>GlyphRun</code> redesign aligns with <a href="https://github.com/WebKit/explainers/pull/137" target="_blank" rel="noopener">WebKit/explainers#137</a>)</td><td>4</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5075532483657728" target="_blank" rel="noopener">ChromeStatus API record (5075532483657728)</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/TextMetrics.json" target="_blank" rel="noopener">BCD <code>api/TextMetrics.json</code></a>; <a href="https://github.com/mozilla/standards-positions/issues/1144" target="_blank" rel="noopener">mozilla/standards-positions#1144</a>; <a href="https://github.com/WebKit/standards-positions/issues/436" target="_blank" rel="noopener">WebKit/standards-positions#436</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <p>Canvas 2D font metrics and rendered glyphs are already a well-known browser fingerprinting surface because installed system fonts and shaping engines vary across devices. ChromeStatus notes that <code>shapeText()</code>, <code>ShapedText</code>, <code>GlyphRun</code>, and <code>fillGlyphRun(s)</code> / <code>strokeGlyphRun(s)</code> expose finer-grained geometry of text already measurable via <code>measureText()</code> and drawable via <code>fillText()</code>, introducing no novel cross-origin leak, permission boundary change, or storage channel. Security and privacy reviews are listed as Pending in the <a href="https://chromestatus.com/api/v0/features/5075532483657728" target="_blank" rel="noopener">ChromeStatus API record</a> (checked 2026-11-24).</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5075532483657728" target="_blank" rel="noopener">ChromeStatus security_risks (5075532483657728)</a>; <a href="https://html.spec.whatwg.org/multipage/canvas.html#security-with-canvas-elements" target="_blank" rel="noopener">HTML Living Standard &mdash; Security with canvas elements</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Specification / proposal</th><th scope="col">Status &amp; scope</th></tr></thead>
+      <tr><td><a href="https://github.com/whatwg/html/pull/11000" target="_blank" rel="noopener">WHATWG HTML PR #11000 &mdash; Extend Canvas TextMetrics for editing and text styling</a></td><td>Open PR (being aligned with <code>shapeText()</code> / <code>ShapedText</code> / <code>GlyphRun</code> per ChromeStatus)</td></tr>
+      <tr><td><a href="https://github.com/whatwg/html/issues/10677" target="_blank" rel="noopener">WHATWG HTML issue #10677</a></td><td>Design discussion on text shaping vs <code>TextMetrics</code> extensions</td></tr>
+      <tr><td><a href="https://github.com/WebKit/explainers/pull/137" target="_blank" rel="noopener">WebKit CanvasTextShaping explainer (PR #137)</a></td><td>Core shaping architecture (<code>shapeText()</code>, <code>ShapedText</code>, <code>GlyphRun</code>)</td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/TextMetrics" target="_blank" rel="noopener">MDN &mdash; <code>TextMetrics</code></a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/measureText" target="_blank" rel="noopener">MDN &mdash; <code>CanvasRenderingContext2D.measureText()</code></a></li>
+      <li><a href="https://github.com/fserb/canvas2D/blob/master/spec/enhanced-textmetrics.md" target="_blank" rel="noopener">Original Enhanced TextMetrics explainer (fserb/canvas2D)</a></li>
+      <li><a href="https://github.com/Igalia/explainers/blob/main/canvas-formatted-text/text-metrics-additions.md" target="_blank" rel="noopener">Igalia Canvas TextMetrics additions explainer</a></li>
+      <li><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/CADgYMVey-50Dg1b%3D7A7tgx%2BB7G4fzam52Vzx-bXTbrcYxqwmhw%40mail.gmail.com" target="_blank" rel="noopener">blink-dev Intent to Ship &mdash; Enhanced Canvas TextMetrics</a></li>
+      <li><a href="https://chromestatus.com/feature/5075532483657728" target="_blank" rel="noopener">ChromeStatus &mdash; Enhanced Canvas TextMetrics (5075532483657728)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

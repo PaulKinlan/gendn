@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SVG Path Data API — Chrome 160 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .mdn-card a { font-weight: 600; }
+    .mdn-card ul { margin: 0.5rem 0 0; }
+    .example-embed iframe { display: block; inline-size: 100%; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v160/">&larr; Chrome 160 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v160 &middot; svg &middot; covered on mdn</p>
+    <h1>SVG Path Data API</h1>
+
+    <p class="lede">Adds structured JavaScript access to SVG <code>&lt;path&gt;</code> geometry via three methods on <code>SVGPathElement</code> (<code>SVGPathData</code> mixin): <code>getPathData()</code> reads the base <code>d</code> attribute as an array of <code>{ type, values }</code> segment objects (with optional <code>{ normalize: true }</code> reducing commands to absolute <code>M</code>, <code>L</code>, <code>C</code>, and <code>Z</code>), <code>setPathData()</code> writes a segment array back to <code>d</code>, and <code>getPathSegmentAtLength()</code> returns the segment at a given distance along the path.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; shipped in Firefox 137 and Chrome 160; Safari has not signaled implementation</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 160 (desktop, Android, WebView)</li>
+        <li>Edge &middot; Mirrors Chromium (160)</li>
+        <li>Firefox &middot; 137 (shipped April 2025)</li>
+        <li class="limited">Safari &middot; No signal yet</li>
+      </ul>
+      <p>No dedicated <code>web-features</code> entry exists on <a href="https://api.webstatus.dev/v1/features?q=SVGPathElement" target="_blank" rel="noopener">webstatus.dev</a> for the SVG Path Data API (checked 2026-11-24). <a href="https://github.com/mdn/browser-compat-data/blob/main/api/SVGPathElement.json" target="_blank" rel="noopener">BCD <code>api/SVGPathElement.json</code></a> records Firefox <strong>137</strong> for <code>getPathData</code>, <code>setPathData</code>, and <code>getPathSegmentAtLength</code>, and has not yet been updated from <code>false</code> for Chrome 160.</p>
+    </div>
+  </header>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#mdn-coverage">Documented on MDN</a></li>
+      <li><a href="#chrome-behavior">What Chrome 160 does</a></li>
+      <li><a href="#live-example">Live example</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#quick-reference">Quick reference</a></li>
+      <li><a href="#references">References</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="mdn-coverage">this feature is documented on MDN</h2>
+    <div class="mdn-card">
+      <a href="https://developer.mozilla.org/en-US/docs/Web/API/SVGPathElement/getPathData" target="_blank" rel="noopener">MDN: SVGPathElement: getPathData() method</a>
+      <ul>
+        <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/SVGPathElement/setPathData" target="_blank" rel="noopener">MDN: <code>SVGPathElement.setPathData()</code> method</a> &mdash; syntax, <code>{ type, values }</code> segment parameters, worked example, Specifications, and Browser compatibility</li>
+        <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/SVGPathElement/getPathSegmentAtLength" target="_blank" rel="noopener">MDN: <code>SVGPathElement.getPathSegmentAtLength()</code> method</a> &mdash; syntax, <code>distance</code> parameter, <code>null</code> empty-path return, worked example, Specifications, and Browser compatibility</li>
+      </ul>
+      <p style="margin: 0.5rem 0 0">MDN publishes complete, dedicated reference pages for all three <code>SVGPathData</code> methods (verified HTTP 200 on 2026-11-24, each with Syntax, Parameters, Return value, Examples, Specifications, and Browser compatibility). gendn does not duplicate MDN&rsquo;s reference prose here.</p>
+    </div>
+    <p>Why gendn doesn&rsquo;t duplicate MDN: this site exists for Chrome features without a canonical MDN page yet. When MDN already documents an API completely, gendn publishes an honest pointer alongside the Chrome 160 implementation nuances and live showcase embed MDN does not track.</p>
+  </section>
+
+  <section>
+    <h2 id="chrome-behavior">what Chrome 160 actually does</h2>
+    <p>In Blink&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/svg/svg_path_element.cc" target="_blank" rel="noopener"><code>svg_path_element.cc</code></a> and <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/svg/svg_path_data.idl" target="_blank" rel="noopener"><code>svg_path_data.idl</code></a> (verified against the <a href="https://wpt.fyi/results/svg/path/interfaces?label=experimental&amp;label=master&amp;aligned" target="_blank" rel="noopener"><code>svg/path/interfaces</code> WPT suite</a>):</p>
+    <ul>
+      <li><strong>Base <code>d</code> attribute only:</strong> All three methods read or mutate the element&rsquo;s base <code>d</code> content attribute &mdash; CSS <code>d: path(...)</code> declarations, SMIL <code>&lt;animate attributeName="d"&gt;</code>, and Web Animations do not alter <code>getPathData()</code> or <code>getPathSegmentAtLength()</code>.</li>
+      <li><strong>Valid-prefix truncation in <code>setPathData()</code>:</strong> Encountering an unknown command letter, wrong <code>values.length</code> (unlike the <code>d</code> string parser, extra parameters are <em>not</em> split into implicit repeats), non-finite numbers (<code>NaN</code>, <code>Infinity</code>), or non-empty <code>values</code> on <code>Z</code>/<code>z</code> stops parsing at that segment and retains only the valid preceding segments.</li>
+      <li><strong>Attribute mutation &amp; empty removal:</strong> Passing an empty array (or a list invalid at index 0) calls <code>removeAttribute("d")</code>; otherwise Blink serializes the valid-prefix byte stream through <code>setAttribute("d", ...)</code> so <code>MutationObserver</code>, <code>&lt;use&gt;</code> instances, and <code>&lt;mpath&gt;</code> dependencies update normally.</li>
+      <li><strong>Distance clamping in <code>getPathSegmentAtLength(distance)</code>:</strong> Returns <code>null</code> when the base path is empty; otherwise clamps <code>distance</code> to <code>[0, getTotalLength()]</code> so negative values return the first segment and values beyond total length return the last segment.</li>
+    </ul>
+    <pre><code>if ("getPathData" in SVGPathElement.prototype) {
+  const path = document.querySelector("svg path");
+  const normalized = path.getPathData({ normalize: true }); // M, L, C, Z only
+  const atMidpoint = path.getPathSegmentAtLength(path.getTotalLength() / 2);
+
+  // Translate every absolute M/L/C coordinate by +10px on X
+  const shifted = normalized.map(({ type, values }) =&gt; ({
+    type,
+    values: values.map((v, i) =&gt; (i % 2 === 0 ? v + 10 : v)),
+  }));
+  path.setPathData(shifted);
+  console.log({ segmentCount: shifted.length, atMidpoint });
+}</code></pre>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/svg/svg_path_element.cc" target="_blank" rel="noopener">Blink <code>svg_path_element.cc</code></a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/svg/path/interfaces/setPathData-malformed.html" target="_blank" rel="noopener">WPT <code>setPathData-malformed.html</code></a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/svg/path/interfaces/getPathSegmentAtLength-clamping.html" target="_blank" rel="noopener">WPT <code>getPathSegmentAtLength-clamping.html</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="live-example">live example</h2>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/svg-path-data-api/segment-inspector/"
+        title="Live example — SVG Path Data API segment inspector" loading="lazy" width="100%" height="540"
+        style="border:2px solid var(--border-black)"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live interactive example from the <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/svg-path-data-api/" target="_blank" rel="noopener">Chrome Platform Showcase &mdash; SVG Path Data API</a> (sibling demos: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/svg-path-data-api/point-editor/" target="_blank" rel="noopener">point editor</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/svg-path-data-api/path-morph/" target="_blank" rel="noopener">path morph</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/svg-path-data-api/segment-at-length/" target="_blank" rel="noopener">segment at length</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/svg-path-data-api/validation-and-base-value/" target="_blank" rel="noopener">validation &amp; base value</a>). <span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/svg-path-data-api/segment-inspector/" target="_blank" rel="noopener">chrome-platform-showcase</a>.</span></figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Support from BCD <code>api/SVGPathElement.json</code> (checked 2026-11-24) and ChromeStatus 4787972240179200. Disclosed BCD lag: <code>getPathData</code>, <code>setPathData</code>, and <code>getPathSegmentAtLength</code> still read Chrome <code>false</code> in BCD even though Chrome 160 ships all three methods.</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col"><code>getPathData()</code> / <code>setPathData()</code> / <code>getPathSegmentAtLength()</code></th><th scope="col">Evidence / notes</th></tr></thead>
+      <tr><th scope="row">Chrome (desktop, Android, WebView)</th><td>160 (BCD lags as <code>false</code>)</td><td>Enabled by default in Chrome 160 per <a href="https://chromestatus.com/api/v0/features/4787972240179200" target="_blank" rel="noopener">ChromeStatus API record</a> (<code>SVGPathDataAPI</code> Blink runtime feature)</td></tr>
+      <tr><th scope="row">Edge</th><td>160 (mirror)</td><td>Chromium-based; Microsoft authored the Blink implementation, <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/SVG/SVGPathDataAPI/explainer.md" target="_blank" rel="noopener">MSEdge explainer</a>, and <a href="https://github.com/web-platform-tests/interop/issues/1469" target="_blank" rel="noopener">Interop 2027 proposal (#1469)</a></td></tr>
+      <tr><th scope="row">Firefox</th><td>137</td><td>Shipped April 2025 (<a href="https://bugzilla.mozilla.org/show_bug.cgi?id=1934525" target="_blank" rel="noopener">Mozilla Bug 1934525</a>; confirmed in BCD)</td></tr>
+      <tr><th scope="row">Safari</th><td>No release</td><td><a href="https://github.com/WebKit/standards-positions/issues/731" target="_blank" rel="noopener">WebKit standards-positions#731</a> (No signal yet; <code>false</code> in BCD)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/SVGPathElement.json" target="_blank" rel="noopener">BCD <code>api/SVGPathElement.json</code></a>; <a href="https://chromestatus.com/api/v0/features/4787972240179200" target="_blank" rel="noopener">ChromeStatus API record (4787972240179200)</a>; <a href="https://bugzilla.mozilla.org/show_bug.cgi?id=1934525" target="_blank" rel="noopener">Bugzilla 1934525</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="quick-reference">quick reference</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="quick-ref-caption">
+    <table class="doc-table">
+      <caption id="quick-ref-caption">Chrome 160 shipping metadata and Blink IDL summary for SVG Path Data API</caption>
+      <tr><th scope="row">IDL</th><td><code>SVGPathDataSettings { boolean normalize = false; }</code> &middot; <code>SVGPathSegment { required DOMString type; required sequence&lt;unrestricted float&gt; values; }</code> &middot; <code>SVGPathData</code> mixin (<code>getPathData()</code>, <code>setPathData()</code>, <code>getPathSegmentAtLength()</code>) included on <code>SVGPathElement</code> (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/svg/svg_path_data.idl" target="_blank" rel="noopener">Blink <code>svg_path_data.idl</code></a>)</td></tr>
+      <tr><th scope="row">Shipped in</th><td>Chrome 160 (desktop, Android, Android WebView), enabled by default &mdash; filed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=160" target="_blank" rel="noopener">milestone=160 listing</a> (feature type: &ldquo;Chromium catches up&rdquo;)</td></tr>
+      <tr><th scope="row">Runtime flag</th><td>Blink runtime feature <code>SVGPathDataAPI</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a></td></tr>
+      <tr><th scope="row">Intent &amp; bug</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6ad8eba6.a6e82b8f.de7e0.01e9.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a> &middot; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/KUXP153MB161031AEB43220B1ADB9B41AC1112%40KUXP153MB1610.APCP153.PROD.OUTLOOK.COM" target="_blank" rel="noopener">Intent to Prototype</a> &middot; <a href="https://issues.chromium.org/issues/40441025" target="_blank" rel="noopener">issues.chromium.org/40441025</a></td></tr>
+      <tr><th scope="row">TAG review</th><td><a href="https://github.com/w3ctag/design-reviews/issues/1292" target="_blank" rel="noopener">w3ctag/design-reviews#1292</a> (Pending)</td></tr>
+      <tr><th scope="row">Web platform tests</th><td><a href="https://wpt.fyi/results/svg/path/interfaces?label=experimental&amp;label=master&amp;aligned" target="_blank" rel="noopener">wpt.fyi &mdash; svg/path/interfaces</a></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/4787972240179200" target="_blank" rel="noopener">4787972240179200 &mdash; SVG Path Data API</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="references">references</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/SVGPathElement/getPathData" target="_blank" rel="noopener">MDN &mdash; <code>SVGPathElement.getPathData()</code> (canonical reference)</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/SVGPathElement/setPathData" target="_blank" rel="noopener"><code>setPathData()</code></a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/SVGPathElement/getPathSegmentAtLength" target="_blank" rel="noopener"><code>getPathSegmentAtLength()</code></a></li>
+      <li><a href="https://w3c.github.io/svgwg/specs/paths/#InterfaceSVGPathData" target="_blank" rel="noopener">W3C SVG Paths Editor&rsquo;s Draft &mdash; <code>SVGPathData</code> interface mixin</a></li>
+      <li><a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/SVG/SVGPathDataAPI/explainer.md" target="_blank" rel="noopener">Microsoft Edge explainer &mdash; SVG Path Data API</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/svg-path-data-api/" target="_blank" rel="noopener">Chrome Platform Showcase &mdash; SVG Path Data API demos</a></li>
+      <li><a href="https://github.com/jarek-foksa/path-data-polyfill" target="_blank" rel="noopener"><code>path-data-polyfill</code> (community polyfill for non-supporting engines)</a></li>
+      <li><a href="https://chromestatus.com/feature/4787972240179200" target="_blank" rel="noopener">ChromeStatus &mdash; SVG Path Data API (4787972240179200)</a> (<a href="https://chromestatus.com/api/v0/features/4787972240179200" target="_blank" rel="noopener">API record</a>)</li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
