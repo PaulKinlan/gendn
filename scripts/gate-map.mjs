@@ -351,6 +351,18 @@ export const RULES = [
     suites: ["test-threat-model-citations"],
     reason: "the threat model's citation-resolution guard (executable prose)",
   },
+  {
+    id: "doc-tests",
+    exact: [
+      "scripts/doc-tests.mjs",
+      "scripts/doc-drift.mjs",
+      "scripts/doc-tests.test.mjs",
+      "docs/doc-tests.md",
+    ],
+    prefixes: [],
+    suites: ["test-doc-tests"],
+    reason: "offline doc snippet verifier, staleness/drift guard, and their unit fixture",
+  },
 ];
 
 /** Paths that are KNOWN to need no suite, each with the reason a reader can check. A path that is
