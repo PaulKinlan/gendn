@@ -1,0 +1,27 @@
+// Cloudflare Workers config for gendn (replaces Deno Deploy, which shuts down in April 2027).
+// Build: scripts/build-worker-assets.mjs copies the files the server reads into dist/site and
+// writes the dist/site-files.json index that worker.ts imports. Deploy: .github/workflows/deploy.yml.
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "gendn",
+  "main": "worker.ts",
+  "compatibility_date": "2026-11-01",
+  // lib/site-fs.ts keeps a node:fs implementation for Node dev; the Worker never calls it, but
+  // the bundler must be able to resolve the node: import.
+  "compatibility_flags": ["nodejs_compat"],
+  "build": {
+    "command": "node scripts/build-worker-assets.mjs"
+  },
+  "assets": {
+    "directory": "./dist/site",
+    "binding": "ASSETS",
+    // Every request goes through serveRequest() (CSP, inert script MIME, revalidation, redirects);
+    // assets are only ever read by the Worker through the binding, never served directly.
+    "run_worker_first": true,
+    "html_handling": "none",
+    "not_found_handling": "none"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

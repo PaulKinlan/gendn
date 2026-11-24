@@ -9,12 +9,15 @@
 
 // Injectable base for TESTS ONLY (gendn-14o): when CHROMESTATUS_BASE is set at import time, the
 // wrapper targets a local HTTP stub instead of the live API, so parsing/cache/grouping behaviour
-// can be tested with no live chromestatus dependency. Production (Deno Deploy, deno task start)
-// never sets it, so the default below is the only real behaviour. The try/catch keeps the module
-// importable without --allow-env (Deno.env.get would throw a PermissionDenied at import time).
+// can be tested with no live chromestatus dependency. Production (the Cloudflare Worker, npm start,
+// deno task start) never sets it, so the default below is the only real behaviour. It reads
+// process.env (Node, and Deno's node layer) and falls back to Deno.env; the try/catch keeps the
+// module importable without --allow-env and on Workers, where neither exists.
 let BASE = "https://chromestatus.com/api/v0";
 try {
-  BASE = Deno.env.get("CHROMESTATUS_BASE") ?? BASE;
+  // deno-lint-ignore no-explicit-any
+  const g = globalThis as any;
+  BASE = g.process?.env?.CHROMESTATUS_BASE ?? g.Deno?.env?.get("CHROMESTATUS_BASE") ?? BASE;
 } catch {
   // no env permission: production default
 }
