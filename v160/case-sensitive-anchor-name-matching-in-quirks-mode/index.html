@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Case-sensitive anchor name matching in quirks mode — Chrome 160 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .scroll-table { min-width: 30rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v160/">&larr; Chrome 160 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v160 &middot; dom &middot; enabled by default</p>
+    <h1>Case-sensitive anchor name matching in quirks mode</h1>
+
+    <p class="lede">Fragment navigation in quirks-mode HTML documents (<code>document.compatMode === "BackCompat"</code>) now matches <code>&lt;a name="&hellip;"&gt;</code> attributes using exact case-sensitive code-unit comparison, matching standards mode, Firefox, Safari, and the HTML Living Standard. Navigating to <code>#Foo</code> no longer scrolls to or sets <code>:target</code> on <code>&lt;a name="foo"&gt;</code>.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">No web-features Baseline ID &mdash; interoperable across Chrome 160, Firefox, and Safari</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 160 (desktop, Android, WebView)</li>
+        <li>Edge &middot; Chromium-based (follows M160 rollout)</li>
+        <li>Firefox &middot; Already case-sensitive (per ChromeStatus)</li>
+        <li>Safari &middot; Already case-sensitive (per ChromeStatus)</li>
+      </ul>
+      <p>There is no dedicated web-feature ID on <a href="https://api.webstatus.dev/v1/features?q=quirks" target="_blank" rel="noopener">webstatus.dev</a> (<a href="https://chromestatus.com/api/v0/features/5085237991309312" target="_blank" rel="noopener">ChromeStatus</a> records <code>web_feature: "Missing feature"</code>). <a href="https://github.com/mdn/browser-compat-data/blob/main/html/elements/a.json" target="_blank" rel="noopener">BCD <code>html/elements/a.json</code></a> documents the deprecated <code>&lt;a name&gt;</code> attribute across all browsers but has no separate subfeature for quirks-mode case sensitivity (checked 2026-11-24).</p>
+    </div>
+  </header>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#at-a-glance">At a glance</a></li>
+      <li><a href="#why">Why it exists</a></li>
+      <li><a href="#syntax">Syntax &amp; spec rule</a></li>
+      <li><a href="#matching-algorithm">Lookup algorithm</a></li>
+      <li><a href="#errors-and-migration">Errors &amp; migration</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#security-and-privacy">Security &amp; privacy</a></li>
+      <li><a href="#specifications">Specifications</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Shipped in</th><td>Chrome 160 (desktop, Android, Android WebView), enabled by default &mdash; listed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=160" target="_blank" rel="noopener">milestone=160 listing</a> and confirmed in the <a href="https://chromestatus.com/api/v0/features/5085237991309312" target="_blank" rel="noopener">ChromeStatus API record</a></td></tr>
+      <tr><th scope="row">Kill switch / flag</th><td>No origin trial, no user-facing <code>chrome://flags</code> toggle. Blink runtime flag <code>CaseSensitiveAnchorMatching</code> is <code>status: "stable"</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a> (kill switch planned for removal in M162; emergency rollback via <code>--disable-blink-features=CaseSensitiveAnchorMatching</code>)</td></tr>
+      <tr><th scope="row">Specification</th><td><a href="https://html.spec.whatwg.org/multipage/browsing-the-web.html#find-a-potential-indicated-element" target="_blank" rel="noopener">HTML Living Standard &mdash; find a potential indicated element</a> &amp; <a href="https://html.spec.whatwg.org/multipage/browsing-the-web.html#the-indicated-part-of-the-document" target="_blank" rel="noopener">the indicated part of the document</a></td></tr>
+      <tr><th scope="row">Tracking bug</th><td><a href="https://issues.chromium.org/issues/40829784" target="_blank" rel="noopener">issues.chromium.org/40829784</a></td></tr>
+      <tr><th scope="row">Telemetry</th><td><a href="https://chromestatus.com/metrics/feature/timeline/popularity/5784" target="_blank" rel="noopener">UseCounter 5784 (<code>AnchorCaseSensitiveMatch</code>)</a>; <a href="https://chromestatus.com/metrics/feature/timeline/popularity/5785" target="_blank" rel="noopener">UseCounter 5785 (<code>AnchorCaseInsensitiveMatch</code>)</a> (~0.00015% of page loads)</td></tr>
+      <tr><th scope="row">Web platform tests</th><td><a href="https://wpt.fyi/results/html/browsers/browsing-the-web/scroll-to-fragid/scroll-to-anchor-name-quirks-case.html" target="_blank" rel="noopener">wpt.fyi &mdash; scroll-to-anchor-name-quirks-case.html</a> (<a href="https://github.com/web-platform-tests/wpt/blob/master/html/browsers/browsing-the-web/scroll-to-fragid/scroll-to-anchor-name-quirks-case.html" target="_blank" rel="noopener">WPT source</a>)</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5085237991309312" target="_blank" rel="noopener">5085237991309312 &mdash; Case-sensitive anchor name matching in quirks mode</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>In quirks mode (pages rendered without a standards <code>&lt;!doctype html&gt;</code> declaration, where <code>document.compatMode === "BackCompat"</code>), Chromium previously ran a legacy case-insensitive fallback (<code>DeprecatedEqualIgnoringCase</code>) when resolving URL fragments against <code>&lt;a name="&hellip;"&gt;</code> elements. Neither Firefox, Safari, nor the HTML Living Standard perform case-insensitive anchor name matching in quirks mode. Worse, Chromium&rsquo;s single-pass tree traversal could let an earlier case-mismatched <code>&lt;a name="Destination"&gt;</code> shadow a later exact <code>&lt;a name="destination"&gt;</code>. With telemetry showing the fallback fired on only ~0.00015% of page loads, Chrome 160 removes it to achieve cross-browser interoperability.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5085237991309312" target="_blank" rel="noopener">ChromeStatus motivation &amp; compat risks (5085237991309312)</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/dom/tree_scope.cc" target="_blank" rel="noopener">Blink tree_scope.cc</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>No new HTML element, attribute, or JavaScript API syntax is introduced. This change updates fragment-identifier resolution against the existing (obsolete in HTML5) <code>&lt;a name="&hellip;"&gt;</code> attribute in quirks-mode documents (<code>document.compatMode === "BackCompat"</code>) and aligns it with case-sensitive <code>id</code> matching:</p>
+    <pre><code>&lt;!-- Quirks-mode HTML document (no &lt;!doctype html&gt;): document.compatMode === "BackCompat" --&gt;
+&lt;a name="section-Alpha"&gt;&lt;/a&gt;
+
+&lt;!-- Fragment link &amp; CSS :target matching --&gt;
+&lt;a href="#section-Alpha"&gt;Matches (exact case)&lt;/a&gt;
+&lt;a href="#section-alpha"&gt;Does NOT match in Chrome 160+&lt;/a&gt;
+
+&lt;!-- Preferred modern replacement (case-sensitive in all modes) --&gt;
+&lt;section id="section-Alpha"&gt;...&lt;/section&gt;</code></pre>
+    <blockquote class="spec-quote">
+      <p>&ldquo;To find a potential indicated element given a <code>Document</code> <var>document</var> and a string <var>fragment</var>, run these steps: 1. If there is an element in the document tree whose root is <var>document</var> and that has an ID equal to <var>fragment</var>, then return the first such element in tree order. 2. If there is an <code>a</code> element in the document tree whose root is <var>document</var> that has a <code>name</code> attribute whose value is equal to <var>fragment</var>, then return the first such element in tree order. 3. Return null.&rdquo;</p>
+    </blockquote>
+    <p>This reference covers both parts of the Chrome 160 change: the <a href="#matching-algorithm">case-sensitive quirks-mode <code>&lt;a name&gt;</code> fragment lookup algorithm</a> and <a href="#errors-and-migration">migrating quirks-mode documents</a> from case-mismatched <code>name</code> anchors to exact-case or <code>id</code> targets.</p>
+    <span class="citation">Source: <a href="https://html.spec.whatwg.org/multipage/browsing-the-web.html#find-a-potential-indicated-element" target="_blank" rel="noopener">HTML Living Standard &mdash; find a potential indicated element</a> (fetched 2026-11-24); <a href="https://html.spec.whatwg.org/multipage/obsolete.html#attr-a-name" target="_blank" rel="noopener">HTML Living Standard &mdash; obsolete <code>a</code> <code>name</code> attribute</a>.</span>
+
+    <h3 id="matching-algorithm">Quirks-mode fragment lookup &mdash; inputs and outputs</h3>
+    <p><strong>Inputs.</strong> A quirks-mode HTML <code>Document</code> (<code>document.compatMode === "BackCompat"</code>) and a URL fragment string (from initial navigation, clicking <code>&lt;a href="#&hellip;"&gt;</code>, assigning <code>location.hash</code>, or history traversal).</p>
+    <p><strong>Outputs.</strong> Returns the indicated DOM node (updating CSS <code>:target</code> and scrolling the element into view), the special value <em>top of the document</em>, or <code>null</code> (clearing <code>:target</code> with no scroll). Per <a href="https://html.spec.whatwg.org/multipage/browsing-the-web.html#the-indicated-part-of-the-document" target="_blank" rel="noopener">the HTML specification</a> and Blink&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/dom/tree_scope.cc" target="_blank" rel="noopener"><code>TreeScope::FindAnchor()</code> / <code>FindAnchorWithName()</code></a>:</p>
+    <ol>
+      <li>If the raw fragment is the empty string <code>""</code>, return the top of the document.</li>
+      <li>Look up the raw fragment via <code>FindAnchorWithName(fragment)</code>: first check <code>getElementById(fragment)</code> (always exact case-sensitive), then scan <code>&lt;a&gt;</code> elements in tree order for an exact code-unit match <code>anchor.getAttribute("name") === fragment</code>.</li>
+      <li>If step 2 returns <code>null</code>, percent-decode the fragment as UTF-8 without BOM to produce <code>decodedFragment</code> and run <code>FindAnchorWithName(decodedFragment)</code> again using exact case-sensitive matching.</li>
+      <li>If still <code>null</code> and <code>decodedFragment</code> is an ASCII case-insensitive match for <code>"top"</code> (for example <code>#TOP</code> or <code>#Top</code>), return the top of the document. (This special <code>#top</code> rule is unchanged.)</li>
+      <li>Otherwise return <code>null</code>.</li>
+    </ol>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="diff-caption">
+    <table class="doc-table scroll-table">
+      <caption id="diff-caption">Quirks-mode (<code>BackCompat</code>) fragment matching before vs in Chrome 160+ (from <a href="https://github.com/web-platform-tests/wpt/blob/master/html/browsers/browsing-the-web/scroll-to-fragid/scroll-to-anchor-name-quirks-case.html" target="_blank" rel="noopener">WPT <code>scroll-to-anchor-name-quirks-case.html</code></a>)</caption>
+      <thead><tr><th scope="col">Anchor markup in quirks mode</th><th scope="col">Fragment</th><th scope="col">Chrome &le; 159</th><th scope="col">Chrome 160+ / Firefox / Safari</th></tr></thead>
+      <tr><td><code>&lt;a name="sample_é"&gt;</code></td><td><code>#sample_é</code></td><td>Matches</td><td>Matches</td></tr>
+      <tr><td><code>&lt;a name="sample_é"&gt;</code></td><td><code>#SAMPLE_é</code> (ASCII case mismatch)</td><td>Matched (fallback)</td><td><code>null</code> (no match)</td></tr>
+      <tr><td><code>&lt;a name="sample_é"&gt;</code></td><td><code>#sample_É</code> (non-ASCII case mismatch)</td><td>Matched (fallback)</td><td><code>null</code> (no match)</td></tr>
+      <tr><td><code>&lt;a name="sample_é"&gt;</code></td><td><code>#ſample_é</code> (U+017F Unicode fold)</td><td>Matched (fallback)</td><td><code>null</code> (no match)</td></tr>
+      <tr><td><code>&lt;a name="Destination"&gt;</code> then <code>&lt;a name="destination"&gt;</code></td><td><code>#destination</code></td><td>Matched earlier <code>Destination</code></td><td>Matches exact <code>destination</code></td></tr>
+      <tr><td>Any document (no matching id/name)</td><td><code>#TOP</code></td><td>Top of document</td><td>Top of document (unchanged)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/web-platform-tests/wpt/blob/master/html/browsers/browsing-the-web/scroll-to-fragid/scroll-to-anchor-name-quirks-case.html" target="_blank" rel="noopener">WPT scroll-to-anchor-name-quirks-case.html</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/dom/tree_scope.cc" target="_blank" rel="noopener">Blink tree_scope.cc (FindAnchorWithName)</a>; <a href="https://html.spec.whatwg.org/multipage/browsing-the-web.html#the-indicated-part-of-the-document" target="_blank" rel="noopener">HTML Living Standard</a>.</span>
+
+    <h3 id="errors-and-migration">Errors, silent misses, and migration</h3>
+    <p><strong>Error behavior.</strong> A case-mismatched fragment does not throw a JavaScript exception or log a console error. Assigning <code>location.hash = "#Foo"</code> still updates the URL and fires <code>hashchange</code>, but <code>document.querySelector(":target")</code> becomes <code>null</code> and the browser does not scroll to <code>&lt;a name="foo"&gt;</code>.</p>
+    <p><strong>Migration steps for legacy quirks-mode pages (<code>document.compatMode === "BackCompat"</code>):</strong></p>
+    <ul>
+      <li><strong>Normalize case on links and anchors:</strong> Update in-page <code>&lt;a href="#&hellip;"&gt;</code> links and <code>&lt;a name="&hellip;"&gt;</code> targets so their casing matches identically (code-unit for code-unit).</li>
+      <li><strong>Migrate from obsolete <code>name</code> to <code>id</code>:</strong> The HTML Living Standard marks <code>&lt;a name&gt;</code> obsolete; replacing <code>&lt;a name="foo"&gt;</code> with an <code>id="foo"</code> attribute on the target heading or section works identically in quirks mode and standards mode (and <code>id</code> lookup always runs before <code>&lt;a name&gt;</code> lookup).</li>
+      <li><strong>Exit quirks mode when feasible:</strong> Adding <code>&lt;!doctype html&gt;</code> switches the document to standards mode (<code>document.compatMode === "CSS1Compat"</code>), eliminating quirks-mode layout and matching divergences altogether.</li>
+      <li><strong>Enterprise/testing rollback:</strong> During Chrome 160&ndash;161, Chromium retains the <code>CaseSensitiveAnchorMatching</code> runtime flag (<code>--disable-blink-features=CaseSensitiveAnchorMatching</code>) for emergency testing; the flag comment in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a> notes planned kill-switch removal in M162.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5085237991309312" target="_blank" rel="noopener">ChromeStatus activation_risks &amp; interop_compat_risks</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Blink runtime_enabled_features.json5</a>; <a href="https://html.spec.whatwg.org/multipage/obsolete.html#attr-a-name" target="_blank" rel="noopener">HTML Living Standard &mdash; obsolete <code>a</code> <code>name</code></a>.</span>
+
+    <h3 id="context">Context and exposure</h3>
+    <p>This behavior applies to HTML documents rendered in quirks mode (<code>document.compatMode === "BackCompat"</code>) in any top-level browsing context or <code>&lt;iframe&gt;</code> on desktop, Android, and Android WebView. Standards mode (<code>CSS1Compat</code>) and limited-quirks mode already performed case-sensitive <code>id</code> and <code>&lt;a name&gt;</code> lookup. Fragment lookup operates within the document&rsquo;s own tree scope (<code>TreeScope</code>); elements inside shadow trees are not matched by document fragment navigation. No secure context, permission, or JavaScript is required.</p>
+    <span class="citation">Source: <a href="https://html.spec.whatwg.org/multipage/browsing-the-web.html#find-a-potential-indicated-element" target="_blank" rel="noopener">HTML Living Standard &mdash; find a potential indicated element</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/dom/tree_scope.cc" target="_blank" rel="noopener">Blink tree_scope.cc</a>.</span>
+
+    <h3 id="lifecycle">Lifecycle and timing</h3>
+    <p>Fragment anchor resolution runs whenever the browser navigates to a URL containing a fragment, clicks a same-document fragment link, updates <code>location.hash</code>, or traverses session history entries with fragments. On each resolution, the document updates its target element (observable immediately via <code>document.querySelector(":target")</code>) and scrolls the indicated element into view if found. Removing the case-insensitive fallback also guarantees that an earlier case-mismatched <code>&lt;a name&gt;</code> in tree order cannot preempt a later exact-case <code>&lt;a name&gt;</code>.</p>
+    <span class="citation">Source: <a href="https://html.spec.whatwg.org/multipage/browsing-the-web.html#the-indicated-part-of-the-document" target="_blank" rel="noopener">HTML Living Standard &mdash; the indicated part of the document</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/html/browsers/browsing-the-web/scroll-to-fragid/scroll-to-anchor-name-quirks-case.html" target="_blank" rel="noopener">WPT scroll-to-anchor-name-quirks-case.html</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+    <p>No live demo exists yet on the Chrome Platform Showcase for this feature.</p>
+
+    <h3 id="example-quirks-before-after">Quirks-mode fragment matching in Chrome 160+</h3>
+    <pre><code>&lt;!-- Intentionally missing &lt;!doctype html&gt; so document.compatMode === "BackCompat" --&gt;
+&lt;html&gt;
+&lt;head&gt;&lt;meta charset="utf-8"&gt;&lt;/head&gt;
+&lt;body&gt;
+  &lt;a name="sample_é" id="anchor"&gt;Exact target&lt;/a&gt;
+  &lt;a name="Destination" id="earlier-anchor"&gt;Different case&lt;/a&gt;
+  &lt;a name="destination" id="exact-anchor"&gt;Exact lowercase&lt;/a&gt;
+
+  &lt;script&gt;
+    console.assert(document.compatMode === "BackCompat");
+
+    // 1. Exact case matches:
+    location.hash = "#sample_é";
+    document.querySelector(":target")?.id; // "anchor"
+
+    // 2. ASCII, non-ASCII, and Unicode case-fold mismatches all return null:
+    location.hash = "#SAMPLE_é";
+    document.querySelector(":target"); // null
+
+    location.hash = "#sample_É";
+    document.querySelector(":target"); // null
+
+    location.hash = "#\u017Fample_é"; // U+017F long s
+    document.querySelector(":target"); // null
+
+    // 3. Earlier case-mismatched &lt;a name="Destination"&gt; no longer hides exact match:
+    location.hash = "#destination";
+    document.querySelector(":target")?.id; // "exact-anchor"
+  &lt;/script&gt;
+&lt;/body&gt;
+&lt;/html&gt;</code></pre>
+    <span class="citation">Source: Adapted from <a href="https://github.com/web-platform-tests/wpt/blob/master/html/browsers/browsing-the-web/scroll-to-fragid/scroll-to-anchor-name-quirks-case.html" target="_blank" rel="noopener">WPT scroll-to-anchor-name-quirks-case.html</a>.</span>
+
+    <h3 id="example-migration-audit">Auditing quirks-mode pages for case-mismatched <code>&lt;a name&gt;</code> links</h3>
+    <pre><code>// Run in DevTools or automated checks on legacy quirks-mode pages:
+function findCaseMismatchedFragmentLinks() {
+  if (document.compatMode !== "BackCompat") return [];
+
+  const exactIds = new Set([...document.querySelectorAll("[id]")].map((el) =&gt; el.id));
+  const anchorNames = [...document.querySelectorAll("a[name]")]
+    .map((a) =&gt; a.getAttribute("name"))
+    .filter(Boolean);
+  const exactNames = new Set(anchorNames);
+  const lowerNames = new Map(anchorNames.map((n) =&gt; [n.toLowerCase(), n]));
+
+  const broken = [];
+  for (const link of document.querySelectorAll('a[href^="#"]')) {
+    const raw = link.getAttribute("href").slice(1);
+    if (!raw || raw.toLowerCase() === "top") continue;
+    const decoded = decodeURIComponent(raw);
+    if (exactIds.has(raw) || exactIds.has(decoded)) continue;
+    if (exactNames.has(raw) || exactNames.has(decoded)) continue;
+
+    const matchedName = lowerNames.get(raw.toLowerCase()) ?? lowerNames.get(decoded.toLowerCase());
+    if (matchedName) {
+      broken.push({ href: link.getAttribute("href"), expectedName: matchedName, link });
+    }
+  }
+  return broken;
+}
+
+// Recommended fix: add &lt;!doctype html&gt; and replace &lt;a name="faq"&gt; with &lt;h2 id="faq"&gt;</code></pre>
+    <span class="citation">Source: Derived from <a href="https://html.spec.whatwg.org/multipage/browsing-the-web.html#the-indicated-part-of-the-document" target="_blank" rel="noopener">HTML Living Standard fragment lookup steps</a> and <a href="https://chromestatus.com/feature/5085237991309312" target="_blank" rel="noopener">ChromeStatus 5085237991309312 migration notes</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Case-sensitive <code>&lt;a name&gt;</code> matching in quirks mode. BCD has no subfeature for quirks-mode anchor case sensitivity; status comes from ChromeStatus, Blink source, and wpt.fyi (checked 2026-11-24). The deprecated <code>&lt;a name&gt;</code> column is from BCD.</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col">Case-sensitive in quirks mode</th><th scope="col">Evidence / notes</th><th scope="col"><code>&lt;a name&gt;</code> attribute (BCD)</th></tr></thead>
+      <tr><th scope="row">Chrome (desktop, Android, WebView)</th><td>160</td><td><code>CaseSensitiveAnchorMatching</code> set to <code>status: "stable"</code> for M160 per <a href="https://chromestatus.com/api/v0/features/5085237991309312" target="_blank" rel="noopener">ChromeStatus 5085237991309312</a> and <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a></td><td>1 (deprecated)</td></tr>
+      <tr><th scope="row">Edge</th><td>160 (expected)</td><td>Chromium-based (feature authored by Microsoft engineers); <a href="https://wpt.fyi/results/html/browsers/browsing-the-web/scroll-to-fragid/scroll-to-anchor-name-quirks-case.html" target="_blank" rel="noopener">wpt.fyi Edge 160.0.4408.0</a> recorded 2/6 prior to stable flag flip (checked 2026-11-24)</td><td>12 (deprecated)</td></tr>
+      <tr><th scope="row">Firefox</th><td>Shipped</td><td>Already case-sensitive in quirks mode per <a href="https://chromestatus.com/api/v0/features/5085237991309312" target="_blank" rel="noopener">ChromeStatus</a> (exact historical version unrecorded in BCD)</td><td>1 (deprecated)</td></tr>
+      <tr><th scope="row">Safari</th><td>Shipped</td><td>Already case-sensitive in quirks mode per <a href="https://chromestatus.com/api/v0/features/5085237991309312" target="_blank" rel="noopener">ChromeStatus</a> (exact historical version unrecorded in BCD)</td><td>1 (deprecated)</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/html/elements/a.json" target="_blank" rel="noopener">BCD html/elements/a.json</a>; <a href="https://chromestatus.com/api/v0/features/5085237991309312" target="_blank" rel="noopener">ChromeStatus API record</a>; <a href="https://wpt.fyi/results/html/browsers/browsing-the-web/scroll-to-fragid/scroll-to-anchor-name-quirks-case.html" target="_blank" rel="noopener">wpt.fyi results</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <p><a href="https://chromestatus.com/api/v0/features/5085237991309312" target="_blank" rel="noopener">ChromeStatus 5085237991309312</a> records <code>security_risks: "None"</code> and marks Security and Privacy reviews Not applicable. Removing Chromium&rsquo;s legacy case-insensitive fallback in quirks mode introduces no new storage, permission, or cross-origin channel; it narrows fragment matching to exact code-unit equality and removes an ambiguity where an earlier case-mismatched <code>&lt;a name&gt;</code> element could intercept <code>:target</code> styling and scroll focus intended for an exact-case anchor.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5085237991309312" target="_blank" rel="noopener">ChromeStatus 5085237991309312</a>; <a href="https://html.spec.whatwg.org/multipage/browsing-the-web.html#find-a-potential-indicated-element" target="_blank" rel="noopener">HTML Living Standard</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Specification</th><th scope="col">Section</th></tr></thead>
+      <tr><td><a href="https://html.spec.whatwg.org/multipage/" target="_blank" rel="noopener">HTML Living Standard (WHATWG)</a></td><td><a href="https://html.spec.whatwg.org/multipage/browsing-the-web.html#find-a-potential-indicated-element" target="_blank" rel="noopener">Find a potential indicated element</a> &amp; <a href="https://html.spec.whatwg.org/multipage/browsing-the-web.html#the-indicated-part-of-the-document" target="_blank" rel="noopener">The indicated part of the document</a></td></tr>
+      <tr><td><a href="https://html.spec.whatwg.org/multipage/obsolete.html" target="_blank" rel="noopener">HTML Living Standard &mdash; Obsolete features</a></td><td><a href="https://html.spec.whatwg.org/multipage/obsolete.html#attr-a-name" target="_blank" rel="noopener"><code>a</code> element <code>name</code> attribute</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/HTML/Guides/Quirks_mode_and_standards_mode" target="_blank" rel="noopener">MDN &mdash; Quirks Mode and Standards Mode</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/a" target="_blank" rel="noopener">MDN &mdash; <code>&lt;a&gt;</code> element</a></li>
+      <li><a href="https://issues.chromium.org/issues/40829784" target="_blank" rel="noopener">Chromium issue 40829784</a></li>
+      <li><a href="https://github.com/web-platform-tests/wpt/blob/master/html/browsers/browsing-the-web/scroll-to-fragid/scroll-to-anchor-name-quirks-case.html" target="_blank" rel="noopener">WPT &mdash; <code>scroll-to-anchor-name-quirks-case.html</code></a></li>
+      <li><a href="https://chromestatus.com/feature/5085237991309312" target="_blank" rel="noopener">ChromeStatus &mdash; Case-sensitive anchor name matching in quirks mode (5085237991309312)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

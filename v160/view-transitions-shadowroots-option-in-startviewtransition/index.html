@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>View Transitions: shadowRoots option in startViewTransition() — Chrome 160 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .scroll-table { min-width: 30rem; }
+    .example-embed { margin: 1.25rem 0; }
+    .example-embed iframe { display: block; inline-size: 100%; max-inline-size: 100%; border: 2px solid var(--border-black); background: var(--surface, #fff); }
+    .example-embed figcaption { margin-top: 0.5rem; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v160/">&larr; Chrome 160 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v160 &middot; css &middot; enabled by default</p>
+    <h1>View Transitions: shadowRoots option in startViewTransition()</h1>
+
+    <p class="lede">The <code>shadowRoots</code> option on <code>StartViewTransitionOptions</code> (defaulting to <code>[]</code>) lets <code>document.startViewTransition()</code> and <code>element.startViewTransition()</code> discover <code>view-transition-name</code>, <code>view-transition-class</code>, and <code>view-transition-group</code> declarations inside explicitly supplied descendant <code>ShadowRoot</code>s &mdash; enabling seamless animations across shadow and slotted light DOM without breaking shadow encapsulation.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; <code>shadowRoots</code> is Chromium-only (base same-document <code>Document.startViewTransition()</code> is Baseline Newly available since 2025-10-14)</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; Filed under v160; ChromeStatus targets 161 (flag <code>ViewTransitionShadowRoots</code>)</li>
+        <li>Edge &middot; Chromium-based (no BCD entry yet)</li>
+        <li class="limited">Firefox &middot; No signal (Mozilla #1488)</li>
+        <li class="limited">Safari &middot; No signal (WebKit #743)</li>
+      </ul>
+      <p>The base <a href="https://webstatus.dev/features/view-transitions" target="_blank" rel="noopener"><code>view-transitions</code> web-feature</a> is <strong>Baseline Newly available</strong> since 2025-10-14 per <a href="https://api.webstatus.dev/v1/features/view-transitions" target="_blank" rel="noopener">webstatus.dev</a> (Chrome/Edge 111, Safari 18, Firefox 144; options dictionary <code>{ update, types }</code> in Chrome/Edge 125, Safari 18.2, Firefox 147 per <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Document.json" target="_blank" rel="noopener">BCD <code>api/Document.json</code></a>). Element-scoped <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Element.json" target="_blank" rel="noopener"><code>Element.startViewTransition()</code></a> is Chrome/Edge 147 only. Neither BCD file includes <code>shadowRoots</code> yet (checked 2026-11-24).</p>
+    </div>
+  </header>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#at-a-glance">At a glance</a></li>
+      <li><a href="#why">Why it exists</a></li>
+      <li><a href="#syntax">Syntax</a></li>
+      <li><a href="#shadowroots-option"><code>shadowRoots</code> option</a></li>
+      <li><a href="#participating-tree-roots">Tree-root resolution</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#security-and-privacy">Security &amp; privacy</a></li>
+      <li><a href="#specifications">Specifications</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Milestone / rollout</th><td>Published under <code>/v160/</code> (matching the <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/view-transitions-shadowroots-option-in-startviewtransition/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase v160 route</a>); as of 2026-11-24 the <a href="https://chromestatus.com/api/v0/features/5206462350622720" target="_blank" rel="noopener">ChromeStatus API record</a> targets Chrome 161 across desktop, Android, and Android WebView (also listed in the <a href="https://chromestatus.com/api/v0/features?milestone=161" target="_blank" rel="noopener">milestone=161 listing</a>)</td></tr>
+      <tr><th scope="row">Origin trial / flag</th><td>No origin trial, no user-facing <code>chrome://flags</code> entry. Blink runtime feature <code>ViewTransitionShadowRoots</code> is currently <code>status: "experimental"</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>; test on Chromium builds with <code>--enable-blink-features=ViewTransitionShadowRoots</code></td></tr>
+      <tr><th scope="row">Specification</th><td><a href="https://drafts.csswg.org/css-view-transitions-2/#dom-startviewtransitionoptions-shadowroots" target="_blank" rel="noopener">CSS View Transitions Module Level 2 &mdash; <code>StartViewTransitionOptions.shadowRoots</code></a> (pending merge of <a href="https://github.com/w3c/csswg-drafts/pull/14826" target="_blank" rel="noopener">CSSWG PR #14826</a>)</td></tr>
+      <tr><th scope="row">CSSWG &amp; TAG</th><td><a href="https://github.com/w3c/csswg-drafts/issues/12953" target="_blank" rel="noopener">w3c/csswg-drafts#12953</a> (resolved 11 November 2026 to add <code>shadowRoots</code> to <code>StartViewTransitionOptions</code>); <a href="https://github.com/w3ctag/design-reviews/issues/1315" target="_blank" rel="noopener">w3ctag/design-reviews#1315</a></td></tr>
+      <tr><th scope="row">Tracking bug</th><td><a href="https://issues.chromium.org/issues/584738355" target="_blank" rel="noopener">issues.chromium.org/584738355</a></td></tr>
+      <tr><th scope="row">Chromium source</th><td><a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/view_transition/view_transition_options.idl" target="_blank" rel="noopener">view_transition_options.idl</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/view_transition/view_transition_style_tracker.cc" target="_blank" rel="noopener">view_transition_style_tracker.cc</a></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5206462350622720" target="_blank" rel="noopener">5206462350622720 &mdash; View Transitions: shadowRoots option in startViewTransition()</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>In CSS View Transitions, <code>view-transition-name</code>, <code>view-transition-class</code>, and non-<code>normal</code> <code>view-transition-group</code> values are tree-scoped names. Previously, a transition started with <code>document.startViewTransition()</code> or <code>element.startViewTransition()</code> could only discover declarations in the same node tree as the transition&rsquo;s root element &mdash; ignoring declarations authored inside Shadow DOM stylesheets. Web component authors had to expose internal elements via <code>::part()</code> or move styles outside the shadow tree, breaking encapsulation and making it difficult to animate shadow internals alongside slotted light-DOM children. Passing an explicit <code>shadowRoots</code> list lets the code that already holds a <code>ShadowRoot</code> reference opt it into the transition without opening closed shadow roots to external callers.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5206462350622720" target="_blank" rel="noopener">ChromeStatus motivation (5206462350622720)</a>; <a href="https://github.com/w3c/csswg-drafts/issues/12953" target="_blank" rel="noopener">w3c/csswg-drafts#12953</a>; <a href="https://github.com/w3ctag/design-reviews/issues/1315" target="_blank" rel="noopener">w3ctag/design-reviews#1315</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>WebIDL from <a href="https://github.com/w3c/csswg-drafts/pull/14826" target="_blank" rel="noopener">CSSWG PR #14826</a> extending <code>StartViewTransitionOptions</code> in <a href="https://drafts.csswg.org/css-view-transitions-2/#dictdef-startviewtransitionoptions" target="_blank" rel="noopener">CSS View Transitions Module Level 2</a> (<code>shadowRoots</code> is the new member; <code>update</code> and <code>types</code> are pre-existing dictionary members shown for context; Blink&rsquo;s internal IDL file names this dictionary <code>ViewTransitionOptions</code>):</p>
+    <pre><code>dictionary StartViewTransitionOptions {
+  ViewTransitionUpdateCallback? update = null;
+  sequence&lt;DOMString&gt;? types = null;
+  sequence&lt;ShadowRoot&gt; shadowRoots = [];
+};</code></pre>
+    <p>Pass the options dictionary to either <a href="https://developer.mozilla.org/en-US/docs/Web/API/Document/startViewTransition" target="_blank" rel="noopener"><code>Document.prototype.startViewTransition(options)</code></a> (global document transition) or <a href="https://developer.mozilla.org/en-US/docs/Web/API/Element/startViewTransition" target="_blank" rel="noopener"><code>Element.prototype.startViewTransition(options)</code></a> (element-scoped transition):</p>
+    <pre><code>const transition = document.startViewTransition({
+  update: () =&gt; updateDOM(),
+  types: ["card-morph"],
+  shadowRoots: [cardHost.shadowRoot],
+});
+
+const scopedTransition = hostElement.startViewTransition({
+  update: () =&gt; updateComponent(),
+  shadowRoots: [privateClosedShadowRoot],
+});</code></pre>
+    <p>This reference covers both parts of the contract: the <a href="#shadowroots-option"><code>StartViewTransitionOptions.shadowRoots</code> dictionary member</a> and the <a href="#participating-tree-roots">participating tree roots resolution algorithm</a> for <code>view-transition-name</code>, <code>view-transition-class</code>, and <code>view-transition-group</code>.</p>
+    <span class="citation">Source: <a href="https://github.com/w3c/csswg-drafts/pull/14826" target="_blank" rel="noopener">CSSWG PR #14826</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/view_transition/view_transition_options.idl" target="_blank" rel="noopener">Blink view_transition_options.idl</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/view_transition/scoped_view_transition.idl" target="_blank" rel="noopener">Blink scoped_view_transition.idl</a>.</span>
+
+    <h3 id="shadowroots-option"><code>StartViewTransitionOptions.shadowRoots</code> &mdash; inputs and outputs</h3>
+    <p><strong>Inputs.</strong> An optional iterable sequence of <code>ShadowRoot</code> objects (defaulting to an empty sequence <code>[]</code>). Both open shadow roots (<code>host.shadowRoot</code>) and closed shadow roots (the reference returned by <code>attachShadow({ mode: "closed" })</code>) are accepted when held by the caller. Duplicate entries in the sequence are deduplicated when stored in the transition&rsquo;s <code>participating tree roots</code> set.</p>
+    <p><strong>Outputs.</strong> <code>startViewTransition()</code> returns a <code>ViewTransition</code> object whose internal <code>participating tree roots</code> set contains the transition root element&rsquo;s own tree root (<code>Document</code> for a document transition, or <code>element.getRootNode()</code> for a scoped transition) unioned with every <code>ShadowRoot</code> supplied in <code>shadowRoots</code>. Including a <code>ShadowRoot</code> is <em>not</em> recursive: nested shadow roots inside an included shadow tree do not participate unless they are also listed explicitly in <code>shadowRoots</code>.</p>
+    <p><strong>Pseudo-element tree placement.</strong> Passing <code>shadowRoots</code> expands where view-transition CSS properties are <em>discovered</em>, not where the transition pseudo-element tree is mounted. The generated <code>::view-transition</code>, <code>::view-transition-group()</code>, <code>::view-transition-image-pair()</code>, <code>::view-transition-old()</code>, and <code>::view-transition-new()</code> pseudo-elements still live on the transition&rsquo;s root element (the document element or the scoped host element).</p>
+    <span class="citation">Source: <a href="https://github.com/w3c/csswg-drafts/pull/14826" target="_blank" rel="noopener">CSSWG PR #14826</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/view_transition/view_transition_style_tracker.cc" target="_blank" rel="noopener">Blink view_transition_style_tracker.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/view_transition/view_transition_supplement.cc" target="_blank" rel="noopener">Blink view_transition_supplement.cc</a>.</span>
+
+    <h3 id="participating-tree-roots">Participating tree roots &mdash; name, class, and group resolution</h3>
+    <p>During both old-state and new-state capture, Blink&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/view_transition/view_transition_style_tracker.cc" target="_blank" rel="noopener"><code>ViewTransitionStyleTracker::IsParticipatingTreeScope()</code></a> and <a href="https://github.com/w3c/csswg-drafts/pull/14826" target="_blank" rel="noopener">CSSWG PR #14826</a> restrict discovery to elements that are flat-tree inclusive descendants of the transition&rsquo;s <code>root element</code> (not excluded by <code>view-transition-scope: all</code>) and then resolve three tree-scoped properties against <code>participating tree roots</code>:</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="props-caption">
+    <table class="doc-table scroll-table">
+      <caption id="props-caption">How <code>participating tree roots</code> resolves tree-scoped CSS View Transitions properties</caption>
+      <thead><tr><th scope="col">CSS property</th><th scope="col">When declaring tree root is in <code>participating tree roots</code></th><th scope="col">When declaring tree root is NOT in <code>participating tree roots</code></th></tr></thead>
+      <tr><td><code>view-transition-name</code> (<code>&lt;custom-ident&gt;</code>, <code>auto</code>, <code>match-element</code>)</td><td>Resolves the identifier string with its tree root stripped, placing all participating trees into one shared flat namespace for the transition</td><td>Treated as <code>none</code> (element is not captured as a named participant)</td></tr>
+      <tr><td><code>view-transition-class</code></td><td>Each scoped class identifier whose declaring tree root participates is appended to the element&rsquo;s transition class list</td><td>Omitted from the element&rsquo;s transition class list</td></tr>
+      <tr><td><code>view-transition-group</code> (<code>contain</code>, <code>nearest</code>, <code>&lt;custom-ident&gt;</code>)</td><td>Resolves normally against participating flat-tree ancestors</td><td>Falls back to <code>normal</code></td></tr>
+    </table>
+    </div>
+    <p><strong>Flat shared namespace across participating trees.</strong> Because stripping the associated tree root puts all participating trees into a single flat namespace for that <code>ViewTransition</code>, an element inside Shadow Root A and an element in light DOM (or Shadow Root B) with the same <code>view-transition-name</code> will <strong>pair and morph across tree boundaries</strong> if one is present in the old state and the other in the new state &mdash; and will <strong>collide as duplicate names</strong> if both are present simultaneously in the same capture state. Passing a <code>ShadowRoot</code> that is not a flat-tree descendant of a scoped transition&rsquo;s <code>root element</code> has no effect because elements outside the root&rsquo;s flat-tree subtree are never visited.</p>
+    <span class="citation">Source: <a href="https://github.com/w3c/csswg-drafts/pull/14826" target="_blank" rel="noopener">CSSWG PR #14826</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/view_transition/view_transition_style_tracker.cc" target="_blank" rel="noopener">Blink view_transition_style_tracker.cc (GetScopedClassList, ResolveScopedViewTransitionGroup, AddTransitionElementsFromCSSRecursive)</a>.</span>
+
+    <h3 id="errors-and-fallbacks">Errors, edge cases, and fallbacks</h3>
+    <ul>
+      <li><strong>Invalid <code>shadowRoots</code> value (<code>TypeError</code>):</strong> WebIDL sequence conversion throws a synchronous <code>TypeError</code> if <code>shadowRoots</code> is not iterable or if any entry is not a <code>ShadowRoot</code> instance (for example passing a host <code>Element</code>, <code>document</code>, or <code>null</code> instead of <code>host.shadowRoot</code>). Filter out nullish values (e.g. when a host has no open shadow root) before calling <code>startViewTransition()</code>.</li>
+      <li><strong>Duplicate <code>view-transition-name</code> across participating trees (<code>InvalidStateError</code>):</strong> Because participating light DOM and included shadow roots share a flat namespace, two elements with the same <code>view-transition-name</code> in the same capture snapshot skip the transition and reject <code>transition.ready</code> with <code>InvalidStateError</code> (the DOM update still runs).</li>
+      <li><strong>Standard transition skip errors:</strong> Calling <code>startViewTransition()</code> on a disconnected element, a document without a view, or while <code>document.hidden</code> is true skips the transition and rejects <code>transition.ready</code> with <code>InvalidStateError</code>; starting a new transition on the same root or calling during a navigation transition skips with <code>AbortError</code>.</li>
+      <li><strong>Older browsers ignore unknown dictionary keys:</strong> Browsers that support <code>StartViewTransitionOptions</code> (<code>{ update, types }</code>) without <code>shadowRoots</code> silently ignore the unknown <code>shadowRoots</code> key. The DOM update still executes and a standard root crossfade runs, but shadow-declared <code>view-transition-name</code>s are not discovered. Because WebIDL dictionary members are read synchronously during argument conversion, passing a getter on <code>shadowRoots</code> lets telemetry/code observe whether the browser read the property during a transition call.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/view_transition/view_transition_options.idl" target="_blank" rel="noopener">Blink view_transition_options.idl</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/view_transition/view_transition_supplement.cc" target="_blank" rel="noopener">Blink view_transition_supplement.cc</a>; <a href="https://github.com/w3c/csswg-drafts/pull/14826" target="_blank" rel="noopener">CSSWG PR #14826</a>.</span>
+
+    <h3 id="context">Context and exposure</h3>
+    <p><code>StartViewTransitionOptions.shadowRoots</code> is available in <code>Window</code> contexts on both <code>Document.prototype.startViewTransition()</code> and <code>Element.prototype.startViewTransition()</code> (when element-scoped view transitions are supported). No secure context, permission, or user activation is required. To include a closed <code>ShadowRoot</code>, the call must originate from code that holds that <code>ShadowRoot</code> reference (typically inside the custom element&rsquo;s own class).</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/view_transition/view_transition_supplement.idl" target="_blank" rel="noopener">Blink view_transition_supplement.idl</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/view_transition/scoped_view_transition.idl" target="_blank" rel="noopener">Blink scoped_view_transition.idl</a>; <a href="https://github.com/w3c/csswg-drafts/issues/12953" target="_blank" rel="noopener">w3c/csswg-drafts#12953</a>.</span>
+
+    <h3 id="lifecycle">Lifecycle, cleanup, and accessibility</h3>
+    <p>The <code>participating tree roots</code> set is snapshotted synchronously when <code>startViewTransition()</code> creates the transition&rsquo;s style tracker and is used identically during both old-state and new-state capture; mutating the caller&rsquo;s array afterward has no effect. When the transition finishes or is skipped, Blink clears <code>participating_tree_roots_</code> and removes the temporary <code>::view-transition</code> pseudo-element tree. Because view transitions do not automatically move keyboard focus and can be disorienting for motion-sensitive users, route focus programmatically once <code>transition.finished</code> settles (or after the DOM update) and disable animations under <code>@media (prefers-reduced-motion: reduce)</code>.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/view_transition/view_transition_style_tracker.cc" target="_blank" rel="noopener">Blink view_transition_style_tracker.cc</a>; <a href="https://github.com/w3c/csswg-drafts/pull/14826" target="_blank" rel="noopener">CSSWG PR #14826</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+
+    <h3 id="example-shadow-morph">Live demo &amp; custom element transitioning closed shadow DOM with slotted light DOM</h3>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/view-transitions-shadowroots-option-in-startviewtransition/shadow-card-morph/"
+        title="Live example — Shadow card morph" loading="lazy" width="100%" height="520"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live interactive demo morphing elements inside a component&rsquo;s shadow tree with <code>shadowRoots</code>. <span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/view-transitions-shadowroots-option-in-startviewtransition/" target="_blank" rel="noopener">Chrome Platform Showcase &mdash; View Transitions: shadowRoots option</a>.</span></figcaption>
+    </figure>
+
+    <pre><code>class ExpandableCard extends HTMLElement {
+  #shadow;
+
+  constructor() {
+    super();
+    this.#shadow = this.attachShadow({ mode: "closed" });
+    this.#shadow.innerHTML = `
+      &lt;style&gt;
+        .badge { view-transition-name: card-badge; view-transition-class: card-piece; }
+        .panel { view-transition-name: card-panel; }
+        @media (prefers-reduced-motion: reduce) {
+          ::view-transition-group(*),
+          ::view-transition-old(*),
+          ::view-transition-new(*) { animation: none !important; }
+        }
+      &lt;/style&gt;
+      &lt;div class="panel"&gt;
+        &lt;span class="badge"&gt;Featured&lt;/span&gt;
+        &lt;slot&gt;&lt;/slot&gt;
+      &lt;/div&gt;
+    `;
+  }
+
+  toggleExpanded(expanded) {
+    const applyState = () =&gt; {
+      this.toggleAttribute("expanded", expanded);
+    };
+
+    // Prefer element-scoped transition if available, else fall back to document
+    const start = this.startViewTransition
+      ? (opts) =&gt; this.startViewTransition(opts)
+      : document.startViewTransition
+        ? (opts) =&gt; document.startViewTransition(opts)
+        : null;
+
+    if (!start) {
+      applyState();
+      this.querySelector("h2")?.focus();
+      return;
+    }
+
+    // Closed ShadowRoot stays encapsulated: only this component holds #shadow
+    const transition = start({
+      update: applyState,
+      shadowRoots: [this.#shadow],
+    });
+
+    transition.finished.finally(() =&gt; {
+      // Maintain logical keyboard focus after layout morphs
+      this.querySelector("h2")?.focus();
+    });
+  }
+}</code></pre>
+    <p>More live interactive demos on the Chrome Platform Showcase cover the <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/view-transitions-shadowroots-option-in-startviewtransition/capture-inspector/" target="_blank" rel="noopener">capture inspector</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/view-transitions-shadowroots-option-in-startviewtransition/design-system-tabs/" target="_blank" rel="noopener">design-system tabs</a>, and <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/view-transitions-shadowroots-option-in-startviewtransition/part-workaround-and-edges/" target="_blank" rel="noopener"><code>::part()</code> workaround &amp; edge cases</a>.</p>
+    <span class="citation">Source: <a href="https://github.com/w3c/csswg-drafts/pull/14826" target="_blank" rel="noopener">CSSWG PR #14826</a>; <a href="https://github.com/w3c/csswg-drafts/issues/12953" target="_blank" rel="noopener">w3c/csswg-drafts#12953</a>.</span>
+
+    <h3 id="example-document-multi-shadow">Cross-shadow-root handoff with <code>document.startViewTransition()</code> and feature observation</h3>
+    <pre><code>// Morph a shared view-transition-name ("active-thumb") from one component's
+// shadow tree into another component's shadow tree.
+function moveThumb(fromCard, toCard, updateDom) {
+  const roots = [fromCard.shadowRoot, toCard.shadowRoot].filter(
+    (r) =&gt; r instanceof ShadowRoot,
+  );
+
+  if (!document.startViewTransition) {
+    updateDom();
+    return { supported: false };
+  }
+
+  let shadowRootsRead = false;
+  const options = {
+    update: updateDom,
+    get shadowRoots() {
+      shadowRootsRead = true;
+      return roots;
+    },
+  };
+
+  const transition = document.startViewTransition(options);
+  return { transition, supported: shadowRootsRead };
+}</code></pre>
+    <span class="citation">Source: <a href="https://github.com/w3c/csswg-drafts/pull/14826" target="_blank" rel="noopener">CSSWG PR #14826</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/view_transition/view_transition_options.idl" target="_blank" rel="noopener">Blink view_transition_options.idl</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Support for <code>StartViewTransitionOptions.shadowRoots</code> alongside base View Transitions support. BCD does not yet include <code>shadowRoots</code>; interim status comes from ChromeStatus, Blink source, and vendor standards positions (checked 2026-11-24).</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col"><code>shadowRoots</code> option</th><th scope="col">Evidence / notes</th><th scope="col">Base <code>Document</code> / <code>Element.startViewTransition()</code> (BCD)</th></tr></thead>
+      <tr><th scope="row">Chrome (desktop, Android, WebView)</th><td>161 (planned)<br>flag in dev</td><td>Filed under <code>v160/</code>; <a href="https://chromestatus.com/api/v0/features/5206462350622720" target="_blank" rel="noopener">ChromeStatus 5206462350622720</a> targets Chrome 161 (desktop, Android, WebView); Blink <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener"><code>ViewTransitionShadowRoots</code></a> is currently <code>status: "experimental"</code></td><td><code>Document</code>: 111 (options 125)<br><code>Element</code>: 147</td></tr>
+      <tr><th scope="row">Edge</th><td>Unknown</td><td>Chromium-based; follows Chromium milestone rollout (no BCD or wpt.fyi entry yet)</td><td><code>Document</code>: 111 (options 125)<br><code>Element</code>: 147</td></tr>
+      <tr><th scope="row">Firefox</th><td>No support</td><td><a href="https://github.com/mozilla/standards-positions/issues/1488" target="_blank" rel="noopener">Mozilla standards position #1488</a>: No signal</td><td><code>Document</code>: 144 (options 147)<br><code>Element</code>: No support</td></tr>
+      <tr><th scope="row">Safari</th><td>No support</td><td><a href="https://github.com/WebKit/standards-positions/issues/743" target="_blank" rel="noopener">WebKit standards position #743</a>: No signal</td><td><code>Document</code>: 18 (options 18.2)<br><code>Element</code>: No support</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Document.json" target="_blank" rel="noopener">BCD api/Document.json</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Element.json" target="_blank" rel="noopener">BCD api/Element.json</a>; <a href="https://chromestatus.com/api/v0/features/5206462350622720" target="_blank" rel="noopener">ChromeStatus API record</a>; <a href="https://api.webstatus.dev/v1/features/view-transitions" target="_blank" rel="noopener">webstatus.dev view-transitions</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <p>The explicit <code>shadowRoots</code> sequence is a capability-based design chosen in <a href="https://github.com/w3c/csswg-drafts/issues/12953" target="_blank" rel="noopener">CSSWG #12953</a> and <a href="https://github.com/w3ctag/design-reviews/issues/1315" target="_blank" rel="noopener">TAG review #1315</a> specifically to preserve Shadow DOM encapsulation: alternatives such as automatic discovery across all shadow trees or a boolean <code>includeShadowRoots</code> flag were rejected because they would allow outer scripts to capture and animate internals of closed shadow roots without the component&rsquo;s consent. With <code>shadowRoots</code>, only a caller that already holds a <code>ShadowRoot</code> object reference can opt that tree into the transition. <a href="https://chromestatus.com/api/v0/features/5206462350622720" target="_blank" rel="noopener">ChromeStatus 5206462350622720</a> records no additional security risks; note that opted-in trees share a flat <code>view-transition-name</code> namespace with the transition root, so a host stylesheet can style the generated <code>::view-transition-*</code> pseudo-elements for participating names.</p>
+    <span class="citation">Source: <a href="https://github.com/w3c/csswg-drafts/issues/12953" target="_blank" rel="noopener">w3c/csswg-drafts#12953</a>; <a href="https://github.com/w3ctag/design-reviews/issues/1315" target="_blank" rel="noopener">w3ctag/design-reviews#1315</a>; <a href="https://chromestatus.com/api/v0/features/5206462350622720" target="_blank" rel="noopener">ChromeStatus 5206462350622720</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Specification</th><th scope="col">Section</th></tr></thead>
+      <tr><td><a href="https://drafts.csswg.org/css-view-transitions-2/" target="_blank" rel="noopener">CSS View Transitions Module Level 2 (Editor&rsquo;s Draft)</a></td><td><a href="https://drafts.csswg.org/css-view-transitions-2/#dom-startviewtransitionoptions-shadowroots" target="_blank" rel="noopener"><code>StartViewTransitionOptions.shadowRoots</code></a> (via <a href="https://github.com/w3c/csswg-drafts/pull/14826" target="_blank" rel="noopener">CSSWG PR #14826</a>)</td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/view-transitions-shadowroots-option-in-startviewtransition/" target="_blank" rel="noopener">Chrome Platform Showcase &mdash; <code>shadowRoots</code> demos</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Document/startViewTransition" target="_blank" rel="noopener">MDN &mdash; <code>Document.startViewTransition()</code></a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Element/startViewTransition" target="_blank" rel="noopener">MDN &mdash; <code>Element.startViewTransition()</code></a></li>
+      <li><a href="https://github.com/w3c/csswg-drafts/issues/12953" target="_blank" rel="noopener">CSSWG #12953 &mdash; proposal and resolution</a></li>
+      <li><a href="https://github.com/w3c/csswg-drafts/pull/14826" target="_blank" rel="noopener">CSSWG PR #14826 &mdash; specification patch</a></li>
+      <li><a href="https://github.com/w3ctag/design-reviews/issues/1315" target="_blank" rel="noopener">W3C TAG design review #1315</a></li>
+      <li><a href="https://chromestatus.com/feature/5206462350622720" target="_blank" rel="noopener">ChromeStatus &mdash; View Transitions: shadowRoots option in startViewTransition() (5206462350622720)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
