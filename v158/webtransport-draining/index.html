@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebTransport draining — Chrome 158 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 24rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .mdn-card a { font-weight: 600; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v158/">&larr; Chrome 158 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v158 &middot; network &middot; covered on mdn</p>
+    <h1>WebTransport draining</h1>
+
+    <p class="lede">Chrome adds the read-only <code>WebTransport.prototype.draining</code> attribute &mdash; a stable <code>Promise&lt;undefined&gt;</code> that fulfills once when the server signals that the WebTransport session is going to be gracefully retired (for example via a <code>WT_DRAIN_SESSION</code> capsule or HTTP/3 <code>GOAWAY</code>). Applications can open a replacement session and wrap up in-flight work while existing streams and datagrams remain usable.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Newly interoperable in Chrome 158 (Firefox 155, Safari 26.4, Chrome/Edge 158) &mdash; parent <code>webtransport</code> is Baseline Newly available since 2026-03-24</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 158 (desktop, Android, WebView)</li>
+        <li>Edge &middot; 158 (mirrors Chrome in BCD)</li>
+        <li>Firefox &middot; 155</li>
+        <li>Safari &middot; 26.4 (macOS, iOS)</li>
+      </ul>
+      <p><a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebTransport.json" target="_blank" rel="noopener">BCD <code>api/WebTransport.json</code></a> records <code>WebTransport.draining</code> across Chrome 158, Edge 158, Firefox 155, and Safari 26.4 (checked 2026-11-24). The parent <a href="https://webstatus.dev/features/webtransport" target="_blank" rel="noopener">WebTransport web-feature</a> on <a href="https://api.webstatus.dev/v1/features/webtransport" target="_blank" rel="noopener">webstatus.dev</a> became Baseline Newly available on 2026-03-24 (predating Chrome 158&rsquo;s ship of <code>draining</code>), so feature-detect with <code>"draining" in WebTransport.prototype</code> for Chrome &lt; 158.</p>
+    </div>
+  </header>
+
+  <section>
+    <h2>this feature is documented on MDN</h2>
+    <div class="mdn-card">
+      <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebTransport/draining" target="_blank" rel="noopener">MDN: WebTransport: draining property</a>
+      <p style="margin: 0.5rem 0 0">MDN&rsquo;s dedicated reference page is substantive (verified 2026-11-24): it covers the <code>Promise&lt;undefined&gt;</code> return value, session-draining lifecycle semantics, worked examples (<code>migrateOnDraining()</code> paired with <code>closed</code> monitoring), Specifications, and BCD-driven Browser compatibility. gendn doesn&rsquo;t duplicate that reference here.</p>
+    </div>
+    <p>Why gendn doesn&rsquo;t duplicate MDN: this site exists for Chrome features that have no MDN reference yet. When MDN covers a feature completely, the honest page is a pointer to the canonical reference plus the Chrome shipping details MDN doesn&rsquo;t track &mdash; duplicated prose would only drift out of sync.</p>
+  </section>
+
+  <section>
+    <h2 id="chrome-behavior">Chrome 158 details &amp; edge behavior</h2>
+    <p>In Chromium&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport.idl" target="_blank" rel="noopener"><code>web_transport.idl</code></a>, <code>readonly attribute Promise&lt;undefined&gt; draining</code> is exposed in both <code>Window</code> and <code>Worker</code> secure contexts behind the now-<code>stable</code> <code>WebTransportDraining</code> runtime flag. Key invariants verified by <a href="https://github.com/web-platform-tests/wpt/blob/master/webtransport/draining.https.any.js" target="_blank" rel="noopener">WPT <code>webtransport/draining.https.any.js</code></a>:</p>
+    <ul>
+      <li><strong>Same-object promise before <code>ready</code>:</strong> <code>wt.draining</code> is created during construction (<code>[[Draining]]</code> internal slot), returns the identical <code>Promise</code> instance on repeated reads, and may be observed before <code>wt.ready</code> fulfills.</li>
+      <li><strong>Session stays usable after draining:</strong> fulfilling <code>wt.draining</code> does not settle <code>wt.closed</code> and does not stop either peer from opening new unidirectional or bidirectional streams or exchanging datagrams.</li>
+      <li><strong>Stays pending on normal close without drain signal:</strong> if the session closes via <code>wt.close()</code> without the server sending a <code>WT_DRAIN_SESSION</code> capsule, <code>wt.draining</code> remains pending rather than settling.</li>
+    </ul>
+    <pre><code>// Feature-detect for Chrome &lt; 158 and older engines
+if (typeof WebTransport !== "undefined" &amp;&amp; "draining" in WebTransport.prototype) {
+  const wt = new WebTransport("https://example.com:4433/wt");
+  wt.draining.then(async () =&gt; {
+    // Server requested graceful retirement; open a replacement session
+    // while existing streams remain active.
+    const next = new WebTransport("https://example.com:4433/wt");
+    await next.ready;
+    wt.close();
+  });
+  await wt.ready;
+}</code></pre>
+    <span class="citation">Source: <a href="https://w3c.github.io/webtransport/#dom-webtransport-draining" target="_blank" rel="noopener">W3C WebTransport &mdash; <code>draining</code></a> &amp; <a href="https://w3c.github.io/webtransport/#dom-webtransport-draining-slot" target="_blank" rel="noopener"><code>[[Draining]]</code> slot</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/webtransport/draining.https.any.js" target="_blank" rel="noopener">WPT <code>draining.https.any.js</code></a>; <a href="https://chromestatus.com/feature/6427766428925952" target="_blank" rel="noopener">ChromeStatus 6427766428925952</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption"><code>WebTransport.draining</code> support from BCD <code>api/WebTransport.json</code> (fetched 2026-11-24).</caption>
+      <thead>
+        <tr><th scope="col">Browser</th><th scope="col"><code>draining</code></th><th scope="col">Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr><th scope="row">Chrome</th><td>158</td><td>Desktop, Android, and Android WebView per <a href="https://chromestatus.com/api/v0/features/6427766428925952" target="_blank" rel="noopener">ChromeStatus 6427766428925952</a> and <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebTransport.json" target="_blank" rel="noopener">BCD</a></td></tr>
+        <tr><th scope="row">Edge</th><td>158</td><td>Mirrors Chrome in BCD</td></tr>
+        <tr><th scope="row">Firefox</th><td>155</td><td>Desktop and Android (<a href="https://bugzilla.mozilla.org/show_bug.cgi?id=2007160" target="_blank" rel="noopener">Bugzilla 2007160</a>)</td></tr>
+        <tr><th scope="row">Safari</th><td>26.4</td><td>macOS and iOS (<a href="https://bugs.webkit.org/show_bug.cgi?id=302762" target="_blank" rel="noopener">WebKit bug 302762</a>)</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebTransport.json" target="_blank" rel="noopener">BCD <code>api/WebTransport.json</code></a> (read 2026-11-24); <a href="https://chromestatus.com/api/v0/features/6427766428925952" target="_blank" rel="noopener">ChromeStatus API record</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="quick-reference">Quick reference</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="qr-caption">
+    <table class="doc-table">
+      <caption id="qr-caption">Chrome 158 shipping metadata for <code>WebTransport.draining</code></caption>
+      <tr><th scope="row">WebIDL</th><td><code>readonly attribute Promise&lt;undefined&gt; draining;</code> on <code>WebTransport</code> (<code>[Exposed=(Window, Worker), SecureContext]</code>) &mdash; <a href="https://www.w3.org/TR/webtransport/#dom-webtransport-draining" target="_blank" rel="noopener">W3C TR</a> / <a href="https://w3c.github.io/webtransport/#dom-webtransport-draining" target="_blank" rel="noopener">Editor&rsquo;s Draft</a></td></tr>
+      <tr><th scope="row">Chrome status</th><td>Filed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=158" target="_blank" rel="noopener">milestone=158 listing</a> (desktop, Android, WebView 158; dev trial from 153 behind <code>chrome://flags/#enable-experimental-web-platform-features</code>). Blink flag <code>WebTransportDraining</code> is <code>"stable"</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>; Finch name <code>WebTransportDraining</code></td></tr>
+      <tr><th scope="row">Intent &amp; bug</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6ad14a65.d597a17e.2fbf8.0100.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a> &middot; <a href="https://issues.chromium.org/issues/564353368" target="_blank" rel="noopener">crbug 564353368</a></td></tr>
+      <tr><th scope="row">Web platform tests</th><td><a href="https://wpt.fyi/results/webtransport/draining.https.any.html?label=experimental&amp;label=master&amp;aligned" target="_blank" rel="noopener">wpt.fyi &mdash; <code>webtransport/draining.https.any.html</code></a> (<a href="https://github.com/web-platform-tests/wpt/blob/master/webtransport/draining.https.any.js" target="_blank" rel="noopener">test source</a>)</td></tr>
+      <tr><th scope="row">Explainer &amp; Interop</th><td><a href="https://github.com/w3c/webtransport/blob/main/explainer.md#11-handling-session-draining" target="_blank" rel="noopener">WebTransport explainer &sect;11 &mdash; Handling Session Draining</a> &middot; <a href="https://github.com/web-platform-tests/interop/issues/1121" target="_blank" rel="noopener">Interop 2026 WebTransport proposal</a></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/6427766428925952" target="_blank" rel="noopener">6427766428925952 &mdash; WebTransport draining</a></td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebTransport/draining" target="_blank" rel="noopener">MDN <code>WebTransport.draining</code></a> (verified 2026-11-24); <a href="https://chromestatus.com/feature/6427766428925952" target="_blank" rel="noopener">ChromeStatus 6427766428925952</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="references">References</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/WebTransport/draining" target="_blank" rel="noopener">MDN &mdash; <code>WebTransport.draining</code> (canonical reference)</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebTransport" target="_blank" rel="noopener">MDN &mdash; <code>WebTransport</code></a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebTransport_API" target="_blank" rel="noopener">MDN &mdash; WebTransport API</a></li>
+      <li><a href="https://w3c.github.io/webtransport/#dom-webtransport-draining" target="_blank" rel="noopener">W3C WebTransport Editor&rsquo;s Draft &mdash; <code>draining</code></a> &middot; <a href="https://www.w3.org/TR/webtransport/#dom-webtransport-draining" target="_blank" rel="noopener">W3C TR Candidate Recommendation</a></li>
+      <li><a href="https://github.com/w3c/webtransport/blob/main/explainer.md#11-handling-session-draining" target="_blank" rel="noopener">WebTransport explainer &mdash; Handling session draining</a></li>
+      <li><a href="https://chromestatus.com/feature/6427766428925952" target="_blank" rel="noopener">Chrome Platform Status &mdash; WebTransport draining (6427766428925952)</a> (<a href="https://chromestatus.com/api/v0/features/6427766428925952" target="_blank" rel="noopener">API record</a>)</li>
+      <li><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6ad14a65.d597a17e.2fbf8.0100.GAE%40google.com" target="_blank" rel="noopener">blink-dev &mdash; Intent to Ship</a> &middot; <a href="https://issues.chromium.org/issues/564353368" target="_blank" rel="noopener">crbug 564353368</a></li>
+      <li><a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebTransport.json" target="_blank" rel="noopener">BCD &mdash; <code>api/WebTransport.json</code></a> &middot; <a href="https://webstatus.dev/features/webtransport" target="_blank" rel="noopener">webstatus.dev &mdash; WebTransport</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

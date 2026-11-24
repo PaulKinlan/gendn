@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Source Specific Multicast for Direct Sockets API — Chrome 158 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .scroll-table { min-width: 32rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v158/">&larr; Chrome 158 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v158 &middot; isolated web apps &middot; enabled by default</p>
+    <h1>Source Specific Multicast for Direct Sockets API</h1>
+
+    <p class="lede">Extends <code>MulticastController</code> in the Direct Sockets API with Source-Specific Multicast (SSM) support for Isolated Web Apps. Passing an optional <code>{ sourceAddress }</code> in <code>MulticastGroupOptions</code> to <code>joinGroup()</code> and <code>leaveGroup()</code> subscribes to UDP multicast datagrams from a single unicast sender rather than Any-Source Multicast (ASM), and reports active SSM subscriptions as <code>MulticastMembership</code> dictionaries in <code>joinedGroups</code>.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; Chromium-only Isolated Web App API (not Baseline; no webstatus.dev or BCD entry)</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 158 (desktop IWAs only)</li>
+        <li>Edge &middot; Unknown (Chromium-based; IWA availability unconfirmed)</li>
+        <li class="limited">Firefox &middot; No support (negative on parent Direct Sockets API)</li>
+        <li class="limited">Safari &middot; No support (WebKit IWA position open, no signal)</li>
+      </ul>
+      <p>Direct Sockets has no web-feature entry on <a href="https://api.webstatus.dev/v1/features?q=direct+sockets" target="_blank" rel="noopener">webstatus.dev</a> and no <a href="https://github.com/mdn/browser-compat-data" target="_blank" rel="noopener">MDN Browser Compat Data (BCD)</a> file (checked 2026-11-24). Support is restricted to desktop Isolated Web Apps in Chromium.</p>
+    </div>
+  </header>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#at-a-glance">At a glance</a></li>
+      <li><a href="#why">Why it exists</a></li>
+      <li><a href="#syntax">Syntax &amp; WebIDL</a></li>
+      <li><a href="#multicast-group-options"><code>MulticastGroupOptions</code></a></li>
+      <li><a href="#multicast-membership"><code>MulticastMembership</code></a></li>
+      <li><a href="#join-group"><code>joinGroup()</code></a></li>
+      <li><a href="#leave-group"><code>leaveGroup()</code></a></li>
+      <li><a href="#joined-groups"><code>joinedGroups</code></a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#security-and-privacy">Security &amp; privacy</a></li>
+      <li><a href="#specifications">Specifications</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Shipped in</th><td>Chrome 158 (desktop Isolated Web Apps), enabled by default &mdash; filed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=158" target="_blank" rel="noopener">milestone=158 listing</a>; Android, Android WebView, and iOS are <code>null</code> (not supported) in the <a href="https://chromestatus.com/api/v0/features/6208452397498368" target="_blank" rel="noopener">ChromeStatus API record</a></td></tr>
+      <tr><th scope="row">Runtime flag</th><td>Blink runtime feature <code>SourceSpecificMulticastInDirectSockets</code> (status: <code>"stable"</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>); prior dev trial from Chrome 152 behind <code>chrome://flags/#source-specific-multicast-in-direct-sockets</code>; Finch name <code>SourceSpecificMulticastInDirectSockets</code></td></tr>
+      <tr><th scope="row">Specification</th><td><a href="https://wicg.github.io/direct-sockets/#dom-multicastgroupoptions-sourceaddress" target="_blank" rel="noopener">WICG Direct Sockets API &mdash; <code>MulticastGroupOptions.sourceAddress</code></a> (Community Group Draft)</td></tr>
+      <tr><th scope="row">Explainer</th><td><a href="https://github.com/WICG/direct-sockets/blob/main/docs/multicast-explainer.md" target="_blank" rel="noopener">Multicast in Direct Sockets explainer</a></td></tr>
+      <tr><th scope="row">Intents</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/692dffe2.050a0220.17ec37.0673.GAE%40google.com" target="_blank" rel="noopener">Intent to Prototype</a> &middot; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/vMmLZVd7rQI" target="_blank" rel="noopener">Ready for Developer Testing</a> &middot; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6ad03dc5.32cf16a2.aa5e8.002a.GAE%40google.com" target="_blank" rel="noopener">Intent to Ship</a></td></tr>
+      <tr><th scope="row">Tracking bug</th><td><a href="https://issues.chromium.org/issues/461262401" target="_blank" rel="noopener">issues.chromium.org/461262401</a></td></tr>
+      <tr><th scope="row">Permissions policy</th><td>Requires an Isolated Web App (<code>IsolatedContext</code> + <code>SecureContext</code>) granted both <code>direct-sockets</code> and <code>direct-sockets-multicast</code> permissions policies, plus <code>local-network</code> / <code>loopback-network</code> checks for bound UDP sockets</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/6208452397498368" target="_blank" rel="noopener">6208452397498368 &mdash; Source Specific Multicast for Direct Sockets API</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>Any-Source Multicast (ASM) subscribes a bound UDP socket to every host sending to a multicast group address. <a href="https://datatracker.ietf.org/doc/html/rfc8815" target="_blank" rel="noopener">IETF RFC 8815</a> deprecates ASM for inter-domain use because off-path senders can flood group subscribers and inter-domain routing requires complex rendezvous state. Prior to Chrome 158, Isolated Web Apps using <code>MulticastController</code> could only join ASM groups, limiting deployment to private networks and forcing application-layer packet filtering. Source-Specific Multicast (<a href="https://datatracker.ietf.org/doc/html/rfc4607" target="_blank" rel="noopener">RFC 4607</a>, <a href="https://datatracker.ietf.org/doc/html/rfc4604" target="_blank" rel="noopener">RFC 4604</a>) delegates source filtering to the OS socket layer and IGMPv3/MLDv2 routers, matching POSIX <code>MCAST_JOIN_SOURCE_GROUP</code> / <code>IP_ADD_SOURCE_MEMBERSHIP</code> and Node.js <code>dgram</code>.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6208452397498368" target="_blank" rel="noopener">ChromeStatus motivation (6208452397498368)</a>; <a href="https://github.com/WICG/direct-sockets/issues/80" target="_blank" rel="noopener">WICG/direct-sockets#80</a>; <a href="https://datatracker.ietf.org/doc/html/rfc8815" target="_blank" rel="noopener">RFC 8815</a>; <a href="https://datatracker.ietf.org/doc/html/rfc4607" target="_blank" rel="noopener">RFC 4607</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax &amp; WebIDL</h2>
+    <p>SSM extends the existing <code>MulticastController</code> interface (obtained from <code>(await udpSocket.opened).multicastController</code> on a bound <code>UDPSocket</code>) with two dictionaries and an optional <code>options</code> argument on <code>joinGroup()</code> and <code>leaveGroup()</code>:</p>
+    <pre><code>// Verbatim from WICG Direct Sockets API specification
+dictionary MulticastGroupOptions {
+  DOMString sourceAddress;
+};
+
+dictionary MulticastMembership {
+  DOMString groupAddress;
+  DOMString sourceAddress;
+};
+
+[
+  Exposed=(Window, DedicatedWorker),
+  SecureContext,
+  IsolatedContext
+]
+interface MulticastController {
+  Promise&lt;undefined&gt; joinGroup(
+    DOMString groupAddress,
+    optional MulticastGroupOptions options = {}
+  );
+  Promise&lt;undefined&gt; leaveGroup(
+    DOMString groupAddress,
+    optional MulticastGroupOptions options = {}
+  );
+  readonly attribute FrozenArray&lt;(DOMString or MulticastMembership)&gt; joinedGroups;
+};</code></pre>
+    <p>In Chromium&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/direct_sockets/multicast_controller.idl" target="_blank" rel="noopener"><code>multicast_controller.idl</code></a>, <code>MulticastMembership.groupAddress</code> is marked <code>required</code>, <code>sourceAddress</code> on both dictionaries is gated by <code>[RuntimeEnabled=SourceSpecificMulticastInDirectSockets]</code>, and <code>MulticastController</code> is additionally exposed in <code>SharedWorker</code> and <code>ServiceWorker</code> behind their respective Direct Sockets runtime flags.</p>
+    <p>This reference documents all five SSM surface items: <a href="#multicast-group-options"><code>MulticastGroupOptions</code></a>, <a href="#multicast-membership"><code>MulticastMembership</code></a>, <a href="#join-group"><code>MulticastController.joinGroup()</code></a>, <a href="#leave-group"><code>MulticastController.leaveGroup()</code></a>, and <a href="#joined-groups"><code>MulticastController.joinedGroups</code></a>.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/direct-sockets/#dom-multicastgroupoptions-sourceaddress" target="_blank" rel="noopener">WICG Direct Sockets spec</a> (fetched 2026-11-24); Blink <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/direct_sockets/multicast_controller.idl" target="_blank" rel="noopener">multicast_controller.idl</a>.</span>
+
+    <h3 id="multicast-group-options"><code>MulticastGroupOptions</code> dictionary</h3>
+    <p><strong>Inputs &amp; validation.</strong> Passed as the optional second parameter to <code>joinGroup()</code> and <code>leaveGroup()</code> (defaults to <code>{}</code>).</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="mgo-caption">
+    <table class="doc-table scroll-table">
+      <caption id="mgo-caption">Members of <code>MulticastGroupOptions</code></caption>
+      <thead><tr><th scope="col">Member</th><th scope="col">Type</th><th scope="col">Default</th><th scope="col">Contract &amp; constraints</th></tr></thead>
+      <tr><td><code>sourceAddress</code></td><td><code>DOMString</code> (optional)</td><td>Omitted (ASM)</td><td>IPv4 or IPv6 literal identifying the single unicast sender to accept (or drop). Must not be empty, multicast (<code>224.0.0.0/4</code> or <code>ff00::/8</code>), loopback (<code>127.0.0.0/8</code>, <code>::1</code>), or unspecified/zero (<code>0.0.0.0</code>, <code>::</code>), and must match the IP address family of <code>groupAddress</code>.</td></tr>
+    </table>
+    </div>
+    <p><strong>Outputs &amp; behavior.</strong> Omitting <code>sourceAddress</code> preserves Any-Source Multicast (ASM) semantics. Supplying a valid unicast IP literal switches the operation to Source-Specific Multicast (SSM). By IANA convention, SSM groups use <code>232.0.0.0/8</code> (IPv4) or <code>ff3x::/32</code> (IPv6), but neither the spec nor Chromium restricts <code>groupAddress</code> to those sub-ranges &mdash; any valid multicast address is accepted with a source filter.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/direct-sockets/#dom-multicastgroupoptions-sourceaddress" target="_blank" rel="noopener">WICG Direct Sockets spec</a>; <a href="https://github.com/WICG/direct-sockets/blob/main/docs/multicast-explainer.md" target="_blank" rel="noopener">Multicast explainer</a>; Blink <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/direct_sockets/multicast_controller.cc" target="_blank" rel="noopener">multicast_controller.cc</a>.</span>
+
+    <h3 id="multicast-membership"><code>MulticastMembership</code> dictionary</h3>
+    <p><strong>Inputs &amp; outputs.</strong> A read-only dictionary returned inside the <code>FrozenArray</code> from <code>multicastController.joinedGroups</code> for every active SSM subscription (ASM subscriptions remain plain <code>DOMString</code> group addresses for backward compatibility).</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="mm-caption">
+    <table class="doc-table scroll-table">
+      <caption id="mm-caption">Members of <code>MulticastMembership</code></caption>
+      <thead><tr><th scope="col">Member</th><th scope="col">Type</th><th scope="col">Description</th></tr></thead>
+      <tr><td><code>groupAddress</code></td><td><code>DOMString</code></td><td>The canonicalized multicast group IP address string of the joined subscription.</td></tr>
+      <tr><td><code>sourceAddress</code></td><td><code>DOMString</code></td><td>The canonicalized unicast source IP address string for this SSM subscription. Always populated on objects returned by <code>joinedGroups</code>.</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://wicg.github.io/direct-sockets/#dom-multicastgroupoptions-sourceaddress" target="_blank" rel="noopener">WICG Direct Sockets spec</a>; Blink <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/direct_sockets/multicast_controller.idl" target="_blank" rel="noopener">multicast_controller.idl</a>.</span>
+
+    <h3 id="join-group"><code>MulticastController.joinGroup(groupAddress, options)</code></h3>
+    <p><strong>Inputs.</strong> Accepts <code>groupAddress</code> (required <code>DOMString</code> IPv4/IPv6 multicast literal) and optional <code>options</code> (<code>MulticastGroupOptions</code>, default <code>{}</code>). Hostnames are not resolved &mdash; both addresses must be IP literals parsed via <code>net::IPAddress::FromIPLiteral</code> in Blink.</p>
+    <p><strong>Outputs &amp; side effects.</strong> Returns a <code>Promise&lt;undefined&gt;</code>. On success, invokes the OS socket join (<code>MCAST_JOIN_SOURCE_GROUP</code> / <code>IP_ADD_SOURCE_MEMBERSHIP</code> for SSM; <code>IP_ADD_MEMBERSHIP</code> / <code>IPV6_JOIN_GROUP</code> for ASM), emits an IGMPv3 or MLDv2 membership report on the local link, adds the <code>(groupAddress, sourceAddress)</code> membership to <code>[[joinedGroups]]</code>, and fulfills with <code>undefined</code>. Multiple distinct <code>sourceAddress</code> joins for the same <code>groupAddress</code> are additive (<a href="https://datatracker.ietf.org/doc/html/rfc4604" target="_blank" rel="noopener">RFC 4604</a>).</p>
+    <p><strong>Errors.</strong> See <a href="#errors">Errors &amp; validation matrix</a>: invalid or mismatched IP addresses reject/throw <code>TypeError</code>; closed sockets, duplicate or in-flight joins, or mixing ASM and SSM on the same group throw/reject <code>InvalidStateError</code>; socket closure mid-operation rejects with <code>AbortError</code>; OS join failure rejects with <code>NetworkError</code>.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/direct-sockets/#dom-multicastgroupoptions-sourceaddress" target="_blank" rel="noopener">WICG Direct Sockets spec</a>; Blink <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/direct_sockets/multicast_controller.cc" target="_blank" rel="noopener">multicast_controller.cc</a>.</span>
+
+    <h3 id="leave-group"><code>MulticastController.leaveGroup(groupAddress, options)</code></h3>
+    <p><strong>Inputs.</strong> Accepts <code>groupAddress</code> and optional <code>options</code> (<code>MulticastGroupOptions</code>). Both <code>groupAddress</code> and <code>options.sourceAddress</code> must match an active membership previously established via <code>joinGroup()</code>: leaving an SSM membership requires passing the exact <code>{ sourceAddress }</code>, and leaving an ASM membership requires omitting <code>sourceAddress</code>.</p>
+    <p><strong>Outputs &amp; side effects.</strong> Returns a <code>Promise&lt;undefined&gt;</code>. On success, invokes the OS leave call (<code>MCAST_LEAVE_SOURCE_GROUP</code> / <code>IP_DROP_SOURCE_MEMBERSHIP</code> for SSM; <code>IP_DROP_MEMBERSHIP</code> / <code>IPV6_LEAVE_GROUP</code> for ASM), removes only that matching membership from <code>[[joinedGroups]]</code> (other SSM sources for the same group stay active), and fulfills with <code>undefined</code>. Calling <code>leaveGroup()</code> before <code>udpSocket.close()</code> is optional because closing the socket drops all memberships automatically.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/direct-sockets/#dom-multicastgroupoptions-sourceaddress" target="_blank" rel="noopener">WICG Direct Sockets spec</a>; Blink <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/direct_sockets/multicast_controller.cc" target="_blank" rel="noopener">multicast_controller.cc</a>.</span>
+
+    <h3 id="joined-groups"><code>MulticastController.joinedGroups</code></h3>
+    <p><strong>Inputs &amp; outputs.</strong> Read-only getter returning a <code>FrozenArray&lt;(DOMString or MulticastMembership)&gt;</code> snapshot of committed memberships (entries still in the <code>kJoining</code> in-flight state are excluded until their <code>joinGroup()</code> promise resolves). ASM memberships appear as <code>DOMString</code> group addresses; SSM memberships appear as <code>{ groupAddress, sourceAddress }</code> objects. This distinction also serves as the runtime feature-detection signal: on Chromium builds without SSM, <code>options.sourceAddress</code> is ignored by WebIDL dictionary parsing, <code>joinGroup()</code> falls back to an ASM join, and <code>joinedGroups</code> contains a <code>string</code> instead of a <code>MulticastMembership</code> object.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/direct-sockets/#dom-multicastgroupoptions-sourceaddress" target="_blank" rel="noopener">WICG Direct Sockets spec</a>; <a href="https://chromestatus.com/feature/6208452397498368" target="_blank" rel="noopener">ChromeStatus interop notes</a>; Blink <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/direct_sockets/multicast_controller.cc" target="_blank" rel="noopener">multicast_controller.cc</a>.</span>
+
+    <h3 id="errors">Errors &amp; validation</h3>
+    <p>Because WebIDL promise-returning operations convert synchronous exceptions into rejected promises, callers should handle all errors below via <code>try / catch</code> around <code>await</code>:</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="err-caption">
+    <table class="doc-table scroll-table">
+      <caption id="err-caption">Rejection conditions verified against WICG Direct Sockets spec and Blink <code>multicast_controller.cc</code></caption>
+      <thead><tr><th scope="col">Error</th><th scope="col">Method(s)</th><th scope="col">Condition</th></tr></thead>
+      <tr><td><code>TypeError</code></td><td><code>joinGroup()</code>, <code>leaveGroup()</code></td><td><code>groupAddress</code> is empty, not a valid IPv4/IPv6 literal, or not a multicast address (<code>224.0.0.0/4</code> or <code>ff00::/8</code>).</td></tr>
+      <tr><td><code>TypeError</code></td><td><code>joinGroup()</code>, <code>leaveGroup()</code></td><td><code>options.sourceAddress</code> is present and is empty, not a valid IP literal, a multicast address, the zero/unspecified address (<code>0.0.0.0</code> or <code>::</code>), a loopback address (<code>127.0.0.0/8</code> or <code>::1</code>), or a different IP version from <code>groupAddress</code>.</td></tr>
+      <tr><td><code>InvalidStateError</code> (<code>DOMException</code>)</td><td><code>joinGroup()</code></td><td>Socket is closed/aborted; identical <code>(groupAddress, sourceAddress)</code> is already joined or in-flight; or an ASM membership/join already exists for <code>groupAddress</code> when joining SSM (or vice versa &mdash; ASM and SSM cannot be mixed on the same group on one socket).</td></tr>
+      <tr><td><code>InvalidStateError</code> (<code>DOMException</code>)</td><td><code>leaveGroup()</code></td><td>Socket is closed/aborted; matching <code>(groupAddress, sourceAddress)</code> is not currently joined; or a <code>leaveGroup()</code> for that membership is already in-flight.</td></tr>
+      <tr><td><code>AbortError</code> (<code>DOMException</code>)</td><td><code>joinGroup()</code>, <code>leaveGroup()</code></td><td>The underlying <code>UDPSocket</code> is closed or aborted while the OS join/leave request is still pending (<code>OnCloseOrAbort()</code> in Blink).</td></tr>
+      <tr><td><code>NetworkError</code> (<code>DOMException</code>)</td><td><code>joinGroup()</code>, <code>leaveGroup()</code></td><td>The operating system rejects the underlying socket option (e.g., no route, network interface missing, or OS SSM limit reached).</td></tr>
+      <tr><td><code>NotAllowedError</code> (<code>DOMException</code>)</td><td><code>new UDPSocket()</code></td><td>Document lacks the <code>direct-sockets</code> or <code>direct-sockets-multicast</code> permissions policy (prevents obtaining <code>multicastController</code>).</td></tr>
+      <tr><td>Silent ASM fallback (no throw)</td><td><code>joinedGroups</code></td><td>The <code>joinedGroups</code> getter never throws; on Chrome &lt; 158 where <code>sourceAddress</code> is ignored, <code>joinedGroups</code> returns a plain <code>string</code> instead of a <code>MulticastMembership</code> object.</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: Blink <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/direct_sockets/multicast_controller.cc" target="_blank" rel="noopener">multicast_controller.cc</a>; <a href="https://wicg.github.io/direct-sockets/#dom-multicastgroupoptions-sourceaddress" target="_blank" rel="noopener">WICG Direct Sockets spec</a>.</span>
+
+    <h3 id="context">Context, permissions &amp; exposure</h3>
+    <p><code>MulticastController</code> is available only in a <strong>SecureContext</strong> and <strong>IsolatedContext</strong> (an installed desktop Isolated Web App). The spec exposes it on <code>Window</code> and <code>DedicatedWorker</code>; Chromium&rsquo;s IDL also supports <code>SharedWorker</code> and <code>ServiceWorker</code> behind their Direct Sockets flags. A <code>multicastController</code> property is populated on <code>UDPSocketOpenInfo</code> only when:</p>
+    <ul>
+      <li>The <code>UDPSocket</code> was constructed in <strong>bound mode</strong> (with <code>localAddress</code>, not connected mode <code>remoteAddress</code>).</li>
+      <li>The IWA is allowed to use both the <code>direct-sockets</code> and <code>direct-sockets-multicast</code> permissions policies (for user-installed ChromeOS IWAs on Chrome&rsquo;s allowlist, the allowlist entry must grant the <code>DIRECT_SOCKETS_MULTICAST</code> entitlement).</li>
+      <li>The bound UDP socket passed the <code>local-network</code> and <code>loopback-network</code> permission checks.</li>
+      <li>At the network layer, receiving actual SSM packets requires an IGMPv3/MLDv2-capable network routing SSM or an <a href="https://datatracker.ietf.org/doc/html/rfc7450" target="_blank" rel="noopener">RFC 7450</a> AMT gateway.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://wicg.github.io/direct-sockets/#dom-multicastgroupoptions-sourceaddress" target="_blank" rel="noopener">WICG Direct Sockets spec</a>; <a href="https://chromestatus.com/feature/6208452397498368" target="_blank" rel="noopener">ChromeStatus security &amp; activation notes</a>; Blink <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/direct_sockets/multicast_controller.idl" target="_blank" rel="noopener">multicast_controller.idl</a>.</span>
+
+    <h3 id="lifecycle">Lifecycle &amp; state transitions</h3>
+    <p>Each <code>(groupAddress, sourceAddress)</code> pair has an independent membership lifecycle on a bound <code>UDPSocket</code>: <code>unjoined &rarr; joining &rarr; joined &rarr; leaving &rarr; unjoined</code>. While a join is in flight, duplicate joins and opposite-mode (ASM vs. SSM) joins for the same <code>groupAddress</code> immediately reject with <code>InvalidStateError</code> to close TOCTOU races. Multiple SSM sources for the same group may be joined and left independently. Closing or aborting the <code>UDPSocket</code> transitions <code>MulticastController</code> to closed, clears all tracked memberships, rejects any pending join/leave promises with <code>AbortError</code>, and relies on the OS to drop all group memberships.</p>
+    <span class="citation">Source: Blink <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/direct_sockets/multicast_controller.cc" target="_blank" rel="noopener">multicast_controller.cc</a>; <a href="https://chromestatus.com/feature/6208452397498368" target="_blank" rel="noopener">ChromeStatus ergonomics notes</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+    <p>No interactive demo exists yet on the Chrome Platform Showcase for Chrome 158 (HEAD-checked 404 on 2026-11-24). Live ecosystem examples linked by ChromeStatus include <a href="https://blockcast.network/live" target="_blank" rel="noopener">blockcast.network/live</a>.</p>
+
+    <h3 id="example-ssm-join">Joining an SSM group, verifying SSM support, and reading datagrams</h3>
+    <pre><code>// Isolated Web App with "direct-sockets" and "direct-sockets-multicast" policies.
+const GROUP = "232.1.1.1";       // IANA IPv4 SSM range: 232.0.0.0/8
+const SOURCE = "192.0.2.100";    // Unicast sender IP literal (non-loopback)
+const PORT = 12345;
+
+const socket = new UDPSocket({
+  localAddress: "0.0.0.0",
+  localPort: PORT,
+  multicastAllowAddressSharing: true,
+});
+
+const { readable, multicastController } = await socket.opened;
+if (!multicastController) {
+  throw new Error("direct-sockets-multicast policy not available");
+}
+
+await multicastController.joinGroup(GROUP, { sourceAddress: SOURCE });
+
+// Runtime feature detection: on Chrome &lt; 158 (without SSM), sourceAddress is
+// ignored and joinedGroups contains a plain string instead of a MulticastMembership.
+const ssmActive = multicastController.joinedGroups.some(
+  (m) =&gt; typeof m !== "string" &amp;&amp; m.groupAddress === GROUP &amp;&amp; m.sourceAddress === SOURCE
+);
+if (!ssmActive) {
+  await multicastController.leaveGroup(GROUP);
+  await socket.close();
+  throw new Error("Browser fell back to ASM; SSM is not supported");
+}
+
+const reader = readable.getReader();
+const decoder = new TextDecoder();
+try {
+  const { value, done } = await reader.read();
+  if (!done &amp;&amp; value) {
+    console.log("SSM datagram from", value.remoteAddress, decoder.decode(value.data));
+  }
+} finally {
+  reader.releaseLock();
+  await multicastController.leaveGroup(GROUP, { sourceAddress: SOURCE });
+  await socket.close();
+}</code></pre>
+    <span class="citation">Source: Adapted from <a href="https://github.com/WICG/direct-sockets/blob/main/docs/multicast-explainer.md" target="_blank" rel="noopener">Multicast explainer</a> and <a href="https://chromestatus.com/feature/6208452397498368" target="_blank" rel="noopener">ChromeStatus interop detection note</a>.</span>
+
+    <h3 id="example-multi-source">Subscribing to multiple SSM sources for one group and inspecting <code>joinedGroups</code></h3>
+    <pre><code>// Additive SSM joins for the same group (RFC 4604); mixing ASM on "232.1.1.1"
+// would reject with InvalidStateError.
+await multicastController.joinGroup("232.1.1.1", { sourceAddress: "192.0.2.100" });
+await multicastController.joinGroup("232.1.1.1", { sourceAddress: "192.0.2.101" });
+
+for (const entry of multicastController.joinedGroups) {
+  if (typeof entry === "string") {
+    console.log(`ASM group: ${entry}`);
+  } else {
+    console.log(`SSM group: ${entry.groupAddress} &larr; source: ${entry.sourceAddress}`);
+  }
+}
+
+// Drop only one source; the second SSM subscription remains active.
+await multicastController.leaveGroup("232.1.1.1", { sourceAddress: "192.0.2.100" });</code></pre>
+    <span class="citation">Source: <a href="https://wicg.github.io/direct-sockets/#dom-multicastgroupoptions-sourceaddress" target="_blank" rel="noopener">WICG Direct Sockets spec</a>; <a href="https://datatracker.ietf.org/doc/html/rfc4604" target="_blank" rel="noopener">RFC 4604</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Support for Source-Specific Multicast in Direct Sockets. BCD has no <code>MulticastController</code> or Direct Sockets entries yet (checked 2026-11-24); figures come from ChromeStatus and vendor standards-positions issues.</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col">SSM support</th><th scope="col">Evidence / notes</th></tr></thead>
+      <tr><th scope="row">Chrome (desktop IWAs)</th><td>158</td><td>Enabled by default on desktop in <a href="https://chromestatus.com/feature/6208452397498368" target="_blank" rel="noopener">ChromeStatus 6208452397498368</a> (dev trial behind flag from 152). Requires desktop Isolated Web App with <code>direct-sockets-multicast</code>.</td></tr>
+      <tr><th scope="row">Chrome (Android / WebView)</th><td>No</td><td><code>android</code> and <code>webview</code> are <code>null</code> in the <a href="https://chromestatus.com/api/v0/features/6208452397498368" target="_blank" rel="noopener">ChromeStatus API record</a>; Isolated Web Apps are desktop-only.</td></tr>
+      <tr><th scope="row">Edge</th><td>Unknown</td><td>Chromium-based, but IWA and Direct Sockets shipping status in Edge is not recorded in ChromeStatus or BCD.</td></tr>
+      <tr><th scope="row">Firefox</th><td>No</td><td>No signal on SSM; Mozilla&rsquo;s position on the parent Direct Sockets API is negative (<a href="https://github.com/mozilla/standards-positions/issues/431" target="_blank" rel="noopener">mozilla/standards-positions#431</a>).</td></tr>
+      <tr><th scope="row">Safari</th><td>No</td><td>No signal; WebKit&rsquo;s Isolated Web Apps position request remains open without a position (<a href="https://github.com/WebKit/standards-positions/issues/184" target="_blank" rel="noopener">WebKit/standards-positions#184</a>).</td></tr>
+    </table>
+    </div>
+    <p><strong>Test coverage note:</strong> ChromeStatus notes no SSM WPT test is landed yet (tracked in <a href="https://issues.chromium.org/issues/461262401" target="_blank" rel="noopener">crbug 461262401</a>) because the spec rejects loopback sources. Chromium verifies SSM through <code>MulticastControllerSsmTest.*</code> (Blink unit tests), <code>DirectSocketsBoundUdpBrowserTest.*SSM*</code>, <code>ChromeDirectSocketsUdpIsolatedWebAppMulticastTest.*SSM*</code>, <code>UDPSocketTest.JoinSourceGroup*</code>/<code>LeaveSourceGroup*</code>/<code>SSMSourceFilteringMultiNIC*</code>, and Mojo bad-message tests.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/6208452397498368" target="_blank" rel="noopener">ChromeStatus API record (6208452397498368)</a>; <a href="https://github.com/mozilla/standards-positions/issues/431" target="_blank" rel="noopener">mozilla/standards-positions#431</a>; <a href="https://github.com/WebKit/standards-positions/issues/184" target="_blank" rel="noopener">WebKit/standards-positions#184</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <ul>
+      <li><strong>No privilege expansion:</strong> SSM reuses the exact Isolated Web App trust boundary, <code>direct-sockets-multicast</code> permissions policy, and <code>local-network</code>/<code>loopback-network</code> checks as ASM, with no new prompt or content setting.</li>
+      <li><strong>Injection mitigation, not authentication:</strong> OS and router source filtering drops off-path traffic (<a href="https://datatracker.ietf.org/doc/html/rfc8815" target="_blank" rel="noopener">RFC 8815 &sect;3.2.3</a>), reducing DoS exposure compared with ASM. However, IP source addresses can still be spoofed on-path (<a href="https://datatracker.ietf.org/doc/html/rfc4607" target="_blank" rel="noopener">RFC 4607 &sect;7.4</a>), and older Chrome builds silently fall back to an ASM join when <code>sourceAddress</code> is ignored &mdash; applications must still authenticate payload contents.</li>
+      <li><strong>Network-service hardening &amp; sandbox:</strong> Chromium&rsquo;s Linux network-service sandbox allows <code>setsockopt</code> <code>MCAST_JOIN_SOURCE_GROUP</code> and <code>MCAST_LEAVE_SOURCE_GROUP</code> (<a href="https://chromium-review.googlesource.com/c/chromium/src/+/7641869" target="_blank" rel="noopener">CL 7641869</a>). Pre-existing renderer-to-network-service validation gaps on empty/non-multicast group addresses were hardened prior to shipping (<a href="https://chromium-review.googlesource.com/c/chromium/src/+/8583003" target="_blank" rel="noopener">CL 8583003</a>, <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8583123" target="_blank" rel="noopener">CL 8583123</a>).</li>
+      <li><strong>Local-link disclosure:</strong> Joining an SSM group transmits an IGMPv3/MLDv2 report naming the <code>(source, group)</code> pair on the local link, matching native SSM receivers.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6208452397498368" target="_blank" rel="noopener">ChromeStatus security risks (6208452397498368)</a>; <a href="https://github.com/WICG/direct-sockets/blob/main/docs/security-privacy-self-review.md" target="_blank" rel="noopener">Direct Sockets security &amp; privacy self-review</a>; <a href="https://datatracker.ietf.org/doc/html/rfc8815" target="_blank" rel="noopener">RFC 8815</a>; <a href="https://datatracker.ietf.org/doc/html/rfc4607" target="_blank" rel="noopener">RFC 4607</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Specification</th><th scope="col">Section</th></tr></thead>
+      <tr><td><a href="https://wicg.github.io/direct-sockets/" target="_blank" rel="noopener">WICG Direct Sockets API (Community Group Draft)</a></td><td><a href="https://wicg.github.io/direct-sockets/#dom-multicastgroupoptions-sourceaddress" target="_blank" rel="noopener"><code>MulticastGroupOptions</code>, <code>MulticastMembership</code> &amp; <code>MulticastController</code></a></td></tr>
+      <tr><td><a href="https://datatracker.ietf.org/doc/html/rfc4607" target="_blank" rel="noopener">IETF RFC 4607</a></td><td>Source-Specific Multicast for IP</td></tr>
+      <tr><td><a href="https://datatracker.ietf.org/doc/html/rfc4604" target="_blank" rel="noopener">IETF RFC 4604</a></td><td>Using IGMPv3 and MLDv2 for Source-Specific Multicast</td></tr>
+      <tr><td><a href="https://datatracker.ietf.org/doc/html/rfc8815" target="_blank" rel="noopener">IETF RFC 8815</a></td><td>Deprecating Any-Source Multicast (ASM) for Interdomain Multicast</td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://github.com/WICG/direct-sockets/blob/main/docs/multicast-explainer.md" target="_blank" rel="noopener">WICG Direct Sockets &mdash; Multicast explainer</a></li>
+      <li><a href="https://github.com/WICG/direct-sockets/blob/main/docs/security-privacy-self-review.md" target="_blank" rel="noopener">WICG Direct Sockets &mdash; Security &amp; Privacy self-review</a></li>
+      <li><a href="https://github.com/WICG/direct-sockets/issues/80" target="_blank" rel="noopener">WICG/direct-sockets#80 &mdash; SSM design recommendation</a></li>
+      <li><a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/direct_sockets/multicast_controller.cc" target="_blank" rel="noopener">Chromium Blink source &mdash; <code>multicast_controller.cc</code></a></li>
+      <li><a href="https://blockcast.network/live" target="_blank" rel="noopener">Sample ecosystem deployment &mdash; Blockcast Live</a></li>
+      <li><a href="https://chromestatus.com/feature/6208452397498368" target="_blank" rel="noopener">ChromeStatus &mdash; Source Specific Multicast for Direct Sockets API (6208452397498368)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

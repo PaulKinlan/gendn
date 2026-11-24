@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Translator API on Android — Chrome 161 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .scroll-table { min-width: 32rem; }
+    .example-embed { margin: 1.5rem 0; }
+    .example-embed iframe { max-width: 100%; display: block; }
+    .example-embed figcaption { font-size: 0.85rem; margin-top: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v161/">&larr; Chrome 161 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v161 &middot; web ai &middot; android &middot; enabled by default</p>
+    <h1>Translator API on Android</h1>
+
+    <p class="lede">Brings the on-device <code>Translator</code> Web API to Chrome for Android (including Chrome Custom Tabs) in Chrome 161, matching the desktop WebIDL surface shipped in Chrome 138 while introducing mobile-specific runtime guardrails &mdash; a per-origin <code>isolated_app</code> utility process, a 2-service concurrency cap, 1-minute idle model unloading, a 256&nbsp;KiB per-call input limit, storage and metered-network availability gates, and Android support for the <code>TranslatorAPIAllowed</code> enterprise policy.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; Chromium-only built-in AI API (not Baseline; Chrome for Android joins desktop Chrome 138 &amp; Edge 148 in Chrome 161)</p>
+      <ul class="baseline-browsers">
+        <li>Chrome Desktop &middot; 138</li>
+        <li>Chrome Android &middot; 161 (including Custom Tabs)</li>
+        <li>Edge Desktop &middot; 148</li>
+        <li class="limited">Firefox &middot; No support (Mozilla position: Negative)</li>
+        <li class="limited">Safari &middot; No support (WebKit position: No signal)</li>
+      </ul>
+      <p>The <a href="https://webstatus.dev/features/translator" target="_blank" rel="noopener"><code>translator</code> web-feature</a> is <strong>Limited availability</strong> on <a href="https://api.webstatus.dev/v1/features/translator" target="_blank" rel="noopener">webstatus.dev</a> (checked 2026-11-24). <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Translator.json" target="_blank" rel="noopener">BCD <code>api/Translator.json</code></a> currently still records <code>chrome_android: false</code> (freshness gap vs. the Chrome 161 milestone listing), and <a href="https://developer.mozilla.org/en-US/docs/Web/API/Translator" target="_blank" rel="noopener">MDN&rsquo;s <code>Translator</code> reference</a> does not yet document Android Custom Tabs, Android memory/storage/metered-network guardrails, or <code>TranslatorAPIAllowed</code>.</p>
+    </div>
+  </header>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#at-a-glance">At a glance</a></li>
+      <li><a href="#why">Why it exists</a></li>
+      <li><a href="#syntax">Syntax &amp; WebIDL</a></li>
+      <li><a href="#translator-availability"><code>availability()</code></a></li>
+      <li><a href="#translator-create"><code>create()</code> &amp; downloads</a></li>
+      <li><a href="#translator-translate"><code>translate()</code> &amp; streaming</a></li>
+      <li><a href="#translator-quota-and-lifecycle">Quota &amp; lifecycle</a></li>
+      <li><a href="#android-guardrails">Android guardrails &amp; policy</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#security-and-privacy">Security &amp; privacy</a></li>
+      <li><a href="#specifications">Specifications</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Shipped in</th><td>Chrome 161 on Android (including Chrome Custom Tabs) &mdash; filed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=161" target="_blank" rel="noopener">milestone=161 listing</a>; Android WebView and iOS are <code>null</code> (not supported) in the <a href="https://chromestatus.com/api/v0/features/5106126157905920" target="_blank" rel="noopener">ChromeStatus API record</a>. Desktop Chrome shipped separately in M138.</td></tr>
+      <tr><th scope="row">Runtime flag &amp; policy</th><td>Finch feature <code>TranslationAPI</code> (in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>; Android constants in <a href="https://chromium.googlesource.com/chromium/src/+/main/components/on_device_translation/features.cc" target="_blank" rel="noopener"><code>components/on_device_translation/features.cc</code></a>). Administrators can disable the API and block model downloads via <a href="https://chromeenterprise.google/policies/translator-api-allowed/" target="_blank" rel="noopener"><code>TranslatorAPIAllowed</code></a> on Android.</td></tr>
+      <tr><th scope="row">Specification</th><td><a href="https://webmachinelearning.github.io/translation-api/#translator-api" target="_blank" rel="noopener">Web Machine Learning CG &mdash; Translator and Language Detector APIs</a> (Community Group Draft); supporting types in <a href="https://webmachinelearning.github.io/writing-assistance-apis/#supporting" target="_blank" rel="noopener">Writing Assistance APIs</a></td></tr>
+      <tr><th scope="row">Explainer &amp; docs</th><td><a href="https://github.com/webmachinelearning/translation-api" target="_blank" rel="noopener">webmachinelearning/translation-api explainer</a> &middot; <a href="https://developer.chrome.com/docs/ai/translator-api" target="_blank" rel="noopener">Chrome for Developers guide</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/Translator" target="_blank" rel="noopener">MDN <code>Translator</code> (desktop)</a></td></tr>
+      <tr><th scope="row">Intent &amp; bug</th><td><a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/saJHYqHHPSY" target="_blank" rel="noopener">blink-dev Intent thread</a> &middot; <a href="https://issues.chromium.org/issues/428227642" target="_blank" rel="noopener">crbug 428227642</a></td></tr>
+      <tr><th scope="row">Web platform tests</th><td><a href="https://wpt.fyi/results/ai/translator" target="_blank" rel="noopener"><code>external/wpt/ai/translator/</code></a> plus Android unit tests and mock-engine browser tests (known WPT flakiness bugs: <a href="https://issues.chromium.org/issues/479913865" target="_blank" rel="noopener">crbug 479913865</a>, <a href="https://issues.chromium.org/issues/510552929" target="_blank" rel="noopener">crbug 510552929</a>, <a href="https://issues.chromium.org/issues/525227294" target="_blank" rel="noopener">crbug 525227294</a>)</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5106126157905920" target="_blank" rel="noopener">5106126157905920 &mdash; Translator API on Android</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>Mobile web applications previously had to send user text to cloud translation endpoints or bundle heavy client-side ML weights, adding latency, data usage, and privacy exposure. Shipping <code>Translator</code> on Chrome for Android (including Chrome Custom Tabs) pairs with the <a href="/v157/language-detector-api-on-android/">Language Detector API on Android (M157)</a> so mobile sites can detect and translate text locally with offline support once language packs are cached, while Chromium enforces strict mobile memory, storage, input-size, and metered-network guardrails so on-device translation does not destabilize phones.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5106126157905920" target="_blank" rel="noopener">ChromeStatus summary &amp; motivation (5106126157905920)</a>; <a href="https://developer.chrome.com/blog/pb-jiohotstar-translation-ai" target="_blank" rel="noopener">Chrome case study</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax &amp; WebIDL</h2>
+    <p>Chrome for Android exposes the identical <code>Translator</code> WebIDL surface already shipped on desktop Chrome 138:</p>
+    <pre><code>// Verbatim from Web Machine Learning CG Translator API specification
+[Exposed=Window, SecureContext]
+interface Translator {
+  static Promise&lt;Translator&gt; create(TranslatorCreateOptions options);
+  static Promise&lt;Availability&gt; availability(TranslatorCreateCoreOptions options);
+
+  Promise&lt;DOMString&gt; translate(
+    DOMString input,
+    optional TranslatorTranslateOptions options = {}
+  );
+  ReadableStream translateStreaming(
+    DOMString input,
+    optional TranslatorTranslateOptions options = {}
+  );
+
+  readonly attribute DOMString sourceLanguage;
+  readonly attribute DOMString targetLanguage;
+
+  Promise&lt;double&gt; measureInputUsage(
+    DOMString input,
+    optional TranslatorTranslateOptions options = {}
+  );
+  readonly attribute unrestricted double inputQuota;
+};
+Translator includes DestroyableModel;
+
+dictionary TranslatorCreateCoreOptions {
+  required DOMString sourceLanguage;
+  required DOMString targetLanguage;
+};
+
+dictionary TranslatorCreateOptions : TranslatorCreateCoreOptions {
+  AbortSignal signal;
+  CreateMonitorCallback monitor;
+};
+
+dictionary TranslatorTranslateOptions {
+  AbortSignal signal;
+};
+
+// Supporting types from Writing Assistance APIs
+enum Availability {
+  "unavailable",
+  "downloadable",
+  "downloading",
+  "available"
+};
+
+[Exposed=Window, SecureContext]
+interface CreateMonitor : EventTarget {
+  attribute EventHandler ondownloadprogress;
+};
+callback CreateMonitorCallback = undefined (CreateMonitor monitor);
+
+interface mixin DestroyableModel {
+  undefined destroy();
+};</code></pre>
+    <p>In Blink&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/on_device_translation/translator.idl" target="_blank" rel="noopener"><code>translator.idl</code></a>, <code>Translator</code> is exposed on <code>Window</code> via <code>TranslationAPI</code> (and on <code>Worker</code> only when the separate experimental <code>TranslationAPIForWorkers</code> flag is enabled). This reference documents all five parts of the Chrome 161 Android contract: <a href="#translator-availability"><code>Translator.availability()</code></a>, <a href="#translator-create"><code>Translator.create()</code> &amp; downloads</a>, <a href="#translator-translate"><code>translate()</code> &amp; <code>translateStreaming()</code></a>, <a href="#translator-quota-and-lifecycle">quota, metadata &amp; <code>destroy()</code></a>, and <a href="#android-guardrails">Android runtime guardrails &amp; enterprise policy</a>.</p>
+    <span class="citation">Source: <a href="https://webmachinelearning.github.io/translation-api/#translator-api" target="_blank" rel="noopener">Translator API spec</a> (fetched 2026-11-24); <a href="https://webmachinelearning.github.io/writing-assistance-apis/#supporting" target="_blank" rel="noopener">Writing Assistance APIs supporting types</a>; Blink <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/on_device_translation/translator.idl" target="_blank" rel="noopener"><code>translator.idl</code></a>.</span>
+
+    <h3 id="translator-availability"><code>Translator.availability(options)</code></h3>
+    <p><strong>Inputs.</strong> Requires a <code>TranslatorCreateCoreOptions</code> dictionary containing BCP 47 Unicode locale identifiers for <code>sourceLanguage</code> and <code>targetLanguage</code> (canonicalized in Blink via <code>ValidateAndCanonicalizeUnicodeLocaleId</code>).</p>
+    <p><strong>Outputs.</strong> Returns a <code>Promise&lt;Availability&gt;</code> resolving to one of four enum values without triggering a model download:</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="avail-caption">
+    <table class="doc-table scroll-table">
+      <caption id="avail-caption"><code>Availability</code> states returned by <code>Translator.availability()</code> on Chrome for Android</caption>
+      <thead><tr><th scope="col">Value</th><th scope="col">Meaning on Android</th></tr></thead>
+      <tr><td><code>"available"</code></td><td>The bundled translation library and required language pack(s) are already on-device and ready for immediate <code>Translator.create()</code>.</td></tr>
+      <tr><td><code>"downloadable"</code></td><td>The language pair is supported, device storage and network checks pass, and calling <code>Translator.create()</code> (with user activation) will download the language pack(s) via Component Updater.</td></tr>
+      <tr><td><code>"downloading"</code></td><td>Required language pack(s) are currently downloading in the background.</td></tr>
+      <tr><td><code>"unavailable"</code></td><td>Returned when the language pair is unsupported, the <code>translator</code> permissions policy is blocked, <code>TranslatorAPIAllowed</code> enterprise policy disables the API, or Android storage, device-resource, or metered-network guardrails block downloading/running the model (without revealing whether packs are installed).</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://webmachinelearning.github.io/translation-api/#translator-api" target="_blank" rel="noopener">Translator API spec</a>; Blink <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/on_device_translation/translator.cc" target="_blank" rel="noopener"><code>translator.cc</code></a>; <a href="https://chromestatus.com/feature/5106126157905920" target="_blank" rel="noopener">ChromeStatus 5106126157905920</a>.</span>
+
+    <h3 id="translator-create"><code>Translator.create(options)</code> &amp; download monitoring</h3>
+    <p><strong>Inputs.</strong> Accepts <code>TranslatorCreateOptions</code>: required <code>sourceLanguage</code> and <code>targetLanguage</code> strings, optional <code>signal</code> (<code>AbortSignal</code> to cancel download/creation and bind session abort), and optional <code>monitor</code> callback receiving a <code>CreateMonitor</code> whose <code>downloadprogress</code> event reports download progress (<code>e.loaded</code> normalized from <code>0</code> to <code>1</code>).</p>
+    <p><strong>Outputs &amp; behavior.</strong> Returns a <code>Promise&lt;Translator&gt;</code>. On Android, the translation library is bundled with Chrome while language packs download on demand via Chromium&rsquo;s Component Updater (CRX3- and SHA-256-verified) after sticky user activation. Always check <code>Translator.availability()</code> first and invoke <code>Translator.create()</code> inside a user gesture when a download is required.</p>
+    <span class="citation">Source: <a href="https://webmachinelearning.github.io/translation-api/#translator-api" target="_blank" rel="noopener">Translator API spec</a>; Blink <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/on_device_translation/create_translator_client.cc" target="_blank" rel="noopener"><code>create_translator_client.cc</code></a>; <a href="https://chromestatus.com/feature/5106126157905920" target="_blank" rel="noopener">ChromeStatus ergonomics &amp; security notes</a>.</span>
+
+    <h3 id="translator-translate"><code>translate(input, options)</code> &amp; <code>translateStreaming(input, options)</code></h3>
+    <p><strong>Inputs.</strong> Both instance methods take a <code>DOMString</code> <code>input</code> (unmatched UTF-16 surrogates are replaced before IPC in Blink) and optional <code>{ signal }</code> (<code>TranslatorTranslateOptions</code>).</p>
+    <p><strong>Outputs.</strong> <code>translate()</code> returns a <code>Promise&lt;DOMString&gt;</code> resolving to the full translated string. <code>translateStreaming()</code> synchronously returns a <code>ReadableStream</code> of string chunks suitable for progressive UI rendering of longer passages. On Android, single-call inputs exceeding the 256&nbsp;KiB engine budget (<code>kTranslationAPIMaxInputSizeBytes</code>) fail with a standard spec-defined error (<code>QuotaExceededError</code>), so callers should chunk large documents (for example by paragraph or sentence) before translating.</p>
+    <span class="citation">Source: <a href="https://webmachinelearning.github.io/translation-api/#translator-api" target="_blank" rel="noopener">Translator API spec</a>; Blink <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/on_device_translation/translator.cc" target="_blank" rel="noopener"><code>translator.cc</code></a>; Chromium <a href="https://chromium.googlesource.com/chromium/src/+/main/components/on_device_translation/features.cc" target="_blank" rel="noopener"><code>features.cc</code></a>.</span>
+
+    <h3 id="translator-quota-and-lifecycle">Quota, metadata, <code>destroy()</code> &amp; lifecycle</h3>
+    <p><strong>Attributes &amp; methods.</strong></p>
+    <ul>
+      <li><code>sourceLanguage</code> / <code>targetLanguage</code> (readonly <code>DOMString</code>): canonicalized BCP 47 tags for this instance.</li>
+      <li><code>inputQuota</code> (readonly <code>unrestricted double</code>) &amp; <code>measureInputUsage(input, options)</code> (<code>Promise&lt;double&gt;</code>): spec-defined quota inspection surface. Note that in Chromium&rsquo;s current <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/on_device_translation/translator.cc" target="_blank" rel="noopener"><code>translator.cc</code></a>, <code>inputQuota</code> returns <code>Infinity</code> while Android enforces its hard 256&nbsp;KiB per-call byte budget in the translation service &mdash; do not rely solely on <code>inputQuota</code> to skip chunking or <code>QuotaExceededError</code> handling on Android.</li>
+      <li><code>destroy()</code> (from <code>DestroyableModel</code>): releases the Mojo remote and aborts in-flight calls on that <code>Translator</code> instance. Calling <code>destroy()</code> promptly is especially valuable on Android where each loaded language pair consumes ~79&ndash;84&nbsp;MiB and at most 2 per-origin service processes can run concurrently.</li>
+    </ul>
+    <p><strong>Lifecycle &amp; idle unloading.</strong> On Android, Chromium automatically unloads idle translation models after <strong>1 minute</strong> (<code>kTranslationAPIModelIdleUnloadTimeout</code>) and shuts down idle utility services after <strong>1 minute</strong> (<code>kTranslationAPIServiceIdleTimeout</code>). Applications keeping a <code>Translator</code> reference across long pauses should expect transparent reload latency or recreate the translator if the service was reclaimed.</p>
+    <span class="citation">Source: Blink <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/on_device_translation/translator.cc" target="_blank" rel="noopener"><code>translator.cc</code></a>; Chromium <a href="https://chromium.googlesource.com/chromium/src/+/main/components/on_device_translation/features.cc" target="_blank" rel="noopener"><code>features.cc</code></a>; <a href="https://chromestatus.com/feature/5106126157905920" target="_blank" rel="noopener">ChromeStatus 5106126157905920</a>.</span>
+
+    <h3 id="android-guardrails">Android runtime guardrails &amp; enterprise policy</h3>
+    <p>Chrome for Android enforces stricter mobile resource limits than desktop Chrome, verified directly in <a href="https://chromium.googlesource.com/chromium/src/+/main/components/on_device_translation/features.cc" target="_blank" rel="noopener"><code>components/on_device_translation/features.cc</code></a> and <a href="https://chromestatus.com/feature/5106126157905920" target="_blank" rel="noopener">ChromeStatus 5106126157905920</a>:</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="android-cap-caption">
+    <table class="doc-table scroll-table">
+      <caption id="android-cap-caption">Android vs. Desktop default guardrails in Chromium <code>components/on_device_translation/features.cc</code></caption>
+      <thead><tr><th scope="col">Guardrail / FeatureParam</th><th scope="col">Chrome for Android (M161)</th><th scope="col">Chrome Desktop (M138+)</th><th scope="col">Developer impact</th></tr></thead>
+      <tr><td><code>TranslationAPIMaxServiceCount</code></td><td><strong>2</strong> concurrent service processes</td><td>10 concurrent service processes</td><td>Each per-origin <code>isolated_app</code> utility process holds ~79&ndash;84&nbsp;MiB per loaded language pair; call <code>destroy()</code> when switching pairs.</td></tr>
+      <tr><td><code>TranslationAPIModelIdleUnloadTimeout</code></td><td><strong>1 minute</strong></td><td>Disabled (<code>0</code>)</td><td>Idle models unload automatically after 60s to reclaim mobile RAM.</td></tr>
+      <tr><td><code>TranslationAPIMaxInputSizeBytes</code></td><td><strong>256&nbsp;KiB</strong> (~40,000 English words)</td><td>0 (unbounded)</td><td>Oversized single calls reject with <code>QuotaExceededError</code>; chunk large inputs.</td></tr>
+      <tr><td><code>TranslationAPIServiceIdleTimeout</code></td><td>1 minute</td><td>1 minute</td><td>Idle utility process exits after 60s.</td></tr>
+      <tr><td>Storage &amp; metered-network checks</td><td>Enforced before pack download</td><td>Desktop disk-space checks</td><td>Insufficient storage or metered-network restrictions report <code>"unavailable"</code> without leaking installed packs.</td></tr>
+      <tr><td>Chrome Custom Tabs</td><td>Supported</td><td>N/A</td><td>Works inside Android Custom Tabs as well as standard Chrome tabs.</td></tr>
+      <tr><td><a href="https://chromeenterprise.google/policies/translator-api-allowed/" target="_blank" rel="noopener"><code>TranslatorAPIAllowed</code></a> policy</td><td>Supported on Android</td><td>Supported on desktop</td><td>When disabled by enterprise policy, API is unavailable and model downloads are prevented.</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: Chromium <a href="https://chromium.googlesource.com/chromium/src/+/main/components/on_device_translation/features.cc" target="_blank" rel="noopener"><code>components/on_device_translation/features.cc</code></a>; <a href="https://chromestatus.com/feature/5106126157905920" target="_blank" rel="noopener">ChromeStatus 5106126157905920</a>; <a href="https://chromeenterprise.google/policies/translator-api-allowed/" target="_blank" rel="noopener">Chrome Enterprise <code>TranslatorAPIAllowed</code></a>.</span>
+
+    <h3 id="errors">Errors &amp; failure modes</h3>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="err-caption">
+    <table class="doc-table scroll-table">
+      <caption id="err-caption">Standard spec-defined rejection errors surfaced on Chrome for Android</caption>
+      <thead><tr><th scope="col">Error</th><th scope="col">When it occurs</th><th scope="col">Recovery</th></tr></thead>
+      <tr><td><code>TypeError</code> / <code>RangeError</code></td><td>Missing required <code>sourceLanguage</code> / <code>targetLanguage</code>, or invalid BCP 47 language tag rejected by Unicode locale canonicalization.</td><td>Validate and normalize BCP 47 language codes before calling.</td></tr>
+      <tr><td><code>NotAllowedError</code> (<code>DOMException</code>)</td><td>The <code>translator</code> permissions policy is disallowed (e.g., cross-origin iframe without <code>allow="translator"</code>), or <code>Translator.create()</code> requires a download without user activation.</td><td>Add <code>allow="translator"</code> where appropriate and trigger <code>Translator.create()</code> inside a user gesture.</td></tr>
+      <tr><td><code>NotSupportedError</code> (<code>DOMException</code>)</td><td>Unsupported language pair, disabled by <code>TranslatorAPIAllowed</code> policy, or device/storage/metered-network checks prevent creation.</td><td>Check <code>Translator.availability()</code> first and fall back to server/UI alternative.</td></tr>
+      <tr><td><code>QuotaExceededError</code> (<code>DOMException</code>)</td><td>Input exceeds Android&rsquo;s 256&nbsp;KiB per-call input budget (<code>TranslationAPIMaxInputSizeBytes</code>) or concurrency/resource quota is exceeded.</td><td>Split text into smaller UTF-8 chunks (&le; 256&nbsp;KiB, ideally a few KiB per call) and call <code>destroy()</code> on unused translators.</td></tr>
+      <tr><td><code>AbortError</code> (<code>DOMException</code>)</td><td><code>AbortSignal</code> passed to <code>create()</code>, <code>translate()</code>, or <code>translateStreaming()</code> aborted, or <code>destroy()</code> was called mid-flight.</td><td>Handle cancellation cleanly and avoid retrying aborted user actions.</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5106126157905920" target="_blank" rel="noopener">ChromeStatus interop notes (5106126157905920)</a>; Blink <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/on_device_translation/translator.cc" target="_blank" rel="noopener"><code>translator.cc</code></a> &amp; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/on_device_translation/create_translator_client.cc" target="_blank" rel="noopener"><code>create_translator_client.cc</code></a>.</span>
+
+    <h3 id="context">Context, exposure &amp; permissions policy</h3>
+    <p><code>Translator</code> requires a <strong>SecureContext</strong> (HTTPS or localhost) and is exposed on <code>Window</code> (including top-level pages, Android Chrome Custom Tabs, and iframes granted the <code>translator</code> permissions policy &mdash; default allowlist <code>'self'</code>). Cross-origin iframes must opt in via <code>allow="translator"</code> and an appropriate <code>Permissions-Policy: translator=(...)</code> response header. Exposure in Web Workers is not enabled by default (gated by <code>TranslationAPIForWorkers</code>). Android WebView does not expose the API.</p>
+    <span class="citation">Source: <a href="https://webmachinelearning.github.io/translation-api/#translator-api" target="_blank" rel="noopener">Translator API spec &sect;3.5 Permissions policy</a>; Blink <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/on_device_translation/translator.idl" target="_blank" rel="noopener"><code>translator.idl</code></a>; <a href="https://chromestatus.com/feature/5106126157905920" target="_blank" rel="noopener">ChromeStatus 5106126157905920</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v161/translator-api-on-android/availability-states/"
+        title="Live example — Availability states on this device (Translator API on Android)" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase (HEAD-checked 200 on 2026-11-24): probes <code>Translator.availability()</code> without auto-downloading models. Sibling interactive concept demos (all verified 200): <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v161/translator-api-on-android/download-on-a-constrained-device/" target="_blank" rel="noopener">download on a constrained device</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v161/translator-api-on-android/memory-and-input-limits/" target="_blank" rel="noopener">memory and input limits</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v161/translator-api-on-android/failure-and-policy-gates/" target="_blank" rel="noopener">failure and policy gates</a>, and <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v161/translator-api-on-android/offline-chat-composer/" target="_blank" rel="noopener">offline chat composer</a>.<span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v161/translator-api-on-android/" target="_blank" rel="noopener">chrome-platform-showcase</a></span></figcaption>
+    </figure>
+
+    <h3 id="example-android-safe">Android-safe availability check, user-activated creation, chunked translation, and cleanup</h3>
+    <pre><code>// Stay well below Android's 256 KiB TranslationAPIMaxInputSizeBytes cap.
+const MAX_ANDROID_CHUNK_BYTES = 16 * 1024;
+const encoder = new TextEncoder();
+
+async function translateSafely(text, sourceLanguage, targetLanguage, onProgress) {
+  if (typeof Translator === "undefined") {
+    throw new Error("Translator API is not supported in this browser");
+  }
+
+  const pair = { sourceLanguage, targetLanguage };
+  const state = await Translator.availability(pair);
+  if (state === "unavailable") {
+    // Could be unsupported pair, low storage, metered network, or TranslatorAPIAllowed policy.
+    throw new Error(`Translation unavailable for ${sourceLanguage} -&gt; ${targetLanguage}`);
+  }
+
+  const controller = new AbortController();
+  const translator = await Translator.create({
+    ...pair,
+    signal: controller.signal,
+    monitor(m) {
+      m.addEventListener("downloadprogress", (e) =&gt; {
+        onProgress?.(Math.round(e.loaded * 100));
+      });
+    },
+  });
+
+  try {
+    // Chunk input to avoid QuotaExceededError on Android's 256 KiB input budget.
+    if (encoder.encode(text).byteLength &lt;= MAX_ANDROID_CHUNK_BYTES) {
+      return await translator.translate(text, { signal: controller.signal });
+    }
+    const paragraphs = text.split(/\n{2,}/);
+    const out = [];
+    for (const part of paragraphs) {
+      out.push(await translator.translate(part, { signal: controller.signal }));
+    }
+    return out.join("\n\n");
+  } finally {
+    // Release the ~79-84 MiB language pair promptly under Android's TranslationAPIMaxServiceCount (2).
+    translator.destroy();
+  }
+}</code></pre>
+    <span class="citation">Source: <a href="https://webmachinelearning.github.io/translation-api/#translator-api" target="_blank" rel="noopener">Translator API spec</a>; Chromium <a href="https://chromium.googlesource.com/chromium/src/+/main/components/on_device_translation/features.cc" target="_blank" rel="noopener"><code>features.cc</code></a>.</span>
+
+    <h3 id="example-streaming">Streaming translation output with <code>translateStreaming()</code></h3>
+    <pre><code>// Call inside a click/tap handler so downloads have sticky user activation.
+async function streamTranslation(input, sourceLanguage, targetLanguage, targetEl) {
+  const translator = await Translator.create({ sourceLanguage, targetLanguage });
+  try {
+    targetEl.textContent = "";
+    const stream = translator.translateStreaming(input);
+    for await (const chunk of stream) {
+      targetEl.textContent += chunk;
+    }
+  } finally {
+    translator.destroy();
+  }
+}</code></pre>
+    <span class="citation">Source: <a href="https://webmachinelearning.github.io/translation-api/#translator-api" target="_blank" rel="noopener">Translator API spec</a>; <a href="https://developer.chrome.com/docs/ai/translator-api" target="_blank" rel="noopener">Chrome for Developers Translator API guide</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption"><code>Translator</code> support combining BCD <code>api/Translator.json</code>, ChromeStatus 5106126157905920, and webstatus.dev (checked 2026-11-24). BCD has not yet recorded Chrome for Android 161.</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col">Support</th><th scope="col">Evidence / notes</th></tr></thead>
+      <tr><th scope="row">Chrome (Android)</th><td>161</td><td>Enabled by default on Android (including Chrome Custom Tabs) in the <a href="https://chromestatus.com/api/v0/features?milestone=161" target="_blank" rel="noopener">milestone=161 listing</a> and <a href="https://chromestatus.com/api/v0/features/5106126157905920" target="_blank" rel="noopener">ChromeStatus 5106126157905920</a>. <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Translator.json" target="_blank" rel="noopener">BCD</a> still lists <code>chrome_android: false</code> (freshness gap).</td></tr>
+      <tr><th scope="row">Chrome (Desktop)</th><td>138</td><td>Shipped in M138 per <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Translator.json" target="_blank" rel="noopener">BCD <code>api/Translator.json</code></a> (BCD notes availability may be subject to geographical restrictions).</td></tr>
+      <tr><th scope="row">Android WebView</th><td>No</td><td><code>webview</code> is <code>null</code> in <a href="https://chromestatus.com/api/v0/features/5106126157905920" target="_blank" rel="noopener">ChromeStatus 5106126157905920</a> and <code>false</code> in BCD.</td></tr>
+      <tr><th scope="row">Edge</th><td>148 (desktop)</td><td>Desktop Edge 148 per <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Translator.json" target="_blank" rel="noopener">BCD</a> and <a href="https://learn.microsoft.com/en-us/microsoft-edge/web-platform/translator-api" target="_blank" rel="noopener">Microsoft Edge docs</a>; Edge on Android status unknown.</td></tr>
+      <tr><th scope="row">Firefox</th><td>No</td><td>Unsupported in BCD; Mozilla&rsquo;s standards position is Negative (<a href="https://github.com/mozilla/standards-positions/issues/1015" target="_blank" rel="noopener">mozilla/standards-positions#1015</a>).</td></tr>
+      <tr><th scope="row">Safari</th><td>No</td><td>Unsupported in BCD; WebKit standards position has No signal (<a href="https://github.com/WebKit/standards-positions/issues/339" target="_blank" rel="noopener">WebKit/standards-positions#339</a>).</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Translator.json" target="_blank" rel="noopener">BCD <code>api/Translator.json</code></a>; <a href="https://chromestatus.com/api/v0/features/5106126157905920" target="_blank" rel="noopener">ChromeStatus API record</a>; <a href="https://webstatus.dev/features/translator" target="_blank" rel="noopener">webstatus.dev <code>translator</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <ul>
+      <li><strong>Per-origin process isolation:</strong> On Android, translation inference runs inside a per-origin <code>isolated_app</code> utility process using the bundled on-device translation library, read-only language pack file descriptors, and browser-enforced 256&nbsp;KiB input budgets so model execution is sandboxed away from the browser and other origins.</li>
+      <li><strong>Verified model downloads:</strong> Language packs are downloaded on demand via Chromium&rsquo;s Component Updater using CRX3- and SHA-256-verified packages, and require user activation before initiating downloads.</li>
+      <li><strong>No pack-presence fingerprinting via guardrails:</strong> Device storage and metered-network checks report <code>"unavailable"</code> without revealing whether specific language packs are already installed on the device.</li>
+      <li><strong>Local processing &amp; enterprise governance:</strong> Page text never leaves the device during translation. Managed Android devices can disable the API and prevent model downloads entirely via the <a href="https://chromeenterprise.google/policies/translator-api-allowed/" target="_blank" rel="noopener"><code>TranslatorAPIAllowed</code></a> enterprise policy.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5106126157905920" target="_blank" rel="noopener">ChromeStatus security &amp; privacy notes (5106126157905920)</a>; <a href="https://chromeenterprise.google/policies/translator-api-allowed/" target="_blank" rel="noopener">Chrome Enterprise <code>TranslatorAPIAllowed</code></a>; <a href="https://webmachinelearning.github.io/translation-api/#translator-api" target="_blank" rel="noopener">Translator API spec</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Specification</th><th scope="col">Section</th></tr></thead>
+      <tr><td><a href="https://webmachinelearning.github.io/translation-api/" target="_blank" rel="noopener">Translator and Language Detector APIs (Web Machine Learning CG Draft)</a></td><td><a href="https://webmachinelearning.github.io/translation-api/#translator-api" target="_blank" rel="noopener">&sect;3 The translator API</a></td></tr>
+      <tr><td><a href="https://webmachinelearning.github.io/writing-assistance-apis/" target="_blank" rel="noopener">Writing Assistance APIs (Web Machine Learning CG Draft)</a></td><td><a href="https://webmachinelearning.github.io/writing-assistance-apis/#supporting" target="_blank" rel="noopener">Supporting types (<code>Availability</code>, <code>CreateMonitor</code>, <code>DestroyableModel</code>)</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="/v157/language-detector-api-on-android/">gendn Chrome 157 &mdash; Language Detector API on Android</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Translator" target="_blank" rel="noopener">MDN &mdash; <code>Translator</code> (desktop API reference)</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/Translator_and_Language_Detector_APIs" target="_blank" rel="noopener">MDN &mdash; Translator and Language Detector APIs overview</a></li>
+      <li><a href="https://developer.chrome.com/docs/ai/translator-api" target="_blank" rel="noopener">Chrome for Developers &mdash; Translation with built-in AI</a> &middot; <a href="https://chrome.dev/web-ai-demos/translation-language-detection-api-playground" target="_blank" rel="noopener">Official playground demo</a></li>
+      <li><a href="https://chromeenterprise.google/policies/translator-api-allowed/" target="_blank" rel="noopener">Chrome Enterprise &mdash; <code>TranslatorAPIAllowed</code> policy</a></li>
+      <li><a href="https://github.com/webmachinelearning/translation-api" target="_blank" rel="noopener">Explainer &mdash; <code>webmachinelearning/translation-api</code></a> &middot; <a href="https://github.com/webmachinelearning/translation-api/issues/36" target="_blank" rel="noopener">Developer feedback issue #36</a></li>
+      <li><a href="https://chromestatus.com/feature/5106126157905920" target="_blank" rel="noopener">ChromeStatus &mdash; Translator API on Android (5106126157905920)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
