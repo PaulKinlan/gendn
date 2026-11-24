@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebAppLaunch: user activation on focus-existing launch delivery — Chrome 160 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .scroll-table { min-width: 30rem; }
+    .example-embed { margin: 1.5rem 0; }
+    .example-embed iframe { max-width: 100%; display: block; }
+    .example-embed figcaption { font-size: 0.85rem; margin-top: 0.5rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v160/">&larr; Chrome 160 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v160 &middot; web api &middot; pwa &middot; enabled by default</p>
+    <h1>WebAppLaunch: user activation on focus-existing launch delivery</h1>
+
+    <p class="lede">Grants transient user activation (<code>navigator.userActivation.isActive === true</code>) to an installed web app&rsquo;s existing document when a user-initiated launch is delivered into it via <code>launch_handler: { "client_mode": "focus-existing" }</code>. Inside the <code>window.launchQueue.setConsumer()</code> callback, the app can now call activation-gated APIs such as <code>window.open()</code>, <code>Element.requestFullscreen()</code>, <code>showOpenFilePicker()</code>, or <code>navigator.share()</code> &mdash; once per launch, mirroring how clicking a page-created <code>Notification</code> activates that document.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; Chromium-only (not Baseline)</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 160 (desktop, Android)</li>
+        <li>Edge &middot; Chromium-based (Launch Handler since 110; activation grant not yet in BCD)</li>
+        <li class="limited">Firefox &middot; Not implemented (no signal)</li>
+        <li class="limited">Safari &middot; Not implemented (no signal)</li>
+      </ul>
+      <p>Not Baseline. The parent <a href="https://webstatus.dev/features/app-launch-handler" target="_blank" rel="noopener"><code>app-launch-handler</code> web-feature</a> is <strong>Limited availability</strong> per <a href="https://api.webstatus.dev/v1/features/app-launch-handler" target="_blank" rel="noopener">webstatus.dev</a> (Chrome 110, Edge 110; neither Firefox nor Safari implements Launch Handler). Neither <a href="https://github.com/mdn/browser-compat-data/blob/main/api/LaunchQueue.json" target="_blank" rel="noopener">BCD <code>api/LaunchQueue.json</code></a> nor <a href="https://github.com/mdn/browser-compat-data/blob/main/manifests/webapp/launch_handler.json" target="_blank" rel="noopener">BCD <code>manifests/webapp/launch_handler.json</code></a> has a subfeature for Chrome 160&rsquo;s focus-existing user activation grant yet (checked 2026-11-24).</p>
+    </div>
+  </header>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#at-a-glance">At a glance</a></li>
+      <li><a href="#why">Why it exists</a></li>
+      <li><a href="#syntax">Behavior &amp; rules</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#security-and-privacy">Security &amp; privacy</a></li>
+      <li><a href="#specifications">Specifications</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Shipped in</th><td>Chrome 160 (desktop, Android), enabled by default in the <a href="https://chromestatus.com/api/v0/features?milestone=160" target="_blank" rel="noopener">milestone=160 listing</a>; Android WebView and iOS are <code>null</code> (not applicable) in the <a href="https://chromestatus.com/api/v0/features/5191118118584320" target="_blank" rel="noopener">ChromeStatus API record</a></td></tr>
+      <tr><th scope="row">Kill switch / flag</th><td>No enable flag (enabled by default). Browser-side kill switch: <code>kWebAppLaunchHandlerUserActivation</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/components/webapps/browser/features.cc" target="_blank" rel="noopener"><code>components/webapps/browser/features.cc</code></a> &mdash; reproduce pre-160 behavior with <code>--disable-features=WebAppLaunchHandlerUserActivation</code></td></tr>
+      <tr><th scope="row">Specification</th><td><a href="https://wicg.github.io/web-app-launch/#dfn-prepare-an-application-context" target="_blank" rel="noopener">Web App Launch Handler &mdash; Prepare an application context</a> (merged in <a href="https://github.com/WICG/web-app-launch/pull/101" target="_blank" rel="noopener">WICG/web-app-launch PR #101</a>, 2026-11-11, closing <a href="https://github.com/WICG/web-app-launch/issues/99" target="_blank" rel="noopener">issue #99</a>)</td></tr>
+      <tr><th scope="row">Explainer</th><td><a href="https://github.com/WICG/web-app-launch/blob/main/launch_handler.md" target="_blank" rel="noopener">WICG/web-app-launch &mdash; launch_handler.md</a></td></tr>
+      <tr><th scope="row">Developer report</th><td><a href="https://github.com/WICG/manifest-incubations/issues/141" target="_blank" rel="noopener">WICG/manifest-incubations#141</a> (positive developer signal)</td></tr>
+      <tr><th scope="row">Tracking bug</th><td><a href="https://issues.chromium.org/issues/583976233" target="_blank" rel="noopener">issues.chromium.org/583976233</a></td></tr>
+      <tr><th scope="row">Tests</th><td>No WPT (app installation is untestable in WPT); covered by Chromium <code>browser_tests</code> (<code>WebAppLaunchHandlerBrowserTest*.UserActivation</code>)</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5191118118584320" target="_blank" rel="noopener">5191118118584320 &mdash; WebAppLaunch: user activation on focus-existing launch delivery</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>Installed web apps declare <code>"launch_handler": { "client_mode": "focus-existing" }</code> to keep a single window open instead of spawning duplicate windows when users click links, app shortcuts, files, or share targets. Before Chrome 160, focusing the existing window and invoking the <code>window.launchQueue.setConsumer()</code> callback did <em>not</em> grant transient user activation to the focused document &mdash; even though the launch was triggered by an explicit user click outside the app. Consequently, multi-document apps could not call <code>window.open()</code> to open a separate workspace window for an unrelated document, nor call <code>requestFullscreen()</code> or file pickers in response to the launch. Chrome 160 fixes this gap by running HTML&rsquo;s activation notification steps for the focused document at launch delivery, matching the existing precedent for clicking a page-created <code>Notification</code>.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5191118118584320" target="_blank" rel="noopener">ChromeStatus 5191118118584320</a>; <a href="https://github.com/WICG/manifest-incubations/issues/141" target="_blank" rel="noopener">WICG/manifest-incubations#141</a>; <a href="https://github.com/WICG/web-app-launch/pull/101" target="_blank" rel="noopener">WICG/web-app-launch PR #101</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>No new JavaScript interface or manifest member is introduced. The change modifies the runtime behavior of the existing Web App Manifest <code>launch_handler</code> member (<code>"client_mode": "focus-existing"</code>) and the <code>window.launchQueue.setConsumer()</code> delivery algorithm:</p>
+    <pre><code>// Web App Manifest (manifest.webmanifest)
+{
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  }
+}
+
+// Application script — read navigator.userActivation.isActive inside the consumer
+window.launchQueue?.setConsumer((launchParams) =&gt; {
+  if (navigator.userActivation.isActive) {
+    // Chrome 160+: activation-gated calls (e.g. window.open(), requestFullscreen()) succeed
+  }
+});</code></pre>
+    <blockquote class="spec-quote">
+      <p>&ldquo;Bring <var>application context</var>&rsquo;s viewport into focus. Run the activation notification steps for <var>application context</var>&rsquo;s active document. Return <var>application context</var>.&rdquo;</p>
+    </blockquote>
+    <p>This reference covers three parts of the Chrome 160 contract: <a href="#focus-existing-activation-grant">the focus-existing activation grant algorithm</a>, <a href="#activation-withheld-conditions">conditions where activation is withheld</a>, and <a href="#consumer-activation-budget">the consumer activation budget &amp; feature detection</a>.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/web-app-launch/#dfn-prepare-an-application-context" target="_blank" rel="noopener">Web App Launch Handler &mdash; Prepare an application context</a> (normative quote fetched 2026-11-24); <a href="https://github.com/WICG/web-app-launch/blob/main/launch_handler.md" target="_blank" rel="noopener">launch_handler.md</a>.</span>
+
+    <h3 id="focus-existing-activation-grant">Focus-existing activation grant &mdash; inputs and outputs</h3>
+    <p><strong>Inputs.</strong> An installed web app whose manifest sets <code>"launch_handler": { "client_mode": "focus-existing" }</code> (or an array resolving to <code>"focus-existing"</code>), an already-open application window whose current URL is within the manifest scope and has a non-opaque committed origin, and a <strong>user-initiated</strong> launch event (clicking a captured link, app shortcut, OS launcher icon, associated file, Web Share target, or Trusted Web Activity launch).</p>
+    <p><strong>Outputs.</strong> In <a href="https://chromium.googlesource.com/chromium/src/+/main/components/webapps/browser/launch_queue/launch_queue.cc" target="_blank" rel="noopener"><code>components/webapps/browser/launch_queue/launch_queue.cc</code></a> (<code>SendLaunchParams()</code>), Chromium verifies <code>launch_params.user_initiated() &amp;&amp; !launch_params.started_new_navigation() &amp;&amp; base::FeatureList::IsEnabled(features::kWebAppLaunchHandlerUserActivation)</code> and calls <code>NotifyUserActivation(UserActivationNotificationType::kWebAppLaunch)</code> on the primary main frame immediately before calling <code>launch_service-&gt;EnqueueLaunchParams(...)</code> on the same ordered Mojo associated channel. When the page&rsquo;s <code>launchQueue.setConsumer()</code> callback runs, both <code>navigator.userActivation.isActive</code> and <code>navigator.userActivation.hasBeenActive</code> are <code>true</code>.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/web-app-launch/#dfn-prepare-an-application-context" target="_blank" rel="noopener">Web App Launch Handler &mdash; Prepare an application context</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/webapps/browser/launch_queue/launch_queue.cc" target="_blank" rel="noopener">Chromium launch_queue.cc</a>; <a href="https://html.spec.whatwg.org/multipage/interaction.html#activation-notification" target="_blank" rel="noopener">HTML Standard &mdash; activation notification steps</a>.</span>
+
+    <h3 id="activation-withheld-conditions">When activation is withheld &mdash; inputs and outputs</h3>
+    <p>The specification and Chromium&rsquo;s <code>SendLaunchParams()</code> strictly limit the grant so only genuine, fresh, user-initiated <code>focus-existing</code> deliveries receive transient activation:</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="withheld-caption">
+    <table class="doc-table scroll-table">
+      <caption id="withheld-caption">Launch delivery paths and whether Chrome 160 grants transient user activation (from WICG PR #101 and <code>launch_queue.cc</code>)</caption>
+      <thead><tr><th scope="col">Launch scenario</th><th scope="col">Grants activation?</th><th scope="col">Reason</th></tr></thead>
+      <tr><td>User-initiated launch into open, in-scope <code>focus-existing</code> window</td><td>Yes (once)</td><td><code>user_initiated &amp;&amp; !started_new_navigation</code>; calls <code>NotifyUserActivation(kWebAppLaunch)</code></td></tr>
+      <tr><td><code>"navigate-new"</code> or <code>"navigate-existing"</code></td><td>No (via this step)</td><td><code>started_new_navigation</code> is <code>true</code>; navigating launches use normal navigation semantics instead</td></tr>
+      <tr><td>Cold launch (no open window) or open window currently out of scope</td><td>No (via this step)</td><td>Falls back to creating or navigating a window (<code>started_new_navigation</code> is <code>true</code>)</td></tr>
+      <tr><td>Re-delivery of <code>LaunchParams</code> (for example after reload)</td><td>No</td><td>Spec Privacy section forbids re-granting activation for the same launch</td></tr>
+      <tr><td>Non-user-initiated / programmatic launch</td><td>No</td><td>Spec MUST NOT run activation steps when <code>user_initiated</code> is <code>false</code></td></tr>
+      <tr><td>Opaque committed origin or kill switch disabled</td><td>No</td><td><code>committed_origin.opaque()</code> returns early; <code>--disable-features=WebAppLaunchHandlerUserActivation</code> skips notification</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/WICG/web-app-launch/pull/101" target="_blank" rel="noopener">WICG/web-app-launch PR #101</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/webapps/browser/launch_queue/launch_queue.cc" target="_blank" rel="noopener">Chromium launch_queue.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/webapps/browser/features.cc" target="_blank" rel="noopener">Chromium features.cc</a>.</span>
+
+    <h3 id="consumer-activation-budget">Consumer activation budget, lifecycle, and timing</h3>
+    <p><strong>One launch, one transient activation.</strong> Standard HTML <a href="https://html.spec.whatwg.org/multipage/interaction.html#transient-activation" target="_blank" rel="noopener">transient activation</a> rules apply inside the <code>launchQueue.setConsumer()</code> callback:</p>
+    <ul>
+      <li><strong>Consumption:</strong> Calling an activation-consuming API &mdash; such as <code>window.open()</code>, <code>Element.requestFullscreen()</code>, <code>window.showOpenFilePicker()</code>, or <code>navigator.share()</code> &mdash; consumes the transient activation budget immediately, so subsequent gated calls in the same callback fail unless the user interacts again.</li>
+      <li><strong>Expiry:</strong> Transient activation expires automatically after a short timeout (typically ~5 seconds in Chromium) if not consumed, returning <code>navigator.userActivation.isActive</code> to <code>false</code> while <code>hasBeenActive</code> remains <code>true</code>.</li>
+      <li><strong>Ordering guarantee:</strong> Because Chromium sends <code>NotifyUserActivation(kWebAppLaunch)</code> on the same associated channel immediately ahead of <code>EnqueueLaunchParams()</code>, the renderer observes <code>navigator.userActivation.isActive === true</code> on the very first line of the consumer callback (and across an immediate microtask/next task before expiry), provided the consumer is already registered when the launch arrives.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/components/webapps/browser/launch_queue/launch_queue.cc" target="_blank" rel="noopener">Chromium launch_queue.cc</a>; <a href="https://html.spec.whatwg.org/multipage/interaction.html#transient-activation" target="_blank" rel="noopener">HTML Standard &mdash; Transient activation</a>; <a href="https://chromestatus.com/feature/5191118118584320" target="_blank" rel="noopener">ChromeStatus 5191118118584320</a>.</span>
+
+    <h3 id="errors-and-fallbacks">Errors, fallbacks, and feature detection</h3>
+    <p>Launch delivery itself does not throw when activation is absent; instead, any activation-gated API your consumer calls will fail according to its own contract (for example <code>window.open()</code> returns <code>null</code>, and <code>requestFullscreen()</code>, <code>showOpenFilePicker()</code>, or <code>navigator.share()</code> reject with <code>NotAllowedError</code> / <code>SecurityError</code>).</p>
+    <ul>
+      <li><strong>Feature detection:</strong> Inspect <code>navigator.userActivation.isActive</code> inside your <code>launchQueue.setConsumer()</code> callback. Do <strong>not</strong> sniff the Chrome version, because activation can still be <code>false</code> on Chrome 160+ for non-user launches, reloads/re-deliveries, late consumer registration after expiry, or enterprise kill-switch environments.</li>
+      <li><strong>Graceful fallback:</strong> When <code>navigator.userActivation.isActive</code> is <code>false</code> (or <code>window.open()</code> returns <code>null</code>), render a clear in-app banner or button (for example &ldquo;Open workspace in new window&rdquo; or &ldquo;Enter fullscreen&rdquo;) so a single click completes the action on Chrome &lt; 160 and non-activated paths.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5191118118584320" target="_blank" rel="noopener">ChromeStatus 5191118118584320 (activation_risks &amp; interop_compat_risks)</a>; <a href="https://html.spec.whatwg.org/multipage/interaction.html#the-useractivation-interface" target="_blank" rel="noopener">HTML Standard &mdash; UserActivation</a>.</span>
+
+    <h3 id="context">Context and exposure</h3>
+    <p>Applies exclusively to <strong>installed</strong> web applications (PWAs) running in a top-level secure <code>Window</code> application context with <code>"launch_handler": { "client_mode": "focus-existing" }</code> in their manifest. Regular browser tabs never receive Launch Handler deliveries, and Web Workers / Service Workers do not have a <code>window.launchQueue</code> or document-level <code>UserActivation</code> state.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/web-app-launch/#launchqueue-interface" target="_blank" rel="noopener">Web App Launch Handler &mdash; LaunchQueue</a>; <a href="https://chromestatus.com/feature/5191118118584320" target="_blank" rel="noopener">ChromeStatus 5191118118584320</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+    <p>The Chrome Platform Showcase publishes an interactive installable demo suite for this Chrome 160 feature. Install the concept app below, keep its window open, and relaunch it from a shortcut or link to observe <code>navigator.userActivation.isActive</code> live inside <code>launchQueue.setConsumer()</code>:</p>
+
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/webapplaunch-user-activation-on-focus-existing-launch-delivery/consumer-activation-probe/"
+        title="Live example — Consumer activation probe (WebAppLaunch focus-existing user activation)"
+        loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"
+        sandbox="allow-scripts allow-same-origin"
+        referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live example: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/webapplaunch-user-activation-on-focus-existing-launch-delivery/consumer-activation-probe/" target="_blank" rel="noopener">Consumer activation probe</a> on the <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/webapplaunch-user-activation-on-focus-existing-launch-delivery/" target="_blank" rel="noopener">Chrome Platform Showcase</a> (see also the <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/webapplaunch-user-activation-on-focus-existing-launch-delivery/gated-api-matrix/" target="_blank" rel="noopener">Gated API matrix</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/webapplaunch-user-activation-on-focus-existing-launch-delivery/workspace-router/" target="_blank" rel="noopener">Workspace router</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/webapplaunch-user-activation-on-focus-existing-launch-delivery/when-activation-is-withheld/" target="_blank" rel="noopener">When activation is withheld</a>, and <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/webapplaunch-user-activation-on-focus-existing-launch-delivery/launch-to-present/" target="_blank" rel="noopener">Launch to present</a> concepts).</figcaption>
+    </figure>
+
+    <h3 id="example-workspace-router">Opening a separate workspace window from a <code>focus-existing</code> consumer with fallback</h3>
+    <pre><code>// manifest.webmanifest
+// {
+//   "name": "Notebook Studio",
+//   "start_url": "/",
+//   "display": "standalone",
+//   "launch_handler": { "client_mode": "focus-existing" }
+// }
+
+const currentWorkspaceId = new URL(location.href).searchParams.get("workspace") ?? "default";
+
+function showOpenWindowPrompt(targetUrl) {
+  const banner = document.getElementById("launch-banner");
+  const btn = document.getElementById("launch-open-btn");
+  btn.onclick = () =&gt; {
+    window.open(targetUrl, "_blank", "noopener");
+    banner.hidden = true;
+  };
+  banner.hidden = false;
+}
+
+if ("launchQueue" in window) {
+  window.launchQueue.setConsumer((launchParams) =&gt; {
+    if (!launchParams.targetURL) return;
+
+    const url = new URL(launchParams.targetURL);
+    const requestedWorkspace = url.searchParams.get("workspace") ?? "default";
+
+    if (requestedWorkspace === currentWorkspaceId) {
+      // Same workspace: route in-place without consuming activation
+      openDocumentInCurrentWindow(url);
+      return;
+    }
+
+    // Different workspace: check transient activation granted by Chrome 160+
+    if (navigator.userActivation?.isActive) {
+      const child = window.open(url.href, "_blank", "noopener");
+      if (child) return;
+    }
+
+    // Fallback for Chrome &lt; 160, re-deliveries, non-user launches, or popup blockers
+    showOpenWindowPrompt(url.href);
+  });
+}</code></pre>
+    <span class="citation">Source: <a href="https://wicg.github.io/web-app-launch/#dfn-prepare-an-application-context" target="_blank" rel="noopener">Web App Launch Handler specification</a>; <a href="https://chromestatus.com/feature/5191118118584320" target="_blank" rel="noopener">ChromeStatus 5191118118584320</a>; <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/webapplaunch-user-activation-on-focus-existing-launch-delivery/workspace-router/" target="_blank" rel="noopener">Chrome Platform Showcase — Workspace router</a>.</span>
+
+    <h3 id="example-fullscreen-present">Launching a file directly into fullscreen presentation mode</h3>
+    <pre><code>if ("launchQueue" in window) {
+  window.launchQueue.setConsumer(async (launchParams) =&gt; {
+    const [fileHandle] = launchParams.files ?? [];
+    if (!fileHandle) return;
+
+    const file = await fileHandle.getFile();
+    await loadDeckIntoStage(await file.text());
+
+    const stage = document.getElementById("slide-stage");
+    // Only request fullscreen while the single-launch transient activation is still active
+    if (navigator.userActivation?.isActive) {
+      try {
+        await stage.requestFullscreen();
+        return;
+      } catch (err) {
+        console.warn("Fullscreen request failed:", err);
+      }
+    }
+
+    // Offer a one-click Present button when activation was absent or already expired
+    document.getElementById("present-btn").hidden = false;
+  });
+}</code></pre>
+    <span class="citation">Source: <a href="https://wicg.github.io/web-app-launch/#launchparams-interface" target="_blank" rel="noopener">Web App Launch Handler &mdash; LaunchParams</a>; <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/webapplaunch-user-activation-on-focus-existing-launch-delivery/launch-to-present/" target="_blank" rel="noopener">Chrome Platform Showcase — Launch to present</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Support for granting transient user activation on <code>focus-existing</code> launch delivery. BCD does not yet have a subfeature for this Chrome 160 behavior; interim version data comes from ChromeStatus 5191118118584320 alongside BCD base Launch Handler data (checked 2026-11-24).</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col"><code>focus-existing</code> activation</th><th scope="col">Notes &amp; evidence</th><th scope="col">Base <code>launch_handler</code> / <code>LaunchQueue</code> (BCD)</th></tr></thead>
+      <tr><th scope="row">Chrome (desktop, Android)</th><td>160</td><td>Enabled by default on desktop and Android per <a href="https://chromestatus.com/api/v0/features/5191118118584320" target="_blank" rel="noopener">ChromeStatus 5191118118584320</a> (kill switch <code>WebAppLaunchHandlerUserActivation</code>). Android WebView and iOS are unconfirmed/not applicable (<code>null</code>).</td><td><code>LaunchQueue</code> 102 desktop (Android <code>false</code> in BCD); manifest <code>launch_handler</code> 110</td></tr>
+      <tr><th scope="row">Edge</th><td>Unknown</td><td>Chromium-based; inherits Chromium 160 browser implementation; no separate BCD entry yet</td><td>110 (mirror)</td></tr>
+      <tr><th scope="row">Firefox</th><td>No</td><td>Launch Handler not implemented; <a href="https://chromestatus.com/feature/5191118118584320" target="_blank" rel="noopener">ChromeStatus records &ldquo;No signal&rdquo;</a></td><td>No</td></tr>
+      <tr><th scope="row">Safari</th><td>No</td><td>Launch Handler not implemented; <a href="https://chromestatus.com/feature/5191118118584320" target="_blank" rel="noopener">ChromeStatus records &ldquo;No signal&rdquo;</a></td><td>No</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/LaunchQueue.json" target="_blank" rel="noopener">BCD api/LaunchQueue.json</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/manifests/webapp/launch_handler.json" target="_blank" rel="noopener">BCD manifests/webapp/launch_handler.json</a>; <a href="https://chromestatus.com/api/v0/features/5191118118584320" target="_blank" rel="noopener">ChromeStatus API record 5191118118584320</a>; <a href="https://webstatus.dev/features/app-launch-handler" target="_blank" rel="noopener">webstatus.dev app-launch-handler</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <p>Granting transient activation on <code>focus-existing</code> delivery is tightly scoped to prevent abuse:</p>
+    <ul>
+      <li><strong>One-to-one user gesture mapping:</strong> One external user action (clicking a link, shortcut, file, or share) maps to at most one transient activation grant, matching the security model of <code>notificationclick</code> window activation.</li>
+      <li><strong>Installed, same-origin, opt-in scope:</strong> Only an installed web app that explicitly opted into <code>"client_mode": "focus-existing"</code> with a focused, in-scope, non-opaque document receives the notification.</li>
+      <li><strong>No replay or unprompted activation:</strong> The specification&rsquo;s Privacy section normatively requires that user agents <strong>MUST NOT</strong> grant activation for launches not initiated by the user, and <strong>MUST NOT</strong> re-grant it for the same launch (such as re-delivering <code>LaunchParams</code> after a page reload).</li>
+      <li><strong>Ordered browser-to-renderer delivery:</strong> Chromium delivers <code>NotifyUserActivation(kWebAppLaunch)</code> from the browser process on the same ordered Mojo associated channel as <code>EnqueueLaunchParams()</code>, ensuring the renderer cannot forge launch-triggered activation without a verified browser-side launch.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/WICG/web-app-launch/pull/101" target="_blank" rel="noopener">WICG/web-app-launch PR #101 (Privacy section)</a>; <a href="https://chromestatus.com/api/v0/features/5191118118584320" target="_blank" rel="noopener">ChromeStatus 5191118118584320 (security_risks)</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/webapps/browser/launch_queue/launch_queue.cc" target="_blank" rel="noopener">Chromium launch_queue.cc</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Specification</th><th scope="col">Section</th></tr></thead>
+      <tr><td><a href="https://wicg.github.io/web-app-launch/" target="_blank" rel="noopener">Web App Launch Handler API (WICG Draft Community Group Report)</a></td><td><a href="https://wicg.github.io/web-app-launch/#dfn-prepare-an-application-context" target="_blank" rel="noopener">Prepare an application context</a> (updated by <a href="https://github.com/WICG/web-app-launch/pull/101" target="_blank" rel="noopener">PR #101</a>)</td></tr>
+      <tr><td><a href="https://html.spec.whatwg.org/multipage/interaction.html" target="_blank" rel="noopener">HTML Living Standard (WHATWG)</a></td><td><a href="https://html.spec.whatwg.org/multipage/interaction.html#activation-notification" target="_blank" rel="noopener">Activation notification steps</a> &amp; <a href="https://html.spec.whatwg.org/multipage/interaction.html#the-useractivation-interface" target="_blank" rel="noopener"><code>UserActivation</code> interface</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/webapplaunch-user-activation-on-focus-existing-launch-delivery/" target="_blank" rel="noopener">Chrome Platform Showcase &mdash; WebAppLaunch: user activation on focus-existing launch delivery (5 interactive concepts)</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v160/webapplaunch-user-activation-on-focus-existing-launch-delivery/conformance/" target="_blank" rel="noopener">Chrome Platform Showcase &mdash; Conformance test suite</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Launch_Handler_API" target="_blank" rel="noopener">MDN &mdash; Launch Handler API</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/LaunchQueue" target="_blank" rel="noopener">MDN &mdash; <code>LaunchQueue</code></a></li>
+      <li><a href="https://github.com/WICG/web-app-launch/blob/main/launch_handler.md" target="_blank" rel="noopener">Explainer &mdash; <code>launch_handler.md</code></a></li>
+      <li><a href="https://github.com/WICG/manifest-incubations/issues/141" target="_blank" rel="noopener">WICG/manifest-incubations#141 &mdash; Original developer report</a></li>
+      <li><a href="https://chromestatus.com/feature/5191118118584320" target="_blank" rel="noopener">ChromeStatus &mdash; WebAppLaunch: user activation on focus-existing launch delivery (5191118118584320)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
