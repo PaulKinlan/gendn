@@ -15,6 +15,19 @@
        min-width and the .table-wrap scroll wrapper. Site-wide hoist tracked in gendn-z5w. */
     h1, code { overflow-wrap: anywhere; }
     .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    pre { overflow-x: auto; }
+    pre code { overflow-wrap: normal; }
+    .example-embed { margin: 1.5rem 0; }
+    .example-embed iframe { max-width: 100%; }
+    .example-embed figcaption { font-size: 0.85rem; margin-top: 0.4rem; }
+    /* Spec built-in table + BCD table: keep short columns on one line; .table-wrap scrolls. */
+    #formal-syntax ~ .table-wrap .doc-table { min-width: 44rem; }
+    #formal-syntax ~ .table-wrap .doc-table tr > :nth-child(-n+4) { white-space: nowrap; width: auto; }
+    #formal-syntax ~ .table-wrap .doc-table code { overflow-wrap: normal; }
+    #browser-compatibility ~ .table-wrap .doc-table tr > :nth-child(2) { white-space: nowrap; }
   </style>
 </head>
 <body>
@@ -24,6 +37,17 @@
   <header class="lede-block">
     <p class="eyebrow">v148 · webgpu · wgsl · shipped</p>
     <h1>WebGPU: <code>linear_indexing</code> feature</h1>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 148</li>
+        <li>Edge &middot; 148</li>
+        <li class="limited">Firefox &middot; not shipped</li>
+        <li class="limited">Safari &middot; not shipped</li>
+      </ul>
+      <p>Not in Baseline. web-features tracks this extension under the parent <a href="https://api.webstatus.dev/v1/features/webgpu" target="_blank" rel="noopener">webstatus.dev <code>webgpu</code></a> feature, which is itself <strong>limited</strong> (queried 2026-11-15). For the extension itself, <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WGSLLanguageFeatures.json" target="_blank" rel="noopener">BCD <code>WGSLLanguageFeatures.extension_linear_indexing</code></a> records Chrome 148 and <code>version_added: false</code> for Firefox and Safari. See the <a href="#browser-compatibility">full table</a>.</p>
+    </div>
     <p class="lede">A WGSL language extension shipping in Chrome 148 that adds two new compute shader built-in values — <code>global_invocation_index</code> and <code>workgroup_index</code> — giving compute shaders a flat linear index without manual 3D-to-1D coordinate math.</p>
   </header>
 
@@ -34,7 +58,7 @@
       <tr><th>Shipped in</th><td>Chrome 148 (desktop, Android, WebView)</td></tr>
       <tr><th>Status</th><td>Enabled by default</td></tr>
       <tr><th>Feature detection</th><td><code>navigator.gpu.wgslLanguageFeatures.has("linear_indexing")</code></td></tr>
-      <tr><th>WGSL opt-in</th><td><code>requires linear_indexing;</code></td></tr>
+      <tr><th>WGSL opt-in</th><td>None needed (language extension). Optional: <code>requires linear_indexing;</code> documents the dependency and fails shader creation where it is unsupported</td></tr>
       <tr><th>Spec</th><td><a href="https://www.w3.org/TR/WGSL/" target="_blank" rel="noopener">W3C WGSL specification</a> (<a href="https://github.com/gpuweb/gpuweb/pull/5554" target="_blank" rel="noopener">PR #5554</a>)</td></tr>
       <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5071243424432128" target="_blank" rel="noopener">5071243424432128 — WebGPU: linear_indexing feature</a> (<a href="https://chromestatus.com/api/v0/features/5071243424432128" target="_blank" rel="noopener">API record</a>)</td></tr>
     </table>
@@ -70,6 +94,29 @@ let linear = global_id.z * (workgroup_size.x * workgroup_size.y * num_workgroups
     </table>
 </div>
     <span class="citation">Source: <a href="https://www.w3.org/TR/WGSL/" target="_blank" rel="noopener">W3C WGSL specification</a>; <a href="https://github.com/gpuweb/gpuweb/pull/5554" target="_blank" rel="noopener">gpuweb PR #5554</a>; <a href="https://developer.chrome.com/blog/new-in-webgpu-147-148" target="_blank" rel="noopener">Chrome for Developers blog</a>.</span>
+
+    <h3 id="formal-syntax">Formal syntax (WGSL)</h3>
+    <p>The <code>requires</code>-directive grammar and the two built-in value definitions, verbatim from the WGSL spec:</p>
+<pre role="region" aria-label="WGSL grammar for the requires directive" tabindex="0"><code>requires_directive :
+| 'requires' language_extension_list ';'
+
+language_extension_list :
+| language_extension_name ( ',' language_extension_name ) * ',' ?</code></pre>
+    <div class="table-wrap" role="region" aria-label="WGSL built-in value definitions" tabindex="0">
+<table class="doc-table">
+      <thead><tr><th>Name</th><th>Stage</th><th>Type</th><th>Direction</th><th>Description (spec)</th></tr></thead>
+      <tr><td><code>global_invocation_index</code></td><td>compute</td><td><code>u32</code></td><td>Input</td><td>The current invocation&rsquo;s global invocation index, i.e. its linear position in the compute shader grid. Equal to <code>global_invocation_id.x + (global_invocation_id.y * workgroup_size.x * num_workgroups.x) + (global_invocation_id.z * workgroup_size.x * num_workgroups.x * workgroup_size.y * num_workgroups.y)</code>.</td></tr>
+      <tr><td><code>workgroup_index</code></td><td>compute</td><td><code>u32</code></td><td>Input</td><td>The current invocation&rsquo;s workgroup index, i.e. the linear position of the workgroup in overall compute shader grid. All invocations in the same workgroup have the same workgroup index.</td></tr>
+    </table>
+</div>
+    <p>Both are declared as compute entry-point inputs with the <code>@builtin(...)</code> attribute, e.g. <code>@builtin(global_invocation_index) idx: u32</code>. <code>linear_indexing</code> is a <em>language extension</em>: it is available automatically wherever <code>navigator.gpu.wgslLanguageFeatures</code> contains it, and a <code>requires</code>-directive only documents the dependency.</p>
+
+    <h3 id="errors">Errors</h3>
+    <ul>
+      <li>A <code>requires linear_indexing;</code> directive on an implementation that does not support the extension is a shader-creation error.</li>
+      <li>If the number of dispatched workgroups would push either value past the range of <code>u32</code>, the dispatch fails: for <code>dispatchWorkgroups</code> the <code>GPUComputePassEncoder</code> is invalidated; for <code>dispatchWorkgroupsIndirect</code> the dispatch does not execute.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/wgsl/#syntax-requires_directive" target="_blank" rel="noopener">WGSL &sect;requires directive</a>; <a href="https://gpuweb.github.io/gpuweb/wgsl/#language_extension-linear_indexing" target="_blank" rel="noopener">WGSL language extension <code>linear_indexing</code></a>; <a href="https://gpuweb.github.io/gpuweb/wgsl/#built-in-values-global_invocation_index" target="_blank" rel="noopener">built-in <code>global_invocation_index</code></a>; <a href="https://gpuweb.github.io/gpuweb/wgsl/#built-in-values-workgroup_index" target="_blank" rel="noopener">built-in <code>workgroup_index</code></a> (editor&rsquo;s draft, fetched 2026-11-15).</span>
   </section>
 
   <section>
@@ -114,19 +161,32 @@ fn accumulate(
   workgroup_data[local_idx] = f32(wg_idx);
 }</code></pre>
     <span class="citation">Source: <a href="https://www.w3.org/TR/WGSL/" target="_blank" rel="noopener">W3C WGSL spec</a>; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/XTP8EdUisMU/m/6dMWsLroDQAJ" target="_blank" rel="noopener">blink-dev Intent to Ship</a>; <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/webgpu-linear-indexing-feature/" target="_blank" rel="noopener">Chrome Platform Showcase demo</a>.</span>
+
+    <h3 id="live-example">Live example</h3>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/webgpu-linear-indexing-feature/index-visualizer/"
+        title="Live example — linear_indexing index visualizer" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase (route HEAD-checked 200, 2026-11-15); needs WebGPU with the <code>linear_indexing</code> language feature. Sibling concepts: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/webgpu-linear-indexing-feature/workgroup-index-demo/" target="_blank" rel="noopener">workgroup index demo</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/webgpu-linear-indexing-feature/shader-code-comparison/" target="_blank" rel="noopener">shader code comparison</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/webgpu-linear-indexing-feature/linear-memory-visualizer/" target="_blank" rel="noopener">linear memory visualizer</a> and <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/webgpu-linear-indexing-feature/compute-benchmark/" target="_blank" rel="noopener">compute benchmark</a>.<span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/webgpu-linear-indexing-feature/" target="_blank" rel="noopener">chrome-platform-showcase</a></span></figcaption>
+    </figure>
   </section>
 
   <section>
     <h2 id="browser-compatibility">browser support</h2>
-    <div class="table-wrap">
+    <p>Per-version data for <code>api.WGSLLanguageFeatures.extension_linear_indexing</code> from <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WGSLLanguageFeatures.json" target="_blank" rel="noopener">BCD <code>api/WGSLLanguageFeatures.json</code></a> (raw JSON fetched 2026-11-15; status <code>experimental</code>, <code>standard_track</code>). Chrome Android, WebView Android and Edge are BCD <code>mirror</code> entries, resolved here from Chrome.</p>
+    <div class="table-wrap" role="region" aria-label="Browser compatibility for linear_indexing" tabindex="0">
 <table class="doc-table">
-      <thead><tr><th>Browser</th><th>Support</th></tr></thead>
-      <tr><td>Chrome 148+ (desktop, Android, WebView)</td><td>Enabled by default</td></tr>
-      <tr><td>Firefox</td><td>No position</td></tr>
-      <tr><td>Safari</td><td>No position</td></tr>
+      <thead><tr><th>Browser</th><th><code>linear_indexing</code></th><th>Notes</th></tr></thead>
+      <tr><td>Chrome</td><td><strong>148</strong></td><td>BCD note: supported on ChromeOS, macOS, Windows, and Linux (Intel Gen12+ GPUs only)</td></tr>
+      <tr><td>Chrome Android / WebView Android</td><td><strong>148</strong></td><td>BCD <code>mirror</code>; ChromeStatus also lists Android and WebView 148</td></tr>
+      <tr><td>Edge</td><td><strong>148</strong></td><td>BCD <code>mirror</code></td></tr>
+      <tr><td>Firefox</td><td>Not supported</td><td>BCD <code>version_added: false</code>; position: No signal (<a href="https://github.com/mozilla/standards-positions/issues/1205" target="_blank" rel="noopener">#1205</a>)</td></tr>
+      <tr><td>Safari</td><td>Not supported</td><td>BCD <code>version_added: false</code>; WebKit closed its WebGPU position issue without a position (<a href="https://github.com/WebKit/standards-positions/issues/294" target="_blank" rel="noopener">#294</a>)</td></tr>
     </table>
 </div>
-    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5071243424432128" target="_blank" rel="noopener">ChromeStatus API record</a>; <a href="https://chromestatus.com/api/v0/features?milestone=148" target="_blank" rel="noopener">ChromeStatus milestone=148 listing</a>; <a href="https://github.com/gpuweb/cts/pull/4595" target="_blank" rel="noopener">WebGPU CTS PR #4595</a>; <a href="https://github.com/mozilla/standards-positions/issues/1205" target="_blank" rel="noopener">Mozilla standards-positions #1205</a>; <a href="https://github.com/WebKit/standards-positions/issues/294" target="_blank" rel="noopener">WebKit standards-positions #294</a>; <a href="https://webstatus.dev/features/webgpu" target="_blank" rel="noopener">webstatus.dev webgpu</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/GPU.json" target="_blank" rel="noopener">BCD api/GPU.json</a>.</span>
+    <p>Feature-detect at runtime with <code>navigator.gpu.wgslLanguageFeatures.has("linear_indexing")</code>; without it, compute the index from <code>global_invocation_id</code> using the formula above.</p>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WGSLLanguageFeatures.json" target="_blank" rel="noopener">BCD api/WGSLLanguageFeatures.json</a>; <a href="https://api.webstatus.dev/v1/features/webgpu" target="_blank" rel="noopener">webstatus.dev webgpu API record</a>; <a href="https://chromestatus.com/api/v0/features/5071243424432128" target="_blank" rel="noopener">ChromeStatus API record</a>; <a href="https://chromestatus.com/api/v0/features?milestone=148" target="_blank" rel="noopener">ChromeStatus milestone=148 listing</a>; <a href="https://github.com/gpuweb/cts/pull/4595" target="_blank" rel="noopener">WebGPU CTS PR #4595</a>; <a href="https://github.com/mozilla/standards-positions/issues/1205" target="_blank" rel="noopener">Mozilla standards-positions #1205</a>; <a href="https://github.com/WebKit/standards-positions/issues/294" target="_blank" rel="noopener">WebKit standards-positions #294</a>; <a href="https://webstatus.dev/features/webgpu" target="_blank" rel="noopener">webstatus.dev webgpu</a>.</span>
   </section>
 
   <section>

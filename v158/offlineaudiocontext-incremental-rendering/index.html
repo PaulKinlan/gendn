@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OfflineAudioContext incremental rendering — Chrome 158 — gendn</title>
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    h1, .lede { overflow-wrap: anywhere; }
+    p code, li code, figcaption code { overflow-wrap: anywhere; }
+    .table-wrap { max-inline-size: 100%; }
+    pre { overflow-x: auto; border: 2px solid var(--border-black); padding: 1rem; background: var(--bg-stone); }
+    pre code { font-size: 0.85rem; }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    .example-embed { margin: 1.5rem 0; }
+    .example-embed iframe { max-width: 100%; }
+    .example-embed figcaption { font-size: 0.85rem; margin-top: 0.4rem; }
+    .doc-table { margin: 1rem 0; font-size: 0.85rem; }
+    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .doc-table th[scope="row"] { overflow-wrap: normal; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    /* responsive-table: keep cells legible; wide tables scroll inside the focusable .table-wrap region */
+    .doc-table :is(th, td) { overflow-wrap: break-word; min-inline-size: 5.5rem; }
+    .table-wrap > .doc-table:has(thead th:nth-child(3)) { min-inline-size: 36rem; }
+    .doc-table caption { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); text-align: left; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v158/">&larr; Chrome 158 reference</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v158 &middot; web audio &middot; enabled by default</p>
+    <h1>Offline<wbr>Audio<wbr>Context incremental rendering</h1>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; not Baseline</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 158</li>
+        <li>Edge &middot; 158 (BCD mirrors Chrome)</li>
+        <li class="limited">Firefox &middot; no</li>
+        <li class="limited">Safari &middot; no</li>
+      </ul>
+      <p>webstatus.dev reports the <a href="https://webstatus.dev/features/offline-audio-context-incremental-rendering" target="_blank" rel="noopener"><code>offline-audio-context-incremental-rendering</code></a> web feature as Baseline <strong>limited</strong>, available only in Chrome and Chrome Android 158 (2026-11-17), per the <a href="https://api.webstatus.dev/v1/features/offline-audio-context-incremental-rendering" target="_blank" rel="noopener">webstatus.dev API record</a> (queried 2026-11-22). The parent <code>OfflineAudioContext</code> interface itself is Baseline widely available; only the chunked behavior on this page is Chrome-only. See the <a href="#compatibility">full table</a>.</p>
+    </div>
+
+    <p class="lede"><code>OfflineAudioContext.startRendering()</code> now takes an optional <code>chunkSize</code> argument. Each call renders at most that many sample-frames of the audio graph into a fresh <code>AudioBuffer</code> and resolves with it, so you can render, encode and discard audio a piece at a time instead of allocating the whole render up front. A context can also be created with <code>length: null</code> to render for an open-ended duration, and the new <code>close()</code> method stops such a render. Long exports &mdash; a two-hour stereo mix at 48&nbsp;kHz is about 2.8&nbsp;GB of float samples in one buffer &mdash; now fit in a few megabytes per chunk.</p>
+  </header>
+
+  <nav class="local-nav" aria-label="Member reference pages">
+    <ul>
+      <li><a href="start-rendering/"><code>startRendering(chunkSize)</code></a></li>
+      <li><a href="close/"><code>close()</code></a></li>
+      <li><a href="indefinite-length/"><code>length: null</code> (indefinite length)</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="at-a-glance">At a glance</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="At a glance">
+    <table class="doc-table">
+      <tr><th scope="row">Shipped in</th><td>Chrome 158 (desktop, Android, Android WebView; no iOS milestone recorded) &mdash; filed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=158" target="_blank" rel="noopener">milestone=158 listing</a>; per-platform milestones from the <a href="https://chromestatus.com/api/v0/features/5109900936085504" target="_blank" rel="noopener">ChromeStatus API record</a></td></tr>
+      <tr><th scope="row">Runtime flag</th><td><code>OfflineAudioContextIncrementalRendering</code>, status <code>stable</code> in Blink&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a> (verified 2026-11-22). The flag gates <code>startRendering(chunkSize)</code>, <code>close()</code> and constructing without a <code>length</code>.</td></tr>
+      <tr><th scope="row">Exposure</th><td><code>[Exposed=Window]</code> only &mdash; not in workers (Chromium also throws <code>NotSupportedError</code> &ldquo;Workers are not supported.&rdquo;)</td></tr>
+      <tr><th scope="row">Specification</th><td><a href="https://webaudio.github.io/web-audio-api/#dom-offlineaudiocontext-startrendering" target="_blank" rel="noopener">Web Audio API 1.1 &mdash; <code>startRendering(chunkSize)</code></a>; added by <a href="https://github.com/WebAudio/web-audio-api/pull/2675" target="_blank" rel="noopener">WebAudio/web-audio-api#2675</a>, from proposal issue <a href="https://github.com/WebAudio/web-audio-api/issues/2445" target="_blank" rel="noopener">#2445</a></td></tr>
+      <tr><th scope="row">Explainer</th><td><a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/OfflineAudioContext/explainer.md" target="_blank" rel="noopener">MSEdgeExplainers &mdash; OfflineAudioContext incremental rendering</a> (note: its <code>length: Infinity</code> sketch predates the shipped <code>length: null</code> design; see <a href="indefinite-length/">indefinite length</a>)</td></tr>
+      <tr><th scope="row">Blink-dev</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a908411.8ed5e303.29aee.0236.GAE%40google.com" target="_blank" rel="noopener">Intent to Prototype</a> &middot; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6ad165d2.a6e82b8f.2f63e0.0243.GAE%40google.com" target="_blank" rel="noopener">Intent to Ship</a> &middot; <a href="https://github.com/w3ctag/design-reviews/issues/1282" target="_blank" rel="noopener">TAG review #1282</a></td></tr>
+      <tr><th scope="row">Tracking bug</th><td><a href="https://issues.chromium.org/issues/530596178" target="_blank" rel="noopener">issues.chromium.org/530596178</a></td></tr>
+      <tr><th scope="row">Web platform tests</th><td><a href="https://wpt.fyi/results/webaudio/the-audio-api/the-offlineaudiocontext-interface/offlineaudiocontext-incremental-rendering.html" target="_blank" rel="noopener">offlineaudiocontext-incremental-rendering.html</a> &middot; <a href="https://wpt.fyi/results/webaudio/the-audio-api/the-offlineaudiocontext-interface/offlineaudiocontext-incremental-rendering-data-integrity.html" target="_blank" rel="noopener">&hellip;-data-integrity.html</a> &middot; <a href="https://wpt.fyi/results/webaudio/the-audio-api/the-offlineaudiocontext-interface/offlineaudiocontext-close.html" target="_blank" rel="noopener">offlineaudiocontext-close.html</a></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5109900936085504" target="_blank" rel="noopener">5109900936085504 &mdash; OfflineAudioContext incremental rendering</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>The <code>OfflineAudioContext</code> interface and its options dictionary as they now read in the Editor&rsquo;s Draft (IDL verbatim, fetched 2026-11-22). The three changes from Web Audio 1.0 are the <code>chunkSize</code> argument, the nullable <code>length</code> (attribute and dictionary member) and the <code>close()</code> method:</p>
+<pre tabindex="0"><code>[Exposed=Window]
+interface OfflineAudioContext : BaseAudioContext {
+    constructor(OfflineAudioContextOptions contextOptions);
+    constructor(unsigned long numberOfChannels, unsigned long length, float sampleRate);
+    Promise&lt;AudioBuffer&gt; startRendering(optional unsigned long? chunkSize = null);
+    Promise&lt;undefined&gt; resume();
+    Promise&lt;undefined&gt; suspend(double suspendTime);
+    Promise&lt;undefined&gt; close();
+    readonly attribute unsigned long? length;
+    attribute EventHandler oncomplete;
+};
+
+dictionary OfflineAudioContextOptions {
+    unsigned long numberOfChannels = 1;
+    unsigned long? length = null;
+    required float sampleRate;
+    (AudioContextRenderSizeCategory or unsigned long) renderSizeHint = "default";
+};</code></pre>
+    <p>Chromium declares the same surface as two overloads &mdash; <code>startRendering()</code> and a runtime-flagged <code>startRendering(unsigned long? chunkSize)</code> &mdash; with a TODO to collapse them into the spec&rsquo;s single optional form; script sees no difference.</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="members-caption">
+    <table class="doc-table">
+      <caption id="members-caption">New and changed members</caption>
+      <thead><tr><th scope="col">Member</th><th scope="col">What changed</th></tr></thead>
+      <tr><td><a href="start-rendering/"><code>startRendering(chunkSize)</code></a></td><td>Optional <code>chunkSize</code>; may be called repeatedly; each call resolves with the next chunk of frames. Calls queue and resolve in order.</td></tr>
+      <tr><td><a href="close/"><code>close()</code></a></td><td>New. Stops rendering, rejects queued chunks with <code>AbortError</code>, moves <code>state</code> to <code>&quot;closed&quot;</code>.</td></tr>
+      <tr><td><a href="indefinite-length/"><code>OfflineAudioContextOptions.length</code></a></td><td>Now <code>unsigned long?</code>, default <code>null</code>: omit it for an open-ended render.</td></tr>
+      <tr><td><a href="indefinite-length/#length-attribute"><code>OfflineAudioContext.length</code></a></td><td>Now nullable: <code>null</code> for an indefinite-length context.</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://webaudio.github.io/web-audio-api/#OfflineAudioContext" target="_blank" rel="noopener">Web Audio API 1.1 &sect;1.3 &mdash; The OfflineAudioContext Interface</a>; <a href="https://webaudio.github.io/web-audio-api/#dictionary-offlineaudiocontextoptions-members" target="_blank" rel="noopener">&sect;1.3.4 &mdash; OfflineAudioContextOptions</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webaudio/offline_audio_context.idl" target="_blank" rel="noopener">Chromium offline_audio_context.idl</a></span>
+  </section>
+
+  <section>
+    <h2 id="how-it-works">How chunked rendering works</h2>
+    <p>The context keeps two counters: <em>committed frames</em> (frames promised to some <code>startRendering()</code> call) and <em>rendered frames</em>. Each call works out a buffer length, allocates an <code>AudioBuffer</code> of exactly that length, adds it to a FIFO queue and returns a promise; the rendering thread fills the queued buffers one after another and resolves each promise with its buffer. The chunk length is decided at call time:</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="chunk-caption">
+    <table class="doc-table">
+      <caption id="chunk-caption">Length of the AudioBuffer each startRendering() call resolves with</caption>
+      <thead><tr><th scope="col">Context <code>length</code></th><th scope="col"><code>chunkSize</code> omitted / <code>null</code></th><th scope="col"><code>chunkSize</code> given</th></tr></thead>
+      <tr><td>A number (finite render)</td><td>All remaining frames &mdash; the classic one-shot render</td><td><code>chunkSize</code> rounded <em>up</em> to a multiple of the render quantum size, trimmed to the frames still remaining</td></tr>
+      <tr><td><code>null</code>, indefinite</td><td>One render quantum (128 frames by default)</td><td><code>chunkSize</code> rounded up to a multiple of the render quantum size</td></tr>
+    </table>
+    </div>
+    <p>A finite context closes itself once its final chunk has been delivered (and fires the legacy <code>complete</code> event with that final chunk); further <code>startRendering()</code> calls reject with <code>InvalidStateError</code>. An indefinite context never finishes on its own: you stop it with <code>close()</code>. Between chunks the graph does not advance, and <code>state</code> stays <code>&quot;running&quot;</code> &mdash; rendering simply waits for the next call. Full rules, including errors and the <code>suspend()</code> interaction, are on the <a href="start-rendering/"><code>startRendering(chunkSize)</code></a> page.</p>
+    <p><strong>Memory math.</strong> An <code>AudioBuffer</code> holds 32-bit floats, so a chunk costs <code>numberOfChannels &times; frames &times; 4</code> bytes. Two hours of stereo at 48&nbsp;kHz is 345,600,000 frames &mdash; 2,764,800,000 bytes as one buffer; ten-second chunks of 480,000 frames are 3,840,000 bytes each, and you can drop each one once it has been encoded or written.</p>
+    <span class="citation">Source: <a href="https://webaudio.github.io/web-audio-api/#dom-offlineaudiocontext-startrendering" target="_blank" rel="noopener">Web Audio API 1.1 &sect;1.3.3 &mdash; startRendering(chunkSize) algorithm</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webaudio/offline_audio_context.cc" target="_blank" rel="noopener">Chromium offline_audio_context.cc</a>; <a href="https://wpt.fyi/results/webaudio/the-audio-api/the-offlineaudiocontext-interface/offlineaudiocontext-incremental-rendering.html" target="_blank" rel="noopener">WPT offlineaudiocontext-incremental-rendering.html</a>; motivation per the <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/OfflineAudioContext/explainer.md" target="_blank" rel="noopener">explainer</a></span>
+  </section>
+
+  <section>
+    <h2 id="feature-detection">Feature detection</h2>
+    <p>Passing an extra argument to an older <code>startRendering()</code> is silently ignored: an old build renders the <em>whole</em> buffer in one go and resolves once. Detect support before relying on chunks. The explainer recommends checking for <code>close()</code>, which Chromium gates behind the same runtime flag as <code>chunkSize</code>:</p>
+<pre tabindex="0"><code>const supportsIncrementalRendering =
+  typeof OfflineAudioContext !== 'undefined' &amp;&amp;
+  'close' in OfflineAudioContext.prototype;</code></pre>
+    <span class="citation">Source: &ldquo;It&rsquo;s possible to feature detect by checking for the presence of the <code>close</code> method&rdquo; &mdash; <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/OfflineAudioContext/explainer.md" target="_blank" rel="noopener">explainer, Proposed Approach &rarr; Pros</a>; shared <code>RuntimeEnabled=OfflineAudioContextIncrementalRendering</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webaudio/offline_audio_context.idl" target="_blank" rel="noopener">Chromium offline_audio_context.idl</a></span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+    <h3 id="example-chunked-export">Exporting a long render in fixed-size chunks</h3>
+<pre tabindex="0"><code>const sampleRate = 48000;
+const ctx = new OfflineAudioContext({
+  numberOfChannels: 2,
+  sampleRate,
+  length: sampleRate * 60 * 60 * 2, // two hours, finite
+});
+
+// ...build the graph: sources, effects, ctx.destination...
+
+const CHUNK = sampleRate * 10; // 480000 frames: a multiple of 128
+let rendered = 0;
+while (rendered &lt; ctx.length) {
+  const chunk = await ctx.startRendering(CHUNK); // AudioBuffer
+  rendered += chunk.length;                      // last chunk is shorter
+  await encodeAndWrite(chunk);                   // your encoder / file writer
+}
+console.log(ctx.state); // "closed" — a finite context closes itself</code></pre>
+    <h3 id="example-indefinite">Rendering until you decide to stop</h3>
+<pre tabindex="0"><code>// No length: an indefinite-length context (ctx.length === null)
+const ctx = new OfflineAudioContext({ numberOfChannels: 1, sampleRate: 44100 });
+const osc = new OscillatorNode(ctx, { frequency: 440 });
+osc.connect(ctx.destination);
+osc.start();
+
+while (ctx.currentTime &lt; 30) {
+  const chunk = await ctx.startRendering(4096); // 4096 frames per chunk
+  analyse(chunk.getChannelData(0));
+}
+await ctx.close(); // required: an indefinite context never closes itself</code></pre>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v158/offlineaudiocontext-incremental-rendering/chunked-render-console/"
+        title="Live example — chunked render console" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase (route HEAD-checked 200, 2026-11-22): render a real graph one chunk at a time and compare frames requested with frames received. Sibling concept demos (all 200): <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v158/offlineaudiocontext-incremental-rendering/lifecycle-and-close/" target="_blank" rel="noopener">lifecycle and close()</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v158/offlineaudiocontext-incremental-rendering/memory-math/" target="_blank" rel="noopener">memory math</a> and <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v158/offlineaudiocontext-incremental-rendering/wav-export-pipeline/" target="_blank" rel="noopener">WAV export pipeline</a>.<span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v158/offlineaudiocontext-incremental-rendering/" target="_blank" rel="noopener">chrome-platform-showcase</a></span></figcaption>
+    </figure>
+    <span class="citation">Source: snippets gendn-derived from the <a href="https://webaudio.github.io/web-audio-api/#dom-offlineaudiocontext-startrendering" target="_blank" rel="noopener">startRendering(chunkSize) algorithm</a> and the <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/OfflineAudioContext/explainer.md" target="_blank" rel="noopener">explainer&rsquo;s usage example</a> (adapted from its <code>length: Infinity</code> to the shipped <code>length: null</code>); the author&rsquo;s own <a href="https://gabrielsanbrito.github.io/demo_pages/oac-incremental-rendering" target="_blank" rel="noopener">sample page</a> is linked from ChromeStatus</span>
+  </section>
+
+  <section>
+    <h2 id="compatibility">Browser compatibility</h2>
+    <p><a href="https://github.com/mdn/browser-compat-data/blob/main/api/OfflineAudioContext.json" target="_blank" rel="noopener">BCD <code>api/OfflineAudioContext.json</code></a> records <code>close</code> (tagged <code>web-features:offline-audio-context-incremental-rendering</code>, marked experimental) but has no sub-feature for the <code>chunkSize</code> argument or a nullable <code>length</code> (checked 2026-11-22). Those two columns are therefore interim, from ChromeStatus and the shared Chromium runtime flag.</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Support for incremental rendering</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col"><code>close()</code> (BCD)</th><th scope="col"><code>startRendering(chunkSize)</code></th><th scope="col"><code>length: null</code></th></tr></thead>
+      <tr><th scope="row">Chrome</th><td>158</td><td>158 (interim: ChromeStatus)</td><td>158 (interim: ChromeStatus)</td></tr>
+      <tr><th scope="row">Chrome Android</th><td>158, mirrored</td><td>158 (interim)</td><td>158 (interim)</td></tr>
+      <tr><th scope="row">Android WebView</th><td>158, mirrored</td><td>158 (interim)</td><td>158 (interim)</td></tr>
+      <tr><th scope="row">Edge</th><td>158, mirrored</td><td>Unknown &mdash; expected with Chromium 158, not separately recorded</td><td>Unknown</td></tr>
+      <tr><th scope="row">Firefox</th><td>No</td><td>No</td><td>No</td></tr>
+      <tr><th scope="row">Safari / iOS</th><td>No</td><td>No</td><td>No</td></tr>
+    </table>
+    </div>
+    <p>Standards positions: Mozilla <a href="https://github.com/mozilla/standards-positions/issues/1456" target="_blank" rel="noopener">standards-positions#1456</a> (ChromeStatus records &ldquo;Positive&rdquo;, noting Mozilla reviewed the spec change, though no formal position is posted); WebKit <a href="https://github.com/WebKit/standards-positions/issues/724" target="_blank" rel="noopener">standards-positions#724</a> (&ldquo;No signal&rdquo;). The <code>OfflineAudioContext</code> interface itself is <a href="https://api.webstatus.dev/v1/features/offline-audio-context" target="_blank" rel="noopener">Baseline widely available</a>, so classic one-shot <code>startRendering()</code> remains the cross-browser fallback.</p>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/OfflineAudioContext.json" target="_blank" rel="noopener">BCD api/OfflineAudioContext.json</a>; <a href="https://api.webstatus.dev/v1/features/offline-audio-context-incremental-rendering" target="_blank" rel="noopener">webstatus.dev API</a>; <a href="https://github.com/web-platform-dx/web-features/blob/main/features/offline-audio-context-incremental-rendering.yml" target="_blank" rel="noopener">web-features offline-audio-context-incremental-rendering.yml</a>; <a href="https://chromestatus.com/api/v0/features/5109900936085504" target="_blank" rel="noopener">ChromeStatus API record</a></span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <p>No permission, user gesture or secure context is required, and no new data reaches the page: chunks contain exactly the samples a one-shot render would have produced, only delivered in pieces. The practical effect is defensive &mdash; a page no longer needs a multi-gigabyte allocation (which the explainer notes can get the tab terminated) to render long audio. The Web Audio specification&rsquo;s existing <a href="https://webaudio.github.io/web-audio-api/#privacy-considerations" target="_blank" rel="noopener">privacy considerations</a> (fingerprinting via DSP output differences) apply unchanged to offline rendering; the sources read do not identify any new privacy surface from chunking. Member-level notes are on each child page.</p>
+    <span class="citation">Source: <a href="https://webaudio.github.io/web-audio-api/#privacy-considerations" target="_blank" rel="noopener">Web Audio API 1.1 &sect;8 &mdash; Privacy Considerations</a>; <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/OfflineAudioContext/explainer.md" target="_blank" rel="noopener">explainer &mdash; User-Facing Problem</a></span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Specifications">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Specification</th><th scope="col">Sections</th></tr></thead>
+      <tr><td><a href="https://webaudio.github.io/web-audio-api/" target="_blank" rel="noopener">Web Audio API 1.1 (Editor&rsquo;s Draft)</a></td><td><a href="https://webaudio.github.io/web-audio-api/#dom-offlineaudiocontext-startrendering" target="_blank" rel="noopener"><code>startRendering(chunkSize)</code></a> &middot; <a href="https://webaudio.github.io/web-audio-api/#dom-offlineaudiocontext-close" target="_blank" rel="noopener"><code>close()</code></a> &middot; <a href="https://webaudio.github.io/web-audio-api/#dom-offlineaudiocontext-length" target="_blank" rel="noopener"><code>length</code> attribute</a> &middot; <a href="https://webaudio.github.io/web-audio-api/#dom-offlineaudiocontextoptions-length" target="_blank" rel="noopener"><code>OfflineAudioContextOptions.length</code></a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">See also</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/OfflineAudioContext/startRendering" target="_blank" rel="noopener">MDN: OfflineAudioContext.startRendering()</a> &mdash; documents the one-shot form only; MDN has no <code>chunkSize</code> parameter and its <code>close()</code> page returns 404 (checked 2026-11-22)</li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v158/offlineaudiocontext-incremental-rendering/" target="_blank" rel="noopener">chrome-platform-showcase: OfflineAudioContext incremental rendering</a> (four concept demos)</li>
+      <li><a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/OfflineAudioContext/explainer.md" target="_blank" rel="noopener">Explainer</a> &middot; <a href="https://github.com/WebAudio/web-audio-api/issues/2445" target="_blank" rel="noopener">original proposal (#2445)</a> &middot; <a href="https://github.com/WebAudio/web-audio-api/pull/2675" target="_blank" rel="noopener">spec PR #2675</a></li>
+      <li><a href="https://chromestatus.com/feature/5109900936085504" target="_blank" rel="noopener">ChromeStatus &mdash; OfflineAudioContext incremental rendering (5109900936085504)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

@@ -15,6 +15,17 @@
        min-width and the .table-wrap scroll wrapper. Site-wide hoist tracked in gendn-z5w. */
     h1, code { overflow-wrap: anywhere; }
     .doc-table tr > th:first-child { width: 30%; min-width: 7.5rem; }
+    /* MDN-shape upgrade (2026-11-15): banner code wrapping, compat-table caption + nowrap
+       version column, live-demo embed. Guidance: modern-web-guidance responsive-table. */
+    .baseline-banner code { overflow-wrap: anywhere; }
+    .doc-table caption { caption-side: top; text-align: left; font-size: 0.8rem; color: var(--text-muted); padding: 0 0 0.4rem; }
+    .compat-table td:nth-child(2), .compat-table td:nth-child(3) { white-space: nowrap; overflow-wrap: normal; }
+    .compat-table tr > th:first-child { width: auto; min-width: 0; }
+    .compat-table tbody th { white-space: nowrap; overflow-wrap: normal; }
+    .compat-table td:last-child { min-width: 14rem; }
+    .example-embed { margin: 1.5rem 0; }
+    .example-embed iframe { display: block; max-width: 100%; }
+    .example-embed figcaption { font-size: 0.85rem; margin-top: 0.4rem; }
   </style>
 </head>
 <body>
@@ -24,6 +35,17 @@
   <header class="lede-block">
     <p class="eyebrow">v148 · storage · privacy</p>
     <h1>Predictable reported storage quota</h1>
+
+    <div class="baseline-banner baseline-banner--paper-compact" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability (Chrome-only behaviour)</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 148</li>
+        <li class="limited">Edge &middot; unknown</li>
+        <li class="limited">Firefox &middot; no signal</li>
+        <li class="limited">Safari &middot; no signal</li>
+      </ul>
+      <p>The predictable quota value is a Chrome behaviour change with <strong>no web-features entry</strong> (a <a href="https://api.webstatus.dev/v1/features?q=quota" target="_blank" rel="noopener">webstatus.dev search for &ldquo;quota&rdquo;</a> returns only unrelated fuzzy matches such as <code>quotes</code>; ChromeStatus records no web feature, queried 2026-11-15). The API it changes, <code>navigator.storage.estimate()</code>, belongs to the <a href="https://webstatus.dev/features/storage-manager" target="_blank" rel="noopener">Storage manager</a> feature, which is <strong>Baseline Widely available</strong> (<a href="https://api.webstatus.dev/v1/features/storage-manager" target="_blank" rel="noopener">webstatus.dev</a>: newly available 2023-09-18, widely available 2026-03-18). See the <a href="#browser-compatibility">full table</a>.</p>
+    </div>
     <p class="lede">Chrome 148 changes <code>navigator.storage.estimate()</code> to return a consistent artificial quota for sites without unlimited storage permissions, closing a channel that scripts used to detect Incognito mode.</p>
   </header>
 
@@ -33,7 +55,7 @@
 <table class="doc-table">
       <tr><th>Shipped in</th><td>Chrome 148 (desktop, Android, WebView; <a href="https://chromestatus.com/api/v0/features?milestone=148" target="_blank" rel="noopener">milestone 148 listing</a>)</td></tr>
       <tr><th>Status</th><td>Enabled by default</td></tr>
-      <tr><th>Flag</th><td>None — on by default</td></tr>
+      <tr><th>Flag</th><td>On by default; kill switch <code>chrome://flags/#predictable-reported-quota</code> (feature <code>StaticStorageQuota</code>, <code>FEATURE_ENABLED_BY_DEFAULT</code> in <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7778/storage/browser/quota/quota_features.cc" target="_blank" rel="noopener">M148 quota_features.cc</a>; flag entry in <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7778/chrome/browser/about_flags.cc" target="_blank" rel="noopener">M148 about_flags.cc</a>)</td></tr>
       <tr><th>Standards position (Firefox)</th><td>No signal</td></tr>
       <tr><th>Standards position (Safari)</th><td>No signal</td></tr>
       <tr><th>Blink component</th><td>Blink&gt;Storage&gt;Quota</td></tr>
@@ -47,13 +69,38 @@
   <section>
     <h2 id="why">why it exists</h2>
     <p>Before Chrome 148, <code>navigator.storage.estimate()</code> returned very different <code>quota</code> values depending on the browsing mode. In a normal window Chrome reported a quota derived from the full disk (often tens of gigabytes); in Incognito the quota was a small fixed amount (often a few hundred megabytes). Analytics and paywall libraries exploited this gap to reliably detect Incognito mode — a privacy bypass that could not be patched at the application layer.</p>
-    <p>Chrome 148 closes the gap by reporting an artificial quota equal to <code>usage + min(10&nbsp;GiB, disk rounded up to the nearest 1&nbsp;GiB)</code> in every browsing mode for sites without the unlimited-storage permission. Sites granted unlimited storage (e.g. via the persistent-storage permission) continue to receive the real hardware quota. Enforced eviction thresholds are unaffected.</p>
+    <p>Chrome 148 closes the gap by reporting an artificial quota equal to <code>usage + min(10&nbsp;GiB, disk rounded up to the nearest 1&nbsp;GiB)</code> in every browsing mode for sites without the unlimited-storage permission. Origins that Chrome&rsquo;s special storage policy treats as unlimited (for example extensions with the <a href="https://developer.chrome.com/docs/extensions/reference/permissions-list" target="_blank" rel="noopener"><code>unlimitedStorage</code> permission</a>) continue to receive the real quota; in <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7778/storage/browser/quota/quota_manager_impl.cc" target="_blank" rel="noopener">Chromium 148&rsquo;s quota manager</a> the exemption check is <code>IsStorageUnlimited()</code>, not <code>navigator.storage.persisted()</code>. Enforced eviction thresholds are unaffected.</p>
     <span class="citation">Source: <a href="https://chromestatus.com/feature/4977371751645184" target="_blank" rel="noopener">chromestatus feature summary</a>; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/7q0YGQNVkjs" target="_blank" rel="noopener">blink-dev PSA</a></span>
   </section>
 
   <section>
-    <h2 id="syntax">shape of the API</h2>
-    <p>There is no new surface. The change affects the value returned by the existing <code>StorageManager.estimate()</code> method.</p>
+    <h2 id="syntax">syntax</h2>
+    <p>There is no new surface. The change affects the value returned by the existing <code>StorageManager.estimate()</code> method. Formal syntax, verbatim from the <a href="https://storage.spec.whatwg.org/#api" target="_blank" rel="noopener">Storage Standard &sect;API</a>:</p>
+<pre class="formal-syntax"><code>[SecureContext]
+interface mixin NavigatorStorage {
+  [SameObject] readonly attribute StorageManager storage;
+};
+Navigator includes NavigatorStorage;
+WorkerNavigator includes NavigatorStorage;
+
+[SecureContext,
+ Exposed=(Window,Worker)]
+interface StorageManager {
+  Promise&lt;boolean&gt; persisted();
+  [Exposed=Window] Promise&lt;boolean&gt; persist();
+
+  Promise&lt;StorageEstimate&gt; estimate();
+};
+
+dictionary StorageEstimate {
+  unsigned long long usage;
+  unsigned long long quota;
+};</code></pre>
+    <p><code>estimate()</code> rejects with a <code>TypeError</code> if no local storage shelf can be obtained (e.g. an opaque origin); otherwise it resolves with <code>{ usage, quota }</code>. The spec leaves <em>storage quota</em> implementation-defined but says it &ldquo;must not be a function of the available storage space on the device&rdquo;. Chrome 148&rsquo;s reported value, from <code>CalculateReportedQuota()</code> in <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7778/storage/browser/quota/quota_manager_impl.cc" target="_blank" rel="noopener">quota_manager_impl.cc</a>:</p>
+<pre class="formal-syntax"><code>reportedQuota = usage + (totalSpace &gt;= 10 GiB
+                           ? 10 GiB
+                           : ceil(totalSpace / 1 GiB) &times; 1 GiB)</code></pre>
+    <p>In that code a separate, default-off feature (<code>IncognitoStaticStorageQuota</code>) forces the 10&nbsp;GiB branch in Incognito. The enforced quota (when writes actually fail) is unchanged.</p>
     <div class="table-wrap">
 <table class="doc-table">
       <tr><th>Property</th><th>Type</th><th>Behaviour in Chrome 148+</th></tr>
@@ -61,7 +108,7 @@
       <tr><td><code>StorageEstimate.usage</code></td><td><code>number</code></td><td>Actual bytes used by the origin — unchanged</td></tr>
     </table>
 </div>
-    <span class="citation">Source: <a href="https://storage.spec.whatwg.org/#dom-storagemanager-estimate" target="_blank" rel="noopener">Storage Living Standard §StorageManager.estimate()</a></span>
+    <span class="citation">Source: <a href="https://storage.spec.whatwg.org/#dom-storagemanager-estimate" target="_blank" rel="noopener">Storage Living Standard §StorageManager.estimate()</a>; <a href="https://storage.spec.whatwg.org/#storage-quota" target="_blank" rel="noopener">Storage Standard &sect;storage quota</a>; <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7778/storage/browser/quota/quota_manager_impl.cc" target="_blank" rel="noopener">Chromium M148 quota_manager_impl.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7778/storage/browser/quota/quota_features.cc" target="_blank" rel="noopener">Chromium M148 quota_features.cc</a>. Read 2026-11-15.</span>
   </section>
 
   <section>
@@ -78,23 +125,52 @@ console.log(`quota: ${(quota / 1e9).toFixed(1)} GB`);
 const pct = (usage / quota) * 100;
 if (pct > 80) showStorageWarning();
 
-// Sites granted persistent-storage permission receive the real quota:
-const persisted = await navigator.storage.persisted();
-// persisted === true → quota reflects actual disk capacity</code></pre>
+// persisted() reports eviction protection; it is not the exemption.
+// Only origins the browser treats as unlimited-storage (for example
+// extensions with "unlimitedStorage") get the real quota value.
+const persisted = await navigator.storage.persisted();</code></pre>
     <span class="citation">Pattern from <a href="https://developer.chrome.com/blog/estimating-available-storage-space/" target="_blank" rel="noopener">developer.chrome.com — Estimating Available Storage Space</a></span>
+
+    <h4>Live demo</h4>
+    <p>All five interactive demos are on the <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/predictable-reported-storage-quota/" target="_blank" rel="noopener">chrome-platform-showcase feature page</a>. The embed below is the quota inspector concept, which calls <code>estimate()</code> in your browser.</p>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/predictable-reported-storage-quota/quota-inspector/"
+        title="Live example — storage quota inspector" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase (route checked 200, 2026-11-15). Other concepts: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/predictable-reported-storage-quota/quota-planner/" target="_blank" rel="noopener">quota planner</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/predictable-reported-storage-quota/quota-budget-planner/" target="_blank" rel="noopener">quota budget planner</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/predictable-reported-storage-quota/storage-privacy-tester/" target="_blank" rel="noopener">storage privacy tester</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/predictable-reported-storage-quota/incognito-fingerprint-sandbox/" target="_blank" rel="noopener">incognito fingerprint sandbox</a>.<span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/predictable-reported-storage-quota/" target="_blank" rel="noopener">chrome-platform-showcase</a></span></figcaption>
+    </figure>
   </section>
 
   <section>
-    <h2 id="browser-compatibility">browser support</h2>
-    <div class="table-wrap">
-<table class="doc-table">
-      <tr><th>Browser</th><th>Support</th><th>Notes</th></tr>
-      <tr><td>Chrome 148+</td><td>Enabled by default</td><td>Desktop, Android, WebView (see <a href="https://webstatus.dev/features/storage" target="_blank" rel="noopener">webstatus.dev storage</a> and <a href="https://github.com/mdn/browser-compat-data/blob/main/api/StorageManager.json" target="_blank" rel="noopener">BCD StorageManager</a>)</td></tr>
-      <tr><td>Firefox</td><td>No signal</td><td><code>estimate()</code> exists; this clamping is Chrome-specific</td></tr>
-      <tr><td>Safari</td><td>No signal</td><td><code>estimate()</code> exists; this clamping is Chrome-specific</td></tr>
+    <h2 id="browser-compatibility">browser compatibility</h2>
+    <p>BCD has <strong>no entry</strong> for the predictable-quota behaviour (it is a value change, not a new member), so that column is <strong>interim</strong> data from <a href="https://chromestatus.com/feature/4977371751645184" target="_blank" rel="noopener">ChromeStatus</a>. The <code>estimate()</code> column is from <a href="https://github.com/mdn/browser-compat-data/blob/main/api/StorageManager.json" target="_blank" rel="noopener">BCD <code>api/StorageManager.json</code></a> (fetched raw 2026-11-15).</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="quota-compat-caption">
+<table class="doc-table compat-table">
+      <caption id="quota-compat-caption">Browser support for StorageManager.estimate() and the predictable reported quota</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col"><code>estimate()</code> (BCD)</th><th scope="col">Predictable quota (interim)</th><th scope="col">Notes</th></tr></thead>
+      <tbody>
+      <tr><th scope="row">Chrome</th><td>61</td><td><strong>148</strong></td><td>Desktop, Android and WebView 148 per ChromeStatus; listed &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=148" target="_blank" rel="noopener">milestone-148 listing</a>.</td></tr>
+      <tr><th scope="row">Edge</th><td>79</td><td>Unknown</td><td>BCD <code>"edge": "mirror"</code> for <code>estimate()</code>. No public record found of whether Edge keeps the <code>StaticStorageQuota</code> default.</td></tr>
+      <tr><th scope="row">Firefox</th><td>57</td><td>No signal</td><td><code>estimate()</code> exists; Firefox computes its own quota. Position: no signal (ChromeStatus).</td></tr>
+      <tr><th scope="row">Safari</th><td>17</td><td>No signal</td><td><code>estimate()</code> exists; Safari computes its own quota. Position: no signal (ChromeStatus).</td></tr>
+      </tbody>
     </table>
 </div>
-    <span class="citation">Source: <a href="https://chromestatus.com/feature/4977371751645184" target="_blank" rel="noopener">chromestatus.com/feature/4977371751645184</a></span>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/StorageManager.json" target="_blank" rel="noopener">BCD api/StorageManager.json</a>; <a href="https://api.webstatus.dev/v1/features/storage-manager" target="_blank" rel="noopener">webstatus.dev storage-manager</a>; <a href="https://chromestatus.com/feature/4977371751645184" target="_blank" rel="noopener">chromestatus.com/feature/4977371751645184</a> (interim).</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">specifications</h2>
+    <div class="table-wrap">
+<table class="doc-table">
+      <thead><tr><th scope="col">Specification</th><th scope="col">Status</th></tr></thead>
+      <tbody>
+      <tr><td><a href="https://storage.spec.whatwg.org/#dom-storagemanager-estimate" target="_blank" rel="noopener">Storage Standard &mdash; <code>StorageManager.estimate()</code></a></td><td>Living Standard. The predictable value itself is a Chrome implementation choice inside the spec&rsquo;s implementation-defined <a href="https://storage.spec.whatwg.org/#storage-quota" target="_blank" rel="noopener">storage quota</a>; ChromeStatus lists no spec for it.</td></tr>
+      </tbody>
+    </table>
+</div>
+    <span class="citation">Source: <a href="https://storage.spec.whatwg.org/" target="_blank" rel="noopener">Storage Living Standard</a>, read 2026-11-15; <a href="https://chromestatus.com/api/v0/features/4977371751645184" target="_blank" rel="noopener">ChromeStatus API record</a> (<code>spec_link: null</code>).</span>
   </section>
 
   <section>

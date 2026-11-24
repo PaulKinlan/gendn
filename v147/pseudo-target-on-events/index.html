@@ -10,6 +10,12 @@
     .doc-table th { background: var(--bg-stone); font-weight: 600; }
     .doc-table tr:last-child td { border-bottom: none; }
     .doc-table code { background: transparent; border: none; padding: 0; }
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    .example-embed { margin: 1.5rem 0; }
+    .example-embed iframe { max-width: 100%; }
+    .example-embed figcaption { font-size: 0.85rem; margin-top: 0.4rem; }
   </style>
 </head>
 <body>
@@ -19,6 +25,18 @@
   <header class="lede-block">
     <p class="eyebrow">v147 · shipped · dom · events</p>
     <h1>Pseudo target on events</h1>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 147 (desktop, Android, WebView)</li>
+        <li class="limited">Edge &middot; not separately reported</li>
+        <li class="limited">Firefox &middot; no signal</li>
+        <li class="limited">Safari &middot; no signal</li>
+      </ul>
+      <p>Not a Baseline feature: <a href="https://api.webstatus.dev/v1/features?q=pseudoTarget" target="_blank" rel="noopener">webstatus.dev has no web-features entry for <code>pseudoTarget</code></a> (queried 2026-10-18; the query returns only the host <a href="https://webstatus.dev/features/css-object-model-csspseudoelement" target="_blank" rel="noopener"><code>css-object-model-csspseudoelement</code></a> interface feature, itself Baseline <strong>limited</strong>), and <a href="https://github.com/mdn/browser-compat-data/blob/main/api/UIEvent.json" target="_blank" rel="noopener">BCD <code>api/UIEvent.json</code></a> records no <code>pseudoTarget</code> subfeature (verified 2026-10-18). Chrome-only.</p>
+    </div>
+
     <p class="lede">Chrome 147 adds a <code>pseudoTarget</code> property to <code>UIEvent</code>, <code>AnimationEvent</code>, and <code>TransitionEvent</code>. When an event originates from a CSS pseudo-element such as <code>::before</code> or <code>::after</code>, <code>pseudoTarget</code> returns the corresponding <code>CSSPseudoElement</code> object rather than <code>null</code>, letting event handlers distinguish pseudo-element interactions without relying on hit-test workarounds.</p>
   </header>
 
@@ -50,6 +68,16 @@
   </section>
 
   <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>The specification change is <a href="https://github.com/w3c/uievents/pull/413" target="_blank" rel="noopener">w3c/uievents PR #413 &ldquo;Add .pseudoTarget property to selected event types&rdquo;</a> &mdash; still an <strong>open</strong> pull request as of 2026-10-18, not merged UI Events text. Its IDL additions, verbatim: to the <code>UIEvent</code> interface</p>
+    <pre><code>readonly attribute CSSPseudoElement? pseudoTarget;</code></pre>
+    <p>and to the <code>UIEventInit</code> dictionary</p>
+    <pre><code>CSSPseudoElement? pseudoTarget = null;</code></pre>
+    <p>Nullability per the PR and its review thread: the attribute is <code>null</code> when the event did not originate from a pseudo-element, when <code>currentTarget</code> is null (including after dispatch has finished &mdash; the author confirmed on 2026-07-08 it would be &ldquo;always null after dispatch&rdquo;), and when Shadow DOM retargeting against <code>currentTarget</code> would otherwise expose shadow-internal nodes. Disclosed: the PR&rsquo;s visible IDL covers <code>UIEvent</code> (whose subtypes inherit it); <code>AnimationEvent</code> and <code>TransitionEvent</code> are <code>Event</code> subtypes, so their coverage &mdash; named by the lede and the intent below &mdash; is not in that IDL fragment and rests on the intent and Chrome&rsquo;s implementation (runtime flag <code>EventPseudoTargetProperty</code>, <code>status: "stable"</code>, <code>depends_on CSSPseudoElementInterface</code> in the <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime flag registry</a>, read 2026-10-18).</p>
+    <span class="citation">Source: <a href="https://github.com/w3c/uievents/pull/413" target="_blank" rel="noopener">w3c/uievents#413</a> (IDL quoted verbatim from the PR diff, fetched 2026-10-18); <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a></span>
+  </section>
+
+  <section>
     <h2>shape of the API</h2>
 
     <h3 id="the-pseudotarget-property">The pseudoTarget property</h3>
@@ -73,6 +101,14 @@
 
   <section>
     <h2>example</h2>
+
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/pseudo-target-on-events/pseudo-click-lab/"
+        title="Live example — pseudo click lab" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live example from the <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/pseudo-target-on-events/" target="_blank" rel="noopener">Chrome Platform Showcase</a> (concept route HEAD-checked 200, 2026-10-18).<span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/pseudo-target-on-events/" target="_blank" rel="noopener">chrome-platform-showcase</a></span></figcaption>
+    </figure>
 
     <h3 id="detecting-a-click-on-after">Detecting a click on ::after</h3>
     <pre><code>const box = document.querySelector('.box');
@@ -99,20 +135,33 @@ box.addEventListener('click', (event) => {
   </section>
 
   <section>
-    <h2 id="browser-support">browser support</h2>
+    <h2 id="browser-support">browser compatibility</h2>
     <table class="doc-table">
-      <thead><tr><th>Browser</th><th>Support</th></tr></thead>
-      <tr><td>Chrome 147+ (desktop, Android, WebView)</td><td>Enabled by default</td></tr>
-      <tr><td>Firefox</td><td>No signal</td></tr>
-      <tr><td>Safari</td><td>No signal</td></tr>
+      <thead><tr><th>Browser</th><th><code>pseudoTarget</code></th></tr></thead>
+      <tr><td>Chrome (desktop)</td><td>147</td></tr>
+      <tr><td>Chrome Android / WebView</td><td>147</td></tr>
+      <tr><td>Edge</td><td>Not separately reported</td></tr>
+      <tr><td>Firefox</td><td>No &mdash; no signal</td></tr>
+      <tr><td>Safari</td><td>No &mdash; no signal</td></tr>
     </table>
-    <span class="citation">Source: <a href="https://chromestatus.com/feature/5179328935624704" target="_blank" rel="noopener">chromestatus.com feature page</a>, April 2026.</span>
+    <p><a href="https://github.com/mdn/browser-compat-data/blob/main/api/UIEvent.json" target="_blank" rel="noopener">BCD <code>api/UIEvent.json</code></a> has no <code>pseudoTarget</code> entry yet (verified 2026-10-18), so this table is interim data from the ChromeStatus record, labelled as such; vendor rows reflect the record&rsquo;s &ldquo;No signal&rdquo; views.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5179328935624704" target="_blank" rel="noopener">chromestatus.com feature page</a> (re-read 2026-10-18); <a href="https://github.com/mdn/browser-compat-data/blob/main/api/UIEvent.json" target="_blank" rel="noopener">mdn/browser-compat-data api/UIEvent.json</a></span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <table class="doc-table">
+      <thead><tr><th>Specification</th><th>Status</th></tr></thead>
+      <tr><td><a href="https://github.com/w3c/uievents/pull/413" target="_blank" rel="noopener">UI Events — w3c/uievents PR #413, &ldquo;Add .pseudoTarget property to selected event types&rdquo;</a></td><td>Open pull request (not merged as of 2026-10-18)</td></tr>
+      <tr><td><a href="https://drafts.csswg.org/css-pseudo-4/#CSSPseudoElement-interface" target="_blank" rel="noopener">CSS Pseudo-Elements Level 4 — the <code>CSSPseudoElement</code> interface the property returns</a></td><td>Editor&rsquo;s Draft</td></tr>
+    </table>
   </section>
 
   <section>
     <h2>see also</h2>
     <ul>
       <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/CSSPseudoElement" target="_blank" rel="noopener">MDN: CSSPseudoElement</a></li>
+      <li><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/pseudo-target-on-events/" target="_blank" rel="noopener">Chrome Platform Showcase — Pseudo target on events (interactive demos)</a></li>
       <li><a href="https://drafts.csswg.org/css-pseudo-4/" target="_blank" rel="noopener">CSS Pseudo-Elements Level 4 specification</a></li>
       <li><a href="https://chromestatus.com/feature/5179328935624704" target="_blank" rel="noopener">chromestatus — Pseudo target on events (5179328935624704)</a></li>
     </ul>
