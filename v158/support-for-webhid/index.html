@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Support for WebHID — Chrome 158 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .scroll-table { min-width: 30rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v158/">&larr; Chrome 158 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v158 &middot; device &middot; enabled by default</p>
+    <h1>Support for WebHID</h1>
+
+    <p class="lede">Chrome 158 brings the <a href="https://hid.spec.whatwg.org/" target="_blank" rel="noopener">WebHID API</a> to <strong>Chrome on Android</strong> (requiring <strong>Android 17 / API level 37</strong> or later) with no changes to the web-exposed API surface. Web applications on Android can now request permission to connect to USB and Bluetooth Human Interface Devices (HIDs), inspect report descriptors, and exchange input, output, and feature reports using the same <code>navigator.hid</code>, <code>HID</code>, and <code>HIDDevice</code> contracts that shipped on desktop Chrome in version 89. Android WebView remains unsupported.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; Chromium-only (not Baseline; Firefox negative, Safari opposed)</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 89 (desktop), 158 (Android 17+); WebView unsupported</li>
+        <li>Edge &middot; 89 (desktop, Chromium-based); Android status unconfirmed</li>
+        <li class="limited">Firefox &middot; Not supported (Negative standards position)</li>
+        <li class="limited">Safari &middot; Not supported (Opposed standards position)</li>
+      </ul>
+      <p>The <a href="https://webstatus.dev/features/webhid" target="_blank" rel="noopener"><code>webhid</code> web-feature</a> is <strong>Limited availability</strong> per <a href="https://api.webstatus.dev/v1/features?q=webhid" target="_blank" rel="noopener">webstatus.dev</a> (Chrome 89 desktop, Edge 89 desktop; checked 2026-11-24). <a href="https://github.com/mdn/browser-compat-data/blob/main/api/HID.json" target="_blank" rel="noopener">BCD <code>api/HID.json</code></a> and <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Navigator.json" target="_blank" rel="noopener">BCD <code>api/Navigator.json</code></a> still list <code>chrome_android: false</code> (referencing <a href="https://crbug.com/40628009" target="_blank" rel="noopener">crbug.com/40628009</a>) and have not yet recorded the Chrome 158 Android ship.</p>
+    </div>
+  </header>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#at-a-glance">At a glance</a></li>
+      <li><a href="#why">Why it exists</a></li>
+      <li><a href="#syntax">Syntax &amp; API surface</a></li>
+      <li><a href="#android-platform">Android 17+ &amp; policies</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#security-and-privacy">Security &amp; privacy</a></li>
+      <li><a href="#specifications">Specifications</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Shipped in</th><td>Chrome 158 on Android (enabled by default; requires Android 17 / API level 37 or later) &mdash; filed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=158" target="_blank" rel="noopener">milestone=158 listing</a>. Desktop platforms (Windows, macOS, Linux, ChromeOS) shipped in Chrome 89. Android WebView is <strong>not supported</strong>.</td></tr>
+      <tr><th scope="row">Origin trial / flag</th><td>Developer trial on Android began in Chrome 154 behind <code>chrome://flags/#web-hid-on-android</code> (<a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/about_flags.cc" target="_blank" rel="noopener"><code>about_flags.cc</code></a> mapping to <code>blink::features::kWebHID</code>); desktop origin trial ran in Chrome 86&ndash;88. Enabled by default in Chrome 158 via <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener"><code>WebHID</code> runtime flag (<code>status: "stable"</code>)</a>.</td></tr>
+      <tr><th scope="row">Permissions Policy</th><td><code>hid</code> &mdash; default allowlist <code>'self'</code> (<a href="https://chromium.googlesource.com/chromium/src/+/main/services/network/public/cpp/permissions_policy/permissions_policy_features.json5" target="_blank" rel="noopener">Chromium <code>permissions_policy_features.json5</code></a>; <a href="https://hid.spec.whatwg.org/#permissions-policy" target="_blank" rel="noopener">WHATWG HID &sect;Permissions Policy</a>)</td></tr>
+      <tr><th scope="row">Specification</th><td><a href="https://hid.spec.whatwg.org/" target="_blank" rel="noopener">WebHID API Living Standard (WHATWG)</a></td></tr>
+      <tr><th scope="row">Explainer</th><td><a href="https://github.com/whatwg/hid/blob/main/EXPLAINER.md" target="_blank" rel="noopener">whatwg/hid EXPLAINER.md</a></td></tr>
+      <tr><th scope="row">Intent</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6ae3b5f3.8438a57e.1c08c0.014b.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship (Android, Chrome 158)</a>; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/rL1csFYD1Ms" target="_blank" rel="noopener">blink-dev Intent to Ship (Desktop, Chrome 89)</a></td></tr>
+      <tr><th scope="row">Tracking bug</th><td><a href="https://crbug.com/40628009" target="_blank" rel="noopener">crbug.com/40628009</a> (WebHID on Android); <a href="https://crbug.com/40163407" target="_blank" rel="noopener">crbug.com/40163407</a> (Android WebView)</td></tr>
+      <tr><th scope="row">Web platform tests</th><td><a href="https://wpt.fyi/results/webhid" target="_blank" rel="noopener">wpt.fyi/results/webhid</a> (IDL exposure and permissions policy; hardware I/O and Android chooser UI are tested in Chromium internal tests)</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5172464636133376" target="_blank" rel="noopener">5172464636133376 &mdash; Support for WebHID</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>Human Interface Devices (HIDs) cover far more than standard keyboards, mice, and gamepads: programmable mechanical keyboards, macro keypads, gaming mice with custom DPI/RGB firmware, barcode scanners, Braille displays, and USB/Bluetooth call-center headsets all expose vendor-specific HID collections that OS input layers do not map to standard web events. Desktop Chrome has supported WebHID since Chrome 89, but Android lacked the underlying platform HID enumeration and report-I/O APIs needed to expose those devices safely to Chrome.</p>
+    <p>Android 17 (API level 37) introduces native platform HID support via <code>android.hardware.hid.HidDevice</code>, enabling Chrome 158 on Android to expose the exact same WebHID API surface over USB and Bluetooth without requiring app developers to rewrite existing desktop WebHID web applications.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5172464636133376" target="_blank" rel="noopener">ChromeStatus summary (5172464636133376)</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/services/device/hid/hid_service_android.cc" target="_blank" rel="noopener">Chromium <code>hid_service_android.cc</code></a>; <a href="https://github.com/whatwg/hid/blob/main/EXPLAINER.md" target="_blank" rel="noopener">whatwg/hid explainer</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>Chrome 158 introduces no new WebIDL members; Chrome on Android exposes the existing <a href="https://hid.spec.whatwg.org/" target="_blank" rel="noopener">WHATWG WebHID Living Standard</a> interfaces verbatim (matching Chromium&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/hid/hid.idl" target="_blank" rel="noopener"><code>hid.idl</code></a>, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/hid/hid_device.idl" target="_blank" rel="noopener"><code>hid_device.idl</code></a>, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/hid/navigator_hid.idl" target="_blank" rel="noopener"><code>navigator_hid.idl</code></a>, and <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/hid/worker_navigator_hid.idl" target="_blank" rel="noopener"><code>worker_navigator_hid.idl</code></a>):</p>
+    <pre><code>[SecureContext] partial interface Navigator {
+  [SameObject] readonly attribute HID hid;
+};
+
+[Exposed=(DedicatedWorker,ServiceWorker), SecureContext]
+partial interface WorkerNavigator {
+  [SameObject] readonly attribute HID hid;
+};
+
+[Exposed=(DedicatedWorker,ServiceWorker,Window), SecureContext]
+interface HID : EventTarget {
+  attribute EventHandler onconnect;
+  attribute EventHandler ondisconnect;
+  Promise&lt;sequence&lt;HIDDevice&gt;&gt; getDevices();
+  [Exposed=Window] Promise&lt;sequence&lt;HIDDevice&gt;&gt; requestDevice(
+    HIDDeviceRequestOptions options
+  );
+};
+
+dictionary HIDDeviceRequestOptions {
+  required sequence&lt;HIDDeviceFilter&gt; filters;
+  sequence&lt;HIDDeviceFilter&gt; exclusionFilters;
+};
+
+dictionary HIDDeviceFilter {
+  unsigned short vendorId;
+  unsigned short productId;
+  unsigned short usagePage;
+  unsigned short usage;
+};
+
+[Exposed=(DedicatedWorker,ServiceWorker,Window), SecureContext]
+interface HIDDevice : EventTarget {
+  attribute EventHandler oninputreport;
+  readonly attribute boolean opened;
+  readonly attribute unsigned short vendorId;
+  readonly attribute unsigned short productId;
+  readonly attribute DOMString productName;
+  readonly attribute FrozenArray&lt;HIDCollectionInfo&gt; collections;
+  Promise&lt;undefined&gt; open();
+  Promise&lt;undefined&gt; close();
+  Promise&lt;undefined&gt; forget();
+  Promise&lt;undefined&gt; sendReport([EnforceRange] octet reportId, BufferSource data);
+  Promise&lt;undefined&gt; sendFeatureReport([EnforceRange] octet reportId, BufferSource data);
+  Promise&lt;DataView&gt; receiveFeatureReport([EnforceRange] octet reportId);
+};
+
+[Exposed=(DedicatedWorker,ServiceWorker,Window), SecureContext]
+interface HIDConnectionEvent : Event {
+  constructor(DOMString type, HIDConnectionEventInit eventInitDict);
+  [SameObject] readonly attribute HIDDevice device;
+};
+
+[Exposed=(DedicatedWorker,ServiceWorker,Window), SecureContext]
+interface HIDInputReportEvent : Event {
+  constructor(DOMString type, HIDInputReportEventInit eventInitDict);
+  [SameObject] readonly attribute HIDDevice device;
+  readonly attribute octet reportId;
+  readonly attribute DataView data;
+};</code></pre>
+    <p>This reference covers four parts of the contract: <a href="#navigator-hid-enumeration"><code>navigator.hid</code> and <code>HID</code> enumeration</a>, <a href="#hid-device-lifecycle-and-io"><code>HIDDevice</code> lifecycle and report I/O</a>, <a href="#hid-events-and-descriptors">events and report descriptor dictionaries</a>, and <a href="#android-platform">Chrome 158 Android 17+ platform behavior and enterprise policies</a>.</p>
+    <span class="citation">Source: <a href="https://hid.spec.whatwg.org/" target="_blank" rel="noopener">WHATWG WebHID Living Standard</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/hid/hid.idl" target="_blank" rel="noopener">Blink <code>hid.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/hid/hid_device.idl" target="_blank" rel="noopener">Blink <code>hid_device.idl</code></a>.</span>
+
+    <h3 id="navigator-hid-enumeration"><code>navigator.hid</code> and <code>HID</code> &mdash; device discovery and permission</h3>
+    <p><strong>Inputs.</strong> <code>navigator.hid.getDevices()</code> takes no arguments. <code>navigator.hid.requestDevice(options)</code> requires a <code>HIDDeviceRequestOptions</code> dictionary with a required <code>filters</code> sequence (pass <code>{ filters: [] }</code> to show all non-blocklisted devices) and an optional <code>exclusionFilters</code> sequence (which, if provided, must contain at least one filter). Each <code>HIDDeviceFilter</code> accepts unsigned 16-bit integers: <code>vendorId</code>, <code>productId</code> (only valid if <code>vendorId</code> is also set), <code>usagePage</code>, and <code>usage</code> (only valid if <code>usagePage</code> is also set). A device matches if it satisfies at least one entry in <code>filters</code> (or <code>filters</code> is empty) and does not match any entry in <code>exclusionFilters</code>.</p>
+    <p><strong>Outputs.</strong> Both <code>getDevices()</code> and <code>requestDevice(options)</code> return a <code>Promise&lt;HIDDevice[]&gt;</code>. <code>getDevices()</code> resolves to all currently connected devices to which the origin already holds permission. <code>requestDevice(options)</code> displays the browser&rsquo;s native device chooser UI (on Android, the Chrome device-chooser prompt) and resolves to the array of user-selected <code>HIDDevice</code> objects (an empty array if the user cancels the chooser). A single physical peripheral exposing multiple top-level HID interfaces can appear as multiple logical <code>HIDDevice</code> instances.</p>
+    <span class="citation">Source: <a href="https://hid.spec.whatwg.org/#enumeration" target="_blank" rel="noopener">WHATWG WebHID &sect;Enumeration</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/hid/hid.cc" target="_blank" rel="noopener">Blink <code>hid.cc</code></a>.</span>
+
+    <h3 id="hid-device-lifecycle-and-io"><code>HIDDevice</code> &mdash; connection lifecycle and report I/O</h3>
+    <p><strong>Inputs.</strong> <code>open()</code>, <code>close()</code>, and <code>forget()</code> take no parameters. <code>sendReport(reportId, data)</code> and <code>sendFeatureReport(reportId, data)</code> take an 8-bit <code>reportId</code> (<code>0</code>&ndash;<code>255</code>, enforced via <code>[EnforceRange]</code>; pass <code>0</code> when the device does not use numbered report IDs) and a <code>BufferSource</code> (<code>ArrayBuffer</code> or <code>ArrayBufferView</code> such as <code>Uint8Array</code>) containing the report payload bytes excluding the leading report ID byte. <code>receiveFeatureReport(reportId)</code> takes an 8-bit <code>reportId</code> (<code>0</code>&ndash;<code>255</code>).</p>
+    <p><strong>Outputs.</strong> Read-only properties expose <code>opened</code> (boolean), 16-bit <code>vendorId</code> and <code>productId</code>, human-readable <code>productName</code> (string), and <code>collections</code> (a <code>FrozenArray&lt;HIDCollectionInfo&gt;</code> parsed from the device&rsquo;s HID report descriptor). <code>open()</code>, <code>close()</code>, <code>forget()</code>, <code>sendReport()</code>, and <code>sendFeatureReport()</code> resolve to <code>undefined</code>; <code>receiveFeatureReport(reportId)</code> resolves to a <code>DataView</code> containing the feature report payload. Incoming input reports fire <code>inputreport</code> events on the <code>HIDDevice</code> once opened.</p>
+    <span class="citation">Source: <a href="https://hid.spec.whatwg.org/#device-usage" target="_blank" rel="noopener">WHATWG WebHID &sect;Device Usage</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/hid/hid_device.cc" target="_blank" rel="noopener">Blink <code>hid_device.cc</code></a>.</span>
+
+    <h3 id="hid-events-and-descriptors">Events and report descriptor structures</h3>
+    <p><strong>Inputs &amp; outputs.</strong> The <code>HID</code> interface fires <code>connect</code> and <code>disconnect</code> events (<code>HIDConnectionEvent</code>, carrying <code>event.device</code>) when a previously permitted device attaches or detaches. Each open <code>HIDDevice</code> fires <code>inputreport</code> events (<code>HIDInputReportEvent</code>, carrying <code>event.device</code>, <code>event.reportId</code>, and <code>event.data</code> as a <code>DataView</code>). Each <code>HIDCollectionInfo</code> in <code>device.collections</code> exposes <code>usagePage</code>, <code>usage</code>, <code>type</code>, nested <code>children</code>, and arrays of <code>HIDReportInfo</code> (<code>inputReports</code>, <code>outputReports</code>, <code>featureReports</code>). Each <code>HIDReportInfo</code> pairs a <code>reportId</code> with <code>items</code> (<code>HIDReportItem[]</code>) describing bit width (<code>reportSize</code>, <code>reportCount</code>), usages (<code>usages</code>, <code>usageMinimum</code>, <code>usageMaximum</code>), flags (<code>isAbsolute</code>, <code>isArray</code>, <code>isConstant</code>, <code>isLinear</code>, <code>isRange</code>, <code>isVolatile</code>, <code>isBufferedBytes</code>, <code>hasNull</code>, <code>hasPreferredState</code>, <code>wrap</code>), logical/physical ranges, and physical units (<code>unitSystem</code> of type <code>HIDUnitSystem</code> plus exponent fields).</p>
+    <span class="citation">Source: <a href="https://hid.spec.whatwg.org/#events" target="_blank" rel="noopener">WHATWG WebHID &sect;Events</a>; <a href="https://hid.spec.whatwg.org/#report-descriptor" target="_blank" rel="noopener">WHATWG WebHID &sect;Report Descriptor</a>.</span>
+
+    <h3 id="android-platform">Chrome 158 Android 17+ platform contract and enterprise policies</h3>
+    <p><strong>OS requirement &amp; transports.</strong> On Chrome for Android 158, WebHID relies on Android 17 (API level 37) platform HID APIs (<code>android.hardware.hid.HidDevice</code>, supporting USB and Bluetooth HID transports as well as platform-enumerated HID transports mapped in Chromium&rsquo;s <code>HidServiceAndroid</code>). On Android versions earlier than Android 17 (API level &lt; 37), the underlying OS HID manager is unavailable; applications should always feature-detect <code>"hid" in navigator</code> and handle empty chooser results gracefully. <strong>Android WebView is not supported</strong> because WebView does not provide a device chooser UI or site-permission controls.</p>
+    <p><strong>Permissions Policy &amp; enterprise policies.</strong> Sites and administrators control WebHID access via the <code>hid</code> Permissions Policy (default allowlist <code>'self'</code>; cross-origin iframes require <code>allow="hid"</code> plus header opt-in) and six Chrome Enterprise policies:</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="enterprise-policies-caption">
+    <table class="doc-table scroll-table">
+      <caption id="enterprise-policies-caption">Chrome Enterprise policies controlling WebHID access (desktop and Android)</caption>
+      <thead><tr><th scope="col">Enterprise policy</th><th scope="col">Effect</th></tr></thead>
+      <tr><td><a href="https://chromeenterprise.google/policies/#DefaultWebHidGuardSetting" target="_blank" rel="noopener"><code>DefaultWebHidGuardSetting</code></a></td><td>Sets the default permission policy (ask vs. block) for sites requesting HID access.</td></tr>
+      <tr><td><a href="https://chromeenterprise.google/policies/#WebHidAllowAllDevicesForUrls" target="_blank" rel="noopener"><code>WebHidAllowAllDevicesForUrls</code></a></td><td>Automatically grants listed origins access to all connected HID devices without prompting.</td></tr>
+      <tr><td><a href="https://chromeenterprise.google/policies/#WebHidAllowDevicesForUrls" target="_blank" rel="noopener"><code>WebHidAllowDevicesForUrls</code></a></td><td>Automatically grants listed origins access to devices matching specific USB vendor/product IDs.</td></tr>
+      <tr><td><a href="https://chromeenterprise.google/policies/#WebHidAllowDevicesWithHidUsagesForUrls" target="_blank" rel="noopener"><code>WebHidAllowDevicesWithHidUsagesForUrls</code></a></td><td>Automatically grants listed origins access to devices exposing specific HID usage pages/usages.</td></tr>
+      <tr><td><a href="https://chromeenterprise.google/policies/#WebHidAskForUrls" target="_blank" rel="noopener"><code>WebHidAskForUrls</code></a></td><td>Allows listed origins to prompt users for HID access even when the default guard blocks prompts.</td></tr>
+      <tr><td><a href="https://chromeenterprise.google/policies/#WebHidBlockedForUrls" target="_blank" rel="noopener"><code>WebHidBlockedForUrls</code></a></td><td>Blocks listed origins from requesting or accessing any HID devices.</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5172464636133376" target="_blank" rel="noopener">ChromeStatus 5172464636133376</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/services/device/hid/hid_service_android.cc" target="_blank" rel="noopener">Chromium <code>hid_service_android.cc</code></a>; <a href="https://support.google.com/chrome/a/answer/1375678" target="_blank" rel="noopener">Chrome Enterprise Help &mdash; Device policies</a>.</span>
+
+    <h3 id="errors">Errors and recovery</h3>
+    <p>All asynchronous WebHID methods return promises that reject rather than throwing synchronously once IDL argument conversion succeeds:</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="errors-caption">
+    <table class="doc-table scroll-table">
+      <caption id="errors-caption">WebHID exception and rejection taxonomy (from WHATWG WebHID and Blink <code>hid.cc</code> / <code>hid_device.cc</code>)</caption>
+      <thead><tr><th scope="col">Error</th><th scope="col">When raised</th><th scope="col">Recovery</th></tr></thead>
+      <tr><td><code>SecurityError</code></td><td><code>requestDevice()</code> called without transient user activation; API disallowed by <code>hid</code> Permissions Policy; or called from a context with an opaque top-level origin. (When blocked by enterprise policies such as <code>DefaultWebHidGuardSetting</code> or on unsupported Android WebView / pre-Android 17 environments, prompts are suppressed or <code>navigator.hid</code> is absent.)</td><td>Call <code>requestDevice()</code> inside a click/tap handler; ensure top-level HTTPS origin, <code>hid</code> Permissions Policy allowlist, and feature-detect <code>"hid" in navigator</code>.</td></tr>
+      <tr><td><code>TypeError</code></td><td>Invalid filter in <code>filters</code> or <code>exclusionFilters</code> (for example, <code>productId</code> without <code>vendorId</code>, <code>usage</code> without <code>usagePage</code>, or empty <code>exclusionFilters: []</code>); or <code>reportId</code> outside <code>0..255</code>.</td><td>Validate filter pairs before calling <code>requestDevice()</code>; omit <code>exclusionFilters</code> when empty; clamp <code>reportId</code> to <code>0..255</code>.</td></tr>
+      <tr><td><code>InvalidStateError</code></td><td>Calling <code>open()</code> on an already-open device; calling <code>sendReport()</code>, <code>sendFeatureReport()</code>, or <code>receiveFeatureReport()</code> while <code>device.opened</code> is <code>false</code>; or issuing a call while an open/close/forget state change is already in progress.</td><td>Check <code>device.opened</code> and serialize state transitions (<code>await device.open()</code> before report I/O).</td></tr>
+      <tr><td><code>NotAllowedError</code></td><td>Device open or report transfer rejected by the OS/device, or the targeted report in a <code>HIDCollectionInfo</code> entry belongs to a protected HID usage (such as standard keyboard/mouse or FIDO CTAP, which also prevents <code>HIDInputReportEvent</code> delivery for protected reports).</td><td>Inspect <code>device.collections</code> for non-protected usages; inform the user if another native app holds exclusive access to the HID interface.</td></tr>
+      <tr><td><code>NotSupportedError</code></td><td>Execution context has detached, or a report buffer exceeds the maximum transfer size supported by the browser/OS.</td><td>Re-acquire device handles in an active document/worker and keep report buffers within descriptor report byte lengths.</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/hid/hid.cc" target="_blank" rel="noopener">Blink <code>hid.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/hid/hid_device.cc" target="_blank" rel="noopener">Blink <code>hid_device.cc</code></a>; <a href="https://hid.spec.whatwg.org/" target="_blank" rel="noopener">WHATWG WebHID Living Standard</a>.</span>
+
+    <h3 id="context">Context and exposure</h3>
+    <p>WebHID requires a <strong>Secure Context</strong> (<code>https://</code> or <code>localhost</code>) and is governed by the <code>hid</code> Permissions Policy (default <code>'self'</code>). <code>navigator.hid</code>, <code>HID</code>, <code>HIDDevice</code>, <code>HIDConnectionEvent</code>, and <code>HIDInputReportEvent</code> are exposed on <code>Window</code> and <code>DedicatedWorker</code> (<code>WorkerNavigator.hid</code>); <code>HID.requestDevice()</code> is exposed on <code>Window</code> only and requires transient user activation. In Chromium, exposure on <code>ServiceWorker</code> is gated separately behind the extension-only <code>WebHIDOnServiceWorkers</code> runtime flag. On Android, WebHID is exposed in Chrome 158+ (backed by Android 17 / API level 37+) and is not exposed in Android WebView.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/hid/hid.idl" target="_blank" rel="noopener">Blink <code>hid.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/hid/worker_navigator_hid.idl" target="_blank" rel="noopener">Blink <code>worker_navigator_hid.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Blink <code>runtime_enabled_features.json5</code></a>; <a href="https://chromestatus.com/feature/5172464636133376" target="_blank" rel="noopener">ChromeStatus 5172464636133376</a>.</span>
+
+    <h3 id="lifecycle">Lifecycle and state transitions</h3>
+    <p>A WebHID session progresses through four states: (1) <strong>Permission grant</strong> via <code>navigator.hid.requestDevice()</code> (user gesture required) or recall of previously granted devices via <code>navigator.hid.getDevices()</code>; (2) <strong>Connection open</strong> via <code>await device.open()</code>, transitioning <code>device.opened</code> from <code>false</code> to <code>true</code> and enabling <code>inputreport</code> event dispatch and report I/O; (3) <strong>Active I/O &amp; hotplug</strong>, listening to <code>device.oninputreport</code>, sending reports via <code>sendReport()</code>/<code>sendFeatureReport()</code>, reading feature reports via <code>receiveFeatureReport()</code>, and handling <code>navigator.hid</code> <code>connect</code>/<code>disconnect</code> events; and (4) <strong>Teardown / revocation</strong> via <code>await device.close()</code> (releases the OS handle while keeping permission) or <code>await device.forget()</code> (closes the handle if open and permanently revokes the origin&rsquo;s permission until the user re-grants it). Concurrent <code>open()</code>/<code>close()</code>/<code>forget()</code> calls reject with <code>InvalidStateError</code>.</p>
+    <span class="citation">Source: <a href="https://hid.spec.whatwg.org/#device-usage" target="_blank" rel="noopener">WHATWG WebHID &sect;Device Usage</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/hid/hid_device.cc" target="_blank" rel="noopener">Blink <code>hid_device.cc</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+    <p>No interactive Chrome Platform Showcase demo exists yet for <code>v158/support-for-webhid</code> (checked 2026-11-24). See Google&rsquo;s <a href="https://web.dev/hid-examples/" target="_blank" rel="noopener">WebHID device examples guide</a> for real-hardware recipes (Nintendo Joy-Con, Elgato Stream Deck, Blink(1), headsets).</p>
+
+    <h3 id="example-request-and-reports">Requesting a HID device, opening it, and exchanging reports (desktop &amp; Android 17+)</h3>
+    <pre><code>const connectBtn = document.querySelector("#connect-hid");
+
+function isWebHidAvailable() {
+  return "hid" in navigator;
+}
+
+async function openAndListen(device) {
+  if (!device.opened) {
+    await device.open();
+  }
+
+  device.addEventListener("inputreport", (event) =&gt; {
+    const bytes = new Uint8Array(
+      event.data.buffer,
+      event.data.byteOffset,
+      event.data.byteLength,
+    );
+    console.log(`Report 0x${event.reportId.toString(16)}:`, bytes);
+  });
+
+  // Example: send an output report (reportId 0x01) and read a feature report
+  const payload = new Uint8Array([0x01, 0x00, 0xff]);
+  await device.sendReport(0x01, payload);
+  const feature = await device.receiveFeatureReport(0x02);
+  console.log("Feature report bytes:", new Uint8Array(feature.buffer));
+}
+
+if (isWebHidAvailable()) {
+  // Reconnect already-permitted devices on page load (no gesture needed)
+  const existing = await navigator.hid.getDevices();
+  for (const device of existing) {
+    await openAndListen(device);
+  }
+
+  navigator.hid.addEventListener("disconnect", ({ device }) =&gt; {
+    console.log("Disconnected:", device.productName);
+  });
+
+  connectBtn.addEventListener("click", async () =&gt; {
+    try {
+      const devices = await navigator.hid.requestDevice({
+        filters: [{ usagePage: 0x0b }], // Telephony (e.g. USB/Bluetooth headset)
+      });
+      if (devices.length === 0) return; // User dismissed chooser
+      await openAndListen(devices[0]);
+    } catch (err) {
+      console.error(`WebHID error (${err.name}):`, err.message);
+    }
+  });
+}</code></pre>
+    <span class="citation">Source: <a href="https://hid.spec.whatwg.org/#examples" target="_blank" rel="noopener">WHATWG WebHID &sect;Examples</a>; <a href="https://web.dev/hid/" target="_blank" rel="noopener">web.dev &mdash; Connecting to uncommon HID devices</a>.</span>
+
+    <h3 id="example-descriptors-and-forget">Inspecting <code>HIDCollectionInfo</code> descriptors and revoking device permission</h3>
+    <pre><code>// Each element of device.collections is a HIDCollectionInfo dictionary
+function summarizeCollections(device) {
+  return device.collections.map((col) =&gt; ({
+    usagePage: `0x${col.usagePage.toString(16)}`,
+    usage: `0x${col.usage.toString(16)}`,
+    inputReportIds: col.inputReports.map((r) =&gt; r.reportId),
+    outputReportIds: col.outputReports.map((r) =&gt; r.reportId),
+    featureReportIds: col.featureReports.map((r) =&gt; r.reportId),
+  }));
+}
+
+async function disconnectAndForget(device) {
+  if (device.opened) {
+    await device.close();
+  }
+  // Revokes origin permission permanently until re-requested
+  await device.forget();
+}</code></pre>
+    <span class="citation">Source: <a href="https://hid.spec.whatwg.org/#report-descriptor" target="_blank" rel="noopener">WHATWG WebHID &sect;Report Descriptor</a>; <a href="https://hid.spec.whatwg.org/#dom-hiddevice-forget" target="_blank" rel="noopener">WHATWG WebHID <code>HIDDevice.forget()</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">WebHID API support across browsers and Android. Desktop figures come from BCD <code>api/HID.json</code>; Chrome on Android 158 (Android 17 / API level 37+) comes from ChromeStatus 5172464636133376 (BCD still lists <code>chrome_android: false</code> as of 2026-11-24).</caption>
+      <thead><tr><th scope="col">Browser / platform</th><th scope="col">Support</th><th scope="col">Notes &amp; evidence</th></tr></thead>
+      <tr><th scope="row">Chrome (desktop)</th><td>89</td><td>Windows, macOS, Linux, and ChromeOS per <a href="https://github.com/mdn/browser-compat-data/blob/main/api/HID.json" target="_blank" rel="noopener">BCD <code>api/HID.json</code></a> and <a href="https://chromestatus.com/feature/5172464636133376" target="_blank" rel="noopener">ChromeStatus</a>.</td></tr>
+      <tr><th scope="row">Chrome (Android)</th><td>158</td><td>Enabled by default on Android 17 (API level 37) and later per <a href="https://chromestatus.com/feature/5172464636133376" target="_blank" rel="noopener">ChromeStatus 5172464636133376</a> and <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6ae3b5f3.8438a57e.1c08c0.014b.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a>. BCD has not yet updated from <code>false</code>.</td></tr>
+      <tr><th scope="row">Android WebView</th><td>No</td><td>Explicitly unsupported: lacks device chooser UI and permission controls (<a href="https://chromestatus.com/feature/5172464636133376" target="_blank" rel="noopener">ChromeStatus</a>; <a href="https://crbug.com/40163407" target="_blank" rel="noopener">crbug.com/40163407</a>).</td></tr>
+      <tr><th scope="row">Edge</th><td>89 (desktop)</td><td>Mirrors Chromium on desktop per <a href="https://github.com/mdn/browser-compat-data/blob/main/api/HID.json" target="_blank" rel="noopener">BCD</a> and <a href="https://webstatus.dev/features/webhid" target="_blank" rel="noopener">webstatus.dev</a>; Edge on Android support is unconfirmed.</td></tr>
+      <tr><th scope="row">Firefox</th><td>No</td><td>Not supported; <a href="https://github.com/mozilla/standards-positions/issues/459" target="_blank" rel="noopener">Mozilla standards position: Negative</a>.</td></tr>
+      <tr><th scope="row">Safari / WebKit</th><td>No</td><td>Not supported; <a href="https://github.com/WebKit/standards-positions/issues/510" target="_blank" rel="noopener">WebKit standards position: Oppose</a>.</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/HID.json" target="_blank" rel="noopener">BCD <code>api/HID.json</code></a>; <a href="https://webstatus.dev/features/webhid" target="_blank" rel="noopener">webstatus.dev <code>webhid</code></a>; <a href="https://chromestatus.com/api/v0/features/5172464636133376" target="_blank" rel="noopener">ChromeStatus API record 5172464636133376</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <p>Direct hardware access carries significant fingerprinting, keylogging, and firmware-tampering risks. WebHID mitigates these through five layers that apply identically on desktop and Android 17+:</p>
+    <ul>
+      <li><strong>Explicit per-device user consent:</strong> Origins cannot enumerate arbitrary HID devices; <code>getDevices()</code> returns only devices the user has explicitly selected in the browser-controlled chooser UI triggered by <code>requestDevice()</code> with transient user activation.</li>
+      <li><strong>Protected-usage blocklist:</strong> Browsers block top-level collections and reports belonging to security-sensitive usages (such as standard keyboards, pointing devices, and FIDO/U2F security keys) so a web page cannot intercept keystrokes or credentials.</li>
+      <li><strong>Secure context &amp; origin isolation:</strong> Exposed only in secure contexts (<code>https://</code> / <code>localhost</code>), denied in opaque top-level origins, and gated by the <code>hid</code> Permissions Policy (<code>'self'</code> by default).</li>
+      <li><strong>Revocable permissions &amp; enterprise governance:</strong> Users can revoke grants in site settings or via <code>device.forget()</code>, and enterprise administrators can block or scope access through the six Chrome WebHID enterprise policies.</li>
+      <li><strong>WebView exclusion:</strong> Android WebView does not ship WebHID because embedded WebViews lack a trusted browser-chrome device chooser and permission management UI.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://hid.spec.whatwg.org/#security-and-privacy" target="_blank" rel="noopener">WHATWG WebHID &sect;Security and Privacy Considerations</a>; <a href="https://chromestatus.com/feature/5172464636133376" target="_blank" rel="noopener">ChromeStatus 5172464636133376</a>; <a href="https://github.com/w3ctag/design-reviews/issues/370" target="_blank" rel="noopener">W3C TAG design review #370</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Specification</th><th scope="col">Section</th></tr></thead>
+      <tr><td><a href="https://hid.spec.whatwg.org/" target="_blank" rel="noopener">WebHID API (WHATWG Living Standard)</a></td><td><a href="https://hid.spec.whatwg.org/#enumeration" target="_blank" rel="noopener">Enumeration</a>, <a href="https://hid.spec.whatwg.org/#device-usage" target="_blank" rel="noopener">Device Usage</a>, <a href="https://hid.spec.whatwg.org/#report-descriptor" target="_blank" rel="noopener">Report Descriptor</a>, and <a href="https://hid.spec.whatwg.org/#permissions-policy" target="_blank" rel="noopener">Permissions Policy</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/WebHID_API" target="_blank" rel="noopener">MDN &mdash; WebHID API (desktop reference)</a></li>
+      <li><a href="https://web.dev/hid/" target="_blank" rel="noopener">web.dev &mdash; Connecting to uncommon HID devices</a></li>
+      <li><a href="https://web.dev/hid-examples/" target="_blank" rel="noopener">web.dev &mdash; WebHID device examples</a></li>
+      <li><a href="https://github.com/whatwg/hid/blob/main/EXPLAINER.md" target="_blank" rel="noopener">whatwg/hid &mdash; Explainer</a></li>
+      <li><a href="https://wpt.fyi/results/webhid" target="_blank" rel="noopener">wpt.fyi &mdash; WebHID WPT results</a></li>
+      <li><a href="https://chromestatus.com/feature/5172464636133376" target="_blank" rel="noopener">ChromeStatus &mdash; Support for WebHID (5172464636133376)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
