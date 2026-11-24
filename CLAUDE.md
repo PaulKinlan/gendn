@@ -23,7 +23,7 @@ server.ts             Routing + rendering. Routes /, /features, /v<N>/, /v<N>/<a
                       Index + /features + /v<N>/ render server-side from the chromestatus.com API.
                       Runtime-neutral: serveRequest() is shared by every entry below. Never call
                       Deno.* (or node:fs) directly here; read files through lib/site-fs.ts.
-worker.ts             Cloudflare Workers entry (PRODUCTION). wrangler.jsonc + .github/workflows/deploy.yml.
+worker.ts             Cloudflare Workers entry (PRODUCTION). wrangler.jsonc; deployed by Workers Builds.
 serve.ts              Node entry for local dev (`npm run dev` / `npm start`, Node 22.18+).
 scripts/build-worker-assets.mjs  Copies v<N>/, public/, reports/conformance/ into dist/site + file index.
 package.json          npm scripts + pinned wrangler. deno.json: legacy tasks for the gates (moving to Node).
@@ -52,8 +52,7 @@ routine via the `RemoteTrigger` MCP tool (action `update`).
 
 Deno Deploy shuts down in April 2027 and Deno runtime development ends about a year after the
 Oct 2026 announcement, so gendn is moving off Deno in two phases. Phase 1 (done): the site runs on
-Cloudflare Workers (`worker.ts`, deployed by `.github/workflows/deploy.yml` on every push to main
-once the `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` secrets exist) and locally on Node
+Cloudflare Workers (`worker.ts`, Worker `gendn`) and locally on Node
 (`npm run dev`). Phase 2 (pending): port the scripts, gates and CI from Deno to Node; until then the
 `deno task` commands below stay authoritative.
 
@@ -61,6 +60,10 @@ once the `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` secrets exist) and loc
   by `scripts/build-worker-assets.mjs`, or it renders locally and 404s in production. Check
   `npx wrangler dev` after adding a new read.
 - Node, Deno and the Worker must answer byte-identically: all three call `serveRequest()`.
+- **Deploys: Cloudflare Workers Builds**, connected to this repo (no GitHub secrets, no Actions
+  workflow). Trigger "Deploy on push to main" runs `npx wrangler deploy`; "Branch previews" runs
+  `npx wrangler versions upload` on every other branch, which shows up as a check on PRs. Build logs
+  are in the Cloudflare dashboard under Workers > gendn > Builds.
 
 ### Weekly hardening routine and auto-merge
 

@@ -16,7 +16,7 @@ infer signatures, protocol fields, errors, lifecycle behavior, or edge cases.
    - the explainer (when available)
    - the spec (typically WHATWG or W3C)
    - the IDL from Chromium source (`third_party/blink/renderer/`)
-4. Pages get committed and pushed; `.github/workflows/deploy.yml` redeploys the Cloudflare Worker.
+4. Pages get committed and pushed; Cloudflare Workers Builds redeploys the Worker.
 5. When MDN ships its own page, the routine notices on the next pass and the gendn entry switches to
    a "see MDN" stub.
 

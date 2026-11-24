@@ -18,9 +18,9 @@ name: Auto-merge weekly hardening PR
 # checks out or runs PR code; it reads PR metadata through the API and calls `gh pr merge` pinned
 # to the verified head SHA, so a commit pushed after CI ran cannot ride along.
 #
-# Note: a merge made with GITHUB_TOKEN does not trigger push workflows on main (CI or deploy). The
-# same gates already passed on the PR head, and the merge step dispatches deploy.yml explicitly
-# (workflow_dispatch is the documented exception to that rule).
+# Note: a merge made with GITHUB_TOKEN does not trigger the CI push run on main. The same gates
+# already passed on the PR head. Deploys are unaffected: Cloudflare Workers Builds deploys every
+# push to main from Cloudflare's side (GitHub App webhook), not from GitHub Actions.
 
 on:
   workflow_run:
@@ -48,7 +48,6 @@ jobs:
       contents: write
       pull-requests: write
       checks: read
-      actions: write
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
@@ -113,5 +112,3 @@ jobs:
 
           gh pr merge "$PR" --merge --match-head-commit "$HEAD_SHA"
           echo "### Merged PR #$PR at $HEAD_SHA" >> "$GITHUB_STEP_SUMMARY"
-          gh workflow run deploy.yml --ref main
-          echo "Dispatched deploy.yml on main" >> "$GITHUB_STEP_SUMMARY"
