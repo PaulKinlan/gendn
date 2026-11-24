@@ -311,6 +311,19 @@ function renderSeoHead({
   ].join("\n  ");
 }
 
+function renderSiteNav(current: "home" | "features" | "release" | "conformance"): string {
+  const link = (href: string, label: string, key?: typeof current) =>
+    `<a href="${href}"${key && key === current ? ' aria-current="page"' : ""}>${label}</a>`;
+  return `<nav class="site-nav" aria-label="Site navigation">
+    <a class="site-nav-brand" href="/">gendn</a>
+    <div class="site-nav-links">
+      ${link("/features", "All APIs", "features")}
+      ${link("/conformance", "Conformance", "conformance")}
+      ${link("/llms.txt", "llms.txt")}
+    </div>
+  </nav>`;
+}
+
 export async function renderIndex(channels: Channels, origin?: string): Promise<string> {
   const commit = await getLatestCommit();
   const prevStable = channels.stable.mstone - 1;
@@ -388,6 +401,7 @@ export async function renderIndex(channels: Channels, origin?: string): Promise<
 </head>
 <body>
   <main>
+    ${renderSiteNav("home")}
     <header class="lede-block">
       <p class="eyebrow">work in progress</p>
       <h1>gendn</h1>
@@ -567,37 +581,66 @@ export async function renderReleasePage(
       // Narrowed at runtime, not escaped (gendn-b2s): a non-canonical id renders the name as
       // plain text instead of a link — THREAT_MODEL.md invariant #4, renderCommitAnchor shape.
       const csHref = chromeStatusUrl(f.id);
+      const cross = hasDoc ? undefined : identityIndex.get(String(f.id));
+      const localDocHref = hasDoc
+        ? `/${escapeHTML(release)}/${escapeHTML(slug)}/`
+        : cross
+        ? escapeHTML(cross)
+        : null;
       let docTag: string;
       if (hasDoc) {
         docTag = referenceTag(release, slug);
       } else {
-        const cross = identityIndex.get(String(f.id));
         docTag = cross
           ? crossReferenceTag(cross)
           : `<span class="tag tag-pending">doc pending</span>`;
       }
+      const headingText = `${escapeHTML(name)}${nameCut ? "..." : ""}`;
+      const headingHtml = localDocHref
+        ? `<h3><a href="${localDocHref}">${headingText}</a></h3>`
+        : csHref
+        ? `<h3><a href="${csHref}" target="_blank" rel="noopener">${headingText}</a></h3>`
+        : `<h3>${headingText}</h3>`;
+      const csTag = localDocHref && csHref
+        ? `<a class="tag" href="${csHref}" target="_blank" rel="noopener">ChromeStatus &#8599;</a>`
+        : "";
       return `<li class="demo-card">
-        ${
-          csHref
-            ? `<h3><a href="${csHref}" target="_blank" rel="noopener">${escapeHTML(name)}${
-              nameCut ? "..." : ""
-            }</a></h3>`
-            : `<h3>${escapeHTML(name)}${nameCut ? "..." : ""}</h3>`
-        }
+        ${headingHtml}
         <p>${escapeHTML(summary)}${summary.length === SUMMARY_CAP ? "..." : ""}</p>
         <div class="demo-tags">
           <span class="tag">${escapeHTML(cat)}${catCut ? "..." : ""}</span>
           ${docTag}
+          ${csTag}
         </div>
       </li>`;
     }));
-    return `<section>
+    const groupId = `group-${slugify(group.category) || "other"}`;
+    return {
+      groupId,
+      cat,
+      catCut,
+      count: group.features.length,
+      html: `<section id="${escapeHTML(groupId)}">
       <h3 class="group-title">${escapeHTML(cat)}${
         catCut ? "..." : ""
       } <span class="group-count">(${group.features.length})</span></h3>
       <ol class="demo-list">${cards.join("")}</ol>
-    </section>`;
+    </section>`,
+    };
   }));
+
+  const jumpNav = sections.length > 1
+    ? `<nav class="local-nav" aria-label="Jump to category">
+    <p class="local-nav-label">On this page</p>
+    <ul>${
+      sections.map((s) =>
+        `<li><a href="#${escapeHTML(s.groupId)}">${escapeHTML(s.cat)}${
+          s.catCut ? "..." : ""
+        } (${s.count})</a></li>`
+      ).join("")
+    }</ul>
+  </nav>`
+    : "";
 
   const pageTitle = `chrome ${milestone} reference — gendn`;
   const pageDescription =
@@ -623,17 +666,20 @@ export async function renderReleasePage(
 </head>
 <body>
 <main>
-  <p class="crumbs"><a href="/">&larr; all releases</a></p>
+  ${renderSiteNav("release")}
+  <p class="crumbs"><a href="/">&larr; all releases</a> &middot; <a href="/features">all apis</a></p>
 
   <header class="lede-block">
     <p class="eyebrow">chrome ${milestone}</p>
     <h1>chrome ${milestone} api reference</h1>
-    <p class="lede">${features.total} features tracked. Each card links to the gendn reference where MDN doesn't yet cover the API, or out to MDN where it does.</p>
+    <p class="lede">${features.total} features tracked. Click any documented API to open its gendn reference (or MDN stub), or open ChromeStatus for upstream tracking.</p>
   </header>
+
+  ${jumpNav}
 
   <section>
     <h2>features (${features.total})</h2>
-    ${sections.join("\n")}
+    ${sections.map((s) => s.html).join("\n")}
   </section>
 
   <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>

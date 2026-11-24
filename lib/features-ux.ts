@@ -585,6 +585,14 @@ export function renderFeaturesCatalogueHtml(opts: FeaturesCatalogueOptions): str
 <body>
 <a class="skip-link sr-only" href="#catalogue-main">Skip to catalogue</a>
 <main id="catalogue-main" tabindex="-1">
+  <nav class="site-nav" aria-label="Site navigation">
+    <a class="site-nav-brand" href="/">gendn</a>
+    <div class="site-nav-links">
+      <a href="/features" aria-current="page">All APIs</a>
+      <a href="/conformance">Conformance</a>
+      <a href="/llms.txt">llms.txt</a>
+    </div>
+  </nav>
   <nav aria-label="Breadcrumb">
     <p class="crumbs"><a href="/">&larr; home</a></p>
   </nav>
