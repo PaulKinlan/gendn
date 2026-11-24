@@ -1,4 +1,4 @@
-// @fixture-permissions --allow-read --allow-write --allow-run --allow-net --allow-env
+import * as sys from "./lib/sys.mjs";
 import { validateReferenceContractsInBrowser } from "./lib/reference-browser.mjs";
 import { REQUIRED_DIMENSIONS } from "./lib/reference-contract.mjs";
 import { CHECKOUT_ROOT, createPrivateServedRoot } from "./lib/private-root.mjs";
@@ -30,17 +30,17 @@ try {
     const mobileOnly = ownerId.includes("browser-mobile-only");
     // Refuse to overwrite: a path this fixture owns must not already exist, even inside a fresh root.
     try {
-      await Deno.stat(`${root.root}${ownerId}`);
+      await sys.stat(`${root.root}${ownerId}`);
       throw new Error(`refusing to overwrite existing browser-test fixture path ${ownerId}`);
     } catch (error) {
-      if (!(error instanceof Deno.errors.NotFound)) throw error;
+      if (!(error instanceof sys.errors.NotFound)) throw error;
     }
-    await Deno.mkdir(`${root.root}${ownerId}/member`, { recursive: true });
-    await Deno.writeTextFile(
+    await sys.mkdir(`${root.root}${ownerId}/member`, { recursive: true });
+    await sys.writeTextFile(
       `${root.root}${ownerId}/index.html`,
       `<!doctype html><title>Fixture</title><h1>Fixture</h1>`,
     );
-    await Deno.writeTextFile(
+    await sys.writeTextFile(
       `${root.root}${ownerId}/member/index.html`,
       `<!doctype html><meta name="viewport" content="width=device-width"><title>Member</title>${
         mobileOnly ? "<style>@media (max-width: 500px) { #contract { display: none } }</style>" : ""
@@ -85,9 +85,9 @@ try {
   for (const ownerId of ids) {
     let exists = true;
     try {
-      await Deno.stat(`${CHECKOUT_ROOT}${ownerId}`);
+      await sys.stat(`${CHECKOUT_ROOT}${ownerId}`);
     } catch (error) {
-      if (!(error instanceof Deno.errors.NotFound)) throw error;
+      if (!(error instanceof sys.errors.NotFound)) throw error;
       exists = false;
     }
     assert(!exists, `fixture wrote into the checkout: ${ownerId}`);

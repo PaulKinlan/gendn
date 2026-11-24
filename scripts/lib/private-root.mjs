@@ -14,6 +14,7 @@
 // observe is git reading its own object store. Each fixture removes exactly the root it created,
 // never a shared path — and a run that is killed leaves debris in a root nobody else will look at.
 
+import * as sys from "./sys.mjs";
 import { runGit } from "./bounded-git.mjs";
 
 /** Repo root of the checkout this module is loaded from (scripts/lib/ -> repo root). */
@@ -42,10 +43,10 @@ export async function createPrivateServedRoot({
   baseline = "origin/main",
   source = CHECKOUT_ROOT,
 } = {}) {
-  const root = await Deno.makeTempDir({ prefix: `${prefix}-` });
+  const root = await sys.makeTempDir({ prefix: `${prefix}-` });
   const remove = async () => {
     try {
-      await Deno.remove(root, { recursive: true });
+      await sys.remove(root, { recursive: true });
     } catch {
       // Already removed (or never created past makeTempDir).
     }

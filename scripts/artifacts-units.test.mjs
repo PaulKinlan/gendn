@@ -1,4 +1,3 @@
-// @fixture-permissions --allow-read --allow-write
 // scripts/artifacts-units.test.mjs — direct unit coverage for scripts/lib/artifacts.mjs (gendn-dd7).
 //
 // THE GAP: the shared helpers derive published-page identity/status/demo, the immutable suite
@@ -22,6 +21,7 @@
 //
 // Run: deno task test-fixtures --tasks test-artifacts-units
 
+import * as sys from "./lib/sys.mjs";
 import {
   collectCritiques,
   collectPublishedPages,
@@ -484,12 +484,12 @@ assert(
 // still passed 54/54 (reviewer-proven). These assertions exercise the wrapper itself: real
 // file reading, the root parameter, delegation equality, and the missing-file contract.
 {
-  const vtmp = await Deno.makeTempDir({ prefix: "vgs-pagemeta-" });
+  const vtmp = await sys.makeTempDir({ prefix: "vgs-pagemeta-" });
   try {
-    await Deno.mkdir(`${vtmp}/v900/seam`, { recursive: true });
+    await sys.mkdir(`${vtmp}/v900/seam`, { recursive: true });
     const SEAM_HTML =
       `<h1>Seam Page</h1><p>Record: <a href="https://chromestatus.com/feature/4242424242">cs</a></p>`;
-    await Deno.writeTextFile(`${vtmp}/v900/seam/index.html`, SEAM_HTML);
+    await sys.writeTextFile(`${vtmp}/v900/seam/index.html`, SEAM_HTML);
     const viaWrapper = await pageMetadata("v900/seam/index.html", vtmp);
     const viaDirect = metadataFromHtml("v900/seam/index.html", SEAM_HTML);
     assert(
@@ -502,8 +502,8 @@ assert(
         viaWrapper.h1 === "Seam Page",
       String(viaWrapper.identity),
     );
-    await Deno.mkdir(`${vtmp}/v900/seam2`, { recursive: true });
-    await Deno.writeTextFile(
+    await sys.mkdir(`${vtmp}/v900/seam2`, { recursive: true });
+    await sys.writeTextFile(
       `${vtmp}/v900/seam2/index.html`,
       `<p class="eyebrow">Covered on MDN</p><h1>Stub Page</h1>`,
     );
@@ -516,14 +516,14 @@ assert(
     try {
       await pageMetadata("v900/absent/index.html", vtmp);
     } catch (e) {
-      missingThrew = e instanceof Deno.errors.NotFound;
+      missingThrew = e instanceof sys.errors.NotFound;
     }
     assert(
       "pageMetadata: a missing page file THROWS NotFound (no silent null metadata)",
       missingThrew,
     );
   } finally {
-    await Deno.remove(vtmp, { recursive: true }).catch(() => {});
+    await sys.remove(vtmp, { recursive: true }).catch(() => {});
   }
 }
 
@@ -546,7 +546,7 @@ assert(
       // a clean failed assertion, not an uncaught read of '…/undefined' (review F4).
       const direct = metadataFromHtml(
         firstPage,
-        await Deno.readTextFile(`${REPO}/${firstPage}`),
+        await sys.readTextFile(`${REPO}/${firstPage}`),
       );
       const viaDefaultRoot = await pageMetadata(firstPage);
       defaultRootOk = JSON.stringify(viaDefaultRoot) === JSON.stringify(direct);
@@ -573,7 +573,7 @@ assert(
   try {
     await pageMetadata("v999/definitely-absent-page/index.html");
   } catch (e) {
-    threwNotFound = e instanceof Deno.errors.NotFound;
+    threwNotFound = e instanceof sys.errors.NotFound;
     detail = `threw: ${e}`;
   }
   assert(
@@ -594,15 +594,15 @@ assert(
 // byte-identical probe page sitting at a baked absolute path would pass — the assertion detects
 // DIVERGENCE from the expected catalogue, not the resolution LOCATION itself.
 {
-  const ctmp = await Deno.makeTempDir({ prefix: "artifacts-units-cwd-" });
-  const savedCwd = Deno.cwd();
+  const ctmp = await sys.makeTempDir({ prefix: "artifacts-units-cwd-" });
+  const savedCwd = process.cwd();
   let cwdRootOk = false;
   let detail = "(no result)";
   try {
-    await Deno.mkdir(`${ctmp}/v901/only-page`, { recursive: true });
+    await sys.mkdir(`${ctmp}/v901/only-page`, { recursive: true });
     const probeHtml = "<h1>Cwd Root Probe</h1>";
-    await Deno.writeTextFile(`${ctmp}/v901/only-page/index.html`, probeHtml);
-    Deno.chdir(ctmp);
+    await sys.writeTextFile(`${ctmp}/v901/only-page/index.html`, probeHtml);
+    process.chdir(ctmp);
     const viaDefault = await pageMetadata("v901/only-page/index.html");
     const expected = metadataFromHtml("v901/only-page/index.html", probeHtml);
     cwdRootOk = JSON.stringify(viaDefault) === JSON.stringify(expected);
@@ -610,8 +610,8 @@ assert(
   } catch (e) {
     detail = `threw: ${e}`;
   } finally {
-    Deno.chdir(savedCwd);
-    await Deno.remove(ctmp, { recursive: true }).catch(() => {});
+    process.chdir(savedCwd);
+    await sys.remove(ctmp, { recursive: true }).catch(() => {});
   }
   assert(
     "pageMetadata DEFAULT root resolves against CWD, not a baked absolute path (from a foreign temp catalogue root, the default call reads THAT catalogue)",
@@ -621,23 +621,23 @@ assert(
 }
 
 // ---------- temp-catalogue boundaries ------------------------------------------------------
-const tmp = await Deno.makeTempDir({ prefix: "artifacts-units-" });
+const tmp = await sys.makeTempDir({ prefix: "artifacts-units-" });
 try {
-  await Deno.mkdir(`${tmp}/v900/alpha`, { recursive: true });
-  await Deno.writeTextFile(`${tmp}/v900/alpha/index.html`, "<h1>Alpha</h1>");
-  await Deno.writeTextFile(
+  await sys.mkdir(`${tmp}/v900/alpha`, { recursive: true });
+  await sys.writeTextFile(`${tmp}/v900/alpha/index.html`, "<h1>Alpha</h1>");
+  await sys.writeTextFile(
     `${tmp}/v900/alpha/conformance.json`,
     JSON.stringify({ id: "v900/alpha", assertions: [A] }),
   );
-  await Deno.writeTextFile(`${tmp}/v900/alpha/_questions.json`, JSON.stringify({ q: 1 }));
-  await Deno.mkdir(`${tmp}/v900/beta`, { recursive: true }); // no index.html -> unpublished
-  await Deno.mkdir(`${tmp}/v900/gamma/child`, { recursive: true });
-  await Deno.writeTextFile(`${tmp}/v900/gamma/child/index.html`, "<h1>Child</h1>"); // deep child: NOT a published page
-  await Deno.mkdir(`${tmp}/v901/delta`, { recursive: true });
-  await Deno.writeTextFile(`${tmp}/v901/delta/index.html`, "<h1>Delta</h1>");
-  await Deno.mkdir(`${tmp}/notversioned/page`, { recursive: true });
-  await Deno.writeTextFile(`${tmp}/notversioned/page/index.html`, "<h1>Nope</h1>");
-  await Deno.writeTextFile(`${tmp}/v900/stray-file.html`, "x"); // file, not a slug dir
+  await sys.writeTextFile(`${tmp}/v900/alpha/_questions.json`, JSON.stringify({ q: 1 }));
+  await sys.mkdir(`${tmp}/v900/beta`, { recursive: true }); // no index.html -> unpublished
+  await sys.mkdir(`${tmp}/v900/gamma/child`, { recursive: true });
+  await sys.writeTextFile(`${tmp}/v900/gamma/child/index.html`, "<h1>Child</h1>"); // deep child: NOT a published page
+  await sys.mkdir(`${tmp}/v901/delta`, { recursive: true });
+  await sys.writeTextFile(`${tmp}/v901/delta/index.html`, "<h1>Delta</h1>");
+  await sys.mkdir(`${tmp}/notversioned/page`, { recursive: true });
+  await sys.writeTextFile(`${tmp}/notversioned/page/index.html`, "<h1>Nope</h1>");
+  await sys.writeTextFile(`${tmp}/v900/stray-file.html`, "x"); // file, not a slug dir
 
   const pages = await collectPublishedPages(tmp);
   assert(
@@ -651,7 +651,7 @@ try {
     suites.length === 1 && suites[0].id === "v900/alpha",
   );
   const aliasRoot = `${tmp}-alias`;
-  await Deno.symlink(tmp, aliasRoot);
+  await sys.symlink(tmp, aliasRoot);
   try {
     const aliasPages = await collectPublishedPages(aliasRoot);
     const aliasSuites = await collectSuites(aliasRoot);
@@ -662,7 +662,7 @@ try {
       JSON.stringify({ aliasPages, aliasSuites }),
     );
   } finally {
-    await Deno.remove(aliasRoot);
+    await sys.remove(aliasRoot);
   }
   const critiques = await collectCritiques(tmp);
   assert(
@@ -681,7 +681,7 @@ try {
     "loadSupport: missing sidecar yields {schemaVersion,updatedAt,routes:{}} (never undefined)",
     noSupport && noSupport.schemaVersion === 1 && JSON.stringify(noSupport.routes) === "{}",
   );
-  await Deno.writeTextFile(
+  await sys.writeTextFile(
     `${tmp}/responsive-support.json`,
     JSON.stringify({
       schemaVersion: 1,
@@ -700,7 +700,7 @@ try {
     "readJson: missing file returns null",
     (await readJson(`${tmp}/v900/alpha/absent.json`)) === null,
   );
-  await Deno.writeTextFile(`${tmp}/v900/alpha/bad.json`, "{oops");
+  await sys.writeTextFile(`${tmp}/v900/alpha/bad.json`, "{oops");
   let threw = false;
   try {
     await readJson(`${tmp}/v900/alpha/bad.json`);
@@ -709,11 +709,11 @@ try {
   }
   assert("readJson: malformed JSON THROWS rather than returning null (corrupt != absent)", threw);
 } finally {
-  await Deno.remove(tmp, { recursive: true }).catch(() => {});
+  await sys.remove(tmp, { recursive: true }).catch(() => {});
 }
 
 if (failures > 0) {
   console.error(`artifacts-units.test.mjs: ${failures} assertion(s) failed`);
-  Deno.exit(1);
+  process.exit(1);
 }
 console.log(`artifacts-units fixture: all ${passed} assertions passed`);

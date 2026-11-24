@@ -17,6 +17,7 @@
 // Read-only discovery: deno run --allow-read scripts/iframe-posture-sweep.mjs --check-corpus
 // The discovery check is NOT evidence that any served iframe works.
 
+import * as sys from "./lib/sys.mjs";
 import { launch } from "./lib/cdp.mjs";
 import { PENDING_HARDENING } from "./lib/iframe-posture.mjs";
 import { mapPool, PAGE_CONCURRENCY } from "./lib/map-pool.mjs";
@@ -27,12 +28,12 @@ const OUT = "/tmp/kjq-sweep";
 // Results are appended HERE as they accumulate (not buffered to the end): if this sweep is killed
 // at a time bound, the partial evidence survives with explicit gaps rather than vanishing.
 const RESULTS = `${OUT}/results.jsonl`;
-const checkCorpus = Deno.args.length === 1 && Deno.args[0] === "--check-corpus";
-if (Deno.args.length && !checkCorpus) {
+const checkCorpus = sys.args.length === 1 && sys.args[0] === "--check-corpus";
+if (sys.args.length && !checkCorpus) {
   console.error(
     "iframe-posture sweep: unknown argument; valid options: --check-corpus (read-only discovery) or no arguments (browser acceptance)",
   );
-  Deno.exit(2);
+  process.exit(2);
 }
 
 let failures = 0;
@@ -47,7 +48,7 @@ function assert(name, ok, detail = "") {
   }
   try {
     const line = JSON.stringify({ name, ok, detail }) + "\n";
-    const f = Deno.openSync(RESULTS, { append: true, create: true });
+    const f = sys.openSync(RESULTS, { append: true, create: true });
     f.writeSync(new TextEncoder().encode(line));
     f.close();
   } catch {
@@ -57,14 +58,14 @@ function assert(name, ok, detail = "") {
 
 // --- discover the pages that embed iframes (same tree walk as the guard fixture) -------
 async function* walkHtml(dir, prefix) {
-  for await (const e of Deno.readDir(dir)) {
+  for await (const e of sys.readDir(dir)) {
     const rel = `${prefix}/${e.name}`;
     if (e.isDirectory) yield* walkHtml(`${dir}/${e.name}`, rel);
     else if (e.name.endsWith(".html")) yield rel;
   }
 }
 const pages = [];
-for await (const e of Deno.readDir(REPO)) {
+for await (const e of sys.readDir(REPO)) {
   if (e.isDirectory && /^v\d+$/.test(e.name)) {
     for await (const rel of walkHtml(`${REPO}${e.name}`, e.name)) pages.push(rel);
   }
@@ -72,7 +73,7 @@ for await (const e of Deno.readDir(REPO)) {
 const pendingFiles = new Set(PENDING_HARDENING.map((p) => p.file));
 const perPage = await mapPool(pages, PAGE_CONCURRENCY, async (rel) => {
   try {
-    const text = await Deno.readTextFile(`${REPO}${rel}`);
+    const text = await sys.readTextFile(`${REPO}${rel}`);
     const embeds = [];
     for (const m of text.matchAll(/<iframe\b[^>]*>/gs)) {
       const src = /src="([^"]+)"/.exec(m[0])?.[1];
@@ -112,18 +113,18 @@ if (hardened.length === 0) {
   console.error(
     `iframe-posture sweep: EMPTY — 0 hardened embeds available for verification (${embeds.length} discovered, ${deferred.length} deferred). No assertions ran; add a published v<N>/<slug>/index.html with an iframe, or resolve the deferred entries before running acceptance.`,
   );
-  Deno.exit(2);
+  process.exit(2);
 }
 if (checkCorpus) {
   console.log(
     `preflight: ${hardened.length} hardened embed(s) eligible; NOT browser-verified (run without --check-corpus for acceptance)`,
   );
-  Deno.exit(0);
+  process.exit(0);
 }
 
-await Deno.mkdir(OUT, { recursive: true });
+await sys.mkdir(OUT, { recursive: true });
 try {
-  Deno.removeSync(RESULTS);
+  sys.removeSync(RESULTS);
 } catch {
   // absent is fine
 }
@@ -167,7 +168,7 @@ try {
     hardened[Math.floor(hardened.length / 2)]?.route,
     hardened[hardened.length - 1]?.route,
   ]);
-  await Deno.mkdir(OUT, { recursive: true });
+  await sys.mkdir(OUT, { recursive: true });
 
   for (const { route, src, pending } of embeds) {
     if (pending) continue; // deferred to gendn-sgc; logged above as could-NOT-verify
@@ -276,7 +277,7 @@ try {
   let listenersLeft = 0;
   for (const port of [serverPort, cdpPort].filter(Number.isInteger)) {
     try {
-      const c = await Deno.connect({ port, hostname: "127.0.0.1" });
+      const c = await sys.connect({ port, hostname: "127.0.0.1" });
       c.close();
       listenersLeft++;
     } catch {
@@ -296,7 +297,7 @@ try {
 
 if (failures > 0) {
   console.error(`iframe-posture sweep: ${failures} assertion(s) FAILED (${passed} passed)`);
-  Deno.exit(1);
+  process.exit(1);
 }
 console.log(
   `iframe-posture sweep: all ${passed} assertions passed across ${hardened.length} hardened embed page(s); ${deferred.length} deferred to gendn-sgc (NOT verified)`,

@@ -1,4 +1,3 @@
-// @fixture-permissions --allow-read
 // The real http-status request seam: reject malformed paths before fetch, preserve manual 301s,
 // cancel bodies without reading, and abort a hung request within its bound.
 import { assertionHttpStatus } from "./conformance.mjs";

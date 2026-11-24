@@ -1,4 +1,3 @@
-// @fixture-permissions --allow-env=CHROMESTATUS_BASE,PORT --allow-net=127.0.0.1 --allow-read --allow-run=python3 --allow-write=v141
 // scripts/chromestatus-units.test.mjs — direct unit coverage for lib/chromestatus.ts (gendn-14o).
 //
 // THE GAP: fetchBounded/readCapped already have the fetch-bounded fixture, but getJson's XSSI
@@ -33,16 +32,18 @@
 //
 // Run: deno task test-fixtures --tasks test-chromestatus-units
 
+import * as sys from "./lib/sys.mjs";
+
 const REPO = new URL("..", import.meta.url).pathname;
 
 let failures = 0;
 let passed = 0;
 async function pathExists(path) {
   try {
-    await Deno.stat(path);
+    await sys.stat(path);
     return true;
   } catch (error) {
-    if (!(error instanceof Deno.errors.NotFound)) throw error;
+    if (!(error instanceof sys.errors.NotFound)) throw error;
     return false;
   }
 }
@@ -65,7 +66,7 @@ function bump(key) {
 const XSSI = ")]}'";
 const feat = (id, name) => ({ id, name, summary: `s${id}` });
 
-const server = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
+const server = sys.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
   const url = new URL(req.url);
   const key = url.pathname + url.search;
   bump(key);
@@ -144,10 +145,11 @@ const server = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
   }
   return json("not found", 404);
 });
+await server.ready;
 const base = `http://127.0.0.1:${server.addr.port}`;
 
 // The seam must be set BEFORE the module is imported (BASE is captured at import time).
-Deno.env.set("CHROMESTATUS_BASE", base);
+sys.env.set("CHROMESTATUS_BASE", base);
 const {
   chromeStatusUrl,
   getChannels,
@@ -330,7 +332,7 @@ try {
   const DIVERGENCE_INDEX = PARITY_INPUTS.indexOf("b\u20D0c");
   let pyResults = null;
   try {
-    const py = new Deno.Command("python3", {
+    const py = new sys.Command("python3", {
       args: [
         "-c",
         `import importlib.util, json, sys
@@ -446,7 +448,7 @@ print(json.dumps([m.slugify(n) for n in json.loads(sys.argv[1])]))`,
   // The catalogue only indexes features whose doc directory exists (server.ts featureHasDoc ->
   // `if (!hasDoc) return null`), and the repo has no v141 tree — so the seam test SYNTHESIZES the
   // three doc directories here. OWNERSHIP (gendn-gvoq): the teardown used to be
-  // `Deno.remove("v141", { recursive: true })`, which recursively owns a whole milestone and would
+  // `sys.remove("v141", { recursive: true })`, which recursively owns a whole milestone and would
   // have DESTROYED a published v141 release the day one exists (and, after a SIGKILL, left untracked
   // pages inside the checkout for a later `git add -A`). It now refuses to touch anything
   // pre-existing, records exactly the leaves it created, and removes only those — plus the milestone
@@ -459,9 +461,9 @@ print(json.dumps([m.slugify(n) for n in json.loads(sys.argv[1])]))`,
     );
   }
   for (const slug of SEAM_SLUGS) {
-    await Deno.mkdir(`v141/${slug}`, { recursive: true });
+    await sys.mkdir(`v141/${slug}`, { recursive: true });
     createdSlugs.push(slug);
-    await Deno.writeTextFile(
+    await sys.writeTextFile(
       `v141/${slug}/index.html`,
       "<!doctype html><title>seam-test</title>",
     );
@@ -506,9 +508,9 @@ print(json.dumps([m.slugify(n) for n in json.loads(sys.argv[1])]))`,
   // Remove ONLY the leaves this fixture created, then the milestone directory if it is now empty
   // (`Deno.remove` refuses a non-empty directory). Nothing pre-existing is ever deleted.
   for (const slug of createdSlugs) {
-    await Deno.remove(`v141/${slug}`, { recursive: true }).catch(() => {});
+    await sys.remove(`v141/${slug}`, { recursive: true }).catch(() => {});
   }
-  await Deno.remove("v141").catch(() => {});
+  await sys.remove("v141").catch(() => {});
   try {
     await server.shutdown();
   } catch {
@@ -541,7 +543,7 @@ print(json.dumps([m.slugify(n) for n in json.loads(sys.argv[1])]))`,
   ];
   let pyTw = null;
   try {
-    const py = new Deno.Command("python3", {
+    const py = new sys.Command("python3", {
       args: [
         "-c",
         `import importlib.util, json, sys
@@ -678,7 +680,7 @@ const scanLib = [];
 // this one scanAll list). Smallest cure at that point, per the reviewer: pass
 // { recursive: true } to Deno.readDir (no std/fs walker needed) or walk subdirectories
 // explicitly — and keep this comment honest about the coverage it states.
-for await (const entry of Deno.readDir(`${REPO}/lib`)) {
+for await (const entry of sys.readDir(`${REPO}/lib`)) {
   if (entry.isFile && entry.name.endsWith(".ts")) scanLib.push(`lib/${entry.name}`);
 }
 const scanAll = ["server.ts", ...scanLib.sort()];
@@ -686,7 +688,7 @@ const countIn = (src) => src.split(PREFIX).length - 1;
 let total = 0;
 const outsideBuilder = [];
 for (const rel of scanAll) {
-  const src = await Deno.readTextFile(`${REPO}/${rel}`);
+  const src = await sys.readTextFile(`${REPO}/${rel}`);
   const n = countIn(src);
   total += n;
   if (n > 0 && rel !== "lib/chromestatus.ts") outsideBuilder.push(`${rel} (${n})`);
@@ -699,13 +701,13 @@ assert(
     : `prefix count ${total}`,
 );
 for (const rel of ["server.ts", "lib/lifecycle.ts"]) {
-  const src = await Deno.readTextFile(`${REPO}/${rel}`);
+  const src = await sys.readTextFile(`${REPO}/${rel}`);
   assert(
     `b2s sweep: ${rel} consumes chromeStatusUrl (the narrow is WIRED, not merely absent)`,
     src.includes("chromeStatusUrl("),
   );
 }
-const csSrc = await Deno.readTextFile(`${REPO}/lib/chromestatus.ts`);
+const csSrc = await sys.readTextFile(`${REPO}/lib/chromestatus.ts`);
 assert(
   "b2s sweep: the one construction site is the narrowed builder itself — it carries BOTH bounds (canonical shape AND safe-integer value, symmetric across arrival types)",
   countIn(csSrc) === 1 &&
@@ -841,7 +843,7 @@ assert(
 const offendingSinks = [];
 const rawInterpolations = [];
 for (const rel of scanAll) {
-  const src = await Deno.readTextFile(`${REPO}/${rel}`);
+  const src = await sys.readTextFile(`${REPO}/${rel}`);
   const lines = src.split("\n");
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -886,7 +888,7 @@ assert(
   rawInterpolations.length === 0,
   rawInterpolations.length ? `raw interpolation site(s): ${rawInterpolations.join("; ")}` : "clean",
 );
-const serverSrc = await Deno.readTextFile(`${REPO}/server.ts`);
+const serverSrc = await sys.readTextFile(`${REPO}/server.ts`);
 assert(
   "sxn sweep: server.ts consumes milestonePathSegment (the narrow is WIRED, not merely absent)",
   serverSrc.includes("milestonePathSegment("),
@@ -899,6 +901,6 @@ assert(
 
 if (failures > 0) {
   console.error(`chromestatus-units.test.mjs: ${failures} assertion(s) failed`);
-  Deno.exit(1);
+  process.exit(1);
 }
 console.log(`chromestatus-units fixture: all ${passed} assertions passed`);

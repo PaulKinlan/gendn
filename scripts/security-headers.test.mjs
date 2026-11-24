@@ -1,4 +1,3 @@
-// @fixture-permissions --allow-read --allow-run --allow-net=127.0.0.1,localhost --allow-env
 // scripts/security-headers.test.mjs — fixtures for defensive browser security headers (gendn-5tk).
 //
 // WHY THIS FILE EXISTS:
@@ -26,6 +25,7 @@
 //
 // Run: deno task test-fixtures --tasks test-security-headers  (file-discovered automatically)
 
+import * as sys from "./lib/sys.mjs";
 import { CSP_DIRECTIVES, CSP_HEADER_VALUE, RELEASE_INERT_SCRIPT_MIME } from "../server.ts";
 import { fetchSecurityProbe, FixtureTransportError } from "./lib/security-probe.mjs";
 
@@ -98,9 +98,9 @@ export function validateSecurityHeaders(res, _desc) {
 }
 
 // Spawn the real server on an OS-assigned ephemeral port (PORT=0)
-const serverProc = new Deno.Command("deno", {
-  args: ["run", "--allow-net", "--allow-read", "--allow-env", "server.ts"],
-  env: { ...Deno.env.toObject(), PORT: "0" },
+const serverProc = new sys.Command(sys.execPath(), {
+  args: ["serve.ts"],
+  env: { ...sys.env.toObject(), PORT: "0" },
   stdout: "piped",
   stderr: "null",
 }).spawn();
@@ -490,7 +490,7 @@ try {
       if (value) securityHeaders.set(name, value);
     }
     let slowRequests = 0;
-    const stub = Deno.serve(
+    const stub = sys.serve(
       { hostname: "127.0.0.1", port: 0, onListen: () => {} },
       async (request) => {
         const path = new URL(request.url).pathname;
@@ -504,6 +504,7 @@ try {
         return new Response(upstream.text, { status: 200, headers });
       },
     );
+    await stub.ready;
     const stubBase = `http://127.0.0.1:${stub.addr.port}`;
     try {
       const slow = await fetchSecurityProbe(`${stubBase}/slow`, {
@@ -651,7 +652,7 @@ try {
 
 if (failures > 0) {
   console.error(`security-headers.test.mjs: ${failures} assertion(s) failed`);
-  Deno.exit(1);
+  process.exit(1);
 }
 console.log(`security-headers fixture: all ${passed} assertions passed`);
-Deno.exit(0);
+process.exit(0);

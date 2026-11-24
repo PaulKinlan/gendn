@@ -14,6 +14,8 @@
 // timeout is ALWAYS a loud, named failure - never a silent hang: a lane must be able to tell "stuck"
 // from "slow" without guessing.
 
+import * as sys from "./sys.mjs";
+
 export const GIT_TIMEOUT_MS = 60_000;
 // `timeoutMs` below is a TEST-ONLY override (the mutation proofs shorten it). Production calls must
 // not pass it: the whole point of this module is that every gate shares ONE bound, so widening or
@@ -29,7 +31,7 @@ export async function runGit(
 ) {
   const options = { args: [...GIT_SAFE_ARGS, ...args], stdout, stderr };
   if (cwd) options.cwd = cwd;
-  const child = new Deno.Command("git", options)
+  const child = new sys.Command("git", options)
     .spawn();
   const output = child.output();
   let timer;

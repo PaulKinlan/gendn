@@ -1,4 +1,3 @@
-// @fixture-permissions --allow-read --allow-net=127.0.0.1
 // scripts/mdn-has.test.mjs — the gendn-5fk acceptance fixture.
 //
 // The finding: lib/mdn.ts issued `fetch(url, { method: "HEAD" })` with no timeout and no size
@@ -22,6 +21,7 @@
 //
 // Run: deno task test-fixtures --tasks test-mdn-has (includes deno check lib/mdn.ts first)
 
+import * as sys from "./lib/sys.mjs";
 import { mdnApiUrl, mdnCssUrl, mdnHas } from "../lib/mdn.ts";
 
 let failures = 0;
@@ -41,7 +41,7 @@ const hits = { ok: 0, missing: 0, error: 0, flaky: 0, stall: 0 };
 let flakyShouldStall = true;
 const hangResolvers = [];
 
-const server = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
+const server = sys.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
   const path = new URL(req.url).pathname;
   if (path === "/ok") {
     hits.ok++;
@@ -73,6 +73,7 @@ const server = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
   }
   return new Response("nope", { status: 404 });
 });
+await server.ready;
 const base = `http://127.0.0.1:${server.addr.port}`;
 
 const timed = async (fn) => {
@@ -182,7 +183,7 @@ try {
 }
 
 // 6. Source check: no bare fetch() left in lib/mdn.ts (acceptance item 3).
-const src = await Deno.readTextFile(new URL("../lib/mdn.ts", import.meta.url));
+const src = await sys.readTextFile(new URL("../lib/mdn.ts", import.meta.url));
 const bareFetches = [...src.matchAll(/(^|[^A-Za-z])fetch\s*\(/g)].filter((m) =>
   !m[0].includes("fetchBounded")
 );
@@ -234,6 +235,6 @@ assert(
 
 if (failures > 0) {
   console.error(`mdn-has.test.mjs: ${failures} assertion(s) failed`);
-  Deno.exit(1);
+  process.exit(1);
 }
 console.log(`mdn-has fixture: all ${passed} assertions passed`);

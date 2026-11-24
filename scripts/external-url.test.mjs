@@ -1,4 +1,3 @@
-// @fixture-permissions --allow-read
 // scripts/external-url.test.mjs — the gendn-0cu acceptance test.
 //
 // The finding: server.ts stored `html_url` verbatim from api.github.com and interpolated
@@ -11,6 +10,7 @@
 //
 // Run: deno task test-fixtures --tasks test-external-url   (or: deno run --allow-read scripts/external-url.test.mjs)
 
+import * as sys from "./lib/sys.mjs";
 import { renderCommitAnchor, safeExternalUrl } from "../lib/external-url.ts";
 
 let failures = 0;
@@ -115,6 +115,6 @@ assert(
 
 if (failures > 0) {
   console.error(`external-url.test.mjs: ${failures} assertion(s) failed`);
-  Deno.exit(1);
+  process.exit(1);
 }
 console.log(`external-url fixture: all ${passed} assertions passed`);

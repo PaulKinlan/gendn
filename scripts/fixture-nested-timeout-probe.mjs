@@ -7,9 +7,11 @@
 // fixture and one sleeper, plus a fixed shell/setsid launch chain (at most 20 command-launched
 // processes under these task definitions). The test records and cleans up the inner fixture and
 // sleeper by their OWN PIDs if a broken sweep leaves either alive.
-const env = { ...Deno.env.toObject(), GENDN_FIXTURE_TIMEOUT_MS: "15000" };
-const inner = new Deno.Command(Deno.execPath(), {
-  args: ["task", "test-fixtures", "--tasks", "fixture-detach-hang"],
+
+import * as sys from "./lib/sys.mjs";
+const env = { ...sys.env.toObject(), GENDN_FIXTURE_TIMEOUT_MS: "15000" };
+const inner = new sys.Command("npm", {
+  args: ["run", "--silent", "test-fixtures", "--", "--tasks", "fixture-detach-hang"],
   cwd: new URL("..", import.meta.url).pathname,
   env,
   stdout: "null",

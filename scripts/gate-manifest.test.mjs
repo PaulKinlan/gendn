@@ -1,4 +1,3 @@
-// @fixture-permissions --allow-read --allow-run --allow-env
 // scripts/gate-manifest.test.mjs — the map tests for the affected-path gate (gendn-xe6f).
 //
 // A wrong or incomplete changed-path map is the NEW silent skip: a suite that no rule can select
@@ -16,6 +15,7 @@
 // (a mapped change selects it, and CI runs it unconditionally); this fixture must stay browser-free
 // so that a change to the gate does not cost 29s of Chrome to verify.
 
+import * as sys from "./lib/sys.mjs";
 import {
   BROWSER_RULES,
   buildDependents,
@@ -352,13 +352,13 @@ assert(
 //     URL join), assert the production graph covers that same universe, and only then assert selection.
 //     A check that looks where the code looks is a restatement, not an invariant.
 async function ownWalk(dir, out = new Map()) {
-  for await (const entry of Deno.readDir(dir)) {
+  for await (const entry of sys.readDir(dir)) {
     // dist/ and .wrangler/ are gitignored Cloudflare Worker build output (npm run build), not source.
     if ([".git", "node_modules", ".beads", "dist", ".wrangler"].includes(entry.name)) continue;
     const path = `${dir}/${entry.name}`;
     if (entry.isDirectory) await ownWalk(path, out);
     else if (/\.(?:ts|mjs|js|cjs)$/.test(entry.name)) {
-      out.set(path.slice(root.length), await Deno.readTextFile(path));
+      out.set(path.slice(root.length), await sys.readTextFile(path));
     }
   }
   return out;

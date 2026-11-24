@@ -560,12 +560,12 @@ export async function renderReleasePage(release: string, milestone: number): Pro
       }
       return `<li class="demo-card">
         ${
-        csHref
-          ? `<h3><a href="${csHref}" target="_blank" rel="noopener">${escapeHTML(name)}${
-            nameCut ? "..." : ""
-          }</a></h3>`
-          : `<h3>${escapeHTML(name)}${nameCut ? "..." : ""}</h3>`
-      }
+          csHref
+            ? `<h3><a href="${csHref}" target="_blank" rel="noopener">${escapeHTML(name)}${
+              nameCut ? "..." : ""
+            }</a></h3>`
+            : `<h3>${escapeHTML(name)}${nameCut ? "..." : ""}</h3>`
+        }
         <p>${escapeHTML(summary)}${summary.length === SUMMARY_CAP ? "..." : ""}</p>
         <div class="demo-tags">
           <span class="tag">${escapeHTML(cat)}${catCut ? "..." : ""}</span>
@@ -575,8 +575,8 @@ export async function renderReleasePage(release: string, milestone: number): Pro
     }));
     return `<section>
       <h3 class="group-title">${escapeHTML(cat)}${
-      catCut ? "..." : ""
-    } <span class="group-count">(${group.features.length})</span></h3>
+        catCut ? "..." : ""
+      } <span class="group-count">(${group.features.length})</span></h3>
       <ol class="demo-list">${cards.join("")}</ol>
     </section>`;
   }));
@@ -744,12 +744,12 @@ export async function renderFeaturesCatalogue(channels: Channels): Promise<strin
       escapeHTML(cat)
     }" data-doc="${r.hasDoc}">
       <td>${
-      csHref
-        ? `<a href="${csHref}" target="_blank" rel="noopener">${escapeHTML(r.name)}${
-          r.nameCut ? "..." : ""
-        }</a>`
-        : `${escapeHTML(r.name)}${r.nameCut ? "..." : ""}`
-    }</td>
+        csHref
+          ? `<a href="${csHref}" target="_blank" rel="noopener">${escapeHTML(r.name)}${
+            r.nameCut ? "..." : ""
+          }</a>`
+          : `${escapeHTML(r.name)}${r.nameCut ? "..." : ""}`
+      }</td>
       <td><span class="release-status">${statusText}</span></td>
       <td><span class="tag">${escapeHTML(cat)}${r.categoryCut ? "..." : ""}</span></td>
       <td>${docCell}</td>
@@ -1219,6 +1219,14 @@ export async function serveRequest(req: Request): Promise<Response> {
 
 // Legacy Deno entry (`deno task start`), kept while the tooling still runs under Deno. It is a
 // no-op on Node (import.meta.main is undefined on Node 22) and on Workers.
+// Typed locally so the Node type check (tsc) does not need Deno's global types.
+declare const Deno: {
+  env: { get(name: string): string | undefined };
+  serve(
+    options: { port: number; automaticCompression: boolean },
+    handler: (req: Request) => Promise<Response>,
+  ): { addr: { port: number } };
+};
 if (import.meta.main && "Deno" in globalThis) {
   const PORT = Number(Deno.env.get("PORT") ?? 3000);
   const server = Deno.serve({ port: PORT, automaticCompression: true }, serveRequest);

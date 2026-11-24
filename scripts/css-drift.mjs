@@ -6,6 +6,7 @@
 // The corpus includes both published roots and nested member references: v*/**/index.html.
 // Capture the baseline on the pre-wave tree, then compare in the SAME worktree/Chrome version
 // after editing. Uncommitted reports/css-drift/ must be preserved across those two runs.
+import * as sys from "./lib/sys.mjs";
 import { launch, raceWithTimeout } from "./lib/cdp.mjs";
 import { runGit } from "./lib/bounded-git.mjs";
 import {
@@ -87,20 +88,20 @@ async function changedPaths() {
 async function discoverRoutes() {
   const routes = [];
   async function walk(dir, route) {
-    for await (const entry of Deno.readDir(dir)) {
+    for await (const entry of sys.readDir(dir)) {
       if (!entry.isDirectory) continue;
       const child = `${dir}/${entry.name}`;
       try {
-        if ((await Deno.stat(`${child}/index.html`)).isFile) {
+        if ((await sys.stat(`${child}/index.html`)).isFile) {
           routes.push(`${route}${entry.name}/`);
         }
       } catch (error) {
-        if (!(error instanceof Deno.errors.NotFound)) throw error;
+        if (!(error instanceof sys.errors.NotFound)) throw error;
       }
       await walk(child, `${route}${entry.name}/`);
     }
   }
-  for await (const release of Deno.readDir(ROOT)) {
+  for await (const release of sys.readDir(ROOT)) {
     if (release.isDirectory && /^v\d+$/.test(release.name)) {
       await walk(`${ROOT}${release.name}`, `/${release.name}/`);
     }
@@ -110,10 +111,10 @@ async function discoverRoutes() {
 
 // A guessed server port can collide with another lane or silently sample the wrong server.
 // PORT=0 and this child's own listening line establish ownership (gendn-f0o3).
-export async function spawnCssServer({ script = "server.ts", startupTimeoutMs = 30_000 } = {}) {
-  const child = new Deno.Command(Deno.execPath(), {
-    args: ["run", "--allow-net", "--allow-read", "--allow-env", script],
-    env: { ...Deno.env.toObject(), PORT: "0" },
+export async function spawnCssServer({ script = "serve.ts", startupTimeoutMs = 30_000 } = {}) {
+  const child = new sys.Command(sys.execPath(), {
+    args: [script],
+    env: { ...sys.env.toObject(), PORT: "0" },
     cwd: ROOT,
     stdout: "piped",
     stderr: "piped",
@@ -235,7 +236,7 @@ async function sweep(routes, screenshotPrefix) {
 }
 
 async function main() {
-  const config = options(Deno.args);
+  const config = options(sys.args);
   const published = await discoverRoutes();
   const routes = config.all
     ? published
@@ -247,7 +248,7 @@ async function main() {
   const file = `${OUTPUT}/${name}.json`;
   let baseline;
   if (config.compare) {
-    baseline = JSON.parse(await Deno.readTextFile(file));
+    baseline = JSON.parse(await sys.readTextFile(file));
     const baselineRoutes = Object.keys(baseline.pages ?? {}).sort();
     if (JSON.stringify(baselineRoutes) !== JSON.stringify(routes)) {
       throw new Error(
@@ -256,19 +257,19 @@ async function main() {
     }
   } else {
     try {
-      await Deno.stat(file);
+      await sys.stat(file);
       throw new Error(
         `baseline already exists: ${file}; choose a new wave name (will not overwrite)`,
       );
     } catch (error) {
-      if (!(error instanceof Deno.errors.NotFound)) throw error;
+      if (!(error instanceof sys.errors.NotFound)) throw error;
     }
   }
-  await Deno.mkdir(OUTPUT, { recursive: true });
+  await sys.mkdir(OUTPUT, { recursive: true });
   const current = await sweep(routes, `${OUTPUT}/${name}.${config.record ? "record" : "compare"}`);
   if (config.record) {
     // Exclusive create: a concurrent writer cannot silently overwrite another wave's baseline.
-    const handle = await Deno.open(file, { write: true, createNew: true });
+    const handle = await sys.open(file, { write: true, createNew: true });
     try {
       const bytes = new TextEncoder().encode(JSON.stringify(current, null, 2) + "\n");
       let offset = 0;
@@ -280,7 +281,7 @@ async function main() {
   } else {
     const differences = compareSnapshots(baseline, current);
     const report = `${OUTPUT}/${name}.diff.json`;
-    await Deno.writeTextFile(
+    await sys.writeTextFile(
       report,
       JSON.stringify({ baseline: file, routes: routes.length, differences }, null, 2) + "\n",
     );
@@ -289,15 +290,15 @@ async function main() {
     );
     for (const item of differences.slice(0, 20)) console.log(JSON.stringify(item));
     if (differences.length > 20) console.log(`... ${differences.length - 20} more in report`);
-    if (differences.length) Deno.exitCode = 1;
+    if (differences.length) process.exitCode = 1;
   }
 }
 
-if (import.meta.main) {
+if (sys.isMain(import.meta.url)) {
   try {
     await main();
   } catch (error) {
     console.error(`css-drift: ${error.message}`);
-    Deno.exitCode = 2;
+    process.exitCode = 2;
   }
 }

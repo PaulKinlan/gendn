@@ -8,6 +8,7 @@
 //
 // Usage: deno run --allow-read --allow-write scripts/build-goals.mjs
 
+import * as sys from "./lib/sys.mjs";
 import { collectCritiques, readJson } from "./lib/artifacts.mjs";
 
 function goalId(sourcePage, goal) {
@@ -59,10 +60,10 @@ async function main() {
       return (rank[a.priority] - rank[b.priority]) || a.id.localeCompare(b.id);
     }),
   };
-  await Deno.writeTextFile("./goals.json", JSON.stringify(out, null, 2) + "\n");
+  await sys.writeTextFile("./goals.json", JSON.stringify(out, null, 2) + "\n");
   console.log(
     `build-goals: ${out.goals.length} goals (${added} new) from ${critiques.length} critiques`,
   );
 }
 
-if (import.meta.main) await main();
+if (sys.isMain(import.meta.url)) await main();

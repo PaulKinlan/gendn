@@ -3,6 +3,7 @@
 // computed layout/style so stylesheet-hidden, opacity-zero, closed-disclosure, and zero-box content
 // cannot satisfy a touched feature's contract.
 
+import * as sys from "./sys.mjs";
 import { launch } from "./cdp.mjs";
 import { canonicalCitationUrl, REQUIRED_DIMENSIONS } from "./reference-contract.mjs";
 
@@ -14,10 +15,10 @@ const VIEWPORTS = [
 // The port is assigned by the OS, and readiness comes from THIS child's own startup line.
 // Probing a guessed port could otherwise accept another lane's healthy server while this child
 // has already failed; discarding its stderr hid the actual startup cause (gendn-4ok7).
-export async function spawnServer({ script = "server.ts", startupTimeoutMs = 30_000, cwd } = {}) {
-  const child = new Deno.Command("deno", {
-    args: ["run", "--allow-net", "--allow-read", "--allow-env", script],
-    env: { ...Deno.env.toObject(), PORT: "0" },
+export async function spawnServer({ script = "serve.ts", startupTimeoutMs = 30_000, cwd } = {}) {
+  const child = new sys.Command(sys.execPath(), {
+    args: [script],
+    env: { ...sys.env.toObject(), PORT: "0" },
     ...(cwd ? { cwd } : {}),
     stdout: "piped",
     stderr: "piped",
@@ -138,8 +139,8 @@ export async function validateReferenceContractsInBrowser(records, { cwd } = {})
             const wanted = canonicalCitationUrl(url) ?? url;
             const result = await page.evaluate(`(() => {
               const links = [...document.querySelectorAll("a[href]")].filter(a => a.href === ${
-              JSON.stringify(wanted)
-            });
+                JSON.stringify(wanted)
+              });
               return links.some(link => {
                 const style = getComputedStyle(link);
                 const box = link.getBoundingClientRect();

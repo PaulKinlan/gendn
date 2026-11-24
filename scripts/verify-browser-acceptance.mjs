@@ -6,15 +6,16 @@
 // 3. Zero console errors.
 // 4. Screenshots and extracted CDP logs for both (1) and (2).
 
+import * as sys from "./lib/sys.mjs";
 import { launch } from "./lib/cdp.mjs";
 
 const OUT_DIR = "reports/speculation-rules";
-await Deno.mkdir(OUT_DIR, { recursive: true });
+await sys.mkdir(OUT_DIR, { recursive: true });
 
 // Boot server on ephemeral port
-const serverProc = new Deno.Command("deno", {
-  args: ["run", "--allow-net", "--allow-read", "--allow-env", "server.ts"],
-  env: { ...Deno.env.toObject(), PORT: "0" },
+const serverProc = new sys.Command(sys.execPath(), {
+  args: ["serve.ts"],
+  env: { ...sys.env.toObject(), PORT: "0" },
   stdout: "piped",
   stderr: "inherit",
 }).spawn();
@@ -302,12 +303,12 @@ try {
 
 // Write extracted CDP dump to file
 const dumpPath = `${OUT_DIR}/speculation-rules-cdp-dump.json`;
-await Deno.writeTextFile(dumpPath, JSON.stringify(cdpLog, null, 2));
+await sys.writeTextFile(dumpPath, JSON.stringify(cdpLog, null, 2));
 console.log(`\nSaved extracted CDP dump: ${dumpPath}`);
 
 if (exitCode !== 0) {
   console.error("\nAcceptance tests FAILED");
-  Deno.exit(exitCode);
+  process.exit(exitCode);
 } else {
   console.log("\nALL ACCEPTANCE CRITERIA PASSED in real Chrome browser!");
 }

@@ -1,4 +1,3 @@
-// @fixture-permissions --allow-read --allow-write --allow-net --allow-run
 // scripts/vendor-fonts.test.mjs — the gendn-dmz acceptance fixture.
 //
 // THE DEFECT: vendor-fonts.mjs accepted any HTTP 200 from the css2 endpoint, so a degenerate
@@ -21,6 +20,8 @@
 // new bare `fetch(` cannot land in the repo's scripts quietly.
 //
 // Run: deno task test-fixtures --tasks test-vendor-fonts
+
+import * as sys from "./lib/sys.mjs";
 
 const REPO = new URL("..", import.meta.url).pathname;
 const REAL_SHEET = `${REPO}public/styles.css`;
@@ -114,7 +115,7 @@ function onRelease(fn) {
   hangCleanups.push(fn);
 }
 
-const upstream = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
+const upstream = sys.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
   const path = new URL(req.url).pathname;
   if (path === "/empty") return new Response("", { status: 200 });
   if (path === "/hang") {
@@ -205,23 +206,26 @@ const upstream = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
   }
   return new Response("nope", { status: 404 });
 });
+await upstream.ready;
 const base = `http://127.0.0.1:${upstream.addr.port}`;
 
 // --- temp layout so the script's SHEET resolves to a copy -------------------------
-const tmp = await Deno.makeTempDir({ prefix: "vendor-fonts-test-" });
-await Deno.mkdir(`${tmp}/scripts`, { recursive: true });
-await Deno.mkdir(`${tmp}/public`, { recursive: true });
-await Deno.copyFile(`${REPO}scripts/vendor-fonts.mjs`, `${tmp}/scripts/vendor-fonts.mjs`);
+const tmp = await sys.makeTempDir({ prefix: "vendor-fonts-test-" });
+await sys.mkdir(`${tmp}/scripts`, { recursive: true });
+await sys.mkdir(`${tmp}/public`, { recursive: true });
+await sys.copyFile(`${REPO}scripts/vendor-fonts.mjs`, `${tmp}/scripts/vendor-fonts.mjs`);
+await sys.mkdir(`${tmp}/scripts/lib`, { recursive: true });
+await sys.copyFile(`${REPO}scripts/lib/sys.mjs`, `${tmp}/scripts/lib/sys.mjs`);
 // The script imports the repo's canonical bounded-fetch primitive; the tmp layout must carry the
 // SAME file, or the fixture would silently test a stale copy of the bound (gendn-n3e).
-await Deno.mkdir(`${tmp}/lib`, { recursive: true });
-await Deno.copyFile(`${REPO}lib/chromestatus.ts`, `${tmp}/lib/chromestatus.ts`);
+await sys.mkdir(`${tmp}/lib`, { recursive: true });
+await sys.copyFile(`${REPO}lib/chromestatus.ts`, `${tmp}/lib/chromestatus.ts`);
 
 const EMPTY_BLOCK_SHEET =
   `body { color: #000; }\n/* --- BEGIN vendored @font-face */\n/* --- END vendored @font-face --- */\n`;
-const REAL_SHEET_TEXT = await Deno.readTextFile(REAL_SHEET);
+const REAL_SHEET_TEXT = await sys.readTextFile(REAL_SHEET);
 const sha = async (path) => {
-  const bytes = await Deno.readFile(path);
+  const bytes = await sys.readFile(path);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 };
@@ -239,14 +243,10 @@ assert(
 );
 
 async function run(args, sheetText) {
-  await Deno.writeTextFile(`${tmp}/public/styles.css`, sheetText);
+  await sys.writeTextFile(`${tmp}/public/styles.css`, sheetText);
   const before = await sha(`${tmp}/public/styles.css`);
-  const cmd = new Deno.Command(Deno.execPath(), {
+  const cmd = new sys.Command(sys.execPath(), {
     args: [
-      "run",
-      "--allow-net",
-      "--allow-read",
-      "--allow-write",
       `${tmp}/scripts/vendor-fonts.mjs`,
       ...args,
     ],
@@ -270,14 +270,10 @@ async function run(args, sheetText) {
 // assertion is that the SCRIPT gives up near its bound, and the deadline only catches the
 // unbounded case.
 async function runBounded(args, sheetText, deadlineMs) {
-  await Deno.writeTextFile(`${tmp}/public/styles.css`, sheetText);
+  await sys.writeTextFile(`${tmp}/public/styles.css`, sheetText);
   const before = await sha(`${tmp}/public/styles.css`);
-  const cmd = new Deno.Command(Deno.execPath(), {
+  const cmd = new sys.Command(sys.execPath(), {
     args: [
-      "run",
-      "--allow-net",
-      "--allow-read",
-      "--allow-write",
       `${tmp}/scripts/vendor-fonts.mjs`,
       ...args,
     ],
@@ -362,7 +358,7 @@ try {
     real.code === 0,
     `exit=${real.code} ${real.err.trim().slice(0, 120)}`,
   );
-  const written = await Deno.readTextFile(`${tmp}/public/styles.css`);
+  const written = await sys.readTextFile(`${tmp}/public/styles.css`);
   assert(
     "real response: wrote both kept-subset rules",
     (written.match(/@font-face \{/g) ?? []).length === 2,
@@ -414,7 +410,7 @@ try {
   // (3) ADDITIVE growth must still be written, or upstream additions could never land.
   const beforeRules = (REAL_SHEET_TEXT.match(/@font-face \{/g) ?? []).length;
   const additive = await run(["--css-url", `${base}/additive`], REAL_SHEET_TEXT);
-  const additiveSheet = await Deno.readTextFile(`${tmp}/public/styles.css`);
+  const additiveSheet = await sys.readTextFile(`${tmp}/public/styles.css`);
   const afterRules = (additiveSheet.match(/@font-face \{/g) ?? []).length;
   assert(
     "cp7 (3) an ADDITIVE response (every existing identity plus one) IS written",
@@ -437,7 +433,7 @@ try {
     ],
     REAL_SHEET_TEXT,
   );
-  const overriddenSheet = await Deno.readTextFile(`${tmp}/public/styles.css`);
+  const overriddenSheet = await sys.readTextFile(`${tmp}/public/styles.css`);
   assert(
     "cp7 (4) the override writes the reduction",
     overridden.code === 0 && (overriddenSheet.match(/@font-face \{/g) ?? []).length === 2,
@@ -626,7 +622,7 @@ try {
 
     const targets = [];
     const walk = async (dir, prefix) => {
-      for await (const e of Deno.readDir(dir)) {
+      for await (const e of sys.readDir(dir)) {
         const rel = `${prefix}/${e.name}`;
         if (e.isDirectory) {
           if (e.name === "node_modules" || e.name.startsWith(".")) continue;
@@ -660,7 +656,7 @@ try {
     let scanned = 0;
     let fetchSites = 0;
     for (const rel of targets) {
-      const raw = await Deno.readTextFile(`${REPO}${rel}`);
+      const raw = await sys.readTextFile(`${REPO}${rel}`);
       // Crude comment strip (see limits above): /* ... */ blocks blanked out WHILE PRESERVING
       // NEWLINES (so reported line numbers still match the real file), then full-line // comments.
       const text = raw.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " ")).replace(
@@ -770,18 +766,14 @@ try {
   // Run `deno run --allow-read --allow-write --allow-net --allow-run scripts/vendor-fonts.test.mjs --live` deliberately. A red here means UPSTREAM CHANGED (run
   // `deno task vendor-fonts` to re-vendor), not that the repo is broken; it is not in the aggregate
   // because a transient upstream mismatch must not red every lane (gendn-c6w).
-  if (!Deno.args.includes("--live")) {
+  if (!sys.args.includes("--live")) {
     console.log(
       "SKIPPED (opt-in, NOT a pass): LIVE upstream --check against Google Fonts was not run; " +
         "pass --live to compare with the real endpoint. Offline repo-state assertions above did run.",
     );
   } else {
-    const realCheck = new Deno.Command(Deno.execPath(), {
+    const realCheck = new sys.Command(sys.execPath(), {
       args: [
-        "run",
-        "--allow-net",
-        "--allow-read",
-        "--allow-write",
         `${REPO}scripts/vendor-fonts.mjs`,
         "--check",
       ],
@@ -814,11 +806,11 @@ try {
   } catch {
     // ignore
   }
-  await Deno.remove(tmp, { recursive: true }).catch(() => {});
+  await sys.remove(tmp, { recursive: true }).catch(() => {});
 }
 
 if (failures > 0) {
   console.error(`vendor-fonts.test.mjs: ${failures} assertion(s) failed`);
-  Deno.exit(1);
+  process.exit(1);
 }
 console.log(`vendor-fonts fixture: all ${passed} assertions passed`);

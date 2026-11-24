@@ -1,4 +1,3 @@
-// @fixture-permissions --allow-read
 // scripts/threat-model-citations.test.mjs — the citation-resolution guard for THREAT_MODEL.md
 // (gendn-zoq).
 //
@@ -34,6 +33,8 @@
 //
 // Run: deno task test-fixtures --tasks test-threat-model-citations  (or: deno run --allow-read scripts/threat-model-citations.test.mjs)
 
+import * as sys from "./lib/sys.mjs";
+
 const ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
 const join = (...p) => `${ROOT}/${p.join("/")}`;
 
@@ -52,7 +53,7 @@ function assert(name, ok, detail = "") {
 // ---- 1. the document exists and is real ----
 let doc = null;
 try {
-  doc = await Deno.readTextFile(join("THREAT_MODEL.md"));
+  doc = await sys.readTextFile(join("THREAT_MODEL.md"));
 } catch {
   doc = null;
 }
@@ -69,12 +70,12 @@ assert(
 
 // ---- 2. every citation in the scanned surface resolves to a numbered invariant ----
 const CITATION_RE = /THREAT_MODEL\.md\s+invariant\s+#(\d+)/g;
-// Manual recursion, not Deno.readDir({recursive:true}): this Deno's recursive mode returns
+// Manual recursion, not sys.readDir({recursive:true}): this Deno's recursive mode returns
 // BASENAMES with no path information (measured: nested entries arrive flattened and
 // unjoinable), which would silently mis-scan or double-count. A hand walk keeps the paths.
 async function walkSourceFiles(dir) {
   const out = [];
-  for await (const entry of Deno.readDir(dir)) {
+  for await (const entry of sys.readDir(dir)) {
     const p = `${dir}/${entry.name}`;
     if (entry.isDirectory) {
       out.push(...await walkSourceFiles(p));
@@ -122,7 +123,7 @@ const citations = []; // { file, numbers[] }
 for (const file of sources) {
   let text;
   try {
-    text = await Deno.readTextFile(file);
+    text = await sys.readTextFile(file);
   } catch {
     continue;
   }
@@ -190,6 +191,6 @@ for (const anchor of ["fetchBounded", "safeExternalUrl", "addSecurityHeaders"]) 
 
 if (failures > 0) {
   console.error(`threat-model-citations fixture: ${failures} assertion(s) failed`);
-  Deno.exit(1);
+  process.exit(1);
 }
 console.log(`threat-model-citations fixture: all ${passed} assertions passed`);

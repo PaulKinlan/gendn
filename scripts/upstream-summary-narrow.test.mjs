@@ -1,4 +1,3 @@
-// @fixture-permissions --allow-read --allow-net=127.0.0.1,localhost --allow-env
 // gendn-25hn: a non-string upstream summary must degrade, never throw. The declared `summary: string`
 // type in FeatureSummary is a compile-time claim only — getJson casts unchecked — and both render
 // sites slice the field, so a number/boolean/object summary used to throw TypeError out of the
@@ -10,6 +9,8 @@
 // the same way, so both mappers narrow once at the head of the value's path. A nameless feature
 // degrades to an empty heading on the release page and is honestly omitted from the catalogue
 // (slug "" matches no doc directory; there is no v<N>/index.html).
+
+import * as sys from "./lib/sys.mjs";
 
 // Local stub of the chromestatus API (same shape as server-escape.test.mjs) so renderers fetch
 // controlled hostile rows under --allow-net=127.0.0.1,localhost. Must be set BEFORE importing
@@ -43,7 +44,7 @@ const HOSTILE_FEATURES = [
   },
 ];
 
-const stubServer = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
+const stubServer = sys.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
   const url = new URL(req.url);
   const json = (body) => new Response(body, { headers: { "content-type": "application/json" } });
   if (url.pathname === "/features" && url.searchParams.get("milestone") === "150") {
@@ -68,8 +69,9 @@ const stubServer = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
   }
   return json(`${XSSI}\n${JSON.stringify({ features_by_type: {} })}`);
 });
+await stubServer.ready;
 
-Deno.env.set("CHROMESTATUS_BASE", `http://127.0.0.1:${stubServer.addr.port}`);
+sys.env.set("CHROMESTATUS_BASE", `http://127.0.0.1:${stubServer.addr.port}`);
 
 const { handleRequest, renderFeaturesCatalogue } = await import("../server.ts");
 
@@ -214,5 +216,5 @@ try {
   await stubServer.shutdown();
 }
 
-if (failures) Deno.exit(1);
+if (failures) process.exit(1);
 console.log("upstream-summary-narrow fixture: all assertions passed");

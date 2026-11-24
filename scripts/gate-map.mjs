@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-read --allow-run --allow-env
+#!/usr/bin/env node
 // scripts/gate-map.mjs — the AFFECTED-PATH gate: choose what runs, and SAY WHAT DID NOT (gendn-xe6f).
 //
 // WHY THIS EXISTS: the full gate costs ~117s today (measured 2026-10-14 at tree 7fedc80: `check`
@@ -27,10 +27,10 @@
 // CSS sample never gave; page changes therefore select the page-artifact fixtures and are always
 // subject to check-routes/validate-artifacts/check-conformance in both tiers.
 
+import * as sys from "./lib/sys.mjs";
 import {
   discoverFixtures,
   fixtureCommand,
-  fixturePermissions,
   scanForTokenViaPs,
   SWEEP_BUDGET_MS,
   SWEEP_MAX_PIDS,
@@ -51,23 +51,23 @@ import { runGit } from "./lib/bounded-git.mjs";
 export const ALWAYS = [
   {
     id: "check",
-    command: ["deno", "task", "check"],
+    command: ["npm", "run", "--silent", "check"],
     reason:
       "typecheck + format + citation/coverage ratchets; a change of any shape can break these",
   },
   {
     id: "check-routes",
-    command: ["deno", "task", "check-routes"],
+    command: ["npm", "run", "--silent", "check-routes"],
     reason: "published route/identity/binding regression gate",
   },
   {
     id: "validate-artifacts",
-    command: ["deno", "task", "validate-artifacts"],
+    command: ["npm", "run", "--silent", "validate-artifacts"],
     reason: "lifecycle artifact schema + suiteHash + reference-mapping ratchet",
   },
   {
     id: "check-conformance",
-    command: ["deno", "task", "check-conformance"],
+    command: ["npm", "run", "--silent", "check-conformance"],
     reason:
       "touched-page conformance + implementation sufficiency (Chrome only for touched contracts)",
   },
@@ -76,7 +76,7 @@ export const ALWAYS = [
 /** The whole deterministic fixture tier; only the full gate runs all of it. */
 export const ALL_FIXTURES_STEP = {
   id: "all-fixtures",
-  command: ["deno", "task", "test-fixtures"],
+  command: ["npm", "run", "--silent", "test-fixtures"],
 };
 
 /** The CSS real-browser suite. Unconditional in the full tier; map-selected in the fast tier. */
@@ -302,7 +302,7 @@ export const RULES = [
   },
   {
     id: "runner",
-    exact: ["scripts/run-fixtures.mjs", "deno.json"],
+    exact: ["scripts/run-fixtures.mjs", "package.json"],
     prefixes: [],
     suites: ["test-run-fixtures", "test-fast-typecheck"],
     reason: "the fixture runner and its task wiring",
@@ -710,12 +710,12 @@ export async function changedPathsFromGit(root) {
 }
 
 export async function discover(root) {
-  const denoJson = JSON.parse(await Deno.readTextFile(`${root}deno.json`));
+  const packageJson = JSON.parse(await sys.readTextFile(`${root}package.json`));
   const files = [];
-  for await (const entry of Deno.readDir(`${root}scripts`)) {
+  for await (const entry of sys.readDir(`${root}scripts`)) {
     if (entry.isFile && entry.name.endsWith(".test.mjs")) files.push(entry.name);
   }
-  const discovered = discoverFixtures(files, denoJson.tasks ?? {});
+  const discovered = discoverFixtures(files, packageJson.scripts ?? {});
   const browserSuites = new Set(BROWSER_RULES.flatMap((rule) => rule.suites));
   const pure = [...discovered.keys()].filter((name) =>
     !browserSuites.has(name) && !COMPONENT_OF.has(name) && name !== "test-fixtures"
@@ -749,7 +749,7 @@ export async function discover(root) {
       graphReason = "git ls-files returned no source files";
     }
     for (const relative of paths) {
-      modules.set(relative, await Deno.readTextFile(`${root}${relative}`));
+      modules.set(relative, await sys.readTextFile(`${root}${relative}`));
     }
   } catch (error) {
     // "Could not look" is never "looked and found nothing": an unbuildable graph cannot prove
@@ -775,15 +775,11 @@ export async function discover(root) {
   }
   for (const [name, file] of discovered) {
     if (!file) {
-      commands[name] = fixtureCommand(name, file, null);
+      commands[name] = fixtureCommand(name, file);
       continue;
     }
-    const source = await Deno.readTextFile(`${root}${file}`);
-    try {
-      commands[name] = fixtureCommand(name, file, fixturePermissions(source, file));
-    } catch (error) {
-      mapErrors.push(`${name}: ${error.message}`);
-    }
+    const source = await sys.readTextFile(`${root}${file}`);
+    commands[name] = fixtureCommand(name, file);
     if (!COMPONENT_OF.has(name) && name !== "test-fixtures") sources[name] = source;
   }
   // fleet-check's coverage reader matches CHANGED FILES against the tokens on the marker line, and a
@@ -795,7 +791,7 @@ export async function discover(root) {
   // in its own deno.json command, and a bare fixture IS its file.
   const suiteFiles = {};
   for (const name of discovered.keys()) {
-    const task = denoJson.tasks?.[name];
+    const task = packageJson.scripts?.[name];
     const taskCommand = typeof task === "string" ? task : task?.command ?? "";
     const fromTask = `${commands[name] ?? ""} ${taskCommand}`.match(/[\w./-]+\.test\.mjs/g) ?? [];
     suiteFiles[name] = [
@@ -829,7 +825,7 @@ export async function discover(root) {
  * The GATE's dependency universe does NOT use this any more (gendn-8wwm): it uses git ls-files, so a
  * directory nobody thought to list cannot become a blind spot. */
 async function* walkSources(dir) {
-  for await (const entry of Deno.readDir(dir)) {
+  for await (const entry of sys.readDir(dir)) {
     const path = `${dir}/${entry.name}`;
     if (entry.isDirectory) yield* walkSources(path);
     else if (entry.isFile && /\.(?:ts|mjs|js)$/.test(entry.name)) yield path;
@@ -862,10 +858,10 @@ export function validateMap({ pure, browserSuites, sources, commands }) {
 
 async function pathExists(path) {
   try {
-    await Deno.stat(path);
+    await sys.stat(path);
     return true;
   } catch (error) {
-    if (!(error instanceof Deno.errors.NotFound)) throw error;
+    if (!(error instanceof sys.errors.NotFound)) throw error;
     return false;
   }
 }
@@ -897,9 +893,9 @@ export async function runStep(step, timeoutMs) {
   // `deno task test-fixtures` then REFUSES to run by its own aggregate guard, which is how the first
   // version of this wiring broke the FULL tier while every fast-tier run stayed green (a tier that
   // never runs all-fixtures cannot see it). The gate is not a fixture; it needs a token to sweep by.
-  const token = `${Deno.pid}-gate-${step.id}-${Date.now().toString(36)}`;
-  const childEnv = { ...Deno.env.toObject(), [SWEEP_TOKEN]: token };
-  const child = new Deno.Command("setsid", {
+  const token = `${process.pid}-gate-${step.id}-${Date.now().toString(36)}`;
+  const childEnv = { ...sys.env.toObject(), [SWEEP_TOKEN]: token };
+  const child = new sys.Command("setsid", {
     args: step.command,
     stdout: "inherit",
     stderr: "inherit",
@@ -916,7 +912,7 @@ export async function runStep(step, timeoutMs) {
   // `--` is REQUIRED: GNU kill parses a bare `-<pgid>` as a signal NUMBER, so `kill -KILL -12345`
   // fails silently (measured in run-fixtures.mjs as orphans plus a 10s grace wait).
   try {
-    new Deno.Command("kill", { args: ["-KILL", "--", `-${pid}`] }).outputSync();
+    new sys.Command("kill", { args: ["-KILL", "--", `-${pid}`] }).outputSync();
   } catch (error) {
     console.error(`gate step ${step.id}: group kill of -${pid} failed: ${error}`);
   }
@@ -955,7 +951,7 @@ export async function runStep(step, timeoutMs) {
 }
 
 async function main() {
-  const args = Deno.args;
+  const args = sys.args;
   let tier = "fast";
   let explain = false;
   for (let i = 0; i < args.length; i++) {
@@ -963,13 +959,13 @@ async function main() {
       tier = args[++i];
       if (!["fast", "full"].includes(tier)) {
         console.error(`gate: unknown tier "${tier}"; use fast or full`);
-        Deno.exit(2);
+        process.exit(2);
       }
     } else if (args[i] === "--explain") {
       explain = true;
     } else {
       console.error(`gate: unknown argument "${args[i]}"`);
-      Deno.exit(2);
+      process.exit(2);
     }
   }
 
@@ -997,7 +993,7 @@ async function main() {
     for (const error of mapErrors) console.error(`  - ${error}`);
     // The gate ran nothing, so its coverage must read as UNKNOWN rather than as "no suites needed".
     console.log(`fast-gate: unknown: the changed-path map refused (${mapErrors[0]})`);
-    Deno.exit(2);
+    process.exit(2);
   }
   if (explain) {
     console.log(
@@ -1221,9 +1217,9 @@ async function main() {
         `is NOT run by this gate (CI-only step).`,
     );
   }
-  Deno.exit(failed ? 1 : 0);
+  process.exit(failed ? 1 : 0);
 }
 
-if (import.meta.main) {
+if (sys.isMain(import.meta.url)) {
   await main();
 }

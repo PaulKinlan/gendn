@@ -1,6 +1,6 @@
-// @fixture-permissions --allow-read --allow-write --allow-run
 // A real check-routes subprocess in a tiny /tmp Git repo: both baseline and current manifests
 // re-use the same mutated extractor. Only the independent committed ledger can catch the shift.
+import * as sys from "./lib/sys.mjs";
 import { BINDING_LEDGER, evaluateBindingLedger } from "./lib/binding-ledger.mjs";
 
 let passed = 0;
@@ -131,7 +131,7 @@ assert(
   }).length === 0,
 );
 
-const temp = await Deno.makeTempDir({ prefix: "s8xd-binding-gate-" });
+const temp = await sys.makeTempDir({ prefix: "s8xd-binding-gate-" });
 const enc = new TextDecoder();
 const source = new URL(".", import.meta.url);
 const page = "v900/probe/index.html";
@@ -140,7 +140,7 @@ const pageHtml =
     base[0].demo
   }">first</a><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v900/probe/second/">second</a></html>`;
 async function command(bin, args) {
-  const out = await new Deno.Command(bin, { args, cwd: temp, stdout: "piped", stderr: "piped" })
+  const out = await new sys.Command(bin, { args, cwd: temp, stdout: "piped", stderr: "piped" })
     .output();
   return { code: out.code, text: enc.decode(out.stdout) + enc.decode(out.stderr) };
 }
@@ -149,19 +149,12 @@ async function git(...args) {
   if (result.code) throw new Error(`git ${args.join(" ")} failed: ${result.text}`);
 }
 async function gate() {
-  return await command(Deno.execPath(), [
-    "run",
-    "--allow-read",
-    "--allow-run",
+  return await command(sys.execPath(), [
     "scripts/check-routes.mjs",
   ]);
 }
 async function refresh() {
-  const r = await command(Deno.execPath(), [
-    "run",
-    "--allow-read",
-    "--allow-run",
-    `--allow-write=${BINDING_LEDGER}`,
+  const r = await command(sys.execPath(), [
     "scripts/refresh-bindings.mjs",
   ]);
   if (r.code) throw new Error(`refresh failed: ${r.text}`);
@@ -178,25 +171,26 @@ try {
       "lib/map-pool.mjs",
       "lib/judged-content.mjs",
       "lib/binding-ledger.mjs",
+      "lib/sys.mjs",
     ]
   ) {
-    await Deno.mkdir(`${temp}/scripts/${path.split("/").slice(0, -1).join("/")}`, {
+    await sys.mkdir(`${temp}/scripts/${path.split("/").slice(0, -1).join("/")}`, {
       recursive: true,
     });
     const target = `${temp}/scripts/${path}`;
-    let contents = await Deno.readTextFile(new URL(path, source));
-    if (Deno.args.includes("--sabotage") && path === "lib/binding-ledger.mjs") {
+    let contents = await sys.readTextFile(new URL(path, source));
+    if (sys.args.includes("--sabotage") && path === "lib/binding-ledger.mjs") {
       contents = contents.replace(
         "  const errors = [\n",
         "  return []; // deliberate /tmp-only sabotage of the ratchet\n  const errors = [\n",
       );
     }
-    await Deno.writeTextFile(target, contents);
+    await sys.writeTextFile(target, contents);
   }
-  await Deno.mkdir(`${temp}/v900/probe`, { recursive: true });
-  await Deno.writeTextFile(`${temp}/${page}`, pageHtml);
-  await Deno.writeTextFile(`${temp}/${BINDING_LEDGER}`, JSON.stringify(base, null, 2) + "\n");
-  await Deno.writeTextFile(`${temp}/migrations.json`, "[]\n");
+  await sys.mkdir(`${temp}/v900/probe`, { recursive: true });
+  await sys.writeTextFile(`${temp}/${page}`, pageHtml);
+  await sys.writeTextFile(`${temp}/${BINDING_LEDGER}`, JSON.stringify(base, null, 2) + "\n");
+  await sys.writeTextFile(`${temp}/migrations.json`, "[]\n");
   await git("init", "-q", "-b", "main");
   await git("config", "user.name", "binding-fixture");
   await git("config", "user.email", "binding-fixture@example.test");
@@ -211,13 +205,13 @@ try {
   );
 
   const artifactPath = `${temp}/scripts/lib/artifacts.mjs`;
-  const original = await Deno.readTextFile(artifactPath);
+  const original = await sys.readTextFile(artifactPath);
   const identityMutant = original.replace(
     "  const declaredMatch = html.match(DECLARED_FEATURE_ID_RE);\n  if (declaredMatch) return declaredMatch[1];\n  const fallbackMatch = html.match(FEATURE_ID_RE);\n  return fallbackMatch ? fallbackMatch[1] : null;",
     "  const fallbackMatch = html.match(FEATURE_ID_RE);\n  if (fallbackMatch) return fallbackMatch[1];\n  const declaredMatch = html.match(DECLARED_FEATURE_ID_RE);\n  return declaredMatch ? declaredMatch[1] : null;",
   );
   if (identityMutant === original) throw new Error("fixture identity extractor mutation failed");
-  await Deno.writeTextFile(artifactPath, identityMutant);
+  await sys.writeTextFile(artifactPath, identityMutant);
   await refresh();
   const bootstrapEscape = await gate();
   assert(
@@ -227,15 +221,15 @@ try {
       !/binding changed .*without a NEW exact/.test(bootstrapEscape.text),
     bootstrapEscape.text,
   );
-  await Deno.writeTextFile(artifactPath, original);
-  await Deno.writeTextFile(`${temp}/${BINDING_LEDGER}`, JSON.stringify(base, null, 2) + "\n");
+  await sys.writeTextFile(artifactPath, original);
+  await sys.writeTextFile(`${temp}/${BINDING_LEDGER}`, JSON.stringify(base, null, 2) + "\n");
   await git("add", BINDING_LEDGER);
   await git("commit", "-qm", "pinned binding ledger");
   await git("update-ref", "refs/remotes/origin/main", "HEAD");
   const clean = await gate();
   assert("real gate: clean binding passes", clean.code === 0, clean.text);
 
-  await Deno.writeTextFile(artifactPath, identityMutant);
+  await sys.writeTextFile(artifactPath, identityMutant);
   const idStale = await gate();
   assert(
     "REAL gate: extractor-only identity flip fails naming route + old/new while baseline re-extracts identically",
@@ -250,7 +244,7 @@ try {
     idWithoutMigration.code !== 0 && /NEW exact identity-change/.test(idWithoutMigration.text),
     idWithoutMigration.text,
   );
-  await Deno.writeTextFile(`${temp}/migrations.json`, JSON.stringify([migration]));
+  await sys.writeTextFile(`${temp}/migrations.json`, JSON.stringify([migration]));
   const idWithMigration = await gate();
   assert(
     "REAL gate: matching NEW exact identity migration passes",
@@ -266,7 +260,7 @@ try {
     "      demo = `https://${SHOWCASE_HOST}${routePath}`;\n      continue;",
   );
   if (demoMutant === original) throw new Error("fixture demo extractor mutation failed");
-  await Deno.writeTextFile(artifactPath, demoMutant);
+  await sys.writeTextFile(artifactPath, demoMutant);
   const demoStale = await gate();
   assert(
     "REAL gate: demo-only extractor flip fails naming route + both URLs",
@@ -288,7 +282,7 @@ try {
     from: base[0].demo,
     to: demoChanged[0].demo,
   };
-  await Deno.writeTextFile(`${temp}/migrations.json`, JSON.stringify([demoMigration]));
+  await sys.writeTextFile(`${temp}/migrations.json`, JSON.stringify([demoMigration]));
   const demoWithMigration = await gate();
   assert(
     "REAL gate: matching NEW exact demo migration passes",
@@ -297,7 +291,7 @@ try {
     demoWithMigration.text,
   );
 } finally {
-  await Deno.remove(temp, { recursive: true });
+  await sys.remove(temp, { recursive: true });
 }
 console.log(`binding ledger fixture: ${passed} passed, ${failed} failed`);
-if (failed) Deno.exit(1);
+if (failed) process.exit(1);

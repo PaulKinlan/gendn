@@ -84,6 +84,8 @@
 // The behavioural log must have been produced by scripts/kill-probe.sh, which appends the required
 // evidence line. A hand-run probe that bypasses the wrapper will be refused.
 
+import * as sys from "./lib/sys.mjs";
+
 const VERDICT_LINE = /^verdict:/;
 
 // The landing gate's harness writes an ANSI-coloured `Task <name> <command>` banner at the head of
@@ -248,7 +250,7 @@ function usage(message) {
 }
 
 async function main() {
-  const args = Deno.args;
+  const args = sys.args;
   let logPath = null;
   let declared = null;
   for (let i = 0; i < args.length; i++) {
@@ -259,7 +261,7 @@ async function main() {
       // and exited 0 without running the cross-check the caller asked for. It is a usage error.
       if (i + 1 >= args.length) {
         usage("--phase requires an argument");
-        Deno.exit(2);
+        process.exit(2);
       }
       declared = args[++i];
       continue;
@@ -269,23 +271,23 @@ async function main() {
       continue;
     }
     usage(`unexpected argument: ${args[i]}`);
-    Deno.exit(2);
+    process.exit(2);
   }
   if (logPath === null) {
     usage("a log path is required");
-    Deno.exit(2);
+    process.exit(2);
   }
   if (declared !== null && !PHASE_NAMES.includes(declared)) {
     usage(`unknown phase: ${declared}`);
-    Deno.exit(2);
+    process.exit(2);
   }
 
   let logText;
   try {
-    logText = stripAnsi(await Deno.readTextFile(logPath));
+    logText = stripAnsi(await sys.readTextFile(logPath));
   } catch (error) {
     usage(`cannot read ${logPath}: ${error.message}`);
-    Deno.exit(2);
+    process.exit(2);
   }
 
   const emitted = emittedVerdictLines(logText);
@@ -390,9 +392,9 @@ async function main() {
   if (problems.length) {
     console.error(`\nFAIL — ${problems.length} verdict-emission problem(s):`);
     for (const p of problems) console.error(`  - ${p}`);
-    Deno.exit(1);
+    process.exit(1);
   }
   console.log(`\nPASS — the ${derived.name} phase emitted exactly ${expected} verdict line(s).`);
 }
 
-if (import.meta.main) await main();
+if (sys.isMain(import.meta.url)) await main();

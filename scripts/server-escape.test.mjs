@@ -1,5 +1,6 @@
-// @fixture-permissions --allow-read --allow-write --allow-run --allow-net=127.0.0.1,localhost --allow-env
 // gendn-7xq: route-derived values are escaped at interpolation; malformed request URLs are handled.
+
+import * as sys from "./lib/sys.mjs";
 
 // Local stub of the chromestatus API (gendn-x53) so renderFeaturesCatalogue can fetch real rows
 // under --allow-net=127.0.0.1,localhost without depending on live external network.
@@ -23,7 +24,7 @@ const oversizedCategory = `${"c".repeat(5000)}CATEGORY_TAIL_BEYOND_CAP`;
 let servedIndexHtml = "";
 let servedCss = "";
 
-const stubServer = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
+const stubServer = sys.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
   const url = new URL(req.url);
   if (url.pathname === "/") {
     return new Response(servedIndexHtml, {
@@ -65,8 +66,9 @@ const stubServer = Deno.serve({ port: 0, hostname: "127.0.0.1" }, (req) => {
   }
   return json(`${XSSI}\n${JSON.stringify({ features_by_type: {} })}`);
 });
+await stubServer.ready;
 
-Deno.env.set("CHROMESTATUS_BASE", `http://127.0.0.1:${stubServer.addr.port}`);
+sys.env.set("CHROMESTATUS_BASE", `http://127.0.0.1:${stubServer.addr.port}`);
 
 const { milestonePathSegment } = await import("../lib/chromestatus.ts");
 const {
@@ -288,7 +290,7 @@ assert(
 // 1. Live card (Chrome 150 - derived from channels.beta.mstone, NOT from a v154/ directory) lifts (transform: matrix(1, 0, 0, 1, -2, -2)), deepens shadow (6px), and recolours link (rgb(0, 34, 255)).
 // 2. Disabled card (Chrome 1" onmouseover="alert(1)) does NOT lift (transform: none), retains flat shadow (4px), and retains text color (rgb(0, 0, 0)).
 const { launch } = await import("./lib/cdp.mjs");
-const css = await Deno.readTextFile("public/styles.css");
+const css = await sys.readTextFile("public/styles.css");
 servedCss = css;
 servedIndexHtml = indexHtml;
 
@@ -410,5 +412,5 @@ try {
   await stubServer.shutdown();
 }
 
-if (failures) Deno.exit(1);
+if (failures) process.exit(1);
 console.log("server-escape fixture: all assertions passed");

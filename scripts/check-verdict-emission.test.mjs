@@ -1,5 +1,4 @@
 #!/usr/bin/env -S deno run --allow-read --allow-write --allow-run
-// @fixture-permissions --allow-read --allow-write --allow-run
 // check-verdict-emission.test.mjs — fail-closed regression tests for the verdict-emission check
 // (gendn-aj6). Runs as `deno task test-verdict-emission` and as a CI step, so the check cannot
 // silently stop failing: every FAIL case below asserts the exit code a landing gate would read.
@@ -14,6 +13,7 @@
 // assertions, not prose, are marked [BLOCKER], [MAJOR] and [REAL CASE] below: the crashed/truncated
 // run-all log must exit non-zero WITH and WITHOUT --phase, an arbitrary file must not pass as the
 // behavioural probe, and a byte-real kill-probe log must still exit 0.
+import * as sys from "./lib/sys.mjs";
 import {
   classifyPhase,
   emittedVerdictLines,
@@ -28,19 +28,19 @@ function assert(desc, ok) {
   if (!ok) failures++;
 }
 
-const root = await Deno.makeTempDir({ prefix: "gendn-verdict-emission-" });
+const root = await sys.makeTempDir({ prefix: "gendn-verdict-emission-" });
 let logSeq = 0;
 
 // Drive the checker exactly as the landing gate would: as a process, reading the exit code.
 async function checkLog(logText, extraArgs = []) {
   const logPath = `${root}/gate-${logSeq++}.log`;
-  await Deno.writeTextFile(logPath, logText);
+  await sys.writeTextFile(logPath, logText);
   return checkPath(logPath, extraArgs);
 }
 
 async function checkPath(logPath, extraArgs = [], checker = CHECKER) {
-  const cmd = new Deno.Command(Deno.execPath(), {
-    args: ["run", "--allow-read", checker, logPath, ...extraArgs],
+  const cmd = new sys.Command(sys.execPath(), {
+    args: [checker, logPath, ...extraArgs],
     stdout: "piped",
     stderr: "piped",
   });
@@ -307,7 +307,7 @@ for (const [name, log] of Object.entries(LOGS.forgedEvidence)) {
 // written log. This is the only place the wrapper's separator is exercised end to end.
 {
   const tmpLog = `${root}/probe-no-trailing-newline.log`;
-  const probe = new Deno.Command("sh", {
+  const probe = new sys.Command("sh", {
     args: [
       new URL("./kill-probe.sh", import.meta.url).pathname,
       tmpLog,
@@ -322,7 +322,7 @@ for (const [name, log] of Object.entries(LOGS.forgedEvidence)) {
     stderr: "piped",
   });
   const probeRun = await probe.output();
-  const written = await Deno.readTextFile(tmpLog).catch(() => "");
+  const written = await sys.readTextFile(tmpLog).catch(() => "");
   assert(
     "[BLOCKER] the PRODUCER puts the marker on its own line when the probe output ends mid-line",
     probeRun.code === 0 &&
@@ -384,7 +384,7 @@ assert(
   "[BLOCKER] FAILS (exit 1) on an unsummarised log with no banner either (phase UNKNOWN), with or without --phase",
   r.code === 1 && r.err.includes("UNKNOWN") &&
     (await checkLog(LOGS.crashedRunAll.replace(HARNESS_BANNER, ""), ["--phase", "run-all"]))
-        .code === 1,
+      .code === 1,
 );
 // [MAJOR] behavioural is no longer reachable from an arbitrary file: it needs BOTH the caller's
 // declaration and probe-initiation evidence in the log.
@@ -477,8 +477,8 @@ assert("FAILS (exit 1) on an empty log", r.code === 1 && r.err.includes("empty")
 
 // --- usage errors (exit 2) ------------------------------------------------------------------
 
-const noArgs = await new Deno.Command(Deno.execPath(), {
-  args: ["run", "--allow-read", CHECKER],
+const noArgs = await new sys.Command(sys.execPath(), {
+  args: [CHECKER],
   stdout: "piped",
   stderr: "piped",
 }).output();
@@ -502,8 +502,8 @@ assert(
   r.err.includes("check-verdict-emission: --phase requires an argument") &&
     r.err.includes("usage:") && !r.out.includes("phase    :") && !r.out.includes("PASS"),
 );
-const missing = await new Deno.Command(Deno.execPath(), {
-  args: ["run", "--allow-read", CHECKER, `${root}/does-not-exist.log`],
+const missing = await new sys.Command(sys.execPath(), {
+  args: [CHECKER, `${root}/does-not-exist.log`],
   stdout: "piped",
   stderr: "piped",
 }).output();
@@ -513,7 +513,7 @@ assert("exit 2 on an unexpected extra argument", r.code === 2);
 
 // --- unit assertions on the derivation ------------------------------------------------------
 
-const source = await Deno.readTextFile(
+const source = await sys.readTextFile(
   new URL("./conformance.mjs", import.meta.url).pathname,
 );
 assert(
@@ -572,7 +572,7 @@ assert(
 
 // --- the wiring says where real runner output is read ---------------------------------------
 
-const ci = await Deno.readTextFile(
+const ci = await sys.readTextFile(
   new URL("../.github/workflows/ci.yml", import.meta.url).pathname,
 );
 assert(
@@ -580,7 +580,7 @@ assert(
   /name: Verdict-emission checker self-test \(validates the checker/.test(ci) &&
     ci.includes("run: deno task test-verdict-emission"),
 );
-const claude = await Deno.readTextFile(new URL("../CLAUDE.md", import.meta.url).pathname);
+const claude = await sys.readTextFile(new URL("../CLAUDE.md", import.meta.url).pathname);
 assert(
   "CLAUDE.md says the check meets REAL gate logs and that the probe carries --phase behavioural",
   /check-verdict-emission <log>[^\n]*LANDING GATE/.test(claude) &&
@@ -596,7 +596,7 @@ assert(
 
 // Mutation proof: remove only the zero-count guard from a temporary copy, not the repo source.
 // Each refusal above then flips to the historical false-GREEN and must be reported as sabotage.
-const checkerSource = await Deno.readTextFile(CHECKER);
+const checkerSource = await sys.readTextFile(CHECKER);
 const guardStart = '  if (derived.name === "run-all" || derived.name === "responsive") {';
 const guardEnd = "\n  if (!derivedKnown) {";
 const start = checkerSource.indexOf(guardStart);
@@ -608,10 +608,17 @@ assert(
 );
 if (start >= 0 && end > start) {
   const sabotaged = `${root}/sabotaged-checker.mjs`;
-  await Deno.writeTextFile(sabotaged, checkerSource.slice(0, start) + checkerSource.slice(end));
+  // The copy lives outside scripts/, so point its helper import back at the real file.
+  await sys.writeTextFile(
+    sabotaged,
+    (checkerSource.slice(0, start) + checkerSource.slice(end)).replace(
+      '"./lib/sys.mjs"',
+      JSON.stringify(new URL("./lib/sys.mjs", import.meta.url).href),
+    ),
+  );
   for (const [phase, log] of [["run-all", ZERO_RUN_ALL], ["responsive", ZERO_RESPONSIVE]]) {
     const logPath = `${root}/sabotage-${phase}.log`;
-    await Deno.writeTextFile(logPath, log);
+    await sys.writeTextFile(logPath, log);
     r = await checkPath(logPath, ["--phase", phase], sabotaged);
     assert(
       `sabotage: ${phase} zero-scan refusal flips RED (historical false PASS returns)`,
@@ -619,10 +626,10 @@ if (start >= 0 && end > start) {
     );
   }
 }
-await Deno.remove(root, { recursive: true });
+await sys.remove(root, { recursive: true });
 
 if (failures > 0) {
   console.error(`check-verdict-emission.test.mjs: ${failures} assertion(s) failed`);
-  Deno.exit(1);
+  process.exit(1);
 }
 console.log("check-verdict-emission self-test: all assertions passed");

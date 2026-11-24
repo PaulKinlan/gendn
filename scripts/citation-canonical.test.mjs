@@ -1,4 +1,3 @@
-// @fixture-permissions --allow-read
 // scripts/citation-canonical.test.mjs — the citation-canonicalisation RULE and its negatives
 // (gendn-4ck; moved out of reference-contract.test.mjs).
 //
@@ -13,6 +12,7 @@
 //
 // Run: deno task test-fixtures --tasks test-citation-canonical (file-discovered automatically)
 
+import * as sys from "./lib/sys.mjs";
 import { canonicalCitationUrl, hasHref } from "./lib/reference-contract.mjs";
 
 let failures = 0;
@@ -239,6 +239,6 @@ assert(
 
 if (failures > 0) {
   console.error(`citation-canonical.test.mjs: ${failures} assertion(s) failed`);
-  Deno.exit(1);
+  process.exit(1);
 }
 console.log(`citation-canonical fixture: all ${passed} assertions passed`);

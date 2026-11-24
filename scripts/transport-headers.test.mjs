@@ -1,4 +1,3 @@
-// @fixture-permissions --allow-read --allow-run --allow-net=127.0.0.1,localhost --allow-env
 // scripts/transport-headers.test.mjs — transport-header fixtures (gendn-3ux).
 //
 // WHY THIS FILE EXISTS:
@@ -27,6 +26,7 @@
 //
 // Run: deno task test-fixtures --tasks test-transport-headers
 // The control is the runner's EXIT CODE, not a count of PASS lines (gendn-ijf).
+import * as sys from "./lib/sys.mjs";
 import { brotliDecompressSync, gunzipSync } from "node:zlib";
 
 let failures = 0;
@@ -80,7 +80,7 @@ function dechunk(body) {
 
 // A raw HTTP/1.1 GET that returns the true wire bytes, a Map of response headers, and the status.
 async function rawGet(port, path, headers, method = "GET") {
-  const conn = await Deno.connect({ hostname: "127.0.0.1", port });
+  const conn = await sys.connect({ hostname: "127.0.0.1", port });
   try {
     const request = [
       `${method} ${path} HTTP/1.1`,
@@ -138,13 +138,13 @@ async function rawGet(port, path, headers, method = "GET") {
 
 // Discover a real file-backed leaf page: its route, and the exact repo bytes it must serve.
 function discoverLeaf() {
-  for (const v of Deno.readDirSync(".")) {
+  for (const v of sys.readDirSync(".")) {
     if (!v.isDirectory || !/^v\d+$/.test(v.name)) continue;
-    for (const slug of Deno.readDirSync(v.name)) {
+    for (const slug of sys.readDirSync(v.name)) {
       if (!slug.isDirectory) continue;
       const file = `${v.name}/${slug.name}/index.html`;
       try {
-        const bytes = Deno.readFileSync(file);
+        const bytes = sys.readFileSync(file);
         if (bytes.length > 500) return { route: `/${v.name}/${slug.name}/`, file, bytes };
       } catch {
         // not a page directory
@@ -160,12 +160,12 @@ const leaf = discoverLeaf();
 assert("discovered a file-backed leaf page to test against", leaf !== null, leaf?.file ?? "");
 if (!leaf) {
   console.error("transport-headers.test.mjs: no leaf page found");
-  Deno.exit(1);
+  process.exit(1);
 }
 
-const serverProc = new Deno.Command("deno", {
-  args: ["run", "--allow-net", "--allow-read", "--allow-env", "server.ts"],
-  env: { ...Deno.env.toObject(), PORT: "0" },
+const serverProc = new sys.Command(sys.execPath(), {
+  args: ["serve.ts"],
+  env: { ...sys.env.toObject(), PORT: "0" },
   stdout: "piped",
   stderr: "null",
 }).spawn();
@@ -394,6 +394,6 @@ try {
 
 if (failures > 0) {
   console.error(`transport-headers.test.mjs: ${failures} assertion(s) failed (${passed} passed)`);
-  Deno.exit(1);
+  process.exit(1);
 }
 console.log(`PASS — transport headers (${passed} assertions)`);

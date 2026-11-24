@@ -1,4 +1,3 @@
-// @fixture-permissions --allow-read --allow-write --allow-run --allow-net=127.0.0.1,localhost --allow-env
 // scripts/css-drift.test.mjs — the DETERMINISTIC half of the CSS-drift coverage (gendn-xe6f).
 //
 // This file holds every assertion that needs no browser, no served tree and no git: route glob/list
@@ -54,10 +53,12 @@ assert(
   "changed member and another leaf select their exact routes",
 );
 for (
-  const paths of [[], ["public/styles.css"], ["v149/new/index.html"], [
-    "v147/a/index.html",
-    "server.ts",
-  ]]
+  const paths of [
+    [],
+    ["public/styles.css"],
+    ["v149/new/index.html"],
+    ["v147/a/index.html", "server.ts"],
+  ]
 ) {
   let refused = false;
   try {

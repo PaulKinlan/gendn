@@ -1,6 +1,6 @@
-// @fixture-permissions --allow-read --allow-write --allow-run
 // gendn-vt28: exercise the REAL validate-artifacts CLI against colocated page/suite pairs.
 // suiteHash covers assertions only; changing suite identity alone must still fail this gate.
+import * as sys from "./lib/sys.mjs";
 import { suiteHash } from "./lib/artifacts.mjs";
 
 const REPO = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
@@ -16,7 +16,7 @@ const ALPHA = "v900/alpha";
 const BETA = "v901/beta";
 const ALPHA_ID = "5637601087193088";
 const BETA_ID = "5111042975465472";
-const tmp = await Deno.makeTempDir({ prefix: "vt28-suite-metadata-" });
+const tmp = await sys.makeTempDir({ prefix: "vt28-suite-metadata-" });
 let failures = 0;
 function assert(name, ok, detail = "") {
   console.log(`${ok ? "PASS" : "FAIL"}: ${name}${!ok && detail ? ` :: ${detail}` : ""}`);
@@ -52,11 +52,11 @@ async function suite(id, identity) {
   };
 }
 async function putSuite(id, value) {
-  await Deno.writeTextFile(`${tmp}/${id}/conformance.json`, JSON.stringify(value, null, 2));
+  await sys.writeTextFile(`${tmp}/${id}/conformance.json`, JSON.stringify(value, null, 2));
 }
 async function gate() {
-  const cmd = new Deno.Command(Deno.execPath(), {
-    args: ["run", "--allow-read", "--allow-run", VALIDATOR],
+  const cmd = new sys.Command(sys.execPath(), {
+    args: [VALIDATOR],
     cwd: tmp,
     stdout: "piped",
     stderr: "piped",
@@ -66,13 +66,13 @@ async function gate() {
 }
 
 try {
-  await Deno.mkdir(`${tmp}/schema`);
+  await sys.mkdir(`${tmp}/schema`);
   for (const name of SCHEMAS) {
-    await Deno.copyFile(`${REPO}/schema/${name}`, `${tmp}/schema/${name}`);
+    await sys.copyFile(`${REPO}/schema/${name}`, `${tmp}/schema/${name}`);
   }
-  for (const id of [ALPHA, BETA]) await Deno.mkdir(`${tmp}/${id}`, { recursive: true });
-  await Deno.writeTextFile(`${tmp}/${ALPHA}/index.html`, html(ALPHA_ID));
-  await Deno.writeTextFile(`${tmp}/${BETA}/index.html`, html(BETA_ID));
+  for (const id of [ALPHA, BETA]) await sys.mkdir(`${tmp}/${id}`, { recursive: true });
+  await sys.writeTextFile(`${tmp}/${ALPHA}/index.html`, html(ALPHA_ID));
+  await sys.writeTextFile(`${tmp}/${BETA}/index.html`, html(BETA_ID));
   const original = await suite(ALPHA, ALPHA_ID);
   const second = await suite(BETA, BETA_ID);
   await putSuite(ALPHA, original);
@@ -120,14 +120,14 @@ try {
   );
   await putSuite(ALPHA, original);
 
-  await Deno.writeTextFile(`${tmp}/${ALPHA}/index.html`, html(BETA_ID));
+  await sys.writeTextFile(`${tmp}/${ALPHA}/index.html`, html(BETA_ID));
   r = await gate();
   assert(
     "page-only feature identity edit also fails against its suite",
     r.code === 1 && r.text.includes("conformance.json: identity"),
     r.text.slice(-240),
   );
-  await Deno.writeTextFile(
+  await sys.writeTextFile(
     `${tmp}/${ALPHA}/index.html`,
     "<html><body><h1>Reference</h1></body></html>",
   );
@@ -138,7 +138,7 @@ try {
     r.text.slice(-240),
   );
 
-  await Deno.writeTextFile(
+  await sys.writeTextFile(
     `${tmp}/${ALPHA}/index.html`,
     html(ALPHA_ID, "<p>Unrelated prose edit.</p>"),
   );
@@ -148,7 +148,7 @@ try {
   // A page-only added demo was previously just a report-only note. Its suite now must be
   // updated too, without rehashing or weakening any frozen assertions.
   const demo = "https://chrome-platform-showcase.paulkinlan-ea.deno.net/v900/alpha/";
-  await Deno.writeTextFile(
+  await sys.writeTextFile(
     `${tmp}/${ALPHA}/index.html`,
     html(ALPHA_ID, `<a href="${demo}">Demo</a>`),
   );
@@ -199,9 +199,9 @@ try {
 
   // A moved page/suite pair is consistent at the destination. Alias validity is checked by
   // check-routes, not this metadata binding.
-  await Deno.writeTextFile(`${tmp}/${ALPHA}/index.html`, html(ALPHA_ID));
+  await sys.writeTextFile(`${tmp}/${ALPHA}/index.html`, html(ALPHA_ID));
   await putSuite(ALPHA, original);
-  await Deno.rename(`${tmp}/${ALPHA}`, `${tmp}/v900/gamma`);
+  await sys.rename(`${tmp}/${ALPHA}`, `${tmp}/v900/gamma`);
   const moved = "v900/gamma";
   await putSuite(moved, { ...original, id: moved, route: `/${moved}/` });
   r = await gate();
@@ -214,8 +214,8 @@ try {
   const exceptionId = "v150/disable-svg-filters-on-plugins-and-iframes";
   const exceptionDemo =
     `https://chrome-platform-showcase.paulkinlan-ea.deno.net/${exceptionId}/filter-comparison/`;
-  await Deno.mkdir(`${tmp}/${exceptionId}`, { recursive: true });
-  await Deno.writeTextFile(
+  await sys.mkdir(`${tmp}/${exceptionId}`, { recursive: true });
+  await sys.writeTextFile(
     `${tmp}/${exceptionId}/index.html`,
     html(ALPHA_ID, `<a href="${exceptionDemo}">Concept demo</a>`),
   );
@@ -250,14 +250,14 @@ try {
     r.text.slice(-360),
   );
 } finally {
-  await Deno.remove(tmp, { recursive: true });
+  await sys.remove(tmp, { recursive: true });
 }
 
 // gendn-ip0z: staged-then-reverted edit (git status MM) must not escape validate-artifacts
 {
-  const scratch = await Deno.makeTempDir({ prefix: "ip0z-suite-metadata-" });
+  const scratch = await sys.makeTempDir({ prefix: "ip0z-suite-metadata-" });
   const g = async (...args) => {
-    const c = new Deno.Command("git", { args, cwd: scratch, stdout: "piped", stderr: "piped" });
+    const c = new sys.Command("git", { args, cwd: scratch, stdout: "piped", stderr: "piped" });
     const o = await c.output();
     if (!o.success) {
       throw new Error(`git ${args.join(" ")} failed: ${new TextDecoder().decode(o.stderr)}`);
@@ -265,8 +265,8 @@ try {
     return new TextDecoder().decode(o.stdout);
   };
   const runValidator = async () => {
-    const cmd = new Deno.Command(Deno.execPath(), {
-      args: ["run", "--allow-read", "--allow-run", VALIDATOR],
+    const cmd = new sys.Command(sys.execPath(), {
+      args: [VALIDATOR],
       cwd: scratch,
       stdout: "piped",
       stderr: "piped",
@@ -276,14 +276,14 @@ try {
   };
 
   try {
-    await Deno.mkdir(`${scratch}/schema`);
+    await sys.mkdir(`${scratch}/schema`);
     for (const name of SCHEMAS) {
-      await Deno.copyFile(`${REPO}/schema/${name}`, `${scratch}/schema/${name}`);
+      await sys.copyFile(`${REPO}/schema/${name}`, `${scratch}/schema/${name}`);
     }
-    await Deno.mkdir(`${scratch}/${ALPHA}`, { recursive: true });
-    await Deno.writeTextFile(`${scratch}/${ALPHA}/index.html`, html(ALPHA_ID));
+    await sys.mkdir(`${scratch}/${ALPHA}`, { recursive: true });
+    await sys.writeTextFile(`${scratch}/${ALPHA}/index.html`, html(ALPHA_ID));
     const baseSuite = await suite(ALPHA, ALPHA_ID);
-    await Deno.writeTextFile(
+    await sys.writeTextFile(
       `${scratch}/${ALPHA}/conformance.json`,
       JSON.stringify(baseSuite, null, 2),
     );
@@ -301,7 +301,7 @@ try {
 
     // Case 2: Uncommitted edit to conformance.json
     const mutatedSuite = { ...baseSuite, identity: BETA_ID };
-    await Deno.writeTextFile(
+    await sys.writeTextFile(
       `${scratch}/${ALPHA}/conformance.json`,
       JSON.stringify(mutatedSuite, null, 2),
     );
@@ -323,7 +323,7 @@ try {
 
     // Case 4: Staged-then-reverted (git status shows MM)
     // Worktree conformance.json restored to base: disk matches index.html, but index has BETA_ID.
-    await Deno.writeTextFile(
+    await sys.writeTextFile(
       `${scratch}/${ALPHA}/conformance.json`,
       JSON.stringify(baseSuite, null, 2),
     );
@@ -340,7 +340,7 @@ try {
     );
 
     // Case 5: Committed edit
-    await Deno.writeTextFile(
+    await sys.writeTextFile(
       `${scratch}/${ALPHA}/conformance.json`,
       JSON.stringify(mutatedSuite, null, 2),
     );
@@ -353,7 +353,7 @@ try {
     );
 
     // Case 6: Resolved
-    await Deno.writeTextFile(
+    await sys.writeTextFile(
       `${scratch}/${ALPHA}/conformance.json`,
       JSON.stringify(baseSuite, null, 2),
     );
@@ -368,9 +368,9 @@ try {
     // Case 7 (gendn-0n5s Scenario A): Staged identity mutation in index.html disguised by unrelated unstaged decoy edit
     // Worktree index.html restored to ALPHA_ID + decoy comment; conformance.json has ALPHA_ID.
     // Index has BETA_ID. Validator must read staged index.html and fail on identity mismatch.
-    await Deno.writeTextFile(`${scratch}/${ALPHA}/index.html`, html(BETA_ID));
+    await sys.writeTextFile(`${scratch}/${ALPHA}/index.html`, html(BETA_ID));
     await g("add", `${ALPHA}/index.html`);
-    await Deno.writeTextFile(
+    await sys.writeTextFile(
       `${scratch}/${ALPHA}/index.html`,
       html(ALPHA_ID, "<!-- decoy edit -->"),
     );
@@ -399,13 +399,13 @@ try {
     // Staged conformance.json has BETA_ID. Worktree conformance.json has ALPHA_ID + status:"stub".
     // Validator treats status drift as report-only, so this decoy must not disguise the staged identity mutation.
     const mutatedSuiteBeta = { ...baseSuite, identity: BETA_ID };
-    await Deno.writeTextFile(
+    await sys.writeTextFile(
       `${scratch}/${ALPHA}/conformance.json`,
       JSON.stringify(mutatedSuiteBeta, null, 2),
     );
     await g("add", `${ALPHA}/conformance.json`);
     const statusDecoySuite = { ...baseSuite, status: "stub" };
-    await Deno.writeTextFile(
+    await sys.writeTextFile(
       `${scratch}/${ALPHA}/conformance.json`,
       JSON.stringify(statusDecoySuite, null, 2),
     );
@@ -422,7 +422,7 @@ try {
     );
 
     // Clean up conformance.json
-    await Deno.writeTextFile(
+    await sys.writeTextFile(
       `${scratch}/${ALPHA}/conformance.json`,
       JSON.stringify(baseSuite, null, 2),
     );
@@ -431,11 +431,11 @@ try {
     // Case 10 (gendn-0n5s P1-A ADV2): Staged identity mutation in index.html with tolerated status decoy
     // Staged index.html has BETA_ID. Worktree index.html has ALPHA_ID + MDN stub eyebrow.
     // Conformance has ALPHA_ID. Validator must read staged index.html and fail on identity mismatch.
-    await Deno.writeTextFile(`${scratch}/${ALPHA}/index.html`, html(BETA_ID));
+    await sys.writeTextFile(`${scratch}/${ALPHA}/index.html`, html(BETA_ID));
     await g("add", `${ALPHA}/index.html`);
     const mdnStubHtml =
       `<html><body><p class="eyebrow">Covered on MDN</p><h1>Reference</h1><a href="https://chromestatus.com/feature/${ALPHA_ID}">ChromeStatus</a></body></html>`;
-    await Deno.writeTextFile(`${scratch}/${ALPHA}/index.html`, mdnStubHtml);
+    await sys.writeTextFile(`${scratch}/${ALPHA}/index.html`, mdnStubHtml);
     const adv2Status = (await g("status", "--short")).trim();
     assert(
       "0n5s validate-artifacts Case 10: git status shows MM for staged page mutation with status decoy",
@@ -455,13 +455,13 @@ try {
     // Deleting an assertion in index, while restoring worktree assertions + setting status:"stub".
     // The reader must compare the entire parsed suite (assertions included) and read from index.
     const emptyAssertionsSuite = { ...baseSuite, assertions: [], suiteHash: await suiteHash([]) };
-    await Deno.writeTextFile(
+    await sys.writeTextFile(
       `${scratch}/${ALPHA}/conformance.json`,
       JSON.stringify(emptyAssertionsSuite, null, 2),
     );
     await g("add", `${ALPHA}/conformance.json`);
     const statusDecoyFullSuite = { ...baseSuite, status: "stub" };
-    await Deno.writeTextFile(
+    await sys.writeTextFile(
       `${scratch}/${ALPHA}/conformance.json`,
       JSON.stringify(statusDecoyFullSuite, null, 2),
     );
@@ -491,7 +491,7 @@ try {
       inventory: [],
       documentation: [],
     };
-    await Deno.writeTextFile(
+    await sys.writeTextFile(
       `${scratch}/${ALPHA}/reference-contract.json`,
       JSON.stringify(sufficientContract, null, 2),
     );
@@ -504,13 +504,13 @@ try {
       inventory: [],
       documentation: [],
     };
-    await Deno.writeTextFile(
+    await sys.writeTextFile(
       `${scratch}/${ALPHA}/reference-contract.json`,
       JSON.stringify(partialContract, null, 2),
     );
     await g("add", `${ALPHA}/reference-contract.json`);
 
-    await Deno.writeTextFile(
+    await sys.writeTextFile(
       `${scratch}/${ALPHA}/reference-contract.json`,
       JSON.stringify(sufficientContract, null, 2) + "\n  \n",
     );
@@ -532,12 +532,12 @@ try {
     // Case 13 (gendn-0n5s round 4): Staged malformed JSON in conformance.json with status decoy in worktree
     // Truncated invalid JSON in index, valid JSON + status:"stub" decoy in worktree.
     // The reader must not return null/skip comparison, but must detect index mutation and read from index.
-    await Deno.writeTextFile(
+    await sys.writeTextFile(
       `${scratch}/${ALPHA}/conformance.json`,
       '{ "schemaVersion": 1, "id": "truncated",\n',
     );
     await g("add", `${ALPHA}/conformance.json`);
-    await Deno.writeTextFile(
+    await sys.writeTextFile(
       `${scratch}/${ALPHA}/conformance.json`,
       JSON.stringify(statusDecoyFullSuite, null, 2),
     );
@@ -564,9 +564,9 @@ try {
     // Case 14 (gendn-0n5s round 4): Staged falsy primitive (null) in non-conformance JSON (reference-contract.json)
     // Staging "null" in reference-contract.json, valid contract + whitespace decoy in worktree.
     // The reader must not treat null as unjudged, but must read staged null from index.
-    await Deno.writeTextFile(`${scratch}/${ALPHA}/reference-contract.json`, "null\n");
+    await sys.writeTextFile(`${scratch}/${ALPHA}/reference-contract.json`, "null\n");
     await g("add", `${ALPHA}/reference-contract.json`);
-    await Deno.writeTextFile(
+    await sys.writeTextFile(
       `${scratch}/${ALPHA}/reference-contract.json`,
       JSON.stringify(sufficientContract, null, 2) + "\n   \n",
     );
@@ -582,11 +582,11 @@ try {
       readNullP04 === null,
     );
   } finally {
-    await Deno.remove(scratch, { recursive: true });
+    await sys.remove(scratch, { recursive: true });
   }
 }
 if (failures) {
   console.error(`suite-metadata fixture: ${failures} assertion(s) failed`);
-  Deno.exit(1);
+  process.exit(1);
 }
 console.log("suite-metadata fixture: all assertions passed");

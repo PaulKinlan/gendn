@@ -25,6 +25,7 @@
 //   deno run --allow-read --allow-run scripts/route-manifest.mjs --ref origin/main   # a git ref
 //   (add `--pretty` for indented output)
 
+import * as sys from "./lib/sys.mjs";
 import {
   collectPublishedPages,
   extractDemoUrl,
@@ -97,7 +98,7 @@ async function collectFromWorkingTree(root = ".") {
       const html = await readJudgedFile(pagePath, root);
       entries.push(pathToIdentityFields(pagePath, html));
     } catch (err) {
-      if (err instanceof Deno.errors.NotFound) continue;
+      if (err instanceof sys.errors.NotFound) continue;
       throw err;
     }
   }
@@ -105,13 +106,13 @@ async function collectFromWorkingTree(root = ".") {
 }
 
 async function* walkPages(root) {
-  for await (const rel of Deno.readDir(root)) {
+  for await (const rel of sys.readDir(root)) {
     if (rel.isDirectory && /^v\d+$/.test(rel.name)) {
-      for await (const slug of Deno.readDir(`${root}/${rel.name}`)) {
+      for await (const slug of sys.readDir(`${root}/${rel.name}`)) {
         if (!slug.isDirectory) continue;
         const pagePath = `${rel.name}/${slug.name}/index.html`;
         try {
-          await Deno.stat(`${root}/${pagePath}`);
+          await sys.stat(`${root}/${pagePath}`);
           yield pagePath;
         } catch {
           // no index.html — not a published page
@@ -173,8 +174,8 @@ export async function buildManifest({ ref, root = "." } = {}) {
   })));
 }
 
-if (import.meta.main) {
-  const args = Deno.args;
+if (sys.isMain(import.meta.url)) {
+  const args = sys.args;
   const refIdx = args.indexOf("--ref");
   const ref = refIdx >= 0 ? args[refIdx + 1] : undefined;
   const pretty = args.includes("--pretty");

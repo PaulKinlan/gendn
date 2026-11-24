@@ -1,4 +1,3 @@
-// @fixture-permissions --allow-read
 // scripts/iframe-posture.test.mjs — the gendn-kjq guard fixture.
 //
 // THE FINDING: 36 published pages embedded the cross-origin Chrome Platform Showcase demo in
@@ -57,6 +56,7 @@
 //
 // Run: deno task test-fixtures --tasks test-iframe-posture
 
+import * as sys from "./lib/sys.mjs";
 import { PENDING_HARDENING, SANCTIONED_SANDBOX } from "./lib/iframe-posture.mjs";
 
 const REPO = new URL("..", import.meta.url).pathname;
@@ -174,7 +174,7 @@ export function auditIframeTag(tag, file) {
 
 // --- scan every published static page ----------------------------------------------
 async function* walkHtml(dir, prefix) {
-  for await (const e of Deno.readDir(dir)) {
+  for await (const e of sys.readDir(dir)) {
     const rel = `${prefix}/${e.name}`;
     if (e.isDirectory) {
       yield* walkHtml(`${dir}/${e.name}`, rel);
@@ -185,7 +185,7 @@ async function* walkHtml(dir, prefix) {
 }
 
 const pages = [];
-for await (const e of Deno.readDir(REPO)) {
+for await (const e of sys.readDir(REPO)) {
   if (e.isDirectory && /^v\d+$/.test(e.name)) {
     for await (const rel of walkHtml(`${REPO}${e.name}`, e.name)) pages.push(rel);
   }
@@ -197,7 +197,7 @@ const violations = [];
 const pendingSeen = new Set();
 const deferredPosture = new Map();
 for (const rel of pages) {
-  const text = await Deno.readTextFile(`${REPO}${rel}`);
+  const text = await sys.readTextFile(`${REPO}${rel}`);
   for (const m of text.matchAll(/<iframe\b[^>]*>/gs)) {
     iframeCount++;
     const pending = PENDING_HARDENING.find((p) => p.file === rel);
@@ -215,7 +215,7 @@ for (const rel of pages) {
       pendingSeen.add(rel);
       let contractExists = false;
       try {
-        Deno.statSync(`${REPO}${rel.replace(/index\.html$/, "")}reference-contract.json`);
+        sys.statSync(`${REPO}${rel.replace(/index\.html$/, "")}reference-contract.json`);
         contractExists = true;
       } catch {
         // no contract — deferral still valid
@@ -363,7 +363,7 @@ assert(
 
 if (failures > 0) {
   console.error(`iframe-posture.test.mjs: ${failures} assertion(s) failed`);
-  Deno.exit(1);
+  process.exit(1);
 }
 console.log(
   `iframe-posture fixture: all ${passed} assertions passed (${iframeCount} iframe(s) across ${pages.length} page(s))`,

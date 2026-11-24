@@ -1,5 +1,4 @@
 #!/usr/bin/env -S deno run --allow-read --allow-write
-// @fixture-permissions --allow-read --allow-write --allow-run=deno
 // scripts/conformance-report.test.mjs — the tracked responsive report must not be TRUNCATED by a
 // scoped run (gendn-jvh).
 //
@@ -13,7 +12,7 @@
 // WHY UNIT TEST THE REPORT AND SELECTION: a successful CLI scan needs Chrome; the report and
 // selection decisions are pure and exported from scripts/conformance.mjs. Invalid CLI selectors
 // also get a real subprocess assertion because they fail before browser boot. Importing the runner
-// is side-effect-free (`if (import.meta.main) await main()`).
+// is side-effect-free (`if (sys.isMain(import.meta.url)) await main()`).
 //
 // Run: deno task test-fixtures --tasks test-conformance-report
 //
@@ -22,6 +21,7 @@
 // to leave those three cases as prose in a comment, which is exactly the 'described rather than
 // pinned' shape this repo keeps paying for.
 
+import * as sys from "./lib/sys.mjs";
 import {
   mergeReportRows,
   readReportRows,
@@ -86,12 +86,12 @@ const sameReportBytes = (before, after) =>
 // the rejected-run byte pin below is not vacuous. A real valid browser run was observed separately
 // during acceptance (it changed results.json and was restored); that observation is NOT a fixture.
 const trackedResults = trackedReportPaths[0];
-const originalResults = await Deno.readFile(trackedResults);
-const controlDir = await Deno.makeTempDir({ prefix: "gendn-scoped-report-control-" });
+const originalResults = await sys.readFile(trackedResults);
+const controlDir = await sys.makeTempDir({ prefix: "gendn-scoped-report-control-" });
 try {
   const tempResults = `${controlDir}/results.json`;
-  await Deno.writeFile(tempResults, originalResults);
-  const unchanged = await Deno.readFile(tempResults);
+  await sys.writeFile(tempResults, originalResults);
+  const unchanged = await sys.readFile(tempResults);
   assert(
     "comparator reports SAME for an unchanged copy of the real tracked results report",
     sameReportBytes([originalResults], [unchanged]),
@@ -123,7 +123,7 @@ try {
       scanned: [scannedSuite],
       scoped: true,
     });
-    await Deno.writeTextFile(
+    await sys.writeTextFile(
       tempResults,
       JSON.stringify(
         { generatedAt: sourceReport.generatedAt, agg: merged.agg, suites: merged.suites },
@@ -131,7 +131,7 @@ try {
         2,
       ) + "\n",
     );
-    const changed = await Deno.readFile(tempResults);
+    const changed = await sys.readFile(tempResults);
     assert(
       "valid published-root scoped report replacement makes SAME comparator report CHANGED",
       selected.error === null && selected.pages.length === 1 && passIndex >= 0 &&
@@ -141,11 +141,11 @@ try {
     );
     assert(
       "isolated valid scoped report control does not write the tracked source report",
-      sameReportBytes([originalResults], [await Deno.readFile(trackedResults)]),
+      sameReportBytes([originalResults], [await sys.readFile(trackedResults)]),
     );
   }
 } finally {
-  await Deno.remove(controlDir, { recursive: true });
+  await sys.remove(controlDir, { recursive: true });
 }
 for (const selector of ["v152/window-shape-api/setshape", "v152/window-shape-apix"]) {
   const miss = selectPublishedRootPages(published, { hasSelector: true, selector });
@@ -159,10 +159,8 @@ for (const selector of ["v152/window-shape-api/setshape", "v152/window-shape-api
   // An actual CLI exit check catches a future caller that ignores the pure decision. This is
   // pre-boot: the child process has only --allow-read and cannot spawn Chrome or a server.
   for (const mode of ["responsive", "conformance"]) {
-    const output = await new Deno.Command("deno", {
+    const output = await new sys.Command(sys.execPath(), {
       args: [
-        "run",
-        "--allow-read",
         "scripts/conformance.mjs",
         ...(mode === "responsive" ? ["--responsive"] : []),
         "--page",
@@ -185,15 +183,15 @@ for (const selector of ["v152/window-shape-api/setshape", "v152/window-shape-api
   // Unlike the restricted CLI checks above, this is the real task with write permission. A
   // rejected selector must not mutate either tracked report; the isolated comparator control
   // above proves that the same comparison detects a valid scoped replacement.
-  const before = await Promise.all(trackedReportPaths.map((path) => Deno.readFile(path)));
-  const real = await new Deno.Command("deno", {
-    args: ["task", "conformance", "--page", selector],
+  const before = await Promise.all(trackedReportPaths.map((path) => sys.readFile(path)));
+  const real = await new sys.Command("npm", {
+    args: ["run", "--silent", "conformance", "--", "--page", selector],
     stdout: "piped",
     stderr: "piped",
   }).output();
   const realOut = new TextDecoder().decode(real.stdout);
   const realErr = new TextDecoder().decode(real.stderr);
-  const after = await Promise.all(trackedReportPaths.map((path) => Deno.readFile(path)));
+  const after = await Promise.all(trackedReportPaths.map((path) => sys.readFile(path)));
   assert(
     `real-permission rejected conformance --page ${selector} fails before report generation`,
     real.code === 2 && realErr.includes(selector) &&
@@ -248,10 +246,10 @@ assert(
 // catalogue size selects everything" only while the catalogue stayed at or under it, and went
 // stale when the catalogue crossed 202 pages (weekly hardening 2026-10-11, 201 -> 209).
 for (
-  const [rawLimit, expected] of [["1", 1], [
-    String(actualCatalogue.length + 1),
-    actualCatalogue.length,
-  ]]
+  const [rawLimit, expected] of [
+    ["1", 1],
+    [String(actualCatalogue.length + 1), actualCatalogue.length],
+  ]
 ) {
   const selection = selectPublishedRootPages(actualCatalogue, { hasLimit: true, rawLimit });
   assert(
@@ -279,10 +277,10 @@ for (const rawLimit of ["0", "-1", "foo"]) {
     // responsive.json, so comparing conformance's tracked outputs there would pass vacuously.
     // Its rc2/no-verdict/no-responsive-check assertions below pin rejection before browser work.
     const before = mode === "conformance"
-      ? await Promise.all(trackedReportPaths.map((path) => Deno.readFile(path)))
+      ? await Promise.all(trackedReportPaths.map((path) => sys.readFile(path)))
       : null;
-    const output = await new Deno.Command("deno", {
-      args: ["task", mode, "--limit", rawLimit],
+    const output = await new sys.Command("npm", {
+      args: ["run", "--silent", mode, "--", "--limit", rawLimit],
       stdout: "piped",
       stderr: "piped",
     }).output();
@@ -297,7 +295,7 @@ for (const rawLimit of ["0", "-1", "foo"]) {
       `code=${output.code} stdout=${stdout.trim()} stderr=${stderr.trim()}`,
     );
     if (mode === "conformance") {
-      const after = await Promise.all(trackedReportPaths.map((path) => Deno.readFile(path)));
+      const after = await Promise.all(trackedReportPaths.map((path) => sys.readFile(path)));
       assert(
         `${mode} --limit ${rawLimit} preserves both tracked reports byte-for-byte`,
         sameReportBytes(before, after),
@@ -307,8 +305,8 @@ for (const rawLimit of ["0", "-1", "foo"]) {
   }
 }
 for (const mode of ["conformance", "responsive"]) {
-  const output = await new Deno.Command("deno", {
-    args: ["task", mode, "--page", "v152/window-shape-api", "--limit", "0"],
+  const output = await new sys.Command("npm", {
+    args: ["run", "--silent", mode, "--", "--page", "v152/window-shape-api", "--limit", "0"],
     stdout: "piped",
     stderr: "piped",
   }).output();
@@ -415,7 +413,7 @@ assert(
 // A missing report is the ordinary first-run case and must stay silent; a CORRUPT one is the
 // dangerous case, because a scoped merge would rewrite it to just the scanned pages - so it warns
 // while still degrading gracefully.
-const tmp = await Deno.makeTempDir({ prefix: "gendn-responsive-report-" });
+const tmp = await sys.makeTempDir({ prefix: "gendn-responsive-report-" });
 // The warn spy is CAPTURED, not a no-op: an assertion named "stays silent" that passes because it
 // never looked is the same mislabelling defect this branch exists to fix (gendn-jvh delta review).
 let missingWarned = "";
@@ -430,7 +428,7 @@ assert(
 // Write the corrupt file FIRST: reading an absent path is the MISSING case above, which must stay
 // SILENT, so asserting the warning against a path that does not exist yet tests the wrong branch
 // (my first draft did exactly that and the assertion caught it).
-await Deno.writeTextFile(`${tmp}/corrupt.json`, "{ not json");
+await sys.writeTextFile(`${tmp}/corrupt.json`, "{ not json");
 let warned = "";
 const corrupt = await readResponsiveRows(`${tmp}/corrupt.json`, { warn: (m) => (warned = m) });
 assert(
@@ -438,7 +436,7 @@ assert(
   corrupt.length === 0 && /unreadable/.test(warned),
   warned || "(no warning emitted)",
 );
-await Deno.writeTextFile(`${tmp}/wrong-shape.json`, JSON.stringify({ rows: [] }));
+await sys.writeTextFile(`${tmp}/wrong-shape.json`, JSON.stringify({ rows: [] }));
 let shapeWarned = "";
 await readResponsiveRows(`${tmp}/wrong-shape.json`, { warn: (m) => (shapeWarned = m) });
 assert(
@@ -446,7 +444,7 @@ assert(
   /not an array/.test(shapeWarned),
   shapeWarned || "(no warning emitted)",
 );
-await Deno.writeTextFile(
+await sys.writeTextFile(
   `${tmp}/shapes.json`,
   JSON.stringify([{ id: "keep" }, null, 7, { noId: 1 }]),
 );
@@ -455,7 +453,7 @@ assert(
   "rows without a string id are dropped rather than merged as junk",
   shapes.length === 1 && shapes[0].id === "keep",
 );
-await Deno.remove(tmp, { recursive: true });
+await sys.remove(tmp, { recursive: true });
 
 // ---- gendn-502: THE SAME CLASS IN THE RUNNER'S OWN REPORT -------------------------------------
 // jvh fixed it for reports/conformance/responsive.json; the same runner's OTHER output had it too -
@@ -507,9 +505,9 @@ assert(
   ) === JSON.stringify([{ page: "x" }, { page: "y", v: 9 }]),
 );
 {
-  const tmp2 = await Deno.makeTempDir({ prefix: "gendn-502-" });
+  const tmp2 = await sys.makeTempDir({ prefix: "gendn-502-" });
   const objectReport = `${tmp2}/results.json`;
-  await Deno.writeTextFile(objectReport, JSON.stringify({ agg: {}, suites: existingSuites }));
+  await sys.writeTextFile(objectReport, JSON.stringify({ agg: {}, suites: existingSuites }));
   const readBack = await readReportRows(objectReport, { what: "suites", key: "suites" });
   assert(
     "502: the shared reader reads an OBJECT report through its key",
@@ -582,5 +580,5 @@ assert(
 console.log(`\nconformance-report fixture: all ${passed} assertions passed`);
 if (failures) {
   console.error(`${failures} FAILED`);
-  Deno.exit(1);
+  process.exit(1);
 }

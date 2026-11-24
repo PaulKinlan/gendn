@@ -1,4 +1,3 @@
-// @fixture-permissions --allow-read --allow-write --allow-run --allow-net=127.0.0.1,localhost --allow-env
 // scripts/css-drift-browser.test.mjs — the REAL-BROWSER half of the CSS-drift coverage (gendn-xe6f).
 //
 // Split out of scripts/css-drift.test.mjs (gendn-xe6f) because it costs ~29s of real Chrome and must
@@ -19,6 +18,7 @@
 // the synthesized v9998 page and reports/css-drift are all inside a disposable --shared clone pinned
 // to origin/main, so a concurrent suite (or an agent editing the checkout) cannot lose a page to this
 // suite's cleanup. Cleanup is one removal of the root it created.
+import * as sys from "./lib/sys.mjs";
 import { CHECKOUT_ROOT, createPrivateServedRoot } from "./lib/private-root.mjs";
 
 function assert(ok, reason) {
@@ -45,16 +45,16 @@ const killedName = `killed-${crypto.randomUUID()}`;
 let restart;
 async function exists(path) {
   try {
-    await Deno.stat(path);
+    await sys.stat(path);
     return true;
   } catch (error) {
-    if (!(error instanceof Deno.errors.NotFound)) throw error;
+    if (!(error instanceof sys.errors.NotFound)) throw error;
     return false;
   }
 }
 async function runAt(cwd, ...args) {
-  const command = new Deno.Command(Deno.execPath(), {
-    args: ["task", "css-drift", ...args],
+  const command = new sys.Command("npm", {
+    args: ["run", "--silent", "css-drift", "--", ...args],
     cwd,
     stdout: "piped",
     stderr: "piped",
@@ -80,21 +80,21 @@ const run = (...args) => runAt(root, ...args);
   );
   let emptySnapshotExists = true;
   try {
-    await Deno.stat(changedFile);
+    await sys.stat(changedFile);
   } catch (error) {
-    if (!(error instanceof Deno.errors.NotFound)) throw error;
+    if (!(error instanceof sys.errors.NotFound)) throw error;
     emptySnapshotExists = false;
   }
   assert(!emptySnapshotExists, "empty --changed run writes no misleading baseline");
   const page = `${root}${route.slice(1)}index.html`;
-  await Deno.writeTextFile(
+  await sys.writeTextFile(
     page,
-    (await Deno.readTextFile(page)) + "\n<!-- css-drift changed-route fixture -->\n",
+    (await sys.readTextFile(page)) + "\n<!-- css-drift changed-route fixture -->\n",
   );
   const scoped = await run("--record", changedName, "--changed");
   assert(scoped.code === 0, `--changed records the edited route: ${JSON.stringify(scoped)}`);
   const selected = JSON.parse(
-    await Deno.readTextFile(changedFile),
+    await sys.readTextFile(changedFile),
   );
   assert(
     JSON.stringify(Object.keys(selected.pages)) === JSON.stringify([route]) &&
@@ -102,9 +102,9 @@ const run = (...args) => runAt(root, ...args);
       Object.keys(selected.pages[route].desktop).length > 0,
     "--changed selected ONLY the edited route and captured both widths",
   );
-  await Deno.writeTextFile(
+  await sys.writeTextFile(
     `${root}public/styles.css`,
-    (await Deno.readTextFile(`${root}public/styles.css`)) + "\n/* shared fixture */\n",
+    (await sys.readTextFile(`${root}public/styles.css`)) + "\n/* shared fixture */\n",
   );
   const shared = await run("--record", `shared-${changedName}`, "--changed");
   assert(
@@ -117,15 +117,15 @@ const run = (...args) => runAt(root, ...args);
 // other run reads, and this run must leave it ALONE: the old fixture "healed" itself by recursively
 // removing the whole SHARED v9998 milestone, which is exactly how a concurrent suite lost the page
 // it was about to load. The assertions at the end pin that this debris survives.
-await Deno.mkdir(`${root}v9998/${killedName}`, { recursive: true });
-await Deno.writeTextFile(
+await sys.mkdir(`${root}v9998/${killedName}`, { recursive: true });
+await sys.writeTextFile(
   `${root}v9998/${killedName}/index.html`,
   "<!doctype html><title>killed-run debris</title>",
 );
 try {
   const recorded = await run("--record", name, "--routes", route);
   assert(recorded.code === 0, `real browser record: ${JSON.stringify(recorded)}`);
-  const snapshot = JSON.parse(await Deno.readTextFile(file));
+  const snapshot = JSON.parse(await sys.readTextFile(file));
   assert(
     Object.keys(snapshot.pages).length === 1 &&
       Object.keys(snapshot.pages[route].mobile).length > 0,
@@ -139,27 +139,27 @@ try {
   const compared = await run("--compare", name, "--routes", route);
   assert(compared.code === 0, `real browser no-drift compare: ${JSON.stringify(compared)}`);
   assert(
-    JSON.parse(await Deno.readTextFile(report)).differences.length === 0,
+    JSON.parse(await sys.readTextFile(report)).differences.length === 0,
     "real browser diff is empty",
   );
   const wrong = await run("--compare", name, "--routes", "/v148/*");
   assert(wrong.code === 2 && wrong.err.includes("route set differs"), "refuse mismatched corpus");
   // Change a REAL served CSS rule, not a mocked snapshot, and prove non-zero exit plus
   // the precise computed-style property in the generated report at both widths.
-  await Deno.mkdir(mutationDir, { recursive: true });
-  await Deno.writeTextFile(
+  await sys.mkdir(mutationDir, { recursive: true });
+  await sys.writeTextFile(
     `${mutationDir}/index.html`,
     "<!doctype html><html><head><style>main{color:rgb(10, 20, 30)}</style></head><body><main>fixture</main></body></html>",
   );
   const before = await run("--record", mutationName, "--routes", mutationRoute);
   assert(before.code === 0, `fixture baseline: ${JSON.stringify(before)}`);
-  await Deno.writeTextFile(
+  await sys.writeTextFile(
     `${mutationDir}/index.html`,
     "<!doctype html><html><head><style>main{color:rgb(40, 50, 60)}</style></head><body><main>fixture</main></body></html>",
   );
   const after = await run("--compare", mutationName, "--routes", mutationRoute);
   assert(after.code === 1, `real browser changed CSS must fail: ${JSON.stringify(after)}`);
-  const changes = JSON.parse(await Deno.readTextFile(mutationReport)).differences;
+  const changes = JSON.parse(await sys.readTextFile(mutationReport)).differences;
   for (const viewport of ["mobile", "desktop"]) {
     assert(
       changes.some((item) =>

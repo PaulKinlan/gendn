@@ -8,13 +8,15 @@
 // It is named without the `test-` prefix ON PURPOSE: run-fixtures.mjs discovers every `test-*` task,
 // so a probe named test-* would enrol itself into the aggregate and sleep there in CI.
 
+import * as sys from "./lib/sys.mjs";
+
 // Record our own pid FIRST: the fixture checks liveness by PID rather than by matching a process
 // pattern, because any pattern can also appear in the command line of the shell that launched the
 // test (measured twice, once with the cleanup killing its own shell).
-const pidFile = Deno.env.get("PROBE_PID_FILE") ?? "/tmp/gendn-fixture-timeout-probe.pid";
-await Deno.writeTextFile(pidFile, String(Deno.pid));
+const pidFile = sys.env.get("PROBE_PID_FILE") ?? "/tmp/gendn-fixture-timeout-probe.pid";
+await sys.writeTextFile(pidFile, String(process.pid));
 console.log(
-  `fixture-timeout-probe: pid ${Deno.pid} recorded in ${pidFile}; sleeping until the bound`,
+  `fixture-timeout-probe: pid ${process.pid} recorded in ${pidFile}; sleeping until the bound`,
 );
 // A pending TIMER, not a never-resolving top-level await: Deno reports "Top-level await promise
 // never resolved" and exits for the latter, which would make the probe pass-by-exiting instead of

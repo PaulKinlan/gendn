@@ -19,6 +19,7 @@
 //
 // Usage: deno run --allow-read --allow-run scripts/check-conformance.mjs
 
+import * as sys from "./lib/sys.mjs";
 import {
   collectPublishedPages,
   collectSuites,
@@ -101,14 +102,14 @@ async function main() {
         "touched-page contracts: independent baseline refs/remotes/origin/main is unavailable " +
         "or not a commit; run git fetch origin main before this ratchet (no HEAD self-baseline)",
     );
-    Deno.exit(6);
+    process.exit(6);
   }
   // An empty working corpus is not evidence of full coverage. Anchor the floor on the
   // independently fetched published catalogue, not a reciprocal 0/0 equality.
   const priorPaths = await git(["ls-tree", "-r", "--name-only", baselineRef]);
   if (priorPaths === null) {
     console.error("FAIL — PRECONDITION (exit 6): cannot read the published baseline catalogue");
-    Deno.exit(6);
+    process.exit(6);
   }
   const priorPages = priorPaths.split("\n").filter((path) =>
     /^v\d+\/[^/]+\/index\.html$/.test(path)
@@ -120,7 +121,7 @@ async function main() {
     console.error(
       "FAIL — PRECONDITION (exit 6): independent published catalogue has no pages or conformance suites to anchor the coverage floor",
     );
-    Deno.exit(6);
+    process.exit(6);
   }
   if (pageIds.size === 0 || suites.length === 0) {
     failures.push(
@@ -261,7 +262,7 @@ async function main() {
         const baselineSuite = JSON.parse(baselineRaw);
         if (
           normalizeAssertions(currentSuite.assertions ?? []) !==
-            normalizeAssertions(baselineSuite.assertions ?? [])
+          normalizeAssertions(baselineSuite.assertions ?? [])
         ) {
           touched.push(id);
         }
@@ -437,12 +438,12 @@ async function main() {
       "\nAdding assertions and new suites is allowed. Removing/weakening an assertion needs an " +
         "assertion-migrate record in migrations.json; touched pages must be matrix-validated and implementation-sufficient.",
     );
-    Deno.exit(1);
+    process.exit(1);
   }
   console.log(`\nPASS — full conformance coverage, no weakened assertions.${unchangedNote}`);
 }
 
-if (import.meta.main) {
+if (sys.isMain(import.meta.url)) {
   // A hang anywhere in the gate now surfaces as this line rather than as a silent zero-output death.
   try {
     await main();
@@ -452,6 +453,6 @@ if (import.meta.main) {
         err instanceof Error ? err.message : String(err)
       }`,
     );
-    Deno.exit(1);
+    process.exit(1);
   }
 }

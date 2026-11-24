@@ -1,6 +1,7 @@
 #!/usr/bin/env -S deno run --allow-read --allow-run --allow-write
 // Explicit, reviewable regeneration of the identity/demo ledger. Never called by check-routes.
 // Usage: deno task refresh-bindings [--allow-removals]
+import * as sys from "./lib/sys.mjs";
 import { buildManifest } from "./route-manifest.mjs";
 import {
   BINDING_LEDGER,
@@ -17,10 +18,10 @@ export async function refreshBindings(options = {}) {
 
   let priorLedger = [];
   try {
-    const raw = await Deno.readTextFile(ledgerPath);
+    const raw = await sys.readTextFile(ledgerPath);
     priorLedger = JSON.parse(raw);
   } catch (err) {
-    if (!(err instanceof Deno.errors.NotFound)) {
+    if (!(err instanceof sys.errors.NotFound)) {
       throw err;
     }
   }
@@ -37,26 +38,26 @@ export async function refreshBindings(options = {}) {
     return { ok: false, message: check.message, exitCode: 1 };
   }
 
-  await Deno.writeTextFile(ledgerPath, JSON.stringify(rows, null, 2) + "\n");
+  await sys.writeTextFile(ledgerPath, JSON.stringify(rows, null, 2) + "\n");
   console.log(`refreshed ${ledgerPath}: ${rows.length} published routes (identity + demo only)`);
   return { ok: true, rows, exitCode: 0 };
 }
 
-if (import.meta.main) {
+if (sys.isMain(import.meta.url)) {
   let allowRemovals = false;
   let ledgerPath = BINDING_LEDGER;
   let root = ".";
 
-  for (let i = 0; i < Deno.args.length; i++) {
-    const arg = Deno.args[i];
+  for (let i = 0; i < sys.args.length; i++) {
+    const arg = sys.args[i];
     if (arg === "--allow-removals") {
       allowRemovals = true;
-    } else if (arg === "--ledger" && i + 1 < Deno.args.length) {
-      ledgerPath = Deno.args[++i];
+    } else if (arg === "--ledger" && i + 1 < sys.args.length) {
+      ledgerPath = sys.args[++i];
     } else if (arg.startsWith("--ledger=")) {
       ledgerPath = arg.slice("--ledger=".length);
-    } else if (arg === "--root" && i + 1 < Deno.args.length) {
-      root = Deno.args[++i];
+    } else if (arg === "--root" && i + 1 < sys.args.length) {
+      root = sys.args[++i];
     } else if (arg.startsWith("--root=")) {
       root = arg.slice("--root=".length);
     }
@@ -64,6 +65,6 @@ if (import.meta.main) {
 
   const res = await refreshBindings({ allowRemovals, ledgerPath, root });
   if (!res.ok) {
-    Deno.exit(res.exitCode ?? 1);
+    process.exit(res.exitCode ?? 1);
   }
 }

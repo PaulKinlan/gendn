@@ -10,6 +10,7 @@
 // Nothing here fabricates data: assertions and support records are DERIVED from the page's own
 // chromestatus id, route, status (built/stub), sections, and embedded showcase link.
 
+import * as sys from "./sys.mjs";
 import {
   judgedFileExists,
   readJudgedFile,
@@ -77,12 +78,12 @@ async function plainCatalogueEntry(root, relative, leaf = "directory") {
 export async function collectPublishedPages(root = ".") {
   const pages = new Set();
   try {
-    for await (const rel of Deno.readDir(root)) {
+    for await (const rel of sys.readDir(root)) {
       if (!/^v\d+$/.test(rel.name)) continue;
       // DirEntry.isDirectory is false for symlinks, including a published release
       // replaced by a dangling link. Never silently shrink the catalogue.
       if (!await plainCatalogueEntry(root, rel.name)) continue;
-      for await (const slug of Deno.readDir(`${root}/${rel.name}`)) {
+      for await (const slug of sys.readDir(`${root}/${rel.name}`)) {
         if (!slug.isDirectory && !slug.isSymlink) continue; // ordinary stray files
         const owner = `${rel.name}/${slug.name}`;
         if (!await plainCatalogueEntry(root, owner)) continue;
@@ -98,7 +99,7 @@ export async function collectPublishedPages(root = ".") {
   } catch (err) {
     // A truly removed directory is left to check-routes; all other read or
     // inspection failures must reach the caller by name, not become 0/0 PASS.
-    if (!(err instanceof Deno.errors.NotFound)) {
+    if (!(err instanceof sys.errors.NotFound)) {
       throw new Error(`cannot enumerate published pages: ${err.message}`);
     }
   }
@@ -439,5 +440,5 @@ function checkType(type, v) {
 }
 
 export async function loadSchema(name, root = ".") {
-  return JSON.parse(await Deno.readTextFile(`${root}/schema/${name}`));
+  return JSON.parse(await sys.readTextFile(`${root}/schema/${name}`));
 }

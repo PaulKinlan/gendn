@@ -34,6 +34,7 @@
 // A hung upstream, a mid-body stall or an oversized response THROWS out of fetchBounded, which
 // the main catch below turns into a loud REFUSING exit(1) with the sheet untouched — a timeout
 // can never install a partial or truncated font sheet.
+import * as sys from "./lib/sys.mjs";
 import { fetchBounded, UPSTREAM_TIMEOUT_MS } from "../lib/chromestatus.ts";
 
 const CSS_URL =
@@ -166,8 +167,8 @@ function replaceBlock(sheet, block) {
   return sheet.slice(0, begin) + block + sheet.slice(end + END.length);
 }
 
-if (import.meta.main) {
-  const argv = Deno.args;
+if (sys.isMain(import.meta.url)) {
+  const argv = sys.args;
   const check = argv.includes("--check");
   // --css-url is a test seam: it lets the fixture point the extractor at a local server that
   // serves a degenerate 200 (empty body, an HTML error page, or rules for subsets we do not
@@ -223,7 +224,7 @@ if (import.meta.main) {
     }
 
     const block = renderBlock(blocks);
-    const sheet = await Deno.readTextFile(SHEET);
+    const sheet = await sys.readTextFile(SHEET);
 
     // MIRROR GUARD (gendn-dmz): --check must never report "up to date" for a sheet whose own
     // vendored block has no rules. Without this, a rule-less sheet and a rule-less extraction
@@ -274,7 +275,7 @@ if (import.meta.main) {
           `(${removed.slice(0, 4).join(", ")}${removed.length > 4 ? ", …" : ""}); writing needs ` +
           "--allow-rule-removal with a reason",
       );
-      Deno.exit(1);
+      process.exit(1);
     }
     if (check) {
       console.log(
@@ -282,12 +283,12 @@ if (import.meta.main) {
           ? "vendor-fonts: OUT OF DATE — run `deno task vendor-fonts`"
           : "vendor-fonts: up to date",
       );
-      Deno.exit(changed ? 1 : 0);
+      process.exit(changed ? 1 : 0);
     }
     if (!changed) {
       console.log("vendor-fonts: already up to date (no write)");
     } else {
-      await Deno.writeTextFile(SHEET, updated);
+      await sys.writeTextFile(SHEET, updated);
       console.log(`vendor-fonts: wrote ${blocks.length} @font-face rules into public/styles.css`);
     }
   } catch (err) {
@@ -295,6 +296,6 @@ if (import.meta.main) {
     console.error(
       `vendor-fonts: REFUSING — ${err instanceof Error ? err.message : String(err)}`,
     );
-    Deno.exit(1);
+    process.exit(1);
   }
 }

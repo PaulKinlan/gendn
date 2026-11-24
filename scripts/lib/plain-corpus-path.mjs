@@ -1,6 +1,8 @@
 // Corpus paths are a plain tree. Check only components BELOW the supplied repo root:
 // the root itself may legitimately be a symlink (worktree/clone mount). Never follow a
 // symlink to an external, empty, or dangling directory before reading a touched item.
+
+import * as sys from "./sys.mjs";
 export async function plainCorpusPath(root, relative, leaf = "directory") {
   const raw = relative.split("/");
   // Documentation hrefs legitimately use ./#fragment for the same page. A dot
@@ -17,9 +19,9 @@ export async function plainCorpusPath(root, relative, leaf = "directory") {
     const component = parts.slice(0, index + 1).join("/");
     let stat;
     try {
-      stat = await Deno.lstat(path);
+      stat = await sys.lstat(path);
     } catch (err) {
-      if (err instanceof Deno.errors.NotFound) {
+      if (err instanceof sys.errors.NotFound) {
         return { state: "missing", path: component, reason: `missing component ${component}` };
       }
       return {
