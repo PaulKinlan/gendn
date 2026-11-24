@@ -50,18 +50,36 @@ with `--routes` instead. Never record the baseline after editing: it cannot dete
 that edit. Shared CSS changes require an explicit `--all` or an honestly partial
 `--routes` sample. This is not an automated CI gate.
 
+## Runtime and routes
+
+Production runs on **Cloudflare Workers** (`worker.ts`, deployed via Cloudflare Workers Builds),
+reading bundled static files from `dist/site` through the `ASSETS` binding with `run_worker_first`
+so every response passes the shared `serveRequest()` header/revalidation pipeline. Local development
+and all gates/fixtures run on Node 22.18+ (`npm run dev`).
+
+Key routes:
+
+- `/` — Chrome milestone overview
+- `/features` — searchable catalogue of published references and MDN stubs
+- `/v<N>/` and `/v<N>/<api-slug>/` — per-milestone listings and individual reference pages
+- `/conformance` and `/conformance/run-all` — doc-quality conformance dashboard and run-all report
+  (plus per-page `/v<N>/<api-slug>/(conformance|critique)`)
+- **Upcoming discovery surface:** machine-readable endpoints `/llms.txt`, `/sitemap.xml`, and
+  `/api/features.json` for crawler, tool, and LLM indexing
+
 ## Layout
 
 ```
 gendn/
-  server.ts             Routing + rendering, runtime-neutral (serveRequest). Routes / and /v<N>/<api-slug>/.
+  server.ts             Routing + rendering, runtime-neutral (serveRequest). Routes /, /features,
+                        /conformance, /v<N>/, and /v<N>/<api-slug>/.
   worker.ts             Cloudflare Workers entry (production). wrangler.jsonc configures it.
   serve.ts              Node entry for local dev: `npm run dev` (Node 22.18+, no build step).
   package.json          Every task (`npm run <task>`) + pinned dev tools.
   scripts/              Gates, generators and fixtures, plain Node.
   lib/
     chromestatus.ts     JSON API wrapper (shared with chrome-platform-showcase).
-    mdn.ts              Heuristics for "is this API on MDN yet?".
+    mdn.ts              MDN existence helper (tested by scripts/mdn-has.test.mjs; not on hot path).
     site-fs.ts          Read-only file access: node:fs locally, the ASSETS binding on Workers.
   public/styles.css     Shared editorial design system.
   docs/reference-contract.md

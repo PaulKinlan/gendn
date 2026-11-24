@@ -9,7 +9,7 @@ Generated reference documentation for web platform APIs that ship in Chrome but 
 page on MDN. When MDN already covers an API, gendn writes a short stub that links to MDN. Otherwise
 it generates a full reference from the spec, explainer, and chromestatus data.
 
-- Live site: https://gendn.paulkinlan-ea.deno.net/
+- Live site: Cloudflare Workers production (`gendn` Worker, deployed via Workers Builds); legacy URL https://gendn.paulkinlan-ea.deno.net/ remains live until custom-domain cutover completes
 - Repo: https://github.com/PaulKinlan/gendn
 - Routine: https://claude.ai/code/routines/trig_01MrJLxCb66ZYcfnvEPsooC5
 
@@ -32,7 +32,8 @@ scripts/              Gates, generators and fixtures, all plain Node (`node scri
   lib/sys.mjs         File/process/subprocess helpers the scripts share (see its header).
 lib/
   chromestatus.ts     Wrapper around chromestatus.com/api/v0. Strips the )]}' XSSI prefix. In-memory cache.
-  mdn.ts              MDN existence heuristics (HEAD-checks the canonical MDN URL, hour cache).
+  mdn.ts              MDN existence heuristics (HEAD-checks the canonical MDN URL, hour cache;
+                      helper library tested by scripts/mdn-has.test.mjs, not called on the hot request path).
   site-fs.ts          Read-only file access: node:fs locally/in tests, ASSETS binding + index on Workers.
 public/styles.css     Shared editorial design system. Same one as chrome-platform-showcase.
 v<N>/                 One folder per Chrome milestone. Each contains <api-slug>/index.html.
@@ -75,6 +76,29 @@ Oct 2026 announcement, so gendn left Deno. The site runs on Cloudflare Workers (
   `npx wrangler versions upload` on every other branch, which shows up as a check on PRs. Build logs
   are in the Cloudflare dashboard under Workers > gendn > Builds.
 
+#### Domain Transition Checklist (retiring `*.paulkinlan-ea.deno.net`)
+
+Keep both steps tracked until DNS/custom-domain cutover is complete for gendn and the sister showcase:
+
+1. **Retiring `gendn.paulkinlan-ea.deno.net`:**
+   - Attach the custom domain to the `gendn` Cloudflare Worker and verify `/`, `/features`,
+     `/conformance`, `/v<N>/`, and `migrations.json` 301 aliases return expected statuses and CSP/security headers.
+   - Delete the guarded legacy `Deno.serve` block at the bottom of `server.ts`.
+   - Update live site / Quick links URLs in `CLAUDE.md` and `$id` URIs in `schema/*.schema.json`.
+   - Decommission the legacy Deno Deploy project once traffic drains.
+2. **Retiring `chrome-platform-showcase.paulkinlan-ea.deno.net` (after showcase cutover):**
+   - Update `server.ts` CSP `frame-src` (allow both old and new origins during cutover, then drop
+     `*.deno.net`) and the `/` sister-project link.
+   - Update the showcase host allowlist/constants in `lib/lifecycle.ts`, `scripts/lib/artifacts.mjs`
+     (`SHOWCASE_HOST`), `scripts/lib/judged-content.mjs`, `scripts/iframe-posture-sweep.mjs`, and
+     `scripts/validate-artifacts.mjs` (`CPS_DEMO_ROUTE_EXCEPTION`).
+   - Repoint published `v<N>/` embeds/links and `conformance.json` (`demo`, `cpsFeature.host`) with
+     reviewed `demo-change` records in `migrations.json`, run `npm run refresh-bindings`, and verify
+     `npm run check-routes` + `npm run validate-artifacts`.
+   - Update `.claude/routine-prompt.md` (and push via `RemoteTrigger.update`) and the origin assertions
+     in `scripts/*.test.mjs` (`security-headers`, `lifecycle-units`, `cps-conformance`,
+     `route-contract`, `binding-ledger`, `suite-metadata`, `iframe-posture`, `cdp`).
+
 ### Weekly hardening routine and auto-merge
 
 A second scheduled task, "gendn: weekly hardening + MDN upgrade", runs Sundays at 06:43
@@ -93,13 +117,14 @@ milestones stable-1 through dev read from the channels payload.
 
 ### Triggering a manual run
 
-Manual runs do NOT use the remote routine — they run in Claude's local session against the working
-checkout at `/home/paulkinlan/gendn/`, so they don't burn the daily routines quota and Paul sees the
-work appear in chat as it happens.
+Manual runs do NOT use the remote routine — they run in Claude's local session against Paul's
+working checkout at `/home/paulkinlan/gendn/` (substitute your own local checkout path if running
+elsewhere), so they don't burn the daily routines quota and Paul sees the work appear in chat as it
+happens.
 
 Convention: Paul says "run gendn" (or "build the next 2 references" etc) in chat. Claude then:
 
-1. `cd /home/paulkinlan/gendn && git pull --rebase`
+1. `cd /home/paulkinlan/gendn && git pull --rebase` (or your local checkout path)
 2. Follows `.claude/routine-prompt.md` end-to-end against this local checkout
 3. Builds the requested number of features (default 2-3), one commit per feature, pushing after each
 4. Reports each commit + URL back in chat as it lands
@@ -125,7 +150,7 @@ infer N from `browsers.chrome.desktop`, `shipping_year`, or any other field.
 
 ### 3. Every page must include the chromestatus.com/feature/<id> link
 
-The self-heal. If folder names get garbled again, the cleanup script in `/tmp/fix-slugs.py` recovers
+The self-heal. If folder names get garbled again, the cleanup script in `.claude/fix-slugs.py` recovers
 by reading the ID out of each page.
 
 ### 4. HTML attribute escaping: `"` and `'` MUST be escaped
@@ -192,9 +217,10 @@ controls, its use-case intent, and all inbound links.** Routine and agent waves 
 
 **Gate before every push:** run the route regression gate (`npm run check-routes`). It compares
 the previously published manifest against the working tree and fails on any missing published ID,
-deleted route, renamed/repurposed slug, changed published identity, or unexplained concept-count
-reduction — while allowing additive entries, honest `blocked` records, and in-place fixes.
-Exceptional removals/moves must be listed in the migration record with reason + evidence.
+deleted route, renamed/repurposed slug, changed published identity, changed/removed selected
+showcase demo URL, or unexplained concept-count reduction — while allowing additive entries, honest
+`blocked` records, and in-place fixes. Exceptional removals/moves/demo changes require a reviewed
+migration record with reason + evidence.
 
 ### How the contract maps to gendn
 
@@ -205,28 +231,62 @@ durable identity is:
 - **id / route** — id `v<N>/<slug>` (append-only), served at `/v<N>/<slug>/`.
 - **identity** — the `chromestatus.com/feature/<id>` link every page carries (invariant #3 above).
   This is the stable feature/spec descriptor; a slug must NEVER be repointed to a different feature
-  id.
+  id. When a page carries a structured quick-reference doc-table row labelled ChromeStatus, that
+  declared link defines the identity over an earlier incidental link, falling back to the first
+  `chromestatus.com/feature/<id>` link only when no declared row exists.
 - **status** — `built` (full reference) or `stub` (honest "covered on MDN" redirect). Both are
   PUBLISHED, live routes under contract; a `stub` is gendn's analogue of a `blocked` record and must
   never be silently deleted. A feature with no folder yet is `pending` — not published, not covered.
 - **selected demo URL** — the full chrome-platform-showcase URL recorded in the manifest's `demo`
   field, including any concept sub-path. The extractor selects the first own-feature showcase link
-  in source order (or the first showcase link if none belongs to this page); this does not independently
-  prove that an iframe stayed unchanged. Changing the selected URL **even within the same feature**,
-  or removing it, requires a reviewed `demo-change` migration (or `identity-change` if the feature
-  itself changes). Sibling concept links are additive only if the selected URL stays stable; inspect
-  the manifest after reordering links.
+  in source order (or the first showcase link if none belongs to this page); this is not independent
+  proof that an iframe stayed unchanged. Once published, a change to this selected URL **even within
+  the same feature**, or its removal, requires a reviewed `demo-change` migration (or an
+  `identity-change` migration when the feature itself changes). Adding sibling concept links while
+  preserving the selected URL is additive; reordering links can change selection, so inspect the
+  manifest before treating such a change as harmless. When a page references a showcase demo purely
+  as a related, sibling, or context link without having an own demo, mark the link with
+  `data-demo-rel="related"` (or `rel="related"`): marked related links are excluded from own-demo
+  selection so the page's manifest demo remains honestly `null` rather than inheriting a sibling URL.
+- **v148 CPS lineage:** four settled same-feature suites (WebRTC DataChannel, `createEvent`,
+  Summarizer preference, table-border; gendn-c5zp) retain historical ChromeStatus IDs distinct from
+  the current pages; verify scope, but do not re-file an ID-only mismatch.
 
-Tooling: `npm run manifest` emits the normalized manifest
-(`{ id, route, identity, status, demo, referenceRoutes, aliases, support }`) from the catalogue;
-`npm run check-routes` is the regression gate (baseline = the manifest at `origin/main`, fallback
-`.route-manifest.baseline.json`). Exceptional removals/moves/demo changes are recorded in
-`migrations.json`. For demo changes the gate matches only `id` + `action`, not `from`/`to`: a green
-result proves a `demo-change` record exists for that route, NOT that this specific URL repoint was
-authorized. Review the recorded old/new URLs, reason and evidence against the page change.
+### Route manifest + regression gate
+
+- `npm run manifest` — emit the normalized manifest
+  `{ id, route, identity, status, demo, referenceRoutes, aliases, support }` from the catalogue (the
+  `support` record is merged from `responsive-support.json`). `--ref origin/main` emits it for a git
+  ref; `--pretty` indents.
+- `npm run check-routes` — the regression gate. Baseline = the manifest at `origin/main` (fallback:
+  committed `.route-manifest.baseline.json`); current = the working tree. Fails on a missing
+  published id, a deleted `built` route, a changed published identity, a changed/removed selected
+  demo URL, a deleted `stub` record, or an uncovered published-count drop. Passes additive ids,
+  honest stubs, and same-id in-place fixes that preserve their selected demo URL. Its separate
+  binding ratchet needs a reachable baseline ref; it fails closed rather than trusting the older
+  fallback snapshot when that ref is unavailable. A clean offline `npm run check-routes` exits
+  non-zero if `origin/main` (or an explicit `--baseline` ref) is unavailable: fetch the ref instead
+  of treating the stale fallback snapshot as a green binding verdict.
+- `route-bindings.json` — the small, committed binding ledger: exactly `{ route, identity, demo }`
+  for **every** published route. This independent snapshot catches rebindings made solely by edits
+  to extractor code (which otherwise affect both sides of the manifest comparison). The gate fails
+  on missing/extra/duplicate/stale entries; it NEVER rewrites the ledger. For a deliberate page or
+  extractor binding change, run **`npm run refresh-bindings` explicitly**, inspect the ledger diff
+  against the previous committed version, and commit it alongside the migration. Regenerating the
+  ledger WITHOUT a new authorising migration is exactly the bypass this gate exists to stop: the
+  gate must fail, not silently bless the changed identity or demo. New routes need a ledger entry
+  but no migration. Do not copy `.route-manifest.baseline.json` as this ledger: that fallback
+  contains different fields and may not represent the current route census.
+- `migrations.json` — array of `{ id, action, from, to, reason, evidence, date }` records for
+  exceptional removals/moves/identity-changes/demo-changes and aliases for moved routes. The
+  original origin/main-derived check matches only `id` + `action`. **For an existing route whose
+  committed ledger binding changes**, the binding ratchet ALSO demands a *new*, exact `from`/`to`
+  pair plus reason, evidence and date: `identity-change` for identity, `demo-change` for demo. A
+  record already present at the baseline cannot authorize a new binding-ledger diff.
+
 Legitimate slug/milestone corrections that preserve a still-listed feature id under the correct
-route are fixes, not contract breaks; record the move as an `alias`/`move` migration so the old
-route stays honest.
+route are fixes, not contract breaks — record the move as an `alias`/`move` migration so the old
+route stays honest and the gate stays green.
 
 ## Direct primary-source links are mandatory
 
@@ -526,13 +586,14 @@ Most-bitten parts are the "Critical Rules" block. Put new tightening there, not 
 ## Recovery: fixing slug / milestone / MDN-mismatch errors
 
 1. Disable the routine.
-2. Run `python3 /tmp/fix-slugs.py /home/paulkinlan/gendn gendn`. It reads each page, finds the
-   chromestatus ID, renames or deletes accordingly. Folders without an embedded chromestatus ID are
-   deleted.
+2. From the repo root (or substituting your local checkout path for `/home/paulkinlan/gendn`), run
+   `python3 .claude/fix-slugs.py . gendn` (or `python3 .claude/fix-slugs.py /home/paulkinlan/gendn gendn`).
+   It reads each page, finds the chromestatus ID, renames or deletes accordingly. Folders without an
+   embedded chromestatus ID are deleted.
 3. Commit, push, re-enable.
 
 The seed pages (`v149/css-gap-decorations/` and `v149/webmcp/`) are in the SEEDS allowlist in
-`/tmp/fix-slugs.py` so they don't get touched.
+`.claude/fix-slugs.py` so they don't get touched.
 
 ## Things that are intentional and may look weird
 
@@ -545,8 +606,9 @@ The seed pages (`v149/css-gap-decorations/` and `v149/webmcp/`) are in the SEEDS
 
 ## Quick links
 
-- Live: https://gendn.paulkinlan-ea.deno.net/
-- Catalogue: https://gendn.paulkinlan-ea.deno.net/features
+- Production runtime: Cloudflare Workers (`gendn` Worker — Cloudflare dashboard → Workers > gendn > Builds)
+- Legacy live URL (pre-cutover): https://gendn.paulkinlan-ea.deno.net/
+- Legacy catalogue URL (pre-cutover): https://gendn.paulkinlan-ea.deno.net/features
 - Routine UI: https://claude.ai/code/routines/trig_01MrJLxCb66ZYcfnvEPsooC5
 - chromestatus API: https://chromestatus.com/api/v0/channels
 - MDN search API: https://developer.mozilla.org/api/v1/search?q=Soft+Navigations&locale=en-US

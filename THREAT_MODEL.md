@@ -51,12 +51,14 @@ Components:
   port 3000), with no
   authentication and no write endpoints. Routes: `/`, `/features`, `/v<N>/`, `/v<N>/<slug>/` and
   deep assets, `/public/*`, `/conformance`, `/conformance/run-all`, and
-  `/v<N>/<slug>/(conformance|critique)`. It reads page/asset files from disk, renders
+  `/v<N>/<slug>/(conformance|critique)`. It reads page/asset files through `lib/site-fs.ts`
+  (`ASSETS` binding on Workers, disk locally/in tests), renders
   release/catalogue pages from live chromestatus data, reads `migrations.json` at startup to
   build 301 redirects, and wraps every response (including error paths) in
-  `addSecurityHeaders`. Outbound fetches from the running server: chromestatus.com (via
+  `addSecurityHeaders`. Outbound fetches in the server/lib surface: chromestatus.com (via
   `lib/chromestatus.ts`), a HEAD existence check against developer.mozilla.org (via
-  `lib/mdn.ts`), and `api.github.com` for the last-commit line — all three through
+  `lib/mdn.ts`, a helper library tested by `scripts/mdn-has.test.mjs` and not currently called on
+  the hot request path), and `api.github.com` for the last-commit line — all three through
   `fetchBounded()`.
 - **Upstream wrapper — `lib/chromestatus.ts`.** Wraps `chromestatus.com/api/v0`, strips the
   XSSI `)]}'` prefix, parses JSON, caches in memory with a 5-minute TTL. All outbound calls go
@@ -131,9 +133,11 @@ Audits **must not** flag the following as vulnerabilities:
   port, `--limit`). Test-only; production code paths never set them.
 - **The loopback server spawned by gates** on an OS-assigned ephemeral port. Localhost ports are
   inside the machine trust boundary.
-- **`--allow-all` on the fixture aggregate (`run-fixtures.mjs`).** Deliberate and justified:
-  reading `/proc/<pid>/environ` for token attribution requires `--allow-all`; the aggregate
-  already holds `--allow-run`; each fixture keeps only its declared flags.
+- **Unsandboxed Node execution of the fixture aggregate (`run-fixtures.mjs`) and fixtures.**
+  Deliberate and justified: fixtures used to declare narrow Deno `--allow-*` flags (with
+  `--allow-all` on the aggregate to read `/proc/<pid>/environ` for token attribution); on Node,
+  the runner and fixtures execute unsandboxed, using Node's `--permission` model specifically for
+  the restricted-process fixture (unreadable `/proc`).
 - **`--no-sandbox` for the gate Chrome.** Deliberate (unguarded user namespaces are unavailable
   in common CI containers); the compensating control is the navigation whitelist + final-origin
   re-checks + lazy below-the-fold iframes (see §7).
