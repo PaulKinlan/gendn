@@ -12,6 +12,14 @@
     .doc-table code { background: transparent; border: none; padding: 0; }
       /* B2 house table pattern (gendn-efu, per v152/reference-target-for-cross-root-aria +
        goals.json:784): scroll wrapper instead of body{overflow-x:hidden} clipping */
+    pre { overflow-x: auto; }
+    .example-embed { margin: 1.5rem 0; }
+    .example-embed iframe { max-width: 100%; }
+    .example-embed figcaption { font-size: 0.85rem; margin-top: 0.4rem; }
+    /* Name and version columns keep whole tokens; the notes column takes the wrapping. */
+    .compat-table th:not(:last-child), .compat-table td:not(:last-child) { overflow-wrap: normal; }
+    .compat-table td:last-child { min-width: 11rem; }
+    @media (max-width: 40rem) { .compat-table td:last-child { min-width: 16rem; } }
   </style>
 </head>
 <body>
@@ -21,6 +29,17 @@
   <header class="lede-block">
     <p class="eyebrow">v148 · url · security · interop · shipped</p>
     <h1>IDNA ContextJ rules</h1>
+
+    <div class="baseline-banner baseline-banner--paper-compact" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Not tracked by Baseline</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 148</li>
+        <li class="limited">Edge &middot; no separate record</li>
+        <li>Firefox &middot; shipped (version unknown)</li>
+        <li>Safari &middot; shipped (version unknown)</li>
+      </ul>
+      <p>This change has <strong>no web-features entry</strong>: <a href="https://api.webstatus.dev/v1/features?q=idna" target="_blank" rel="noopener">webstatus.dev</a> returns no match for &ldquo;idna&rdquo; or &ldquo;contextj&rdquo; (queried 2026-11-15). The parent <a href="https://webstatus.dev/features/url" target="_blank" rel="noopener"><code>url</code> feature</a> is Baseline Widely available, but that rating covers the <code>URL</code> API, not this parsing rule. Browser data here is interim from the <a href="https://chromestatus.com/api/v0/features/6295810820145152" target="_blank" rel="noopener">ChromeStatus record</a>, which lists Firefox and Safari as &ldquo;Shipped for a long time, exact version not found&rdquo;. See the <a href="#browser-compatibility">full table</a>.</p>
+    </div>
     <p class="lede">Chrome 148 enforces IDNA2008's ContextJ rules when parsing URLs, disallowing the Zero Width Non-Joiner (U+200C) and Zero Width Joiner (U+200D) characters in most positions in internationalized domain names. This closes a homograph-attack vector and aligns Chrome with Firefox and Safari. Ships in Chrome 148 on all platforms.</p>
   </header>
 
@@ -53,7 +72,30 @@
       <li><code>new URL('http://example‌.com/')</code> throws a <code>TypeError</code>.</li>
       <li>The change fixes over 200 previously-failing WPT subtests for IDNA URL parsing.</li>
     </ul>
-    <span class="citation">Source: <a href="https://www.mail-archive.com/blink-dev@chromium.org/msg14721.html" target="_blank" rel="noopener">blink-dev Intent to Ship (msg14721)</a>; <a href="https://url.spec.whatwg.org/#idna" target="_blank" rel="noopener">WHATWG URL &sect;idna</a>; <a href="https://wpt.fyi/results/url/IdnaTestV2.window.html" target="_blank" rel="noopener">WPT IdnaTestV2</a>.</span>
+
+    <h3 id="formal-syntax">Formal rules</h3>
+    <p>The URL Standard&rsquo;s <a href="https://url.spec.whatwg.org/#domain-parser-toascii" target="_blank" rel="noopener">domain parser ToASCII</a> calls UTS #46 with <code>CheckJoiners</code> always on, whatever <code>beStrict</code> is (quoted 2026-11-15):</p>
+    <pre><code>domain parser ToASCII(domain, beStrict) =
+  Unicode ToASCII(domain_name = domain,
+                  CheckHyphens = beStrict,
+                  CheckBidi = true,
+                  CheckJoiners = true,
+                  UseSTD3ASCIIRules = beStrict,
+                  Transitional_Processing = false,
+                  VerifyDnsLength = beStrict,
+                  IgnoreInvalidPunycode = false)</code></pre>
+    <p>With <code>CheckJoiners</code> set, <a href="https://www.unicode.org/reports/tr46/#Validity_Criteria" target="_blank" rel="noopener">UTS #46 validity criteria</a> require each label to satisfy the ContextJ rules of IDNA2008. Those rules, verbatim from <a href="https://www.rfc-editor.org/rfc/rfc5892.html#appendix-A.1" target="_blank" rel="noopener">RFC 5892 Appendix A.1</a> and <a href="https://www.rfc-editor.org/rfc/rfc5892.html#appendix-A.2" target="_blank" rel="noopener">Appendix A.2</a>:</p>
+    <pre><code>U+200C ZERO WIDTH NON-JOINER  — Rule Set:
+  False;
+  If Canonical_Combining_Class(Before(cp)) .eq.  Virama Then True;
+  If RegExpMatch((Joining_Type:{L,D})(Joining_Type:T)*\u200C
+     (Joining_Type:T)*(Joining_Type:{R,D})) Then True;
+
+U+200D ZERO WIDTH JOINER  — Rule Set:
+  False;
+  If Canonical_Combining_Class(Before(cp)) .eq.  Virama Then True;</code></pre>
+    <p>In words: a ZWJ is valid only right after a virama. A ZWNJ is valid right after a virama, or between a left- or dual-joining letter and a right- or dual-joining letter (transparent marks may sit in between), as in Persian. Anywhere else, for example between two Latin letters, the label fails and so does the whole host. In the lax URL parser a failure only becomes a URL failure for non-ASCII input. An all-ASCII host is lowercased and accepted even when Unicode ToASCII reports an error.</p>
+    <span class="citation">Source: <a href="https://www.mail-archive.com/blink-dev@chromium.org/msg14721.html" target="_blank" rel="noopener">blink-dev Intent to Ship (msg14721)</a> (<a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/68d6e3ce.050a0220.1ba43a.0052.GAE%40google.com" target="_blank" rel="noopener">Google Groups thread</a>); <a href="https://url.spec.whatwg.org/#idna" target="_blank" rel="noopener">WHATWG URL &sect;idna</a>; <a href="https://url.spec.whatwg.org/#domain-parser-toascii" target="_blank" rel="noopener">URL &sect;domain parser ToASCII</a>; <a href="https://www.unicode.org/reports/tr46/#Validity_Criteria" target="_blank" rel="noopener">UTS #46 &sect;4.1 Validity Criteria</a>; <a href="https://www.rfc-editor.org/rfc/rfc5892.html#appendix-A.1" target="_blank" rel="noopener">RFC 5892 A.1</a>, <a href="https://www.rfc-editor.org/rfc/rfc5892.html#appendix-A.2" target="_blank" rel="noopener">A.2</a>; <a href="https://wpt.fyi/results/url/IdnaTestV2.window.html" target="_blank" rel="noopener">WPT IdnaTestV2</a>.</span>
   </section>
 
   <section>
@@ -67,19 +109,48 @@ try {
 } catch (e) {
   console.error('Invalid URL:', e.message);
 }</code></pre>
+    <p>The same rule with escapes, so the joiners are visible. Results are from headless Chromium 153 (2026-11-15). The behaviour is expected from Chrome 148 on but was not run on a 148 build:</p>
+<pre><code>const hosts = {
+  zwnjBetweenLatin: 'a\u200Cb.example',            // no virama, Latin letters don't join
+  zwjBetweenLatin:  'a\u200Db.example',
+  zwnjAfterVirama:  '\u0915\u094D\u200C\u0937.example', // Devanagari KA + virama + ZWNJ + SSA
+  zwjAfterVirama:   '\u0915\u094D\u200D\u0937.example',
+  persianZwnj:      '\u0645\u06CC\u200C\u062E\u0648\u0627\u0647\u0645.example', // Persian word: ZWNJ between joining letters
+};
+for (const [name, host] of Object.entries(hosts)) {
+  console.log(name, URL.canParse(`https://${host}/`));
+}
+// zwnjBetweenLatin false
+// zwjBetweenLatin  false
+// zwnjAfterVirama  true   (hostname xn--11b2ezcs70k.example)
+// zwjAfterVirama   true   (hostname xn--11b2ezcw70k.example)
+// persianZwnj      true   (hostname xn--mgbn2ecje63gr19l.example)</code></pre>
+
+    <h3 id="live-example">Live example</h3>
+    <p>The <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/idna-contextj-rules/" target="_blank" rel="noopener">Chrome Platform Showcase IDNA ContextJ page</a> collects five interactive demos. The embed below is its ContextJ Demo. It runs the parser of the browser you are viewing it in, so a browser before Chrome 148 gives the old results.</p>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/idna-contextj-rules/contextj-demo/"
+        title="Live example — IDNA ContextJ demo" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase (route checked 200, 2026-11-15): <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/idna-contextj-rules/contextj-demo/" target="_blank" rel="noopener">open the ContextJ demo in a new tab</a>. Other demos: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/idna-contextj-rules/rule-reference/" target="_blank" rel="noopener">rule reference</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/idna-contextj-rules/domain-validator/" target="_blank" rel="noopener">domain validator</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/idna-contextj-rules/domain-security-auditor/" target="_blank" rel="noopener">domain security auditor</a>, and <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/idna-contextj-rules/homograph-detector/" target="_blank" rel="noopener">homograph detector</a>.<span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/idna-contextj-rules/" target="_blank" rel="noopener">chrome-platform-showcase</a></span></figcaption>
+    </figure>
   </section>
 
   <section>
     <h2 id="browser-compatibility">browser support</h2>
+    <p><strong>BCD has no entry for this change.</strong> <a href="https://github.com/mdn/browser-compat-data/blob/main/api/URL.json" target="_blank" rel="noopener">BCD <code>api/URL.json</code></a> (fetched 2026-11-15) records the <code>URL()</code> constructor (Chrome 19, Edge 12, Firefox 26, Safari 14.1), but has no sub-feature for IDNA, joiners or ContextJ. The table below is therefore <strong>interim</strong>, taken from the <a href="https://chromestatus.com/api/v0/features/6295810820145152" target="_blank" rel="noopener">ChromeStatus record</a>:</p>
     <div class="table-wrap">
-<table class="doc-table">
-      <thead><tr><th>Browser</th><th>Support</th></tr></thead>
-      <tr><td>Chrome / Edge</td><td>148 (all platforms)</td></tr>
-      <tr><td>Firefox</td><td>Shipped (enforces ContextJ rules)</td></tr>
-      <tr><td>Safari</td><td>Shipped (enforces ContextJ rules)</td></tr>
+<table class="doc-table compat-table">
+      <thead><tr><th>Browser</th><th>ContextJ enforced in URL parsing</th><th>Notes</th></tr></thead>
+      <tr><td>Chrome</td><td><strong>148</strong> (desktop, Android, WebView)</td><td>Enabled by default. ChromeStatus records the Finch feature name <code>UseIDNAContextJRules</code> and no <code>chrome://flags</code> entry.</td></tr>
+      <tr><td>Edge</td><td>Unknown</td><td>No separate record. Edge uses Chromium&rsquo;s URL parser, so it is expected to follow Chrome 148, but this was not verified.</td></tr>
+      <tr><td>Firefox</td><td>Shipped (version unknown)</td><td>ChromeStatus: &ldquo;Shipped for a long time, exact version not found&rdquo;.</td></tr>
+      <tr><td>Safari</td><td>Shipped (version unknown)</td><td>ChromeStatus: &ldquo;Shipped for a long time, exact version not found&rdquo;.</td></tr>
     </table>
 </div>
-    <span class="citation">Source: <a href="https://chromestatus.com/feature/6295810820145152" target="_blank" rel="noopener">chromestatus.com feature 6295810820145152</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/URL.json" target="_blank" rel="noopener">BCD api/URL.json</a>; <a href="https://wpt.fyi/results/url/IdnaTestV2.window.html" target="_blank" rel="noopener">WPT results</a>.</span>
+    <p>For per-engine results on the test cases, see <a href="https://wpt.fyi/results/url/IdnaTestV2.window.html" target="_blank" rel="noopener">WPT <code>url/IdnaTestV2.window.html</code></a>. webstatus.dev has no web-features entry for this change, so there is no Baseline status.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6295810820145152" target="_blank" rel="noopener">chromestatus.com feature 6295810820145152</a> (<a href="https://chromestatus.com/api/v0/features/6295810820145152" target="_blank" rel="noopener">API record</a>); <a href="https://github.com/mdn/browser-compat-data/blob/main/api/URL.json" target="_blank" rel="noopener">BCD api/URL.json</a>; <a href="https://api.webstatus.dev/v1/features?q=idna" target="_blank" rel="noopener">webstatus.dev query</a>; <a href="https://wpt.fyi/results/url/IdnaTestV2.window.html" target="_blank" rel="noopener">WPT results</a>.</span>
   </section>
 
   <section>

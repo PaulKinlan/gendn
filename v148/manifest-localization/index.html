@@ -12,6 +12,14 @@
     .doc-table code { background: transparent; border: none; padding: 0; }
       /* B2 house table pattern (gendn-efu, per v152/reference-target-for-cross-root-aria +
        goals.json:784): scroll wrapper instead of body{overflow-x:hidden} clipping */
+    pre { overflow-x: auto; }
+    .example-embed { margin: 1.5rem 0; }
+    .example-embed iframe { max-width: 100%; }
+    .example-embed figcaption { font-size: 0.85rem; margin-top: 0.4rem; }
+    /* Name and version columns keep whole tokens; the notes column takes the wrapping. */
+    .compat-table th:not(:last-child), .compat-table td:not(:last-child) { overflow-wrap: normal; }
+    .compat-table td:last-child { min-width: 11rem; }
+    @media (max-width: 40rem) { .compat-table td:last-child { min-width: 16rem; } }
   </style>
 </head>
 <body>
@@ -21,6 +29,17 @@
   <header class="lede-block">
     <p class="eyebrow">v148 · web app · shipped</p>
     <h1>Manifest Localization</h1>
+
+    <div class="baseline-banner baseline-banner--paper-compact" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 148 (desktop)</li>
+        <li>Edge &middot; 148</li>
+        <li class="limited">Firefox &middot; not supported (no signal)</li>
+        <li class="limited">Safari &middot; not supported (no signal)</li>
+      </ul>
+      <p>Not Baseline. <a href="https://webstatus.dev/features/manifest-localization" target="_blank" rel="noopener">webstatus.dev</a> lists the web-features entry <code>manifest-localization</code> (&ldquo;Web app manifest localization&rdquo;) as <strong>limited</strong> (<a href="https://api.webstatus.dev/v1/features/manifest-localization" target="_blank" rel="noopener">API record</a>, queried 2026-11-15). It records no browser versions at all, because BCD has no <code>*_localized</code> data yet. Versions here are interim, from the <a href="https://chromestatus.com/api/v0/features/5090807862394880" target="_blank" rel="noopener">ChromeStatus record</a> and the <a href="https://developer.chrome.com/blog/manifest-localization" target="_blank" rel="noopener">Chrome and Edge 148 launch post</a>. See the <a href="#browser-compatibility">full table</a>.</p>
+    </div>
     <p class="lede">Web app manifests can now carry built-in translations for name, short name, description, and icons using <code>_localized</code>-suffixed fields. The browser picks the closest match to the user's language — no server-side manifest switching or separate manifest files needed.</p>
   </header>
 
@@ -50,6 +69,23 @@
     <h2 id="syntax">the manifest fields</h2>
     <p>Any localizable manifest member gains a companion field whose name is the original field name with <code>_localized</code> appended. Each companion field is an object whose keys are <a href="https://www.rfc-editor.org/rfc/rfc5646.html" target="_blank" rel="noopener">BCP 47</a> language tags and whose values are localization entries.</p>
 
+    <h3 id="formal-syntax">Formal syntax</h3>
+    <p>The manifest is JSON, so there is no IDL. This is a summary notation of the <a href="https://w3c.github.io/manifest/#localized-members" target="_blank" rel="noopener">Web Application Manifest <code>*_localized</code> members</a> section (Editor&rsquo;s Draft, read 2026-11-15); the quoted names are literal JSON keys and <code>?</code> marks an optional key:</p>
+    <pre><code>"&lt;member&gt;_localized": language-map
+
+language-map          = { &lt;language-tag&gt;: localized-value, ... }   ; BCP 47 tag keys
+localized-value       = string | localized-text-object            ; name, short_name, description
+                      | [ image-resource, ... ]                   ; icons (same shape as "icons")
+localized-text-object = { "value": string,
+                          "dir"?:  "ltr" | "rtl" | "auto",
+                          "lang"?: &lt;language-tag&gt; }
+
+; Localizable members in the spec:
+;   manifest:      name, short_name, icons
+;   shortcut item: name, short_name, description, icons
+; Chrome/Edge 148 also localize the manifest's top-level description.</code></pre>
+    <p>The spec lists only <code>name</code>, <code>short_name</code> and <code>icons</code> at the top level. Top-level <code>description</code> is localizable in Chrome and Edge 148 according to the <a href="https://developer.chrome.com/blog/manifest-localization" target="_blank" rel="noopener">launch post</a>; <code>description</code> itself is defined in <a href="https://w3c.github.io/manifest-app-info/" target="_blank" rel="noopener">Manifest Application Information</a>, which has no <code>_localized</code> text.</p>
+
     <div class="table-wrap">
 <table class="doc-table">
       <thead><tr><th>Original field</th><th>Localized companion</th><th>Value type</th></tr></thead>
@@ -69,7 +105,32 @@
       <tr><td><code>lang</code></td><td>No</td><td>Language override for the value. Defaults to the map key.</td></tr>
     </table>
 </div>
-    <span class="citation">Source: <a href="https://www.w3.org/TR/localizable-manifests/" target="_blank" rel="noopener">W3C Localizable Manifests spec</a> and <a href="https://developer.chrome.com/blog/manifest-localization" target="_blank" rel="noopener">Chrome for Developers blog</a>, May 2026.</span>
+    <p>For text members a plain string is also accepted as shorthand: <code>"de": "Farbwähler"</code> is the same as <code>"de": { "value": "Farbwähler" }</code>, with <code>dir</code> taken from the manifest&rsquo;s top-level <code>dir</code> and <code>lang</code> from the map key.</p>
+
+    <h3 id="shortcuts-localized">Localizing shortcuts</h3>
+    <p>Each item in <code>shortcuts</code> accepts the same companions for its own <code>name</code>, <code>short_name</code>, <code>description</code> and <code>icons</code>. The spec&rsquo;s &ldquo;process a shortcut&rdquo; steps run the same text and image localization steps on every item. The item&rsquo;s default <code>name</code> is still required.</p>
+    <pre><code>"shortcuts": [{
+  "name": "New forecast",
+  "name_localized": { "fr": "Nouvelle prévision", "de": "Neue Vorhersage" },
+  "url": "/new",
+  "icons": [{ "src": "/icons/new.png", "sizes": "96x96" }],
+  "icons_localized": {
+    "fr": [{ "src": "/icons/new-fr.png", "sizes": "96x96" }]
+  }
+}]</code></pre>
+
+    <h3 id="processing">Processing rules and invalid values</h3>
+    <p>Nothing throws: a manifest is parsed by the browser, and invalid localized data is silently skipped, leaving the default value in place. Following the spec&rsquo;s processing steps:</p>
+    <ul>
+      <li>If a <code>*_localized</code> member is not a JSON object, the whole member is ignored.</li>
+      <li>A language entry whose key, or whose <code>lang</code>, is not a structurally valid BCP 47 tag is dropped.</li>
+      <li>A text entry that is neither a string nor an object with a usable <code>value</code> is dropped. Values have leading and trailing ASCII whitespace stripped.</li>
+      <li>A <code>dir</code> that is not <code>"ltr"</code>, <code>"rtl"</code> or <code>"auto"</code> is ignored and the manifest&rsquo;s <code>dir</code> is used instead.</li>
+      <li>Localized icon lists go through the same image-resource processing as <code>icons</code>, resolved against the manifest URL. Invalid icon entries are dropped.</li>
+      <li>Which entry is shown is up to the browser: the spec says it SHOULD pick the entry whose language tag best matches the user&rsquo;s preferences, and otherwise use the default (un-suffixed) value.</li>
+    </ul>
+    <p>Localized values follow the normal manifest lifecycle: the browser reads them when it fetches the manifest for installation, and picks up changes through its usual manifest update check.</p>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/localizable-manifests/" target="_blank" rel="noopener">W3C Localizable Manifests spec</a> and <a href="https://developer.chrome.com/blog/manifest-localization" target="_blank" rel="noopener">Chrome for Developers blog</a>, May 2026. Re-checked 2026-11-15 against the <a href="https://w3c.github.io/manifest/#localized-members" target="_blank" rel="noopener">Manifest Editor&rsquo;s Draft <code>*_localized</code> members</a> section (language map, localized text object, &ldquo;process a localized text object&rdquo;, &ldquo;process a <code>*_localized</code> image resource member&rdquo;, &ldquo;process a shortcut&rdquo;) and <a href="https://w3c.github.io/manifest/#updating" target="_blank" rel="noopener">&sect;Updating the manifest</a>.</span>
   </section>
 
   <section>
@@ -105,6 +166,7 @@
 
     <h4>Language selection</h4>
     <p>The browser matches the user's preferred language (from the OS or browser settings) against the keys in the localized maps using BCP 47 lookup (subtag fallback). A French-Canadian user (<code>fr-CA</code>) sees the <code>fr</code> value if no <code>fr-CA</code> key is present. If no matching key is found, the base (non-suffixed) field value is used.</p>
+    <p>The spec itself only says the browser SHOULD choose the best match for the user&rsquo;s preferences. The <code>fr-CA</code> &rarr; <code>fr</code> fallback above describes the expected lookup behaviour, not a step defined in the spec, and it was not verified in Chrome for this page.</p>
 
     <h4>Locale-specific icons</h4>
     <pre><code>{
@@ -117,21 +179,33 @@
     ]
   }
 }</code></pre>
+
+    <h3 id="live-example">Live example</h3>
+    <p>The <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/manifest-localization/" target="_blank" rel="noopener">Chrome Platform Showcase Manifest Localization page</a> collects five interactive demos. The embed below is its Locale Switcher. Installed-app names only change through the browser&rsquo;s own install UI, so the demo shows how a manifest&rsquo;s localized values resolve for different languages.</p>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/manifest-localization/locale-switcher/"
+        title="Live example — Manifest Localization locale switcher" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase (route checked 200, 2026-11-15): <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/manifest-localization/locale-switcher/" target="_blank" rel="noopener">open the locale switcher in a new tab</a>. Other demos: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/manifest-localization/manifest-builder/" target="_blank" rel="noopener">manifest builder</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/manifest-localization/locale-manifest-inspector/" target="_blank" rel="noopener">locale manifest inspector</a>, <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/manifest-localization/multilingual-pwa-simulator/" target="_blank" rel="noopener">multilingual PWA simulator</a>, and <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/manifest-localization/translation-coverage-checker/" target="_blank" rel="noopener">translation coverage checker</a>. The launch post also links a <a href="https://googlechrome.github.io/samples/pwa-testing/manifest-localization-test/" target="_blank" rel="noopener">Chrome sample</a> you can install.<span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/manifest-localization/" target="_blank" rel="noopener">chrome-platform-showcase</a></span></figcaption>
+    </figure>
     <span class="citation">Source: <a href="https://developer.chrome.com/blog/manifest-localization" target="_blank" rel="noopener">Chrome for Developers — Manifest Localization blog</a>, May 2026.</span>
   </section>
 
   <section>
     <h2 id="browser-compatibility">browser support</h2>
+    <p><strong>BCD has no entry for <code>*_localized</code> members yet.</strong> <a href="https://github.com/mdn/browser-compat-data/blob/main/manifests/webapp/name.json" target="_blank" rel="noopener">BCD <code>manifests/webapp/name.json</code></a>, <a href="https://github.com/mdn/browser-compat-data/blob/main/manifests/webapp/short_name.json" target="_blank" rel="noopener"><code>short_name.json</code></a> and <a href="https://github.com/mdn/browser-compat-data/blob/main/manifests/webapp/shortcuts.json" target="_blank" rel="noopener"><code>shortcuts.json</code></a> have no localized sub-features, and there are no <code>name_localized.json</code>-style files (checked 2026-11-15). The table is therefore <strong>interim</strong>, from the <a href="https://chromestatus.com/api/v0/features/5090807862394880" target="_blank" rel="noopener">ChromeStatus record</a> and the <a href="https://developer.chrome.com/blog/manifest-localization" target="_blank" rel="noopener">launch post</a>:</p>
     <div class="table-wrap">
-<table class="doc-table">
-      <thead><tr><th>Browser</th><th>Support</th></tr></thead>
-      <tr><td>Chrome 148+ (desktop + Android)</td><td>Enabled by default (<a href="https://webstatus.dev/features/web-app-manifest" target="_blank" rel="noopener">webstatus.dev web-app-manifest</a>)</td></tr>
-      <tr><td>Microsoft Edge 148+</td><td>Enabled by default</td></tr>
-      <tr><td>Firefox</td><td>No position (<a href="https://github.com/mozilla/standards-positions/issues/1366" target="_blank" rel="noopener">mozilla/standards-positions#1366</a>)</td></tr>
-      <tr><td>Safari</td><td>No position (<a href="https://github.com/WebKit/standards-positions/issues/627" target="_blank" rel="noopener">WebKit/standards-positions#627</a>)</td></tr>
+<table class="doc-table compat-table">
+      <thead><tr><th>Browser</th><th><code>*_localized</code> members</th><th>Notes</th></tr></thead>
+      <tr><td>Chrome</td><td><strong>148</strong> (desktop)</td><td>ChromeStatus records desktop 148 only; Android and WebView are not recorded (unknown). Finch feature name <code>WebAppManifestLocalization</code>; no flag.</td></tr>
+      <tr><td>Edge</td><td><strong>148</strong></td><td>Per the launch post (the feature was implemented by the Microsoft Edge team).</td></tr>
+      <tr><td>Firefox</td><td>Not supported</td><td>No implementation recorded. BCD lists desktop Firefox without even the base <code>name</code> member (<code>version_added: false</code>). Position: No signal (<a href="https://github.com/mozilla/standards-positions/issues/1366" target="_blank" rel="noopener">mozilla/standards-positions#1366</a>).</td></tr>
+      <tr><td>Safari</td><td>Not supported</td><td>No implementation recorded. Position: No signal (<a href="https://github.com/WebKit/standards-positions/issues/627" target="_blank" rel="noopener">WebKit/standards-positions#627</a>).</td></tr>
     </table>
 </div>
-    <span class="citation">Source: <a href="https://chromestatus.com/feature/5090807862394880" target="_blank" rel="noopener">chromestatus.com browser views</a>, May 2026.</span>
+    <p>Where localization is not supported, browsers ignore the unknown <code>*_localized</code> keys and use the default <code>name</code>, <code>short_name</code>, <code>description</code> and <code>icons</code>, so keep those set to sensible values. <a href="https://webstatus.dev/features/manifest-localization" target="_blank" rel="noopener">webstatus.dev</a> rates the feature Baseline <strong>limited</strong> (queried 2026-11-15).</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5090807862394880" target="_blank" rel="noopener">chromestatus.com browser views</a>, May 2026; re-checked 2026-11-15 with the <a href="https://chromestatus.com/api/v0/features/5090807862394880" target="_blank" rel="noopener">ChromeStatus API record</a>, <a href="https://api.webstatus.dev/v1/features/manifest-localization" target="_blank" rel="noopener">webstatus.dev API record</a>, <a href="https://github.com/mdn/browser-compat-data/blob/main/manifests/webapp/name.json" target="_blank" rel="noopener">BCD manifests/webapp/name.json</a> and the <a href="https://developer.chrome.com/blog/manifest-localization" target="_blank" rel="noopener">Chrome for Developers launch post</a>.</span>
   </section>
 
   <section>

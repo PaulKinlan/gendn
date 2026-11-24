@@ -13,6 +13,13 @@
     .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--text-charcoal); display: block; margin-bottom: 0.4rem; }
       /* B2 house table pattern (gendn-efu, per v152/reference-target-for-cross-root-aria +
        goals.json:784): scroll wrapper instead of body{overflow-x:hidden} clipping */
+    .baseline-status { font-weight: 700; margin: 0 0 0.4rem; }
+    .baseline-browsers { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; }
+    .baseline-browsers .limited { color: var(--text-muted); }
+    pre { overflow-x: auto; }
+    .example-embed { margin: 1.5rem 0; }
+    .example-embed iframe { max-width: 100%; }
+    .example-embed figcaption { font-size: 0.85rem; margin-top: 0.4rem; }
   </style>
 </head>
 <body>
@@ -22,12 +29,25 @@
   <header class="lede-block">
     <p class="eyebrow">v148 · web ai · origin trial</p>
     <h1>Prompt API Sampling Parameters</h1>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 148 (<code>LanguageModel</code>); sampling parameters by origin trial only</li>
+        <li>Edge &middot; 138 behind a flag (<code>LanguageModel</code>)</li>
+        <li class="limited">Firefox &middot; not shipped (position: negative)</li>
+        <li class="limited">Safari &middot; not shipped (position: oppose)</li>
+      </ul>
+      <p>Not in Baseline. <a href="https://api.webstatus.dev/v1/features/languagemodel" target="_blank" rel="noopener">webstatus.dev <code>languagemodel</code></a> reports <strong>limited</strong> availability (Chrome 148 only; queried 2026-11-15). web-features has no separate entry for the sampling parameters, and <a href="https://github.com/mdn/browser-compat-data/blob/main/api/LanguageModel.json" target="_blank" rel="noopener">BCD <code>api/LanguageModel.json</code></a> has no sub-entries for <code>temperature</code>, <code>topK</code> or <code>params()</code>. See the <a href="#browser-compatibility">full table</a>.</p>
+    </div>
     <p class="lede">Adds <code>temperature</code> and <code>topK</code> sampling parameters to the built-in Prompt API's <code>LanguageModel</code> interface, giving developers direct control over the randomness and diversity of on-device model outputs. Also exposes static helpers to query the browser's supported ranges for these parameters.</p>
   </header>
 
   <div class="warn-block warn-block--common">
     <strong>Origin trial / experimental</strong>
     This feature is in origin trial in Chrome 148. The API shape described here is based on the spec draft and may change before general availability. Register at the Chrome Origin Trials dashboard before shipping.
+    <p>To enable it: register your origin for the <a href="https://developer.chrome.com/origintrials/#/view_trial/4469259680211795969" target="_blank" rel="noopener"><code>AIPromptAPIParams</code> origin trial</a> (desktop only: Windows, macOS, Linux, ChromeOS; third-party tokens allowed) and serve the token. For local testing, launch Chrome with <code>--enable-blink-features=AIPromptAPIParams</code>. Since Chrome 148 the API surface has already moved: the current spec deprecates these raw parameters in favour of <a href="#sampling-mode"><code>samplingMode</code></a>.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7778/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Chromium M148 branch (7778) runtime_enabled_features.json5</a> (<code>AIPromptAPIParams</code> implies <code>AIPromptAPILegacyParams</code>); trial window 148&ndash;153 from the <a href="https://chromestatus.com/api/v0/features/6325545693478912" target="_blank" rel="noopener">ChromeStatus API record</a>.</span>
   </div>
 
   <section>
@@ -35,8 +55,8 @@
     <div class="table-wrap">
 <table class="doc-table">
       <tr><th>Status in 148</th><td>Origin trial</td></tr>
-      <tr><th>Flag</th><td>None (requires OT token)</td></tr>
-      <tr><th>Standards position</th><td>Firefox: No signal &nbsp;·&nbsp; Safari: No signal</td></tr>
+      <tr><th>Flag</th><td>Origin trial token (<code>AIPromptAPIParams</code>); local testing: <code>--enable-blink-features=AIPromptAPIParams</code></td></tr>
+      <tr><th>Standards position</th><td>Firefox: <a href="https://github.com/mozilla/standards-positions/issues/1213" target="_blank" rel="noopener">Negative</a> &nbsp;·&nbsp; Safari: <a href="https://github.com/WebKit/standards-positions/issues/495" target="_blank" rel="noopener">Oppose</a> (parent Prompt API, per ChromeStatus 2026-11-15)</td></tr>
       <tr><th>Spec</th><td><a href="https://webmachinelearning.github.io/prompt-api/" target="_blank" rel="noopener">webmachinelearning.github.io/prompt-api</a> (W3C WICG)</td></tr>
       <tr><th>Blink component</th><td>Blink&gt;AI&gt;Prompt</td></tr>
       <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/6325545693478912" target="_blank" rel="noopener">6325545693478912 — Prompt API Sampling Parameters</a></td></tr>
@@ -54,11 +74,47 @@
     <h2 id="syntax">shape of the API</h2>
     <p>The Prompt API sampling parameters extend session options and language model instances with <code>temperature</code> and <code>topK</code> controls, alongside the <code>LanguageModel.params()</code> capability inspector.</p>
 
+    <h3 id="formal-syntax">Formal syntax (Web IDL)</h3>
+    <p>The sampling-parameter members as they appear in the current spec (excerpt, verbatim, including the spec's own deprecation comments). Chrome 148 exposes the same members with the same types, gated by <code>AIPromptAPILegacyParams</code> (implied by the <code>AIPromptAPIParams</code> origin trial).</p>
+<pre role="region" aria-label="Web IDL for the Prompt API sampling parameters" tabindex="0"><code>[Exposed=Window, SecureContext]
+interface LanguageModel : EventTarget {
+  static Promise&lt;LanguageModel&gt; create(optional LanguageModelCreateOptions options = {});
+  static Promise&lt;Availability&gt; availability(optional LanguageModelCreateCoreOptions options = {});
+  // **DEPRECATED**: This method will be removed; use samplingMode instead. Only available in extension contexts.
+  static Promise&lt;LanguageModelParams?&gt; params();
+
+  // (other LanguageModel members omitted from this excerpt)
+
+  // **DEPRECATED**: This attribute will be removed; use samplingMode instead. Only available in extension contexts.
+  readonly attribute unsigned long topK;
+  // **DEPRECATED**: This attribute will be removed; use samplingMode instead. Only available in extension contexts.
+  readonly attribute float temperature;
+};
+
+// **DEPRECATED**: This interface will be removed; use samplingMode instead. Only available in extension contexts.
+[Exposed=Window, SecureContext]
+interface LanguageModelParams {
+  readonly attribute unsigned long defaultTopK;
+  readonly attribute unsigned long maxTopK;
+  readonly attribute float defaultTemperature;
+  readonly attribute float maxTemperature;
+};
+
+dictionary LanguageModelCreateCoreOptions {
+  // Note: these two have custom out-of-range handling behavior, not in the IDL layer.
+  // They are unrestricted double so as to allow +Infinity without failing.
+  // **DEPRECATED**: This option will be removed; use samplingMode instead. Only available in extension contexts.
+  unrestricted double topK;
+  // **DEPRECATED**: This option will be removed; use samplingMode instead. Only available in extension contexts.
+  unrestricted double temperature;
+};</code></pre>
+    <span class="citation">Source: <a href="https://webmachinelearning.github.io/prompt-api/#idl-index" target="_blank" rel="noopener">Prompt API spec IDL index</a> (fetched 2026-11-15); Chrome 148 shape from <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7778/third_party/blink/renderer/modules/ai/language_model.idl" target="_blank" rel="noopener">M148 language_model.idl</a> and <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7778/third_party/blink/renderer/modules/ai/language_model_create_options.idl" target="_blank" rel="noopener">M148 language_model_create_options.idl</a>.</span>
+
     <h3>Session creation options</h3>
     <div class="table-wrap">
 <table class="doc-table">
-      <tr><th>LanguageModelCreateOptions.temperature</th><td><code>float</code> — Controls token distribution sharpness. <code>0.0</code> = fully deterministic (argmax); higher values increase randomness. Default and max are device-dependent.</td></tr>
-      <tr><th>LanguageModelCreateOptions.topK</th><td><code>unsigned long</code> — Restricts sampling to the top-K most probable tokens. <code>1</code> = greedy decoding. Device-dependent max.</td></tr>
+      <tr><th>LanguageModelCreateOptions.temperature</th><td><code>unrestricted double</code> — Controls token distribution sharpness. <code>0.0</code> = fully deterministic (argmax); higher values increase randomness. Default and max are device-dependent.</td></tr>
+      <tr><th>LanguageModelCreateOptions.topK</th><td><code>unrestricted double</code> — Restricts sampling to the top-K most probable tokens. <code>1</code> = greedy decoding. Device-dependent max. Fractional values are rounded down (WebIDL IntegerPart).</td></tr>
     </table>
 </div>
 
@@ -76,7 +132,28 @@
       <tr><th>LanguageModel.params()</th><td>Returns a <code>Promise&lt;LanguageModelParams&gt;</code> describing the browser's <code>defaultTemperature</code>, <code>maxTemperature</code>, <code>defaultTopK</code>, and <code>maxTopK</code>.</td></tr>
     </table>
 </div>
-    <span class="citation">Source: <a href="https://webmachinelearning.github.io/prompt-api/" target="_blank" rel="noopener">Prompt API spec</a> §LanguageModel (and <a href="https://github.com/webmachinelearning/prompt-api/issues/203" target="_blank" rel="noopener">Issue #203</a>). Field names paraphrased; verify against the live spec before shipping.</span>
+    <span class="citation">Source: <a href="https://webmachinelearning.github.io/prompt-api/" target="_blank" rel="noopener">Prompt API spec</a> §LanguageModel (and <a href="https://github.com/webmachinelearning/prompt-api/issues/203" target="_blank" rel="noopener">Issue #203</a>). Field names paraphrased; verify against the live spec before shipping. Option types corrected to <code>unrestricted double</code> per the IDL above (2026-11-15).</span>
+
+    <h3 id="errors">Errors and out-of-range values</h3>
+    <ul>
+      <li><code>temperature</code> below 0: <code>create()</code> returns a promise rejected with a <code>RangeError</code>.</li>
+      <li><code>temperature</code> above <code>maxTemperature</code>: clamped to <code>maxTemperature</code> (<code>+Infinity</code> is allowed, as a way of requesting the maximum).</li>
+      <li><code>topK</code> below 1: <code>create()</code> returns a promise rejected with a <code>RangeError</code>.</li>
+      <li><code>topK</code> above <code>maxTopK</code> (including <code>+Infinity</code> and numbers above <code>Number.MAX_SAFE_INTEGER</code>): clamped to <code>maxTopK</code>.</li>
+      <li><code>params()</code> fulfils with <code>null</code> if the language model is not available at all in this browser.</li>
+      <li>In the current spec, web page contexts may still pass <code>topK</code>/<code>temperature</code> without an error (a deprecation warning is logged), but the values are ignored; if both <code>samplingMode</code> and a raw parameter are passed where raw parameters work, <code>samplingMode</code> wins.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/webmachinelearning/prompt-api#legacy-configuration-of-per-session-raw-parameters" target="_blank" rel="noopener">Prompt API explainer &sect;Legacy: Configuration of per-session raw parameters</a> (read 2026-11-15).</span>
+
+    <h3 id="sampling-mode">Successor: <code>samplingMode</code> (not in Chrome 148)</h3>
+    <p>After Chrome 148 the spec replaced the raw parameters with seven semantic presets, and the ChromeStatus record for this feature is now titled &ldquo;Prompt API Sampling Mode&rdquo; with shipping proposed for Chrome 160. The Chrome 148 branch IDL has no <code>samplingMode</code> member, so it is not part of this release&rsquo;s surface:</p>
+<pre role="region" aria-label="Web IDL for LanguageModelSamplingMode" tabindex="0"><code>enum LanguageModelSamplingMode { "most-predictable", "predictable", "slightly-predictable", "balanced", "slightly-creative", "creative", "most-creative" };
+
+// on LanguageModelCreateCoreOptions:
+LanguageModelSamplingMode samplingMode;
+// on LanguageModel:
+readonly attribute LanguageModelSamplingMode? samplingMode;</code></pre>
+    <span class="citation">Source: <a href="https://webmachinelearning.github.io/prompt-api/#idl-index" target="_blank" rel="noopener">Prompt API spec IDL index</a>; <a href="https://github.com/webmachinelearning/prompt-api#configuration-of-sampling-modes" target="_blank" rel="noopener">explainer &sect;Configuration of sampling modes</a>; <a href="https://chromestatus.com/feature/6325545693478912" target="_blank" rel="noopener">ChromeStatus 6325545693478912</a>.</span>
   </section>
 
   <section>
@@ -91,7 +168,9 @@ console.log(params.defaultTemperature, params.maxTemperature);
 const session = await LanguageModel.create({
   temperature: Math.min(1.8, params.maxTemperature),
   topK: 40,
-  systemPrompt: "You are a creative writing assistant."
+  initialPrompts: [
+    { role: "system", content: "You are a creative writing assistant." }
+  ]
 });
 
 // 3. Verify the applied values
@@ -105,24 +184,41 @@ console.log(result);</code></pre>
 <pre><code>const session = await LanguageModel.create({
   temperature: 0.2,
   topK: 1,  // greedy decoding — most deterministic
-  systemPrompt: "Extract structured data from text."
+  initialPrompts: [
+    { role: "system", content: "Extract structured data from text." }
+  ]
 });
 const json = await session.prompt(
   "Extract: 'Alice, 30, engineer, London'"
 );</code></pre>
+    <p>System prompts go in <code>initialPrompts</code> with <code>role: "system"</code>; Chrome 148&rsquo;s <code>LanguageModelCreateOptions</code> has no <code>systemPrompt</code> member, so the earlier version of these examples passed an option that was silently ignored (corrected 2026-11-15).</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7778/third_party/blink/renderer/modules/ai/language_model_create_options.idl" target="_blank" rel="noopener">M148 language_model_create_options.idl</a> (<code>initialPrompts</code>); <a href="https://github.com/webmachinelearning/prompt-api#system-prompts" target="_blank" rel="noopener">explainer &sect;System prompts</a>.</span>
+
+    <h3 id="live-example">Live example</h3>
+    <p>All concept demos for this feature are listed on the <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/prompt-api-sampling-parameters/" target="_blank" rel="noopener">Chrome Platform Showcase feature page</a>. The embedded sampling playground uses the raw <code>temperature</code>/<code>topK</code> options, so it needs the origin trial (or the local-testing switch above) and an on-device model.</p>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/prompt-api-sampling-parameters/sampling-playground/"
+        title="Live example — Prompt API sampling playground" loading="lazy" width="100%" height="520"
+        style="border:2px solid var(--border-black)"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live example from the Chrome Platform Showcase (route HEAD-checked 200, 2026-11-15). Sibling concepts: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/prompt-api-sampling-parameters/determinism-test/" target="_blank" rel="noopener">determinism test</a> and <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/prompt-api-sampling-parameters/creative-parameter-explorer/" target="_blank" rel="noopener">creative parameter explorer</a>.<span class="citation">Source: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v148/prompt-api-sampling-parameters/" target="_blank" rel="noopener">chrome-platform-showcase</a></span></figcaption>
+    </figure>
   </section>
 
   <section>
     <h2 id="browser-compatibility">browser support</h2>
-    <div class="table-wrap">
+    <p>Per-version data for the parent <code>LanguageModel</code> interface from <a href="https://github.com/mdn/browser-compat-data/blob/main/api/LanguageModel.json" target="_blank" rel="noopener">BCD <code>api/LanguageModel.json</code></a> (raw JSON fetched 2026-11-15). BCD has <strong>no entries</strong> for the <code>temperature</code>/<code>topK</code> options and attributes or for <code>params()</code>, so the sampling-parameter column is interim data from ChromeStatus and the Chromium M148 branch, labelled as such.</p>
+    <div class="table-wrap" role="region" aria-label="Browser compatibility for Prompt API sampling parameters" tabindex="0">
 <table class="doc-table">
-      <tr><th>Chrome</th><td>Origin trial in 148</td></tr>
-      <tr><th>Edge</th><td>Tracking Chromium</td></tr>
-      <tr><th>Firefox</th><td>No signal</td></tr>
-      <tr><th>Safari</th><td>No signal</td></tr>
+      <thead><tr><th>Browser</th><th><code>LanguageModel</code> (BCD)</th><th>Sampling parameters (interim)</th></tr></thead>
+      <tr><td>Chrome (desktop)</td><td><strong>148</strong></td><td>148&ndash;153 origin trial <code>AIPromptAPIParams</code> (ChromeStatus); spec now deprecates them for web pages</td></tr>
+      <tr><td>Chrome Android</td><td>Not supported (<code>version_added: false</code>)</td><td>Not supported: the trial is desktop-only (<code>origin_trial_os</code>)</td></tr>
+      <tr><td>Edge</td><td><strong>138</strong> behind flag <code>#edge-llm-prompt-api-for-phi-mini</code></td><td>Unknown (no BCD or ChromeStatus data)</td></tr>
+      <tr><td>Firefox</td><td>Not supported (<code>version_added: false</code>)</td><td>Not supported; position: negative (<a href="https://github.com/mozilla/standards-positions/issues/1213" target="_blank" rel="noopener">#1213</a>)</td></tr>
+      <tr><td>Safari</td><td>Not supported (<code>version_added: false</code>)</td><td>Not supported; position: oppose (<a href="https://github.com/WebKit/standards-positions/issues/495" target="_blank" rel="noopener">#495</a>)</td></tr>
     </table>
 </div>
-    <span class="citation">Source: <a href="https://chromestatus.com/feature/6325545693478912" target="_blank" rel="noopener">chromestatus browser views</a>, May 2026; <a href="https://github.com/mozilla/standards-positions/issues/1213" target="_blank" rel="noopener">Mozilla standards-positions #1213</a>; <a href="https://github.com/WebKit/standards-positions/issues/495" target="_blank" rel="noopener">WebKit standards-positions #495</a>.</span>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/LanguageModel.json" target="_blank" rel="noopener">BCD api/LanguageModel.json</a>; <a href="https://api.webstatus.dev/v1/features/languagemodel" target="_blank" rel="noopener">webstatus.dev languagemodel</a>; <a href="https://chromestatus.com/feature/6325545693478912" target="_blank" rel="noopener">chromestatus browser views</a> (queried 2026-11-15); <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7778/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">M148 runtime_enabled_features.json5</a>; <a href="https://github.com/mozilla/standards-positions/issues/1213" target="_blank" rel="noopener">Mozilla standards-positions #1213</a>; <a href="https://github.com/WebKit/standards-positions/issues/495" target="_blank" rel="noopener">WebKit standards-positions #495</a>.</span>
   </section>
 
   <section>
