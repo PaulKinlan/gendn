@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Scroll snap for single-axis scroll containers — Chrome 159 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .scroll-table { min-width: 30rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v159/">&larr; Chrome 159 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v159 &middot; css &middot; enabled by default</p>
+    <h1>Scroll snap for single-axis scroll containers</h1>
+
+    <p class="lede">Extends CSS Scroll Snap Level 1 with per-axis scroll snap container resolution for single-axis scroll containers (elements pairing a scrollable overflow value with <code>clip</code>, such as <code>overflow: auto clip</code> or <code>overflow: clip auto</code>). A single-axis scroll container now captures descendant snap alignments only along its scrollable axis; snap alignment along its clipped axis propagates up the containing block chain to the nearest ancestor scroll container that scrolls in that direction.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; single-axis scroll snap propagation is Chrome 159 only (base CSS <code>scroll-snap</code> is Baseline Widely available)</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 159 (desktop, Android, WebView)</li>
+        <li class="limited">Edge &middot; Chromium-based (no BCD entry or separate announcement yet)</li>
+        <li class="limited">Firefox &middot; No signal (standards-positions#1445)</li>
+        <li class="limited">Safari &middot; No signal (standards-positions#712)</li>
+      </ul>
+      <p>The base <a href="https://webstatus.dev/features/scroll-snap" target="_blank" rel="noopener"><code>scroll-snap</code> web-feature</a> is <strong>Baseline Widely available</strong> since 2022-07-15 per <a href="https://api.webstatus.dev/v1/features/scroll-snap" target="_blank" rel="noopener">webstatus.dev</a>, and <a href="https://github.com/mdn/browser-compat-data/blob/main/css/properties/scroll-snap-type.json" target="_blank" rel="noopener">BCD <code>css/properties/scroll-snap-type.json</code></a> tracks base support from Chrome 69 / Edge 79 / Firefox 68 / Safari 11. Single-axis scroll snap propagation has no BCD subfeature yet (checked 2026-11-24) and depends on single-axis scroll containers (Chromium&rsquo;s <code>SingleAxisScrollContainers</code>).</p>
+    </div>
+  </header>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#at-a-glance">At a glance</a></li>
+      <li><a href="#why">Why it exists</a></li>
+      <li><a href="#syntax">Syntax &amp; per-axis rules</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#security-and-privacy">Security &amp; privacy</a></li>
+      <li><a href="#specifications">Specifications</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <tr><th scope="row">Shipped in</th><td>Chrome 159 (desktop, Android, Android WebView), filed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=159" target="_blank" rel="noopener">milestone=159 listing</a>; iOS listed as unconfirmed (<code>null</code>) in the <a href="https://chromestatus.com/api/v0/features/5086608215900160" target="_blank" rel="noopener">ChromeStatus API record</a></td></tr>
+      <tr><th scope="row">Origin trial / flag</th><td>No origin trial, no dedicated <code>chrome://flags</code> toggle. Guarded by Finch/Blink runtime flag <code>SingleAxisScrollContainersForScrollSnap</code> (<code>depends_on: ["SingleAxisScrollContainers"]</code>; listed with <code>status: "experimental"</code> on Chromium <code>main</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a> as of 2026-11-24, testable via <code>--enable-blink-features=SingleAxisScrollContainersForScrollSnap</code>)</td></tr>
+      <tr><th scope="row">Specification</th><td><a href="https://drafts.csswg.org/css-scroll-snap-1/#snap-scope" target="_blank" rel="noopener">CSS Scroll Snap Module Level 1</a> (<a href="https://drafts.csswg.org/css-scroll-snap-1/#scroll-snap-type" target="_blank" rel="noopener"><code>scroll-snap-type</code></a>, <a href="https://drafts.csswg.org/css-scroll-snap-1/#snap-scope" target="_blank" rel="noopener">snap scope</a>, <a href="https://drafts.csswg.org/css-scroll-snap-1/#scroll-snap-align" target="_blank" rel="noopener"><code>scroll-snap-align</code></a>, <a href="https://drafts.csswg.org/css-scroll-snap-1/#re-snap" target="_blank" rel="noopener">re-snapping</a>) &mdash; updated via <a href="https://github.com/w3c/csswg-drafts/pull/14354" target="_blank" rel="noopener">w3c/csswg-drafts#14354</a> (merged 2026-09-28)</td></tr>
+      <tr><th scope="row">CSSWG &amp; TAG</th><td><a href="https://github.com/w3c/csswg-drafts/issues/14018" target="_blank" rel="noopener">w3c/csswg-drafts#14018</a> (2026-07-22 CSSWG resolution); <a href="https://github.com/w3ctag/design-reviews/issues/1266" target="_blank" rel="noopener">W3C TAG review #1266</a> (Pending)</td></tr>
+      <tr><th scope="row">Explainer</th><td><a href="https://github.com/explainers-by-googlers/single-axis-scroll-snap" target="_blank" rel="noopener">explainers-by-googlers/single-axis-scroll-snap</a> (companion to <a href="https://github.com/explainers-by-googlers/single-axis-scroll-containers" target="_blank" rel="noopener">single-axis-scroll-containers</a>)</td></tr>
+      <tr><th scope="row">Intent</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a8377bc.b2769b42.11b3f8.03ba.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Prototype</a></td></tr>
+      <tr><th scope="row">Tracking bug</th><td><a href="https://issues.chromium.org/issues/473576119" target="_blank" rel="noopener">issues.chromium.org/473576119</a></td></tr>
+      <tr><th scope="row">Web platform tests</th><td><a href="https://wpt.fyi/results/css/css-scroll-snap" target="_blank" rel="noopener">wpt.fyi css/css-scroll-snap</a> (<a href="https://github.com/web-platform-tests/wpt/blob/master/css/css-scroll-snap/single-axis-001.html" target="_blank" rel="noopener">single-axis-001.html</a> through <a href="https://github.com/web-platform-tests/wpt/blob/master/css/css-scroll-snap/single-axis-009.html" target="_blank" rel="noopener">single-axis-009.html</a>)</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5086608215900160" target="_blank" rel="noopener">5086608215900160 &mdash; Scroll snap for single-axis scroll containers</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p><a href="/v153/single-axis-scroll-containers/">Single-axis scroll containers</a> allow an element to scroll in one axis while merely clipping the other (for example <code>overflow: auto clip</code> instead of coercing <code>clip</code> to <code>hidden</code>), enabling <code>position: sticky</code> elements to stick independently per axis. Previously, CSS Scroll Snap treated every scroll container as 2D: a single-axis horizontal carousel trapped descendant <code>scroll-snap-align</code> declarations on <em>both</em> axes, preventing the vertical alignment from reaching an outer vertical feed scroller. Extending CSS Scroll Snap to resolve the capturing scroll snap container independently per axis lets a single element snap horizontally inside a carousel while snapping vertically inside an outer page feed, matching the mental model of single-axis sticky positioning.</p>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/single-axis-scroll-snap" target="_blank" rel="noopener">single-axis-scroll-snap explainer</a>; <a href="https://chromestatus.com/feature/5086608215900160" target="_blank" rel="noopener">ChromeStatus summary &amp; motivation (5086608215900160)</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax and per-axis snapping rules</h2>
+    <p>No new CSS properties or keywords are introduced. Existing CSS Overflow 4 single-axis <code>overflow</code> combinations interact with CSS Scroll Snap 1&rsquo;s <code>scroll-snap-type</code> and <code>scroll-snap-align</code> properties:</p>
+    <pre><code>/* Single-axis scroll container (scrollable on one axis, purely clipped on the other) */
+overflow: auto clip;    /* overflow-x: auto; overflow-y: clip; */
+overflow: clip auto;    /* overflow-x: clip; overflow-y: auto; */
+overflow: scroll clip;  /* overflow-x: scroll; overflow-y: clip; */
+overflow: clip scroll;  /* overflow-x: clip; overflow-y: scroll; */
+
+/* CSS Scroll Snap 1 — unchanged property grammars */
+scroll-snap-type: none | [ x | y | block | inline | both ] [ mandatory | proximity ]?;
+scroll-snap-align: [ none | start | end | center ]{1,2}; /* block-axis inline-axis */</code></pre>
+    <blockquote class="spec-quote">
+      <p>&ldquo;In each axis, a snap position is &lsquo;captured&rsquo; by its nearest ancestor scroll container on its associated element&rsquo;s containing block chain that is scrollable in that axis &mdash; its scroll snap container for that axis &mdash; and only affects the scroll position of that scroll container in that axis.&rdquo;</p>
+    </blockquote>
+    <p>This specification update defines four concrete behaviors: <a href="#per-axis-capture">per-axis snap capture and propagation</a> (including <code>overflow: hidden</code> vs <code>overflow: clip</code>, DOM order, and <code>::column</code> pseudo-elements), <a href="#scroll-snap-type-clipped"><code>scroll-snap-type</code> on clipped axes</a>, <a href="#writing-mode-resolution"><code>scroll-snap-align</code> resolution across writing modes</a>, and <a href="#resnap-lifecycle">re-snapping and target preservation lifecycle</a>.</p>
+    <span class="citation">Source: <a href="https://github.com/w3c/csswg-drafts/pull/14354" target="_blank" rel="noopener">w3c/csswg-drafts#14354</a> (merged into <a href="https://drafts.csswg.org/css-scroll-snap-1/" target="_blank" rel="noopener">CSS Scroll Snap 1</a> on 2026-09-28); <a href="https://github.com/w3c/csswg-drafts/issues/14018" target="_blank" rel="noopener">w3c/csswg-drafts#14018</a>.</span>
+
+    <h3 id="per-axis-capture">Per-axis snap capture and propagation</h3>
+    <p><strong>Inputs.</strong> Any descendant element (or <code>::column</code> pseudo-element in a multicolumn scroller) with a non-<code>none</code> <code>scroll-snap-align</code> inside one or more ancestor scroll containers on its containing block chain.</p>
+    <p><strong>Outputs.</strong> For each physical axis independently, the browser walks the containing block chain to find the nearest ancestor scroll container that is <em>scrollable</em> in that axis:</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="axis-capture-caption">
+    <table class="doc-table scroll-table">
+      <caption id="axis-capture-caption">Scroll snap capture and propagation by inner container <code>overflow</code> configuration (CSS Scroll Snap 1 &amp; WPT <code>single-axis-001</code>&ndash;<code>003</code>, <code>007</code>)</caption>
+      <thead><tr><th scope="col">Inner container <code>overflow</code></th><th scope="col">Horizontal (X) snap</th><th scope="col">Vertical (Y) snap</th><th scope="col">Notes</th></tr></thead>
+      <tr><td><code>overflow: auto clip</code> (or <code>scroll clip</code>)</td><td>Captured by inner container</td><td>Propagates to nearest ancestor scrollable in Y</td><td>Inner is scrollable in X only; Y is clipped, not scrollable</td></tr>
+      <tr><td><code>overflow: clip auto</code> (or <code>clip scroll</code>)</td><td>Propagates to nearest ancestor scrollable in X</td><td>Captured by inner container</td><td>Inner is scrollable in Y only; X is clipped, not scrollable</td></tr>
+      <tr><td><code>overflow: auto hidden</code> (or <code>overflow: hidden</code>)</td><td>Captured by inner container</td><td>Captured by inner container (does NOT propagate)</td><td><code>overflow: hidden</code> remains a 2D programmatic scroll container (WPT <code>single-axis-002.html</code>)</td></tr>
+      <tr><td><code>overflow: auto clip</code> with <code>scroll-snap-type: none</code></td><td>Captured by inner container (no snapping in X)</td><td>Propagates to nearest ancestor scrollable in Y</td><td>Scrollable X still captures and stops X propagation even with <code>scroll-snap-type: none</code></td></tr>
+    </table>
+    </div>
+    <p>Two additional invariants verified by WPT apply when snap areas propagate across single-axis containers: <code>::column</code> pseudo-elements inside a single-axis multicolumn scroller split snap axes identically (WPT <a href="https://github.com/web-platform-tests/wpt/blob/master/css/css-scroll-snap/single-axis-003.html" target="_blank" rel="noopener">single-axis-003.html</a>), and ancestor scrollers preserve DOM order when breaking ties between co-located snap areas propagated from inner single-axis containers (WPT <a href="https://github.com/web-platform-tests/wpt/blob/master/css/css-scroll-snap/single-axis-007.html" target="_blank" rel="noopener">single-axis-007.html</a>).</p>
+    <span class="citation">Source: <a href="https://github.com/w3c/csswg-drafts/pull/14354" target="_blank" rel="noopener">w3c/csswg-drafts#14354</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/css/css-scroll-snap/single-axis-001.html" target="_blank" rel="noopener">WPT single-axis-001.html</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/css/css-scroll-snap/single-axis-002.html" target="_blank" rel="noopener">single-axis-002.html</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/css/css-scroll-snap/single-axis-003.html" target="_blank" rel="noopener">single-axis-003.html</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/css/css-scroll-snap/single-axis-007.html" target="_blank" rel="noopener">single-axis-007.html</a>.</span>
+
+    <h3 id="scroll-snap-type-clipped"><code>scroll-snap-type</code> on a single-axis scroll container</h3>
+    <p><strong>Inputs &amp; outputs.</strong> Per CSS Scroll Snap 1 (<a href="https://github.com/w3c/csswg-drafts/pull/14354" target="_blank" rel="noopener">PR #14354</a>): <em>&ldquo;A single-axis scroll container only establishes snap positions in its scrollable axis; specifying <code>scroll-snap-type</code> for an axis which is not one of the box&rsquo;s scrollable axes has no effect.&rdquo;</em></p>
+    <ul>
+      <li>Setting <code>scroll-snap-type: both mandatory</code> on an <code>overflow: auto clip</code> container snaps only along X; the Y axis is ignored on that container and descendant Y snap positions still propagate to ancestor Y scrollers.</li>
+      <li>Setting <code>scroll-snap-type: y mandatory</code> on an <code>overflow: auto clip</code> container establishes no snapping on Y (not scrollable) and traps X snap positions without snapping (because X is scrollable with snapping disabled on X).</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/w3c/csswg-drafts/pull/14354" target="_blank" rel="noopener">w3c/csswg-drafts#14354 (#scroll-snap-type)</a>; <a href="https://github.com/explainers-by-googlers/single-axis-scroll-snap" target="_blank" rel="noopener">single-axis-scroll-snap explainer</a>.</span>
+
+    <h3 id="writing-mode-resolution"><code>scroll-snap-align</code> resolution across writing modes</h3>
+    <p><strong>Inputs &amp; outputs.</strong> Because <code>scroll-snap-align: &lt;block&gt; &lt;inline&gt;</code> uses logical axes while scroll containers scroll along physical axes (X and Y), inner and outer scrollers with differing <code>writing-mode</code> or <code>direction</code> values follow a two-step rule defined in CSS Scroll Snap 1 (<a href="https://github.com/w3c/csswg-drafts/pull/14354" target="_blank" rel="noopener">PR #14354</a>) and verified across WPT <code>single-axis-004.html</code> through <code>single-axis-008.html</code>:</p>
+    <ol>
+      <li><strong>Logical-to-physical axis mapping:</strong> The two values of <code>scroll-snap-align</code> (block axis, then inline axis; if only one value is given, it applies to both) are mapped onto physical X and Y axes using the <strong>writing mode of the box&rsquo;s nearest ancestor scroll container</strong> on its containing block chain &mdash; even if that container only scrolls in one of those two axes.</li>
+      <li><strong><code>start</code> / <code>end</code> edge resolution:</strong> Once mapped to physical X and Y, any unconsumed physical axis propagates upward as a physical snap requirement. On each axis, <code>start</code> and <code>end</code> are resolved using the <strong>writing mode of the scroll snap container capturing that axis</strong> (unless the snap area is larger than the snapport, in which case the box&rsquo;s own writing mode is used).</li>
+    </ol>
+    <span class="citation">Source: <a href="https://github.com/w3c/csswg-drafts/pull/14354" target="_blank" rel="noopener">w3c/csswg-drafts#14354 (#scroll-snap-align)</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/css/css-scroll-snap/single-axis-005.html" target="_blank" rel="noopener">WPT single-axis-005.html</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/css/css-scroll-snap/single-axis-006.html" target="_blank" rel="noopener">single-axis-006.html</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/css/css-scroll-snap/single-axis-008.html" target="_blank" rel="noopener">single-axis-008.html</a>.</span>
+
+    <h3 id="resnap-lifecycle">Re-snapping, dynamic updates, and lifecycle</h3>
+    <p><strong>Lifecycle &amp; state transitions.</strong> When layout, DOM membership, or <code>scroll-snap-align</code> changes on a descendant inside a single-axis scroll container, each capturing ancestor scroll container re-evaluates its own axis independently. Per CSS Scroll Snap 1 <a href="https://drafts.csswg.org/css-scroll-snap-1/#re-snap" target="_blank" rel="noopener">&sect;Re-snapping</a> and WPT <a href="https://github.com/web-platform-tests/wpt/blob/master/css/css-scroll-snap/single-axis-009.html" target="_blank" rel="noopener">single-axis-009.html</a>, an outer scroll container preserves a previously snapped target across layout updates <em>only</em> while that target&rsquo;s contributing snap area remains present for the outer container&rsquo;s axis; if the snap target is removed or its alignment on that axis becomes <code>none</code>, the outer container releases the stale target and re-snaps to remaining valid snap areas. Changing an inner container&rsquo;s <code>overflow</code> between <code>clip</code> and <code>hidden</code> dynamically toggles whether the clipped axis propagates or is trapped locally.</p>
+    <span class="citation">Source: <a href="https://drafts.csswg.org/css-scroll-snap-1/#re-snap" target="_blank" rel="noopener">CSS Scroll Snap 1 #re-snap</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/css/css-scroll-snap/single-axis-009.html" target="_blank" rel="noopener">WPT single-axis-009.html</a>.</span>
+
+    <h3 id="errors-and-fallbacks">Errors, compatibility risks, and opt-outs</h3>
+    <p>CSS Scroll Snap properties (<code>scroll-snap-type</code> and <code>scroll-snap-align</code>) never throw exceptions; invalid declarations are ignored at parse time, and declaring <code>scroll-snap-type</code> on a clipped axis silently has no effect rather than raising an error. However, the explainer and ChromeStatus identify one concrete behavioral change to guard against on pages already using <code>overflow: auto clip</code> (or <code>clip auto</code>):</p>
+    <ul>
+      <li><strong>Unexpected ancestor snapping on single-value <code>scroll-snap-align</code>:</strong> Writing <code>scroll-snap-align: start</code> sets <code>start</code> on <em>both</em> block and inline axes. Inside an <code>overflow: auto clip</code> carousel, the clipped vertical axis will now propagate to an outer vertical snap container instead of being silently trapped.</li>
+      <li><strong>Opt-out 1 (recommended):</strong> Explicitly specify <code>none</code> on the non-snapping axis &mdash; for example <code>scroll-snap-align: none start</code> (horizontal-only in horizontal-tb writing mode) so the vertical axis never propagates to ancestors.</li>
+      <li><strong>Opt-out 2 (preserve legacy 2D trapping):</strong> Use <code>overflow: auto hidden</code> instead of <code>overflow: auto clip</code> when you deliberately want the inner container to trap snap areas on both axes.</li>
+      <li><strong>Fallback in browsers without single-axis scroll containers:</strong> In engines where <code>overflow: auto clip</code> still coerces <code>clip</code> to <code>hidden</code> (Firefox, Safari, Chrome &lt; 156/159), inner carousels trap both axes; place vertical <code>scroll-snap-align: start none</code> on the carousel wrapper itself if outer vertical section snapping must work identically in older engines.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/single-axis-scroll-snap#compatibility" target="_blank" rel="noopener">single-axis-scroll-snap explainer #compatibility</a>; <a href="https://chromestatus.com/api/v0/features/5086608215900160" target="_blank" rel="noopener">ChromeStatus interop_compat_risks (5086608215900160)</a>.</span>
+
+    <h3 id="context">Context and exposure</h3>
+    <p>Pure CSS layout and scrolling behavior applying to all document and shadow DOM elements (including <code>::column</code> pseudo-elements) in any browsing context when single-axis scroll containers are enabled. Requires no secure context, permission, user activation, or JavaScript. Not applicable to Web Workers.</p>
+    <span class="citation">Source: <a href="https://drafts.csswg.org/css-scroll-snap-1/" target="_blank" rel="noopener">CSS Scroll Snap 1</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/css/css-scroll-snap/single-axis-003.html" target="_blank" rel="noopener">WPT single-axis-003.html</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+    <p>No interactive demo exists yet on the Chrome Platform Showcase for Chrome 159 (checked 2026-11-24). The feature author&rsquo;s standalone multi-carousel feed demo is linked from the explainer at <a href="https://jsfiddle.net/lcdavid94/m4zvnxLo/" target="_blank" rel="noopener">jsfiddle.net/lcdavid94/m4zvnxLo/</a>.</p>
+
+    <h3 id="example-multi-carousel">Vertical snap feed with horizontal single-axis carousels</h3>
+    <pre><code>&lt;div class="feed"&gt;
+  &lt;section class="carousel" aria-label="Trending Now"&gt;
+    &lt;article class="card"&gt;Item 1&lt;/article&gt;
+    &lt;article class="card"&gt;Item 2&lt;/article&gt;
+    &lt;article class="card"&gt;Item 3&lt;/article&gt;
+  &lt;/section&gt;
+  &lt;section class="carousel" aria-label="Continue Watching"&gt;
+    &lt;article class="card"&gt;Item A&lt;/article&gt;
+    &lt;article class="card"&gt;Item B&lt;/article&gt;
+  &lt;/section&gt;
+&lt;/div&gt;
+
+&lt;style&gt;
+  .feed {
+    block-size: 100svh;
+    overflow-y: auto;
+    scroll-snap-type: y mandatory;
+  }
+
+  .carousel {
+    display: flex;
+    gap: 1rem;
+    /* Single-axis horizontal scroller: scrolls X, clips Y without trapping Y snap */
+    overflow: auto clip;
+    scroll-snap-type: x mandatory;
+  }
+
+  .card {
+    flex: 0 0 80%;
+    min-block-size: 14rem;
+    /* Block-axis 'start' propagates up to .feed (snapping rows vertically);
+       inline-axis 'start' is captured by .carousel (paginating cards horizontally). */
+    scroll-snap-align: start start;
+  }
+&lt;/style&gt;</code></pre>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/single-axis-scroll-snap" target="_blank" rel="noopener">single-axis-scroll-snap explainer (Multi-Carousel Feed use case)</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/css/css-scroll-snap/single-axis-001.html" target="_blank" rel="noopener">WPT single-axis-001.html</a>.</span>
+
+    <h3 id="example-opt-out">Opting out of ancestor propagation and preserving <code>overflow: hidden</code> trapping</h3>
+    <pre><code>/* Option 1: Keep overflow: auto clip, but set block-axis snap alignment to none
+   so cards only snap horizontally inside the carousel and never snap the outer feed. */
+.carousel-only-card {
+  scroll-snap-align: none start; /* block: none, inline: start */
+}
+
+/* Option 2: Use overflow: auto hidden to form a 2D scroll container that traps
+   both axes locally (matching pre-single-axis behavior across all browsers). */
+.trapping-carousel {
+  overflow: auto hidden;
+  scroll-snap-type: x mandatory;
+}</code></pre>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/single-axis-scroll-snap#compatibility" target="_blank" rel="noopener">single-axis-scroll-snap explainer #compatibility</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/css/css-scroll-snap/single-axis-002.html" target="_blank" rel="noopener">WPT single-axis-002.html</a>.</span>
+
+    <h3 id="example-writing-mode">Mixed writing modes between inner single-axis scroller and outer scroller</h3>
+    <pre><code>.outer-scroller {
+  inline-size: 200px;
+  block-size: 200px;
+  overflow: auto;
+  scroll-snap-type: both mandatory;
+}
+
+.inner-vertical-lr {
+  writing-mode: vertical-lr;
+  /* Scrollable horizontally (block axis here), clipped vertically (inline axis here) */
+  overflow: auto clip;
+  scroll-snap-type: x mandatory;
+}
+
+.inner-vertical-lr .target {
+  /* First value ('start') resolves to block axis of nearest scroll container (X in vertical-lr)
+     -> captured by .inner-vertical-lr.
+     Second value ('center') resolves to inline axis of nearest scroll container (Y in vertical-lr)
+     -> propagates to .outer-scroller as a physical Y center alignment. */
+  scroll-snap-align: start center;
+}</code></pre>
+    <span class="citation">Source: <a href="https://github.com/w3c/csswg-drafts/pull/14354" target="_blank" rel="noopener">w3c/csswg-drafts#14354</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/css/css-scroll-snap/single-axis-008.html" target="_blank" rel="noopener">WPT single-axis-008.html</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Support for scroll snap per-axis propagation in single-axis scroll containers. BCD has no subfeature yet; status below comes from ChromeStatus, Chromium runtime_enabled_features.json5, vendor standards-positions issues, and BCD base <code>scroll-snap-type</code> data (checked 2026-11-24).</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col">Single-axis scroll snap</th><th scope="col">Evidence / notes</th><th scope="col">Base <code>scroll-snap-type</code> (BCD)</th></tr></thead>
+      <tr><th scope="row">Chrome (desktop, Android, WebView)</th><td>159</td><td>Listed under &ldquo;Enabled by default&rdquo; for Chrome 159 (desktop, Android, WebView; iOS <code>null</code>) in <a href="https://chromestatus.com/api/v0/features/5086608215900160" target="_blank" rel="noopener">ChromeStatus API record</a>; guarded by <code>SingleAxisScrollContainersForScrollSnap</code> (currently <code>status: "experimental"</code> on Chromium <code>main</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a> as of 2026-11-24)</td><td>69</td></tr>
+      <tr><th scope="row">Edge</th><td>Unknown<br>(Chromium-based)</td><td>No separate Edge announcement or BCD subfeature yet</td><td>79 (unprefixed)</td></tr>
+      <tr><th scope="row">Firefox</th><td>No signal</td><td><a href="https://github.com/mozilla/standards-positions/issues/1445" target="_blank" rel="noopener">mozilla/standards-positions#1445</a> open with no position yet</td><td>68 (99 macOS fix)</td></tr>
+      <tr><th scope="row">Safari</th><td>No signal</td><td><a href="https://github.com/WebKit/standards-positions/issues/712" target="_blank" rel="noopener">WebKit/standards-positions#712</a> open with no position yet</td><td>11</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5086608215900160" target="_blank" rel="noopener">ChromeStatus API record (5086608215900160)</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/css/properties/scroll-snap-type.json" target="_blank" rel="noopener">BCD scroll-snap-type.json</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/css/properties/scroll-snap-align.json" target="_blank" rel="noopener">BCD scroll-snap-align.json</a>; <a href="https://api.webstatus.dev/v1/features/scroll-snap" target="_blank" rel="noopener">webstatus.dev scroll-snap</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <p>Per-axis scroll snap propagation operates entirely within the document&rsquo;s own CSS layout and scroll container hierarchy; it introduces no new network capability, permission, storage, cross-origin communication, or fingerprinting surface. Both the <a href="https://github.com/explainers-by-googlers/single-axis-scroll-containers" target="_blank" rel="noopener">single-axis scroll containers explainer</a> and ChromeStatus note no special security or privacy risks, with W3C TAG (<a href="https://github.com/w3ctag/design-reviews/issues/1266" target="_blank" rel="noopener">#1266</a>) and Chromium security/privacy reviews listed as Pending (checked 2026-11-24).</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5086608215900160" target="_blank" rel="noopener">ChromeStatus security_risks &amp; review status (5086608215900160)</a>; <a href="https://github.com/w3ctag/design-reviews/issues/1266" target="_blank" rel="noopener">W3C TAG review #1266</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Specification</th><th scope="col">Section</th></tr></thead>
+      <tr><td><a href="https://drafts.csswg.org/css-scroll-snap-1/" target="_blank" rel="noopener">CSS Scroll Snap Module Level 1 (Editor&rsquo;s Draft)</a></td><td><a href="https://drafts.csswg.org/css-scroll-snap-1/#scroll-snap-type" target="_blank" rel="noopener"><code>scroll-snap-type</code></a>, <a href="https://drafts.csswg.org/css-scroll-snap-1/#snap-scope" target="_blank" rel="noopener">snap scope</a>, <a href="https://drafts.csswg.org/css-scroll-snap-1/#scroll-snap-align" target="_blank" rel="noopener"><code>scroll-snap-align</code></a>, and <a href="https://drafts.csswg.org/css-scroll-snap-1/#re-snap" target="_blank" rel="noopener">re-snapping</a> (updated in <a href="https://github.com/w3c/csswg-drafts/pull/14354" target="_blank" rel="noopener">PR #14354</a>)</td></tr>
+      <tr><td><a href="https://www.w3.org/TR/css-overflow-3/" target="_blank" rel="noopener">CSS Overflow Module Level 3 / Level 4</a></td><td>Single-axis scroll containers (<code>overflow: auto clip</code> / <code>clip auto</code>)</td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="/v153/single-axis-scroll-containers/">gendn &mdash; Single-axis scroll containers</a> (underlying <code>overflow: auto clip</code> / <code>position: sticky</code> feature)</li>
+      <li><a href="https://github.com/explainers-by-googlers/single-axis-scroll-snap" target="_blank" rel="noopener">Explainer &mdash; Scroll Snap for Single-Axis Scroll Containers</a></li>
+      <li><a href="https://jsfiddle.net/lcdavid94/m4zvnxLo/" target="_blank" rel="noopener">Author demo &mdash; Multi-Carousel Feed (JSFiddle)</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/scroll-snap-type" target="_blank" rel="noopener">MDN &mdash; <code>scroll-snap-type</code></a> &amp; <a href="https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/scroll-snap-align" target="_blank" rel="noopener">MDN &mdash; <code>scroll-snap-align</code></a></li>
+      <li><a href="https://github.com/w3c/csswg-drafts/issues/14018" target="_blank" rel="noopener">w3c/csswg-drafts#14018</a> &amp; <a href="https://github.com/w3c/csswg-drafts/pull/14354" target="_blank" rel="noopener">PR #14354</a></li>
+      <li><a href="https://chromestatus.com/feature/5086608215900160" target="_blank" rel="noopener">ChromeStatus &mdash; Scroll snap for single-axis scroll containers (5086608215900160)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
