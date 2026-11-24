@@ -80,7 +80,10 @@ Components:
   `scripts/lib/bounded-git.mjs`.
 - **CI — `.github/workflows/ci.yml`** (type/format, route gate, conformance gate,
   verdict-emission self-test, full fixture suite) and **`.github/workflows/fetch-data.yml`**
-  (fetches chromestatus JSON into `_data/` and commits it to `main` with `contents: write`).
+  (fetches chromestatus JSON into `_data/` and commits it to `main` with `contents: write`, weekly and on dispatch),
+  and **`.github/workflows/auto-merge-weekly.yml`** (`workflow_run` after CI; merges a green
+  weekly-hardening PR whose files are all routine-owned, pinned to the verified head SHA; never
+  checks out PR code).
 - **Routine — Claude Code, cron `30 */2 * * *`** (CLAUDE.md), fresh checkout of `main`, one
   commit per feature, pushes directly to `main`.
 - **Runtime:** Deno (Deno Deploy or a local/CI process); no database, no user accounts, no
