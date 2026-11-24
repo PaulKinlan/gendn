@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebTransport keying material export — Chrome 159 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .mdn-card a { font-weight: 600; }
+    .mdn-card ul { margin: 0.5rem 0 0; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v159/">&larr; Chrome 159 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v159 &middot; network &middot; covered on mdn</p>
+    <h1>WebTransport keying material export</h1>
+
+    <p class="lede">Adds <code>WebTransport.<wbr>prototype.<wbr>exportKeyingMaterial(label, context, outputLength)</code>, returning a <code>Promise&lt;Uint8Array&gt;</code> of cryptographic keying material derived from the session&rsquo;s underlying TLS exporter for channel binding and application-level authentication without exposing TLS traffic keys.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; 3-argument <code>exportKeyingMaterial()</code> is not Baseline (parent <code>WebTransport</code> is Baseline Newly available since 2026-03-24)</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 159 (desktop, Android, WebView; 3-arg API)</li>
+        <li>Edge &middot; Mirrors Chromium (159)</li>
+        <li class="limited">Firefox &middot; 155 (2-arg) / 160 (3-arg, desktop only; Android <code>false</code>)</li>
+        <li class="limited">Safari &middot; 27.3 in BCD (3-arg landed in WebKit PR #69982)</li>
+      </ul>
+      <p>The parent <a href="https://webstatus.dev/features/webtransport" target="_blank" rel="noopener"><code>webtransport</code> web-feature</a> is <strong>Baseline Newly available</strong> since 2026-03-24 per <a href="https://api.webstatus.dev/v1/features/webtransport" target="_blank" rel="noopener">webstatus.dev</a>, but <code>exportKeyingMaterial()</code> is not part of that Baseline set. In <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebTransport.json" target="_blank" rel="noopener">BCD <code>api/WebTransport.json</code></a> (checked 2026-11-24), <code>exportKeyingMaterial</code> lists Chrome 159, Firefox 155 (desktop; Firefox Android <code>false</code>), and Safari 27.3, while the <code>outputLength_parameter</code> subfeature still reads Chrome <code>false</code> and Safari <code>false</code> (lagging Chrome 159&rsquo;s 3-argument ship).</p>
+    </div>
+  </header>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#mdn-coverage">Documented on MDN</a></li>
+      <li><a href="#chrome-behavior">Chrome 159 specifics</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#quick-reference">Quick reference</a></li>
+      <li><a href="#references">References</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="mdn-coverage">this feature is documented on MDN</h2>
+    <div class="mdn-card">
+      <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebTransport/exportKeyingMaterial" target="_blank" rel="noopener">MDN: WebTransport: exportKeyingMaterial() method</a>
+      <p style="margin: 0.5rem 0 0">MDN&rsquo;s dedicated <code>exportKeyingMaterial()</code> page (verified HTTP 200 on 2026-11-24) already documents the exact Chrome 159 3-argument signature <code>exportKeyingMaterial(label, context, outputLength)</code>, parameter byte limits (0&ndash;255 bytes for <code>label</code>/<code>context</code>, 1&ndash;4096+ bytes for <code>outputLength</code>), <code>RangeError</code> and <code>InvalidStateError</code> rejections, TLS exporter channel-binding theory, a worked <code>SubtleCrypto</code> HMAC-SHA256 example, Specifications, and Browser compatibility. gendn does not duplicate that reference here.</p>
+    </div>
+    <p>Why gendn doesn&rsquo;t duplicate MDN: this site exists for Chrome features without a canonical MDN page yet. When MDN already documents an API completely, gendn publishes an honest pointer plus the Chrome 159 protocol serialization, lifecycle, and cross-browser signature details MDN does not cover.</p>
+  </section>
+
+  <section>
+    <h2 id="chrome-behavior">Chrome 159 specifics &amp; cross-browser signature differences</h2>
+    <ul>
+      <li><strong>Exact TLS exporter label &amp; context wire format:</strong> in Chromium&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/net/quic/dedicated_web_transport_http3_client.cc" target="_blank" rel="noopener"><code>DedicatedWebTransportHttp3Client::ExportKeyingMaterial()</code></a> and <code>SerializeWebTransportExporterContext()</code>, Chrome invokes the QUIC crypto stream&rsquo;s TLS exporter with the fixed label <code>"EXPORTER-WebTransport"</code> and an exporter context encoded as <code>[uint64 session_id (HTTP/3 CONNECT stream ID)][uint8 label_length][label][uint8 context_length][context]</code> (matching <a href="https://datatracker.ietf.org/doc/html/draft-ietf-webtrans-http3" target="_blank" rel="noopener">draft-ietf-webtrans-http3 &sect;4.8</a>). Including the CONNECT stream ID ensures that separate WebTransport sessions sharing one HTTP/3 connection derive distinct keying material even with identical application labels and contexts. Servers must construct the exact same exporter label, context framing, and output length &mdash; a mismatch produces different bytes with no protocol error.</li>
+      <li><strong>Enforced bounds:</strong> Chromium enforces <code>0 &le; label.byteLength &le; 255</code>, <code>0 &le; context.byteLength &le; 255</code>, and <code>1 &le; outputLength &le; 4096</code> in both Blink (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport.cc" target="_blank" rel="noopener"><code>web_transport.cc</code></a>) and the network service, rejecting out-of-range inputs with <code>RangeError</code> and missing required arguments with <code>TypeError</code>.</li>
+      <li><strong>Calling before <code>ready</code>:</strong> calls made while the session is still connecting are queued in Blink (<code>PendingExportKeyingMaterialRequest</code>) and dispatched once the session connects, or rejected with <code>InvalidStateError</code> if the session closes or fails before export completes (asserted by <a href="https://github.com/web-platform-tests/wpt/blob/master/webtransport/export-keying-material.https.any.js" target="_blank" rel="noopener">WPT <code>export-keying-material.https.any.js</code></a>).</li>
+      <li><strong>Distinguishing 3-arg vs legacy 2-arg signatures:</strong> checking <code>"exportKeyingMaterial" in WebTransport.prototype</code> alone matches Firefox 155&ndash;159&rsquo;s earlier 2-argument form (which omitted <code>outputLength</code>). Check <code>WebTransport.prototype.exportKeyingMaterial.length === 3</code> to detect the standardized 3-argument signature.</li>
+    </ul>
+    <pre><code>// Distinguish the standardized 3-argument API (Chrome 159+, Firefox 160+, WebKit PR #69982)
+// from Firefox 155–159's earlier 2-argument signature.
+const supportsStandardExporter =
+  typeof WebTransport !== "undefined" &amp;&amp;
+  typeof WebTransport.prototype.exportKeyingMaterial === "function" &amp;&amp;
+  WebTransport.prototype.exportKeyingMaterial.length === 3;
+
+if (supportsStandardExporter) {
+  const enc = new TextEncoder();
+  const wt = new WebTransport("https://example.com:4433/wt");
+  // Safe to invoke while connecting; queues until the session connects (or rejects if closed).
+  const keyBytes = await wt.exportKeyingMaterial(
+    enc.encode("app.example/channel-binding-v1"),
+    enc.encode("session-auth"),
+    32, // 1..4096 bytes in Chromium
+  );
+  console.log(`Derived ${keyBytes.byteLength} bytes of session-bound keying material`);
+}</code></pre>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/net/quic/dedicated_web_transport_http3_client.cc" target="_blank" rel="noopener">Chromium <code>dedicated_web_transport_http3_client.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport.cc" target="_blank" rel="noopener">Blink <code>web_transport.cc</code></a>; <a href="https://chromestatus.com/feature/4860330806214656" target="_blank" rel="noopener">ChromeStatus interop notes (4860330806214656)</a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/webtransport/export-keying-material.https.any.js" target="_blank" rel="noopener">WPT <code>export-keying-material.https.any.js</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Support from BCD <code>api/WebTransport.json</code> (checked 2026-11-24) and ChromeStatus 4860330806214656. Disclosed BCD lag: <code>outputLength_parameter</code> still reads Chrome <code>false</code> and Safari <code>false</code> even though Chrome 159 ships the standardized 3-argument signature.</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col"><code>exportKeyingMaterial()</code></th><th scope="col">3-arg <code>outputLength</code></th><th scope="col">Evidence / notes</th></tr></thead>
+      <tr><th scope="row">Chrome (desktop, Android, WebView)</th><td>159</td><td>159 (BCD lags as <code>false</code>)</td><td>Ships the standardized 3-argument signature (1&ndash;4096 bytes) per <a href="https://chromestatus.com/feature/4860330806214656" target="_blank" rel="noopener">ChromeStatus 4860330806214656</a> and <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport.idl" target="_blank" rel="noopener">Blink <code>web_transport.idl</code></a>.</td></tr>
+      <tr><th scope="row">Edge</th><td>159 (mirror)</td><td>159 (BCD mirrors Chrome)</td><td>Mirrors Chromium&rsquo;s <code>WebTransportExportKeyingMaterial</code> stable flag.</td></tr>
+      <tr><th scope="row">Firefox</th><td>155 (desktop) / No (Android)</td><td>160 (desktop) / No (Android)</td><td><a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebTransport.json" target="_blank" rel="noopener">BCD</a> records Firefox 155 for the earlier 2-arg form (<code>context</code> optional) and Firefox 160 for <code>outputLength</code>; tracked in <a href="https://bugzilla.mozilla.org/show_bug.cgi?id=2079306" target="_blank" rel="noopener">Mozilla Bug 2079306</a>.</td></tr>
+      <tr><th scope="row">Safari</th><td>27.3 (BCD)</td><td>In dev / BCD <code>false</code></td><td><a href="https://github.com/WebKit/WebKit/pull/69982" target="_blank" rel="noopener">WebKit PR #69982</a> landed the 3-argument API; BCD currently lists Safari 27.3 for the method and <code>false</code> for <code>outputLength_parameter</code>.</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebTransport.json" target="_blank" rel="noopener">BCD <code>api/WebTransport.json</code></a>; <a href="https://chromestatus.com/api/v0/features/4860330806214656" target="_blank" rel="noopener">ChromeStatus API record</a>; <a href="https://webstatus.dev/features/webtransport" target="_blank" rel="noopener">webstatus.dev <code>webtransport</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="quick-reference">quick reference</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="quick-ref-caption">
+    <table class="doc-table">
+      <caption id="quick-ref-caption">Chrome 159 shipping metadata and IDL summary for WebTransport keying material export</caption>
+      <tr><th scope="row">IDL</th><td><code>[NewObject] Promise&lt;Uint8Array&gt; exportKeyingMaterial(BufferSource label, BufferSource context, unsigned long outputLength);</code> on <code>WebTransport</code> (<code>[Exposed=(Window,Worker), SecureContext]</code>; verbatim from <a href="https://www.w3.org/TR/webtransport/#dom-webtransport-exportkeyingmaterial" target="_blank" rel="noopener">W3C WebTransport</a> and <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport.idl" target="_blank" rel="noopener">Blink <code>web_transport.idl</code></a>)</td></tr>
+      <tr><th scope="row">Shipped in</th><td>Chrome 159 (desktop, Android, Android WebView), enabled by default &mdash; filed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=159" target="_blank" rel="noopener">milestone=159 listing</a></td></tr>
+      <tr><th scope="row">Runtime flag</th><td>Blink runtime feature <code>WebTransportExportKeyingMaterial</code> is <code>status: "stable"</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a> (flag before shipping: <code>chrome://flags/#enable-experimental-web-platform-features</code>; Finch name <code>WebTransportExportKeyingMaterial</code>)</td></tr>
+      <tr><th scope="row">Intents &amp; bug</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6aa97628.f13237a8.13ec.001a.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Prototype</a> &middot; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6ad90dd7.a6e82b8f.de7e0.0240.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a> &middot; <a href="https://issues.chromium.org/issues/556304550" target="_blank" rel="noopener">issues.chromium.org/556304550</a></td></tr>
+      <tr><th scope="row">Tests</th><td><a href="https://wpt.fyi/results/webtransport/export-keying-material.https.any.html?label=experimental&amp;label=master&amp;aligned" target="_blank" rel="noopener">wpt.fyi &mdash; export-keying-material.https.any.html</a> (<a href="https://github.com/web-platform-tests/wpt/blob/master/webtransport/export-keying-material.https.any.js" target="_blank" rel="noopener">test source</a>) &middot; <a href="https://wpt.fyi/results/webtransport/idlharness.https.sub.any.html?label=experimental&amp;label=master&amp;aligned" target="_blank" rel="noopener">idlharness.https.sub.any.html</a></td></tr>
+      <tr><th scope="row">Security</th><td>Does not expose TLS traffic keys or enable decrypting WebTransport traffic; callers must treat exported bytes as secrets and choose protocol-specific <code>label</code>/<code>context</code> values (<a href="https://github.com/w3c/webtransport/blob/main/security-questionnaire.md" target="_blank" rel="noopener">WebTransport security questionnaire</a>).</td></tr>
+      <tr><th scope="row">Showcase demo</th><td>No Chrome Platform Showcase demo exists yet (HEAD-checked 404 on 2026-11-24).</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/4860330806214656" target="_blank" rel="noopener">4860330806214656 &mdash; WebTransport keying material export</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="references">references</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/WebTransport/exportKeyingMaterial" target="_blank" rel="noopener">MDN &mdash; <code>WebTransport.exportKeyingMaterial()</code> (canonical reference)</a></li>
+      <li><a href="https://www.w3.org/TR/webtransport/#dom-webtransport-exportkeyingmaterial" target="_blank" rel="noopener">W3C WebTransport &mdash; <code>exportKeyingMaterial()</code></a> (<a href="https://w3c.github.io/webtransport/#dom-webtransport-exportkeyingmaterial" target="_blank" rel="noopener">Editor&rsquo;s Draft</a>)</li>
+      <li><a href="https://datatracker.ietf.org/doc/html/draft-ietf-webtrans-overview" target="_blank" rel="noopener">IETF draft-ietf-webtrans-overview (&sect;4.1 Keying Material Exporter)</a> &middot; <a href="https://datatracker.ietf.org/doc/html/draft-ietf-webtrans-http3" target="_blank" rel="noopener">IETF draft-ietf-webtrans-http3 (&sect;4.8 Exporter Context)</a></li>
+      <li><a href="https://github.com/w3c/webtransport/issues/411" target="_blank" rel="noopener">w3c/webtransport#411 &mdash; initial proposal</a> &middot; <a href="https://github.com/w3c/webtransport/blob/main/explainer.md" target="_blank" rel="noopener">WebTransport explainer</a></li>
+      <li><a href="https://chromestatus.com/feature/4860330806214656" target="_blank" rel="noopener">ChromeStatus &mdash; WebTransport keying material export (4860330806214656)</a> (<a href="https://chromestatus.com/api/v0/features/4860330806214656" target="_blank" rel="noopener">API record</a>)</li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

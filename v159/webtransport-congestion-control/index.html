@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebTransport congestion control — Chrome 159 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .mdn-card a { font-weight: 600; }
+    .mdn-card ul { margin: 0.5rem 0 0; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v159/">&larr; Chrome 159 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v159 &middot; network &middot; covered on mdn</p>
+    <h1>WebTransport congestion control</h1>
+
+    <p class="lede">Adds the <code>congestionControl</code> constructor option on <code>WebTransportOptions</code> and the matching read-only <code>WebTransport.<wbr>prototype.<wbr>congestionControl</code> attribute. Applications can hint <code>"default"</code>, <code>"throughput"</code>, or <code>"low-latency"</code> so the browser can select an appropriate QUIC congestion-control strategy for the session.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Newly available in Chrome 159 (with BCD option lag) &mdash; parent <code>WebTransport</code> is Baseline Newly available since 2026-03-24</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 159 (desktop, Android, WebView)</li>
+        <li>Edge &middot; Mirrors Chromium (159)</li>
+        <li>Firefox &middot; 114 (falls back to <code>"default"</code>)</li>
+        <li>Safari &middot; 26.4 (exposes requested value)</li>
+      </ul>
+      <p>The parent <a href="https://webstatus.dev/features/webtransport" target="_blank" rel="noopener"><code>webtransport</code> web-feature</a> is <strong>Baseline Newly available</strong> since 2026-03-24 per <a href="https://api.webstatus.dev/v1/features/webtransport" target="_blank" rel="noopener">webstatus.dev</a>, which predates Chrome&rsquo;s support for <code>congestionControl</code> (Chrome 159). In <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebTransport.json" target="_blank" rel="noopener">BCD <code>api/WebTransport.json</code></a> (checked 2026-11-24), <code>WebTransport.congestionControl</code> already lists Chrome 159, Firefox 114, and Safari 26.4, while <code>options_congestionControl_parameter</code> still reads Chrome <code>false</code> (lagging Chrome 159).</p>
+    </div>
+  </header>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#mdn-coverage">Documented on MDN</a></li>
+      <li><a href="#chrome-behavior">What Chrome 159 does</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#quick-reference">Quick reference</a></li>
+      <li><a href="#references">References</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="mdn-coverage">this feature is documented on MDN</h2>
+    <div class="mdn-card">
+      <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebTransport/congestionControl" target="_blank" rel="noopener">MDN: WebTransport: congestionControl property</a>
+      <ul>
+        <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/WebTransport/WebTransport#congestioncontrol" target="_blank" rel="noopener">MDN: <code>WebTransport()</code> constructor &mdash; <code>congestionControl</code> option</a></li>
+      </ul>
+      <p style="margin: 0.5rem 0 0">MDN&rsquo;s dedicated <code>congestionControl</code> page (verified HTTP 200 on 2026-11-24) covers the three enum values (<code>"default"</code>, <code>"throughput"</code>, <code>"low-latency"</code>), a code example, Specifications, and BCD Browser compatibility (already listing Chrome 159). gendn does not duplicate that reference here.</p>
+    </div>
+    <p>Why gendn doesn&rsquo;t duplicate MDN: this site exists for Chrome features without a canonical MDN page yet. When MDN already documents an API completely, gendn publishes an honest pointer plus the Chrome 159 implementation and shipping nuances MDN does not track.</p>
+  </section>
+
+  <section>
+    <h2 id="chrome-behavior">what Chrome 159 actually does</h2>
+    <p>The <a href="https://www.w3.org/TR/webtransport/#dom-webtransportoptions-congestioncontrol" target="_blank" rel="noopener">W3C WebTransport specification</a> defines <code>congestionControl</code> as a hint (and marks the option at risk because browsers are not required to ship distinct algorithms for every mode). In Chromium&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/net/quic/dedicated_web_transport_http3_client.cc" target="_blank" rel="noopener"><code>AdjustSendAlgorithm()</code></a>:</p>
+    <ul>
+      <li><strong><code>"default"</code></strong> keeps QUIC&rsquo;s default send algorithm (CUBIC).</li>
+      <li><strong><code>"throughput"</code></strong> switches the QUIC connection&rsquo;s send algorithm to <strong>BBRv2</strong> (<code>quic::kBBRv2</code>).</li>
+      <li><strong><code>"low-latency"</code></strong> also currently selects <strong>BBRv2</strong> (with a source comment referencing <a href="https://issues.chromium.org/issues/501268547" target="_blank" rel="noopener">crbug 501268547</a> to revisit when a dedicated low-latency algorithm is available).</li>
+      <li><strong>Global Finch override caveat:</strong> if Chromium&rsquo;s disabled-by-default <code>kWebTransportCongestionControl</code> base feature is enabled with an algorithm parameter (CUBIC, Reno, BBRv1, or BBRv2), it overrides the per-connection hint in the network layer. As noted in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport.cc" target="_blank" rel="noopener"><code>WebTransport::congestionControl()</code></a>, Blink currently returns the constructor option value directly rather than plumbing back a global-flag override.</li>
+    </ul>
+    <pre><code>// Feature-detect before relying on the hint or attribute.
+const supportsCongestionControl =
+  typeof WebTransport !== "undefined" &amp;&amp;
+  "congestionControl" in WebTransport.prototype;
+
+const wt = new WebTransport("https://example.com:4433/wt", {
+  congestionControl: "low-latency", // "default" | "throughput" | "low-latency"
+});
+await wt.ready;
+
+// Spec permits engines (such as Firefox) to fall back to "default".
+console.log(supportsCongestionControl ? wt.congestionControl : "unsupported");</code></pre>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/net/quic/dedicated_web_transport_http3_client.cc" target="_blank" rel="noopener">Chromium <code>dedicated_web_transport_http3_client.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport.cc" target="_blank" rel="noopener">Blink <code>web_transport.cc</code></a>; <a href="https://github.com/web-platform-tests/wpt/blob/master/webtransport/congestion-control.https.any.js" target="_blank" rel="noopener">WPT <code>congestion-control.https.any.js</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Support from BCD <code>api/WebTransport.json</code> (checked 2026-11-24) and ChromeStatus 5180947573112832. Disclosed BCD lag: <code>options_congestionControl_parameter</code> still reads Chrome <code>false</code> even though Chrome 159 ships both the constructor option and the attribute.</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col"><code>congestionControl</code> attr</th><th scope="col"><code>options.congestionControl</code> (BCD)</th><th scope="col">Engine behavior notes</th></tr></thead>
+      <tr><th scope="row">Chrome (desktop, Android, WebView)</th><td>159</td><td>159 (BCD lags as <code>false</code>)</td><td><code>"default"</code> uses CUBIC; <code>"throughput"</code> and <code>"low-latency"</code> select BBRv2 per <a href="https://chromium.googlesource.com/chromium/src/+/main/net/quic/dedicated_web_transport_http3_client.cc" target="_blank" rel="noopener">Chromium source</a>.</td></tr>
+      <tr><th scope="row">Edge</th><td>159 (mirror)</td><td>159 (BCD mirrors Chrome)</td><td>Mirrors Chromium&rsquo;s <code>WebTransportCongestionControl</code> stable flag.</td></tr>
+      <tr><th scope="row">Firefox</th><td>114</td><td>114</td><td>Exposes the API and currently falls back to <code>"default"</code> for non-default hints (<a href="https://github.com/mozilla/standards-positions/issues/1472" target="_blank" rel="noopener">Mozilla standards-positions#1472</a>).</td></tr>
+      <tr><th scope="row">Safari</th><td>26.4</td><td>26.4</td><td>Exposes the requested value; open-source QUIC configuration does not apply the option (<a href="https://github.com/WebKit/standards-positions/issues/734" target="_blank" rel="noopener">WebKit standards-positions#734</a>).</td></tr>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebTransport.json" target="_blank" rel="noopener">BCD <code>api/WebTransport.json</code></a>; <a href="https://chromestatus.com/api/v0/features/5180947573112832" target="_blank" rel="noopener">ChromeStatus API record</a>; <a href="https://webstatus.dev/features/webtransport" target="_blank" rel="noopener">webstatus.dev <code>webtransport</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="quick-reference">quick reference</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="quick-ref-caption">
+    <table class="doc-table">
+      <caption id="quick-ref-caption">Chrome 159 shipping metadata and IDL summary for WebTransport congestion control</caption>
+      <tr><th scope="row">IDL</th><td><code>enum WebTransportCongestionControl { "default", "throughput", "low-latency" };</code> &middot; <code>WebTransportOptions.congestionControl = "default"</code> &middot; <code>readonly attribute WebTransportCongestionControl congestionControl;</code> (verbatim from <a href="https://www.w3.org/TR/webtransport/#enumdef-webtransportcongestioncontrol" target="_blank" rel="noopener">W3C WebTransport</a> and <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport.idl" target="_blank" rel="noopener">Blink <code>web_transport.idl</code></a>)</td></tr>
+      <tr><th scope="row">Shipped in</th><td>Chrome 159 (desktop, Android, Android WebView), enabled by default &mdash; filed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=159" target="_blank" rel="noopener">milestone=159 listing</a></td></tr>
+      <tr><th scope="row">Runtime flag</th><td>Blink runtime feature <code>WebTransportCongestionControl</code> is <code>status: "stable"</code> (<code>base_feature: "WebTransportCongestionControlAPI"</code>) in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime_enabled_features.json5</a>; dev trial from Chrome 150 behind <code>chrome://flags/#enable-experimental-web-platform-features</code></td></tr>
+      <tr><th scope="row">Intent &amp; bug</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6ad005f7.4ec1d848.c43ea.00a3.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a> &middot; <a href="https://issues.chromium.org/issues/501268547" target="_blank" rel="noopener">issues.chromium.org/501268547</a></td></tr>
+      <tr><th scope="row">Tests</th><td><a href="https://wpt.fyi/results/webtransport/congestion-control.https.any.html?label=experimental&amp;label=master&amp;aligned" target="_blank" rel="noopener">wpt.fyi &mdash; webtransport/congestion-control.https.any.html</a> (<a href="https://github.com/web-platform-tests/wpt/blob/master/webtransport/congestion-control.https.any.js" target="_blank" rel="noopener">test source</a>)</td></tr>
+      <tr><th scope="row">Showcase demo</th><td>No Chrome Platform Showcase demo exists yet (HEAD-checked 404 on 2026-11-24).</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5180947573112832" target="_blank" rel="noopener">5180947573112832 &mdash; WebTransport congestion control</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="references">references</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/WebTransport/congestionControl" target="_blank" rel="noopener">MDN &mdash; <code>WebTransport.congestionControl</code> (canonical reference)</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebTransport/WebTransport#congestioncontrol" target="_blank" rel="noopener">MDN &mdash; <code>WebTransport()</code> constructor option</a></li>
+      <li><a href="https://www.w3.org/TR/webtransport/#dom-webtransportoptions-congestioncontrol" target="_blank" rel="noopener">W3C WebTransport &mdash; <code>WebTransportOptions.congestionControl</code></a> &middot; <a href="https://www.w3.org/TR/webtransport/#dom-webtransport-congestioncontrol" target="_blank" rel="noopener"><code>WebTransport.congestionControl</code></a></li>
+      <li><a href="https://github.com/w3c/webtransport/blob/main/explainer.md" target="_blank" rel="noopener">W3C WebTransport explainer</a> &middot; <a href="https://github.com/w3ctag/design-reviews/issues/1212" target="_blank" rel="noopener">W3C TAG umbrella design review (#1212)</a></li>
+      <li><a href="https://github.com/web-platform-tests/interop/issues/1121" target="_blank" rel="noopener">Interop 2026 WebTransport proposal (#1121)</a></li>
+      <li><a href="https://chromestatus.com/feature/5180947573112832" target="_blank" rel="noopener">ChromeStatus &mdash; WebTransport congestion control (5180947573112832)</a> (<a href="https://chromestatus.com/api/v0/features/5180947573112832" target="_blank" rel="noopener">API record</a>)</li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
