@@ -7,6 +7,8 @@
 //   on every request. Process restarts (and Deno Deploy isolate restarts) will
 //   refetch.
 
+import { readSiteText, siteFS } from "./site-fs.ts";
+
 // Injectable base for TESTS ONLY (gendn-14o): when CHROMESTATUS_BASE is set at import time, the
 // wrapper targets a local HTTP stub instead of the live API, so parsing/cache/grouping behaviour
 // can be tested with no live chromestatus dependency. Production (the Cloudflare Worker, npm start,
@@ -14,14 +16,20 @@
 // process.env (Node, and Deno's node layer) and falls back to Deno.env; the try/catch keeps the
 // module importable without --allow-env and on Workers, where neither exists.
 let BASE = "https://chromestatus.com/api/v0";
+let BASE_OVERRIDDEN = false;
 try {
   // deno-lint-ignore no-explicit-any
   const g = globalThis as any;
-  BASE = g.process?.env?.CHROMESTATUS_BASE ?? g.Deno?.env?.get("CHROMESTATUS_BASE") ?? BASE;
+  const envBase = g.process?.env?.CHROMESTATUS_BASE ?? g.Deno?.env?.get("CHROMESTATUS_BASE");
+  if (envBase) {
+    BASE = envBase;
+    BASE_OVERRIDDEN = true;
+  }
 } catch {
   // no env permission: production default
 }
 const TTL_MS = 5 * 60 * 1000;
+const FALLBACK_TTL_MS = 60 * 1000;
 const XSSI_PREFIX = ")]}'";
 
 // Allowed origins for redirect DESTINATIONS (gendn-lkj, reworded gendn-iiex): fetchBounded()
@@ -177,21 +185,53 @@ export async function fetchBounded(
   throw new Error(`fetchBounded: exceeded ${MAX_REDIRECT_HOPS} redirect hops`);
 }
 
-const cache = new Map<string, { at: number; value: unknown }>();
+const cache = new Map<string, { at: number; ttl: number; value: unknown }>();
 
-async function getJson<T>(path: string): Promise<T> {
-  const hit = cache.get(path);
-  if (hit && Date.now() - hit.at < TTL_MS) return hit.value as T;
+export function clearChromestatusCache(): void {
+  cache.clear();
+}
 
-  const { res, text: body } = await fetchBounded(BASE + path, {
-    headers: { accept: "application/json" },
-  });
-  if (!res.ok) throw new Error(`chromestatus ${path} returned ${res.status}`);
+function parseJsonBody<T>(body: string): T {
   let text = body;
   if (text.startsWith(XSSI_PREFIX)) text = text.slice(XSSI_PREFIX.length).trimStart();
-  const parsed = JSON.parse(text) as T;
-  cache.set(path, { at: Date.now(), value: parsed });
-  return parsed;
+  return JSON.parse(text) as T;
+}
+
+async function readFallbackJson<T>(sitePath: string): Promise<T | null> {
+  try {
+    const raw = await readSiteText(siteFS(), sitePath);
+    if (raw === null) return null;
+    return parseJsonBody<T>(raw);
+  } catch {
+    return null;
+  }
+}
+
+async function getJson<T>(path: string, fallbackSitePath?: string): Promise<T> {
+  const hit = cache.get(path);
+  if (hit && Date.now() - hit.at < hit.ttl) return hit.value as T;
+
+  try {
+    const { res, text: body } = await fetchBounded(BASE + path, {
+      headers: { accept: "application/json" },
+    });
+    if (!res.ok) throw new Error(`chromestatus ${path} returned ${res.status}`);
+    const parsed = parseJsonBody<T>(body);
+    cache.set(path, { at: Date.now(), ttl: TTL_MS, value: parsed });
+    return parsed;
+  } catch (err) {
+    // Resilience fallback: when running against live chromestatus.com (not a test stub via
+    // CHROMESTATUS_BASE) and the upstream fetch fails, serve the bundled _data/ snapshot if
+    // available so an upstream outage does not 502 the site.
+    if (!BASE_OVERRIDDEN && fallbackSitePath) {
+      const fallback = await readFallbackJson<T>(fallbackSitePath);
+      if (fallback !== null) {
+        cache.set(path, { at: Date.now(), ttl: FALLBACK_TTL_MS, value: fallback });
+        return fallback;
+      }
+    }
+    throw err;
+  }
 }
 
 // ----- /channels -----
@@ -210,7 +250,7 @@ export interface Channels {
 }
 
 export function getChannels(): Promise<Channels> {
-  return getJson<Channels>("/channels");
+  return getJson<Channels>("/channels", "_data/channels.json");
 }
 
 // ----- /features?milestone=N -----
@@ -259,7 +299,12 @@ export interface MilestoneFeatures {
 }
 
 export async function getMilestoneFeatures(milestone: number): Promise<MilestoneFeatures> {
-  const data = await getJson<FeaturesByMilestoneResponse>(`/features?milestone=${milestone}`);
+  const seg = milestonePathSegment(milestone);
+  const fallbackPath = seg ? `_data/features-${seg}.json` : undefined;
+  const data = await getJson<FeaturesByMilestoneResponse>(
+    `/features?milestone=${milestone}`,
+    fallbackPath,
+  );
   // Untrusted JSON can have a null/missing/non-object root or a null/non-array list.
   // Treat either as an empty collection instead of 502ing the whole release page
   // (gendn-gne9); retain valid sibling lists and their original order.

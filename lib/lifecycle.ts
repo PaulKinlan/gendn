@@ -3,6 +3,7 @@
 import { chromeStatusUrl } from "./chromestatus.ts";
 import { safeExternalUrl } from "./external-url.ts";
 import { readSiteText, siteFS } from "./site-fs.ts";
+import { getSiteConformanceSuites } from "./site-index.ts";
 //
 // Additive, read-only views over the colocated artifacts (v<N>/<slug>/conformance.json and
 // _questions.json) plus the run-all rollup the runner writes to reports/conformance/. No article
@@ -110,27 +111,26 @@ async function readJson<T>(path: string): Promise<T | null> {
   }
 }
 
-async function collectSuiteFiles(): Promise<Suite[]> {
-  const out: Suite[] = [];
-  const fs = siteFS();
-  for (const rel of await fs.readDir(".")) {
-    if (!(rel.isDirectory && /^v\d+$/.test(rel.name))) continue;
-    for (const slug of await fs.readDir(rel.name)) {
-      if (!slug.isDirectory) continue;
-      const s = await readJson<Suite>(`${rel.name}/${slug.name}/conformance.json`);
-      if (s) out.push(s);
-    }
-  }
-  out.sort((a, b) => a.id.localeCompare(b.id));
-  return out;
-}
-
 const HEAD = (
   title: string,
   extra = "",
-) => `<!doctype html><html lang="en"><head><meta charset="utf-8">
+  seo?: { description: string; canonicalPath: string; origin?: string },
+) => {
+  const canonical = seo
+    ? (seo.origin ? `${seo.origin}${seo.canonicalPath}` : seo.canonicalPath)
+    : "";
+  const seoTags = seo
+    ? `\n<meta name="description" content="${esc(seo.description)}">
+<link rel="canonical" href="${esc(canonical)}">
+<meta property="og:title" content="${esc(title)}">
+<meta property="og:description" content="${esc(seo.description)}">
+<meta property="og:type" content="website">`
+    : "";
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(title)}</title><link rel="stylesheet" href="/public/styles.css">
+<title>${esc(title)}</title>${seoTags}
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="/public/styles.css">
 <style>
   main{max-width:1000px;}
   table{width:100%;border-collapse:collapse;font-family:var(--font-mono);font-size:0.82rem;}
@@ -142,10 +142,11 @@ const HEAD = (
   .meta{font-family:var(--font-mono);font-size:0.75rem;color:var(--text-muted);margin:0.5rem 0 1rem;}
   @media (max-width:640px){main{padding:1rem;}table,thead,tbody,tr,td{display:block;width:100%;}thead{display:none;}tr{border:2px solid var(--border-black);margin-bottom:0.6rem;padding:0.5rem;box-shadow:var(--thin-shadow);}td{border:none;padding:0.2rem 0;}}
 </style>${extra}</head><body><main>`;
+};
 const FOOT = `<footer class="byline">gendn conformance lifecycle</footer></main></body></html>`;
 
-export async function renderConformanceIndex(): Promise<string> {
-  const suites = await collectSuiteFiles();
+export async function renderConformanceIndex(origin?: string): Promise<string> {
+  const suites = await getSiteConformanceSuites();
   const built = suites.filter((s) => s.status === "built").length;
   const rows = suites.map((s) => {
     // Narrowed at runtime, not escaped (gendn-b2s): the identity arrives as a STRING from the
@@ -155,13 +156,20 @@ export async function renderConformanceIndex(): Promise<string> {
     const route = safePageRoute(s.route, s.id);
     return `<tr><td>${
       route ? `<a href="${esc(route)}conformance">${esc(s.id)}</a>` : esc(s.id)
-    }</td><td>${esc(s.status)}</td><td>${s.assertions.length}</td><td>${
+    }</td><td>${esc(s.status)}</td><td>${s.assertionCount}</td><td>${
       csHref
         ? `<a href="${csHref}" target="_blank" rel="noopener">#${esc(s.identity)}</a>`
         : `#${esc(s.identity)}`
     }</td></tr>`;
   }).join("");
-  return HEAD("conformance — gendn") +
+  return HEAD("conformance — gendn", "", {
+    description:
+      `Doc-quality conformance suites for ${suites.length} published gendn Chrome web platform reference pages (${built} built, ${
+        suites.length - built
+      } MDN stubs).`,
+    canonicalPath: "/conformance",
+    origin,
+  }) +
     `<p class="crumbs"><a href="/">&larr; home</a> &middot; <a href="/conformance/run-all">run-all rollup</a></p>
     <header class="lede-block"><p class="eyebrow">conformance</p><h1>conformance suites</h1>
     <p class="lede">Every published reference page carries an immutable conformance suite — doc-quality contracts derived from its real chromestatus identity, route, structure, and embedded showcase demo. Platform behavior of an embedded demo is governed by the chrome-platform-showcase contract each suite references, not forked here.</p></header>

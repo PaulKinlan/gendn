@@ -2,12 +2,15 @@
 //
 // Same pipeline as the Node dev server and the legacy Deno entry: serveRequest() from server.ts.
 // The only difference is where files come from. Workers have no filesystem, so the release pages,
-// public/ assets and conformance reports are uploaded as static assets, read through the ASSETS
-// binding, and listed from the build-time index dist/site-files.json.
+// public/ assets, _data/ fallback snapshots, and conformance reports are uploaded as static assets,
+// read through the ASSETS binding, and listed from the build-time index dist/site-files.json.
+// Precomputed metadata in dist/site-meta.json avoids hundreds of cold-start ASSETS.fetch reads.
 
 import { indexedSiteFS, setSiteFS } from "./lib/site-fs.ts";
+import { setPrecomputedMeta, type SiteMeta } from "./lib/site-index.ts";
 import { serveRequest } from "./server.ts";
 import SITE_FILES from "./dist/site-files.json" with { type: "json" };
+import SITE_META from "./dist/site-meta.json" with { type: "json" };
 
 interface Env {
   ASSETS: { fetch(request: Request): Promise<Response> };
@@ -17,6 +20,7 @@ let installed = false;
 
 function install(env: Env): void {
   if (installed) return;
+  setPrecomputedMeta(SITE_META as SiteMeta);
   setSiteFS(indexedSiteFS(SITE_FILES as string[], async (path) => {
     const url = `https://assets.invalid/${path.split("/").map(encodeURIComponent).join("/")}`;
     const res = await env.ASSETS.fetch(new Request(url));

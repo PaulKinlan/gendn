@@ -190,8 +190,16 @@ export const RULES = [
       "test-server-escape",
       "test-route-contract",
       "test-speculation-rules",
+      "test-site-discovery",
     ],
     reason: "server.ts routing/header behaviour is driven end-to-end by these fixtures",
+  },
+  {
+    id: "site-index",
+    exact: ["lib/site-index.ts", "scripts/build-worker-assets.mjs", "worker.ts"],
+    prefixes: [],
+    suites: ["test-site-discovery", "test-lifecycle-units"],
+    reason: "build-time worker metadata, runtime site index, and discovery routes",
   },
   {
     id: "conformance-runner",

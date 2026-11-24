@@ -22,7 +22,18 @@ import {
   renderRunAll,
   renderSuite,
 } from "./lib/lifecycle.ts";
-import { readSiteText, siteFS } from "./lib/site-fs.ts";
+import { siteFS } from "./lib/site-fs.ts";
+import {
+  buildFeaturesApiJson,
+  getPrecomputedMeta,
+  getSiteIdentityIndex,
+  getSitePages,
+  renderAtomFeedXml,
+  renderLlmsTxt,
+  renderRobotsTxt,
+  renderSitemapXml,
+  safeRequestOrigin,
+} from "./lib/site-index.ts";
 // Bundled at build time (Workers have no filesystem); Node and Deno load it as a JSON module.
 import MIGRATIONS from "./migrations.json" with { type: "json" };
 
@@ -148,6 +159,8 @@ function serverError(req: Request, what: string, err: unknown): Response {
 }
 
 async function getLatestCommit(): Promise<CommitInfo | null> {
+  const precomputed = getPrecomputedMeta()?.commit;
+  if (precomputed) return precomputed;
   if (commitCache && Date.now() - commitCache.at < COMMIT_TTL_MS) return commitCache.value;
   try {
     const { res, text } = await fetchBounded(
@@ -270,7 +283,29 @@ async function readReleaseAsset(release: string, sub: string): Promise<Response 
 export const SPECULATION_RULES =
   '<script type="speculationrules">{"prefetch":[{"source":"document","where":{"href_matches":"/v*/**"},"eagerness":"moderate"}]}</script>';
 
-export async function renderIndex(channels: Channels): Promise<string> {
+function renderSeoHead({
+  title,
+  description,
+  path,
+  origin,
+}: {
+  title: string;
+  description: string;
+  path: string;
+  origin?: string;
+}): string {
+  const canonical = origin ? `${origin}${path}` : path;
+  return [
+    `<meta name="description" content="${escapeHTML(description)}">`,
+    `<link rel="canonical" href="${escapeHTML(canonical)}">`,
+    `<meta property="og:title" content="${escapeHTML(title)}">`,
+    `<meta property="og:description" content="${escapeHTML(description)}">`,
+    `<meta property="og:type" content="website">`,
+    `<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>`,
+  ].join("\n  ");
+}
+
+export async function renderIndex(channels: Channels, origin?: string): Promise<string> {
   const commit = await getLatestCommit();
   const prevStable = channels.stable.mstone - 1;
   const releases: { mstone: number; status: string; date: string }[] = [
@@ -332,12 +367,16 @@ export async function renderIndex(channels: Channels): Promise<string> {
     </li>`;
   }).join("");
 
+  const pageTitle = "gendn — generated web platform docs";
+  const pageDescription =
+    "Generated reference docs for Chrome web platform APIs that do not yet have a page on MDN, derived from ChromeStatus, specs, explainers, and Chromium IDL.";
   return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>gendn — generated web platform docs</title>
+  <title>${pageTitle}</title>
+  ${renderSeoHead({ title: pageTitle, description: pageDescription, path: "/", origin })}
   <link rel="stylesheet" href="/public/styles.css">
   ${SPECULATION_RULES}
 </head>
@@ -383,13 +422,10 @@ async function featureHasDoc(release: string, slug: string): Promise<boolean> {
 // Identity is the chromestatus feature id (invariant #1), not the milestone folder. When a
 // feature's listing drifts to a later milestone (or appears in two listings), the page already
 // built under an earlier release is the canonical reference — the listing must link it rather
-// than flag a false "doc pending". Built lazily once per process from each page's identity link.
-let identityIndexPromise: Promise<Map<string, string>> | null = null;
-// Bounds concurrent independent I/O. Used by the identity-index reads below AND by the /features
-// catalogue's per-feature doc checks, so there is one in-flight cap in the file rather than two
-// numbers that can drift. 32 mirrors the cap this file already used for the index reads; the work
-// items are independent files/metadata, so this is only a ceiling on in-flight I/O and never a
-// change to which item wins anything.
+// than flag a false "doc pending". Served from precomputed build metadata on Workers, or built
+// lazily once per SiteFS in Node dev (lib/site-index.ts).
+// Bounds concurrent independent I/O. Used by the /features catalogue's per-feature doc checks
+// (and mirrored in lib/site-index.ts).
 const IO_CONCURRENCY = 32;
 
 // chromestatus.com JSON is an untrusted upstream (THREAT_MODEL.md §2), bounded only by the 8 MiB
@@ -452,35 +488,7 @@ async function mapPool<T, R>(
 }
 
 function getIdentityIndex(): Promise<Map<string, string>> {
-  if (!identityIndexPromise) {
-    identityIndexPromise = (async () => {
-      const map = new Map<string, string>();
-      const routes: string[] = [];
-      const fs = siteFS();
-      for (const dir of await fs.readDir(".")) {
-        if (!dir.isDirectory || !/^v\d+$/.test(dir.name)) continue;
-        for (const sub of await fs.readDir(dir.name)) {
-          if (!sub.isDirectory) continue;
-          routes.push(`/${dir.name}/${sub.name}/`);
-        }
-      }
-      // Read the pages concurrently (bounded), then collate in directory order: `!map.has(id)`
-      // still resolves duplicates first-wins exactly as the sequential loop did, independent of
-      // read order, because mapPool returns results in input order.
-      // A missing index.html means a child-route container, not a page.
-      const htmls = await mapPool(
-        routes,
-        IO_CONCURRENCY,
-        (route) => readSiteText(fs, `${route}index.html`).catch(() => null),
-      );
-      htmls.forEach((html, i) => {
-        const m = html?.match(/chromestatus\.com\/feature\/(\d+)/);
-        if (m && !map.has(m[1])) map.set(m[1], routes[i]);
-      });
-      return map;
-    })();
-  }
-  return identityIndexPromise;
+  return getSiteIdentityIndex();
 }
 
 function categoryTag(category: string): string {
@@ -504,7 +512,11 @@ export function crossReferenceTag(cross: string): string {
   } &rarr;</a>`;
 }
 
-export async function renderReleasePage(release: string, milestone: number): Promise<string> {
+export async function renderReleasePage(
+  release: string,
+  milestone: number,
+  origin?: string,
+): Promise<string> {
   const features = await getMilestoneFeatures(milestone);
   const identityIndex = await getIdentityIndex();
 
@@ -581,12 +593,25 @@ export async function renderReleasePage(release: string, milestone: number): Pro
     </section>`;
   }));
 
+  const pageTitle = `chrome ${milestone} reference — gendn`;
+  const pageDescription =
+    `Chrome ${milestone} web platform API reference tracking ${features.total} features from ChromeStatus, linking to gendn references and MDN coverage.`;
+  const canonicalSeg = milestonePathSegment(milestone);
+  const canonicalPath = canonicalSeg ? `/v${milestonePathSegment(milestone)}/` : `/${release}/`;
   return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>chrome ${milestone} reference — gendn</title>
+  <title>${pageTitle}</title>
+  ${
+    renderSeoHead({
+      title: pageTitle,
+      description: pageDescription,
+      path: canonicalPath,
+      origin,
+    })
+  }
   <link rel="stylesheet" href="/public/styles.css">
   ${SPECULATION_RULES}
 </head>
@@ -613,7 +638,10 @@ export async function renderReleasePage(release: string, milestone: number): Pro
 
 // ----- /features (flat, filterable catalogue) -----
 
-export async function renderFeaturesCatalogue(channels: Channels): Promise<string> {
+export async function renderFeaturesCatalogue(
+  channels: Channels,
+  origin?: string,
+): Promise<string> {
   const known = [...await knownReleaseMilestones(channels)].sort((a, b) => b - a);
 
   // PARALLEL, ORDER-PRESERVING (gendn-4ti): milestones are fetched concurrently and the
@@ -763,12 +791,23 @@ export async function renderFeaturesCatalogue(channels: Channels): Promise<strin
     })
     .join("");
 
+  const pageTitle = "all features — gendn";
+  const pageDescription =
+    `Filterable catalogue of ${rows.length} documented Chrome web platform APIs across every tracked milestone on gendn.`;
   return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>all features — gendn</title>
+  <title>${pageTitle}</title>
+  ${
+    renderSeoHead({
+      title: pageTitle,
+      description: pageDescription,
+      path: "/features",
+      origin,
+    })
+  }
   <link rel="stylesheet" href="/public/styles.css">
   ${SPECULATION_RULES}
   <style>
@@ -1098,6 +1137,7 @@ export async function handleRequest(req: Request): Promise<Response> {
     return new Response("Bad request", { status: 400 });
   }
   const path = url.pathname;
+  const origin = safeRequestOrigin(url);
 
   // Durable-demo contract: 301 old (pre-contract) routes to their current page. Checked before
   // everything else so a moved route never 404s.
@@ -1113,10 +1153,59 @@ export async function handleRequest(req: Request): Promise<Response> {
   // (keeps the conformance runner's same-origin network scan clean).
   if (path === "/favicon.ico") return new Response(null, { status: 204 });
 
+  // ----- Discoverability, SEO & AI/agent surface (additive, read-only) -----
+  if (path === "/robots.txt") {
+    return new Response(renderRobotsTxt(origin), {
+      headers: { "content-type": "text/plain; charset=utf-8" },
+    });
+  }
+  if (path === "/sitemap.xml") {
+    try {
+      const pages = await getSitePages();
+      return new Response(renderSitemapXml(origin, pages), {
+        headers: { "content-type": "application/xml; charset=utf-8" },
+      });
+    } catch (err) {
+      return serverError(req, "render sitemap", err);
+    }
+  }
+  if (path === "/llms.txt") {
+    try {
+      const pages = await getSitePages();
+      return new Response(renderLlmsTxt(origin, pages), {
+        headers: { "content-type": "text/plain; charset=utf-8" },
+      });
+    } catch (err) {
+      return serverError(req, "render llms.txt", err);
+    }
+  }
+  if (path === "/feed.xml") {
+    try {
+      const pages = await getSitePages();
+      const commit = getPrecomputedMeta()?.commit ?? null;
+      return new Response(renderAtomFeedXml(origin, pages, commit), {
+        headers: { "content-type": "application/atom+xml; charset=utf-8" },
+      });
+    } catch (err) {
+      return serverError(req, "render feed", err);
+    }
+  }
+  if (path === "/api/features.json") {
+    try {
+      const pages = await getSitePages();
+      const commit = getPrecomputedMeta()?.commit ?? null;
+      return new Response(JSON.stringify(buildFeaturesApiJson(pages, commit)) + "\n", {
+        headers: { "content-type": "application/json; charset=utf-8" },
+      });
+    } catch (err) {
+      return serverError(req, "render features api", err);
+    }
+  }
+
   // ----- critique + conformance lifecycle views (additive, read-only) -----
   if (path === "/conformance" || path === "/conformance/") {
     try {
-      return new Response(await renderConformanceIndex(), {
+      return new Response(await renderConformanceIndex(origin), {
         headers: { "content-type": "text/html; charset=utf-8" },
       });
     } catch (err) {
@@ -1132,7 +1221,7 @@ export async function handleRequest(req: Request): Promise<Response> {
     const html = await renderRunAll();
     return html
       ? new Response(html, { headers: { "content-type": "text/html; charset=utf-8" } })
-      : new Response("No run-all rollup generated yet (run: deno task conformance)", {
+      : new Response("No run-all rollup generated yet (run: npm run conformance)", {
         status: 404,
       });
   }
@@ -1150,7 +1239,7 @@ export async function handleRequest(req: Request): Promise<Response> {
   if (path === "/" || path === "/index.html") {
     try {
       const channels = await getChannels();
-      return new Response(await renderIndex(channels), {
+      return new Response(await renderIndex(channels, origin), {
         headers: { "content-type": "text/html; charset=utf-8" },
       });
     } catch (err) {
@@ -1161,7 +1250,7 @@ export async function handleRequest(req: Request): Promise<Response> {
   if (path === "/features" || path === "/features/") {
     try {
       const channels = await getChannels();
-      return new Response(await renderFeaturesCatalogue(channels), {
+      return new Response(await renderFeaturesCatalogue(channels, origin), {
         headers: { "content-type": "text/html; charset=utf-8" },
       });
     } catch (err) {
@@ -1191,7 +1280,7 @@ export async function handleRequest(req: Request): Promise<Response> {
 
     if (sub === "/" || sub === "/index.html") {
       try {
-        return new Response(await renderReleasePage(release, milestone), {
+        return new Response(await renderReleasePage(release, milestone, origin), {
           headers: { "content-type": "text/html; charset=utf-8" },
         });
       } catch (err) {
