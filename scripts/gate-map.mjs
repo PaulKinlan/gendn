@@ -191,8 +191,16 @@ export const RULES = [
       "test-route-contract",
       "test-speculation-rules",
       "test-site-discovery",
+      "test-features-ux",
     ],
     reason: "server.ts routing/header behaviour is driven end-to-end by these fixtures",
+  },
+  {
+    id: "features-ux",
+    exact: ["lib/features-ux.ts", "public/favicon.svg", "scripts/features-ux.test.mjs"],
+    prefixes: [],
+    suites: ["test-features-ux", "test-security-headers"],
+    reason: "upgraded /features catalogue renderer, CSP hash, and editorial SVG favicon",
   },
   {
     id: "site-index",

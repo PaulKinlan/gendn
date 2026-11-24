@@ -130,6 +130,7 @@ const HEAD = (
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)}</title>${seoTags}
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
 <link rel="stylesheet" href="/public/styles.css">
 <style>
   main{max-width:1000px;}

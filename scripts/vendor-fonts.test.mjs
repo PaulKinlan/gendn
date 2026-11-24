@@ -220,6 +220,7 @@ await sys.copyFile(`${REPO}scripts/lib/sys.mjs`, `${tmp}/scripts/lib/sys.mjs`);
 // SAME file, or the fixture would silently test a stale copy of the bound (gendn-n3e).
 await sys.mkdir(`${tmp}/lib`, { recursive: true });
 await sys.copyFile(`${REPO}lib/chromestatus.ts`, `${tmp}/lib/chromestatus.ts`);
+await sys.copyFile(`${REPO}lib/site-fs.ts`, `${tmp}/lib/site-fs.ts`);
 
 const EMPTY_BLOCK_SHEET =
   `body { color: #000; }\n/* --- BEGIN vendored @font-face */\n/* --- END vendored @font-face --- */\n`;

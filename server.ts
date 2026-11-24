@@ -15,6 +15,11 @@ import {
   slugify,
 } from "./lib/chromestatus.ts";
 import { renderCommitAnchor } from "./lib/external-url.ts";
+import {
+  FEATURES_FILTER_SCRIPT_SHA256,
+  type FeaturesCatalogueRow,
+  renderFeaturesCatalogueHtml,
+} from "./lib/features-ux.ts";
 import { escapeHTML } from "./lib/html.ts";
 import {
   renderConformanceIndex,
@@ -302,6 +307,7 @@ function renderSeoHead({
     `<meta property="og:description" content="${escapeHTML(description)}">`,
     `<meta property="og:type" content="website">`,
     `<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>`,
+    `<link rel="icon" type="image/svg+xml" href="/public/favicon.svg">`,
   ].join("\n  ");
 }
 
@@ -658,32 +664,21 @@ export async function renderFeaturesCatalogue(
   // Error semantics are unchanged: the try/catch is INSIDE the per-milestone mapper, so a
   // milestone whose fetch fails yields [] and is skipped (an all-or-nothing Promise.all here would
   // turn one upstream failure into a blank page, which would be a regression).
-  type Row = {
-    mstone: number;
-    id: number;
-    name: string;
-    // Slug of the RAW upstream name (the same value hasDoc validated), so the row href never
-    // depends on the display-capped name (gendn-kow4).
-    slug: string;
-    summary: string;
-    category: string;
-    hasDoc: boolean;
-    // Truncation signals (gendn-kow4): raw upstream length exceeded the field cap, so the row
-    // renders "..." on the cut cell(s) and carries data-truncated naming the cut fields.
-    nameCut: boolean;
-    categoryCut: boolean;
-  };
 
-  const perMilestone = await Promise.all(
-    known.map(async (m) => {
-      try {
-        return { m, feats: await getMilestoneFeatures(m) };
-      } catch {
-        // skip milestones we can't fetch
-        return { m, feats: null };
-      }
-    }),
-  );
+  const [perMilestone, sitePages] = await Promise.all([
+    Promise.all(
+      known.map(async (m) => {
+        try {
+          return { m, feats: await getMilestoneFeatures(m) };
+        } catch {
+          // skip milestones we can't fetch
+          return { m, feats: null };
+        }
+      }),
+    ),
+    getSitePages().catch(() => []),
+  ]);
+  const pageByRoute = new Map(sitePages.map((p) => [p.route, p]));
 
   // Flatten in milestone order, then run ONE global pool over every doc check. A pool per
   // milestone would multiply: ~10 concurrent milestones x 32 = up to ~320 stats in flight, which
@@ -718,6 +713,8 @@ export async function renderFeaturesCatalogue(
     // The catalogue is the index of what's actually been written.
     // Pending APIs still show up on the per-release pages.
     if (!hasDoc) return null;
+    const mSeg = milestonePathSegment(m);
+    const meta = mSeg ? pageByRoute.get(`/v${milestonePathSegment(m)}/${slug}/`) : undefined;
     return {
       mstone: m,
       id: f.id,
@@ -735,218 +732,18 @@ export async function renderFeaturesCatalogue(
       hasDoc,
       nameCut: rawName.length > NAME_CAP,
       categoryCut: g.category.length > CATEGORY_CAP,
-    } as Row;
+      docStatus: meta?.status,
+      hasDemo: meta ? Boolean(meta.demo) : undefined,
+    } as FeaturesCatalogueRow;
   });
-  const rows: Row[] = checked.filter((r): r is Row => r !== null);
+  const rows: FeaturesCatalogueRow[] = checked.filter((r): r is FeaturesCatalogueRow => r !== null);
 
-  const tableRows = rows.map((r) => {
-    // From the Row: computed once from the raw upstream name in the mapper above, so the href
-    // always targets the route hasDoc validated (gendn-kow4) instead of re-deriving it from the
-    // display-capped name.
-    const slug = r.slug;
-    const cat = categoryTag(r.category);
-    // Narrowed at runtime, not escaped (gendn-sxn / THREAT_MODEL.md invariant #4).
-    const mstone = milestonePathSegment(r.mstone);
-    const docAttrs = mstone
-      ? `href="/v${milestonePathSegment(r.mstone)}/${escapeHTML(slug)}/"`
-      : 'aria-disabled="true"';
-    const docCell = r.hasDoc
-      ? `<a class="tag tag-live" ${docAttrs}>reference &rarr;</a>`
-      : `<span class="tag tag-pending">pending</span>`;
-    const searchMstone = mstone ?? "";
-    const search = `${r.name} ${r.summary} ${cat} v${searchMstone}`.toLowerCase();
-    // Narrowed at runtime, not escaped (gendn-b2s) — see renderReleasePage.
-    const csHref = chromeStatusUrl(r.id);
-    const mstoneAttr = mstone ? ` data-mstone="${milestonePathSegment(r.mstone)}"` : "";
-    // Row-level truncation marker (gendn-kow4): machine-readable, names exactly which upstream
-    // fields were cut. Omitted entirely when nothing was — clean rows gain zero bytes.
-    const cutFields = [r.nameCut ? "name" : "", r.categoryCut ? "category" : ""]
-      .filter(Boolean).join(" ");
-    const cutAttr = cutFields ? ` data-truncated="${cutFields}"` : "";
-    const statusText = mstone
-      ? `v${mstone}`
-      : (r.mstone !== undefined && r.mstone !== null
-        ? `v${escapeHTML(String(r.mstone))}`
-        : "unknown");
-    return `<tr data-search="${escapeHTML(search)}"${mstoneAttr}${cutAttr} data-status="${
-      escapeHTML(cat)
-    }" data-doc="${r.hasDoc}">
-      <td>${
-        csHref
-          ? `<a href="${csHref}" target="_blank" rel="noopener">${escapeHTML(r.name)}${
-            r.nameCut ? "..." : ""
-          }</a>`
-          : `${escapeHTML(r.name)}${r.nameCut ? "..." : ""}`
-      }</td>
-      <td><span class="release-status">${statusText}</span></td>
-      <td><span class="tag">${escapeHTML(cat)}${r.categoryCut ? "..." : ""}</span></td>
-      <td>${docCell}</td>
-    </tr>`;
-  }).join("");
-
-  const mstoneOptions = known
-    .map((m) => {
-      const seg = milestonePathSegment(m);
-      return seg ? `<option value="${seg}">v${seg}</option>` : "";
-    })
-    .join("");
-
-  const pageTitle = "all features — gendn";
-  const pageDescription =
-    `Filterable catalogue of ${rows.length} documented Chrome web platform APIs across every tracked milestone on gendn.`;
-  return `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${pageTitle}</title>
-  ${
-    renderSeoHead({
-      title: pageTitle,
-      description: pageDescription,
-      path: "/features",
-      origin,
-    })
-  }
-  <link rel="stylesheet" href="/public/styles.css">
-  ${SPECULATION_RULES}
-  <style>
-    main { max-width: 1100px; }
-    .filters {
-      display: flex;
-      gap: 0.75rem;
-      flex-wrap: wrap;
-      margin: 1rem 0 1.5rem;
-      padding: 1rem;
-      background: var(--bg-paper);
-      border: 2px solid var(--border-black);
-      box-shadow: var(--thin-shadow);
-    }
-    .filters input, .filters select {
-      font-family: var(--font-mono);
-      font-size: 0.85rem;
-      padding: 0.45rem 0.6rem;
-      background: var(--bg-paper);
-      color: var(--text-black);
-      border: 2px solid var(--border-black);
-    }
-    .filters input:focus-visible, .filters select:focus-visible {
-      outline: 2px solid var(--accent-blue);
-      outline-offset: 2px;
-    }
-    .filters input[type=search] { flex: 1; min-width: 160px; }
-    .features-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-    .features-table th, .features-table td { padding: 0.6rem 0.6rem; text-align: left; border-bottom: 1px solid var(--border-black); vertical-align: top; }
-    .features-table th {
-      font-family: var(--font-mono);
-      font-size: 0.7rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--text-muted);
-      background: var(--bg-stone);
-    }
-    .features-table tr.hidden { display: none; }
-    .features-table td a { color: var(--text-black); text-decoration: underline; text-underline-offset: 3px; }
-    .features-table td a:hover { color: var(--accent-blue); }
-    .features-table td .tag, .features-table td .release-status { font-family: var(--font-mono); }
-    .features-table td .release-status { background: var(--text-black); color: var(--bg-ivory); padding: 0.15rem 0.5rem; font-size: 0.75rem; }
-    .stats { font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem; }
-
-    @media (max-width: 640px) {
-      main { padding-left: var(--space-4); padding-right: var(--space-4); }
-      .features-table thead { display: none; }
-      .features-table, .features-table tbody, .features-table tr, .features-table td {
-        display: block;
-        width: 100%;
-      }
-      .features-table tr {
-        border: 2px solid var(--border-black);
-        background: var(--bg-paper);
-        margin-bottom: var(--space-3);
-        padding: var(--space-3);
-        box-shadow: var(--thin-shadow);
-      }
-      .features-table td {
-        border: none;
-        padding: 0.25rem 0;
-      }
-      .features-table td:first-child { font-weight: 600; padding-bottom: var(--space-2); }
-      .features-table td:not(:first-child) {
-        display: inline-block;
-        margin-right: var(--space-2);
-      }
-      .filters { padding: var(--space-3); gap: var(--space-2); }
-      .filters input, .filters select { flex: 1 1 100%; min-width: 0; }
-    }
-  </style>
-</head>
-<body>
-<main>
-  <p class="crumbs"><a href="/">&larr; home</a></p>
-
-  <header class="lede-block">
-    <p class="eyebrow">catalogue</p>
-    <h1>all apis</h1>
-    <p class="lede">Every API with a written reference, across every milestone. Filter by name, milestone, or status. Pending APIs still show up on the per-release pages.</p>
-  </header>
-
-  <div class="filters">
-    <input type="search" id="q" placeholder="search by name, summary, category">
-    <select id="mstone">
-      <option value="">all milestones</option>
-      ${mstoneOptions}
-    </select>
-    <select id="status">
-      <option value="">any status</option>
-      <option value="Shipped">Shipped</option>
-      <option value="Origin Trial">Origin Trial</option>
-      <option value="Dev Trial">Dev Trial</option>
-      <option value="Stepped rollout">Stepped rollout</option>
-    </select>
-  </div>
-
-  <p class="stats"><span id="visible">${rows.length}</span> / ${rows.length} references</p>
-
-  <table class="features-table">
-    <thead>
-      <tr><th>api</th><th>milestone</th><th>status</th><th>doc</th></tr>
-    </thead>
-    <tbody id="rows">${tableRows}</tbody>
-  </table>
-
-  <script>
-    const q = document.getElementById('q');
-    const mstone = document.getElementById('mstone');
-    const status = document.getElementById('status');
-    const rows = document.querySelectorAll('#rows tr');
-    const visible = document.getElementById('visible');
-
-    function applyFilter() {
-      const qv = q.value.toLowerCase().trim();
-      const mv = mstone.value;
-      const sv = status.value;
-      let count = 0;
-      for (const row of rows) {
-        const search = row.dataset.search;
-        const okq = !qv || search.includes(qv);
-        const okm = !mv || row.dataset.mstone === mv;
-        const oks = !sv || row.dataset.status === sv;
-        const show = okq && okm && oks;
-        row.classList.toggle('hidden', !show);
-        if (show) count++;
-      }
-      visible.textContent = count;
-    }
-
-    q.addEventListener('input', applyFilter);
-    mstone.addEventListener('change', applyFilter);
-    status.addEventListener('change', applyFilter);
-  </script>
-
-  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
-</main>
-</body>
-</html>`;
+  return renderFeaturesCatalogueHtml({
+    rows,
+    knownMilestones: known,
+    speculationRulesHtml: SPECULATION_RULES,
+    canonicalUrl: origin ? `${origin}/features` : undefined,
+  });
 }
 
 export async function knownReleaseMilestones(channels: Channels): Promise<Set<number>> {
@@ -1011,7 +808,7 @@ export async function knownReleaseMilestones(channels: Channels): Promise<Set<nu
 
 export const CSP_DIRECTIVES = [
   "default-src 'self'",
-  "script-src 'self' 'sha256-KuiJqU/ZOCGu7VsWUb6EUZO+z/j7PyH/zkKtY2HByvg=' 'sha256-QwyzFy+aVtqlhWpm/o9TrKyuCXBZ7CCOnC55e6JBn+A='",
+  `script-src 'self' ${FEATURES_FILTER_SCRIPT_SHA256} 'sha256-QwyzFy+aVtqlhWpm/o9TrKyuCXBZ7CCOnC55e6JBn+A='`,
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data:",

@@ -202,7 +202,7 @@ export function renderFeaturesCatalogueHtml(opts: FeaturesCatalogueOptions): str
     // Narrowed at runtime, not escaped (gendn-sxn / THREAT_MODEL.md invariant #4).
     const mstone = milestonePathSegment(r.mstone);
     const docAttrs = mstone && slug
-      ? `href="/v${mstone}/${escapeHTML(slug)}/"`
+      ? `href="/v${milestonePathSegment(r.mstone)}/${escapeHTML(slug)}/"`
       : 'aria-disabled="true"';
 
     const docType = r.docStatus === "stub"
@@ -239,7 +239,7 @@ export function renderFeaturesCatalogueHtml(opts: FeaturesCatalogueOptions): str
 
     const searchMstone = mstone ?? "";
     const search = `${name} ${summary} ${cat} v${searchMstone}`.toLowerCase();
-    const mstoneAttr = mstone ? ` data-mstone="${mstone}"` : "";
+    const mstoneAttr = mstone ? ` data-mstone="${milestonePathSegment(r.mstone)}"` : "";
     const cutFields = [nameCut ? "name" : "", categoryCut ? "category" : ""]
       .filter(Boolean)
       .join(" ");
@@ -276,6 +276,9 @@ export function renderFeaturesCatalogueHtml(opts: FeaturesCatalogueOptions): str
     </div>`
     : "";
 
+  const pageTitle = "all features — gendn";
+  const pageDescription =
+    `Filterable catalogue of ${rows.length} documented Chrome web platform APIs across every tracked milestone on gendn.`;
   const canonicalTag = safeCanonical
     ? `\n  <link rel="canonical" href="${escapeHTML(safeCanonical)}">`
     : "";
@@ -286,8 +289,13 @@ export function renderFeaturesCatalogueHtml(opts: FeaturesCatalogueOptions): str
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
-  <title>all features — gendn</title>
-  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">${canonicalTag}
+  <title>${pageTitle}</title>
+  <meta name="description" content="${escapeHTML(pageDescription)}">${canonicalTag}
+  <meta property="og:title" content="${escapeHTML(pageTitle)}">
+  <meta property="og:description" content="${escapeHTML(pageDescription)}">
+  <meta property="og:type" content="website">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
   <link rel="stylesheet" href="/public/styles.css">
   ${speculationRulesHtml}
   <style>
