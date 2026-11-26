@@ -94,7 +94,7 @@ function safePageRoute(route: unknown, id: unknown): string | null {
 
 function safeCpsConformanceUrl(host: unknown, route: unknown): string | null {
   if (
-    host !== "chrome-platform-showcase.paulkinlan-ea.deno.net" ||
+    host !== "chrome-platform-showcase.kinlan-test.workers.dev" ||
     typeof route !== "string" || !/^\/v\d+\/[a-z0-9-]+\/conformance\/?$/.test(route)
   ) {
     return null;

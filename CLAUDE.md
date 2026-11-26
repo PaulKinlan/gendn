@@ -9,12 +9,13 @@ Generated reference documentation for web platform APIs that ship in Chrome but 
 page on MDN. When MDN already covers an API, gendn writes a short stub that links to MDN. Otherwise
 it generates a full reference from the spec, explainer, and chromestatus data.
 
-- Live site: Cloudflare Workers production (`gendn` Worker, deployed via Workers Builds); legacy URL https://gendn.paulkinlan-ea.deno.net/ remains live until custom-domain cutover completes
+- Live site: https://gendn.kinlan-test.workers.dev/ (Cloudflare Workers production, `gendn` Worker, deployed via Workers Builds)
 - Repo: https://github.com/PaulKinlan/gendn
 - Routine: https://claude.ai/code/routines/trig_01MrJLxCb66ZYcfnvEPsooC5
 
 Sister project: [chrome-platform-showcase](https://github.com/PaulKinlan/chrome-platform-showcase)
-(interactive demos for the same features).
+(interactive demos for the same features), live at
+https://chrome-platform-showcase.kinlan-test.workers.dev/.
 
 ## Repo layout
 
@@ -60,9 +61,8 @@ Oct 2026 announcement, so gendn left Deno. The site runs on Cloudflare Workers (
 22.18+ (CI uses Node 24): `npm ci`, then `npm run <task>`. Pass script arguments after `--`, e.g.
 `npm run conformance -- --page v149/webmcp`. There is no deno.json any more; do not add one.
 
-- `server.ts` still carries a small guarded `Deno.serve` block so the old
-  gendn.paulkinlan-ea.deno.net deployment keeps serving until the domain moves to the Worker. It is
-  not used by any tooling; delete it once the deno.net URL is retired.
+- `server.ts` has no entry point of its own: `worker.ts` (production) and `serve.ts` (Node dev)
+  both call `serveRequest()`. The guarded legacy `Deno.serve` block was deleted on 2026-11-26.
 - Fixtures used to declare narrow Deno `--allow-*` flags; Node runs them unsandboxed. The one
   fixture that needs a restricted process (an unreadable /proc) uses Node's `--permission` model.
 
@@ -76,28 +76,28 @@ Oct 2026 announcement, so gendn left Deno. The site runs on Cloudflare Workers (
   `npx wrangler versions upload` on every other branch, which shows up as a check on PRs. Build logs
   are in the Cloudflare dashboard under Workers > gendn > Builds.
 
-#### Domain Transition Checklist (retiring `*.paulkinlan-ea.deno.net`)
+#### Hosts (the move off Deno Deploy finished on 2026-11-26)
 
-Keep both steps tracked until DNS/custom-domain cutover is complete for gendn and the sister showcase:
+gendn and the sister showcase each have exactly one live origin, both on Cloudflare Workers:
 
-1. **Retiring `gendn.paulkinlan-ea.deno.net`:**
-   - Attach the custom domain to the `gendn` Cloudflare Worker and verify `/`, `/features`,
-     `/conformance`, `/v<N>/`, and `migrations.json` 301 aliases return expected statuses and CSP/security headers.
-   - Delete the guarded legacy `Deno.serve` block at the bottom of `server.ts`.
-   - Update live site / Quick links URLs in `CLAUDE.md` and `$id` URIs in `schema/*.schema.json`.
-   - Decommission the legacy Deno Deploy project once traffic drains.
-2. **Retiring `chrome-platform-showcase.paulkinlan-ea.deno.net` (after showcase cutover):**
-   - Update `server.ts` CSP `frame-src` (allow both old and new origins during cutover, then drop
-     `*.deno.net`) and the `/` sister-project link.
-   - Update the showcase host allowlist/constants in `lib/lifecycle.ts`, `scripts/lib/artifacts.mjs`
-     (`SHOWCASE_HOST`), `scripts/lib/judged-content.mjs`, `scripts/iframe-posture-sweep.mjs`, and
-     `scripts/validate-artifacts.mjs` (`CPS_DEMO_ROUTE_EXCEPTION`).
-   - Repoint published `v<N>/` embeds/links and `conformance.json` (`demo`, `cpsFeature.host`) with
-     reviewed `demo-change` records in `migrations.json`, run `npm run refresh-bindings`, and verify
-     `npm run check-routes` + `npm run validate-artifacts`.
-   - Update `.claude/routine-prompt.md` (and push via `RemoteTrigger.update`) and the origin assertions
-     in `scripts/*.test.mjs` (`security-headers`, `lifecycle-units`, `cps-conformance`,
-     `route-contract`, `binding-ledger`, `suite-metadata`, `iframe-posture`, `cdp`).
+- gendn: `https://gendn.kinlan-test.workers.dev`
+- chrome-platform-showcase: `https://chrome-platform-showcase.kinlan-test.workers.dev`
+
+Both projects' previous Deno Deploy hosts are retired (measured 2026-11-26: every showcase URL
+that gendn pages, suites and contracts link answered 404 there and 200 on the Workers origin).
+gendn no longer links, frames, allowlists or serves from them: the CSP `frame-src` allows only the
+showcase origin above,
+all 142 bound demo URLs were repointed host-only (unchanged paths and identities) under reviewed
+`demo-change` records in `migrations.json`, and `server.ts` lost its legacy `Deno.serve` entry.
+`scripts/no-legacy-host.test.mjs` fails if the retired host reappears anywhere outside its
+allowlist of historical records (migration `from` values, the dated fallback manifest snapshot,
+dated critique evidence). If either origin ever moves again, change the showcase host in one
+pass: `scripts/lib/artifacts.mjs` (`SHOWCASE_HOST`), `lib/site-index.ts`, `lib/lifecycle.ts`,
+`scripts/lib/judged-content.mjs`, `scripts/iframe-posture-sweep.mjs`,
+`scripts/validate-artifacts.mjs` (`CPS_DEMO_ROUTE_EXCEPTION`), the `server.ts` CSP and home link,
+the fixtures that pin the origin, the published `v<N>/` URLs with one `demo-change` record per
+bound route and one `assertion-migrate` record per changed assertion, then
+`npm run refresh-bindings`.
 
 ### Weekly hardening routine and auto-merge
 
@@ -607,8 +607,9 @@ The seed pages (`v149/css-gap-decorations/` and `v149/webmcp/`) are in the SEEDS
 ## Quick links
 
 - Production runtime: Cloudflare Workers (`gendn` Worker — Cloudflare dashboard → Workers > gendn > Builds)
-- Legacy live URL (pre-cutover): https://gendn.paulkinlan-ea.deno.net/
-- Legacy catalogue URL (pre-cutover): https://gendn.paulkinlan-ea.deno.net/features
+- Live URL: https://gendn.kinlan-test.workers.dev/
+- Live catalogue URL: https://gendn.kinlan-test.workers.dev/features
+- Sister showcase: https://chrome-platform-showcase.kinlan-test.workers.dev/
 - Routine UI: https://claude.ai/code/routines/trig_01MrJLxCb66ZYcfnvEPsooC5
 - chromestatus API: https://chromestatus.com/api/v0/channels
 - MDN search API: https://developer.mozilla.org/api/v1/search?q=Soft+Navigations&locale=en-US

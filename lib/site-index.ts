@@ -57,7 +57,7 @@ export interface SiteMeta {
 
 const IO_CONCURRENCY = 32;
 const DESCRIPTION_CAP = 280;
-const SHOWCASE_HOST = "chrome-platform-showcase.paulkinlan-ea.deno.net";
+const SHOWCASE_HOST = "chrome-platform-showcase.kinlan-test.workers.dev";
 
 const FEATURE_ID_RE = /chromestatus\.com\/feature\/(\d+)/;
 const DECLARED_FEATURE_ID_RE =

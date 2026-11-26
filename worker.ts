@@ -1,6 +1,6 @@
 // Cloudflare Workers entry (production). See wrangler.jsonc and scripts/build-worker-assets.mjs.
 //
-// Same pipeline as the Node dev server and the legacy Deno entry: serveRequest() from server.ts.
+// Same pipeline as the Node dev server (serve.ts): serveRequest() from server.ts.
 // The only difference is where files come from. Workers have no filesystem, so the release pages,
 // public/ assets, _data/ fallback snapshots, and conformance reports are uploaded as static assets,
 // read through the ASSETS binding, and listed from the build-time index dist/site-files.json.

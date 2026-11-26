@@ -17,7 +17,7 @@ function assert(label, condition, detail = "") {
 const base = [{
   route: "/v900/probe/",
   identity: "222",
-  demo: "https://chrome-platform-showcase.paulkinlan-ea.deno.net/v900/probe/first/",
+  demo: "https://chrome-platform-showcase.kinlan-test.workers.dev/v900/probe/first/",
 }];
 const current = base.map((b) => ({ ...b }));
 const params = { current, ledger: base, priorLedger: base, migrations: [] };
@@ -105,7 +105,7 @@ assert(
 );
 const demoChanged = [{
   ...base[0],
-  demo: "https://chrome-platform-showcase.paulkinlan-ea.deno.net/v900/probe/second/",
+  demo: "https://chrome-platform-showcase.kinlan-test.workers.dev/v900/probe/second/",
 }];
 assert(
   "identity-change cannot authorize demo-only rebinding",
@@ -138,7 +138,7 @@ const page = "v900/probe/index.html";
 const pageHtml =
   `<html><p><a href="https://chromestatus.com/feature/111">Related</a></p><table><tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/222">Declared</a></td></tr></table><a href="${
     base[0].demo
-  }">first</a><a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v900/probe/second/">second</a></html>`;
+  }">first</a><a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v900/probe/second/">second</a></html>`;
 async function command(bin, args) {
   const out = await new sys.Command(bin, { args, cwd: temp, stdout: "piped", stderr: "piped" })
     .output();

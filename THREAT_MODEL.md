@@ -90,9 +90,11 @@ Components:
   checks out PR code).
 - **Routine — Claude Code, cron `30 */2 * * *`** (CLAUDE.md), fresh checkout of `main`, one
   commit per feature, pushes directly to `main`.
-- **Runtime:** Cloudflare Workers in production (`worker.ts`, static assets read only through the
+- **Runtime:** Cloudflare Workers in production (`worker.ts`, served at
+  `https://gendn.kinlan-test.workers.dev`; static assets read only through the
   ASSETS binding with `run_worker_first`, so every response passes the CSP/inert-MIME pipeline);
-  Node (`serve.ts`) locally and in CI. No database, no user accounts, no
+  Node (`serve.ts`) locally and in CI. There is no other live deployment: the earlier Deno Deploy
+  host is retired and `server.ts` no longer carries an entry point for it. No database, no user accounts, no
   server-side session state, **no third-party runtime dependencies** (`package.json` has no
   `dependencies`; its `devDependencies` are build and check tools only).
 
@@ -106,7 +108,7 @@ Components:
 | **chromestatus.com API** | Untrusted data source | External JSON (`id`, `name`, `summary`, `category`, channels, dates) fed directly into SSR templates. |
 | **api.github.com** | Untrusted data source | `html_url` / `sha` / `date` feed the "last updated" line. |
 | **developer.mozilla.org** | Untrusted availability signal | HEAD existence checks; a transport failure must read as UNKNOWN, not "no page". |
-| **chrome-platform-showcase.paulkinlan-ea.deno.net** | Untrusted framed content | Third-party interactive demos embedded via `<iframe>`; also referenced by lifecycle contracts. |
+| **chrome-platform-showcase.kinlan-test.workers.dev** | Untrusted framed content | Third-party interactive demos embedded via `<iframe>`; also referenced by lifecycle contracts. The only cross-origin `frame-src` the CSP allows. The showcase left its Deno Deploy host on 2026-11-26; that retired origin is no longer allowed, linked, or trusted anywhere (guard: `scripts/no-legacy-host.test.mjs`). |
 | **fonts.googleapis.com / fonts.gstatic.com** | Untrusted asset origin | Only reached by the offline `vendor-fonts.mjs` vendoring script, not at request time. |
 | **Local repo / worktree** | Trusted | `migrations.json`, `package.json`, schemas, and CI scripts are operator-controlled. |
 | **Loopback server in gates** | Trusted | The gate server binds an ephemeral OS port on localhost and is only driven by the local runner. |

@@ -147,7 +147,7 @@ try {
 
   // A page-only added demo was previously just a report-only note. Its suite now must be
   // updated too, without rehashing or weakening any frozen assertions.
-  const demo = "https://chrome-platform-showcase.paulkinlan-ea.deno.net/v900/alpha/";
+  const demo = "https://chrome-platform-showcase.kinlan-test.workers.dev/v900/alpha/";
   await sys.writeTextFile(
     `${tmp}/${ALPHA}/index.html`,
     html(ALPHA_ID, `<a href="${demo}">Demo</a>`),
@@ -172,7 +172,7 @@ try {
     status: "stub",
     demo,
     cpsFeature: {
-      host: "chrome-platform-showcase.paulkinlan-ea.deno.net",
+      host: "chrome-platform-showcase.kinlan-test.workers.dev",
       route: "/v900/alpha/",
       conformanceRoute: "/v900/alpha/conformance",
       note: "The feature-level CPS suite governs only its listed assertions.",
@@ -188,7 +188,7 @@ try {
   );
   await putSuite(ALPHA, {
     ...reconciled,
-    demo: `https://chrome-platform-showcase.paulkinlan-ea.deno.net/v901/beta/`,
+    demo: `https://chrome-platform-showcase.kinlan-test.workers.dev/v901/beta/`,
   });
   r = await gate();
   assert(
@@ -213,7 +213,7 @@ try {
 
   const exceptionId = "v150/disable-svg-filters-on-plugins-and-iframes";
   const exceptionDemo =
-    `https://chrome-platform-showcase.paulkinlan-ea.deno.net/${exceptionId}/filter-comparison/`;
+    `https://chrome-platform-showcase.kinlan-test.workers.dev/${exceptionId}/filter-comparison/`;
   await sys.mkdir(`${tmp}/${exceptionId}`, { recursive: true });
   await sys.writeTextFile(
     `${tmp}/${exceptionId}/index.html`,
@@ -223,7 +223,7 @@ try {
     ...await suite(exceptionId, ALPHA_ID),
     demo: exceptionDemo,
     cpsFeature: {
-      host: "chrome-platform-showcase.paulkinlan-ea.deno.net",
+      host: "chrome-platform-showcase.kinlan-test.workers.dev",
       route: `/${exceptionId}/`,
       conformanceRoute: `/${exceptionId}/conformance`,
       note: "Feature-level conformance differs from the concept demo.",

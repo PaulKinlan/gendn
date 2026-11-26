@@ -20,7 +20,7 @@ import {
 import { plainCorpusPath } from "./plain-corpus-path.mjs";
 import { mapPool, PAGE_CONCURRENCY } from "./map-pool.mjs";
 
-export const SHOWCASE_HOST = "chrome-platform-showcase.paulkinlan-ea.deno.net";
+export const SHOWCASE_HOST = "chrome-platform-showcase.kinlan-test.workers.dev";
 
 const PAGE_RE = /^v\d+\/[^/]+\/index\.html$/;
 export const FEATURE_ID_RE = /chromestatus\.com\/feature\/(\d+)/;

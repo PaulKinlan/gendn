@@ -66,7 +66,7 @@ function extractCriticalFields(filePath, content) {
     // For HTML, the gates (route-manifest.mjs pathToIdentityFields and artifacts.mjs metadataFromHtml)
     // derive published identity and contract properties exclusively from:
     // 1. Feature identity links: chromestatus.com/feature/<id> (CLAUDE.md invariant #3)
-    // 2. Embedded showcase demo links: chrome-platform-showcase.paulkinlan-ea.deno.net/...
+    // 2. Embedded showcase demo links: chrome-platform-showcase.kinlan-test.workers.dev/...
     // 3. Status eyebrow: <p class="eyebrow">Covered on MDN</p>
     // All other prose, markup, styles, scripts, and comments are non-binding.
     // Of the three derived properties, status drift (built <-> stub) is provably tolerated
@@ -74,7 +74,7 @@ function extractCriticalFields(filePath, content) {
     // are strictly binding. Thus, excluding status leaves featureIds and demos.
     const featureIds = [...content.matchAll(/chromestatus\.com\/feature\/(\d+)/g)].map((m) => m[1]);
     const demos = [
-      ...content.matchAll(/chrome-platform-showcase\.paulkinlan-ea\.deno\.net\/[^\s"'<>]+/g),
+      ...content.matchAll(/chrome-platform-showcase\.kinlan-test\.workers\.dev\/[^\s"'<>]+/g),
     ].map((m) => m[0]);
     return { featureIds, demos };
   }

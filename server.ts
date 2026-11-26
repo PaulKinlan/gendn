@@ -39,7 +39,7 @@ import {
   renderSitemapXml,
   safeRequestOrigin,
 } from "./lib/site-index.ts";
-// Bundled at build time (Workers have no filesystem); Node and Deno load it as a JSON module.
+// Bundled at build time (Workers have no filesystem); Node loads it as a JSON module.
 import MIGRATIONS from "./migrations.json" with { type: "json" };
 
 // ----- Durable-demo route aliases (301 redirects) -----
@@ -423,7 +423,7 @@ export async function renderIndex(channels: Channels, origin?: string): Promise<
         <li>If MDN doesn't have a page, the routine writes a reference doc generated from the spec, explainer, and the IDL in Chromium source.</li>
         <li>When MDN later ships its own page, the routine notices on the next pass and the gendn entry switches to a "see MDN" stub.</li>
       </ol>
-      <p class="note">Sister project: <a href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/" target="_blank" rel="noopener">chrome-platform-showcase</a> — interactive demos for the same set of features. Repo: <a href="https://github.com/PaulKinlan/gendn" target="_blank" rel="noopener">PaulKinlan/gendn</a>.</p>
+      <p class="note">Sister project: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/" target="_blank" rel="noopener">chrome-platform-showcase</a> — interactive demos for the same set of features. Repo: <a href="https://github.com/PaulKinlan/gendn" target="_blank" rel="noopener">PaulKinlan/gendn</a>.</p>
     </section>
 
     <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
@@ -838,9 +838,12 @@ export async function knownReleaseMilestones(channels: Channels): Promise<Set<nu
 //       referenced in public/styles.css.
 //   - img-src 'self' data::
 //       Allows same-origin image assets and data-URI SVG/raster images.
-//   - frame-src 'self' https://chrome-platform-showcase.paulkinlan-ea.deno.net:
+//   - frame-src 'self' https://chrome-platform-showcase.kinlan-test.workers.dev:
 //       Allows embedding live interactive concept demos from the companion site
-//       chrome-platform-showcase (embedded by 24 reference pages across v147-v154).
+//       chrome-platform-showcase. This is the ONLY third-party frame origin: the showcase moved
+//       off its retired Deno Deploy host on 2026-11-26 (every path tried there answers 404), so the
+//       old origin is not allowed alongside it. scripts/security-headers.test.mjs pins the
+//       directive to exactly these two sources.
 //   - connect-src 'self': Restricts fetch, XHR, and WebSocket connections to same-origin.
 //   - object-src 'none': Disallows plugin objects (Flash, Java, Silverlight).
 //   - base-uri 'self': Prevents <base href="..."> injection hijacking.
@@ -858,7 +861,7 @@ export const CSP_DIRECTIVES = [
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data:",
-  "frame-src 'self' https://chrome-platform-showcase.paulkinlan-ea.deno.net",
+  "frame-src 'self' https://chrome-platform-showcase.kinlan-test.workers.dev",
   "connect-src 'self'",
   "object-src 'none'",
   "base-uri 'self'",
@@ -881,10 +884,10 @@ export function addSecurityHeaders(res: Response): Response {
 // Two transport headers were missing. Neither is visible in a status code, which is the whole shape of
 // this defect: the bug IS a 200 whose transport is wrong.
 //
-// 1. COMPRESSION. Deno's HTTP server compresses response bodies only when asked - the manual says
-//    "The HTTP server can automatically compress response bodies, but this is off by default" - so every
-//    page shipped raw. `automaticCompression: true` (in Deno.serve below) lets the RUNTIME do it natively
-//    rather than hand-rolling gzip per request in application code. Measured over the repo's own bytes:
+// 1. COMPRESSION. Every page used to ship raw. Compression is the RUNTIME's job, not application
+//    code in this file: Cloudflare compresses at the edge in production, and the Node dev entry
+//    (serve.ts) negotiates br/gzip the same way so the transport fixtures see what production
+//    sends. serveRequest() itself never encodes a body. Measured over the repo's own bytes:
 //    201 index.html files, raw mean 11.8KB / median 7.1KB vs gzip-6 mean 3.4KB / median 2.4KB (~3.5x),
 //    with the largest routes far bigger (/features ~194KB, a hub route ~21KB).
 //
@@ -1139,29 +1142,13 @@ export async function handleRequest(req: Request): Promise<Response> {
 }
 
 // The full response pipeline every runtime entry shares: route, revalidate, add security headers,
-// and turn an unhandled throw into the generic 502. Used by the Deno entry below, the Node dev
-// server (serve.ts) and the Cloudflare Worker (worker.ts), so all three answer identically.
+// and turn an unhandled throw into the generic 502. Used by the Node dev server (serve.ts) and
+// the Cloudflare Worker (worker.ts), so both answer identically. This module has no entry point of
+// its own: the legacy Deno Deploy entry was removed when that deployment was retired (2026-11-26).
 export async function serveRequest(req: Request): Promise<Response> {
   try {
     return addSecurityHeaders(await withRevalidation(req, await handleRequest(req)));
   } catch (err) {
     return addSecurityHeaders(serverError(req, "unhandled request", err));
   }
-}
-
-// Legacy Deno entry (`deno task start`), kept while the tooling still runs under Deno. It is a
-// no-op on Node (import.meta.main is undefined on Node 22) and on Workers.
-// Typed locally so the Node type check (tsc) does not need Deno's global types.
-declare const Deno: {
-  env: { get(name: string): string | undefined };
-  serve(
-    options: { port: number; automaticCompression: boolean },
-    handler: (req: Request) => Promise<Response>,
-  ): { addr: { port: number } };
-};
-if (import.meta.main && "Deno" in globalThis) {
-  const PORT = Number(Deno.env.get("PORT") ?? 3000);
-  const server = Deno.serve({ port: PORT, automaticCompression: true }, serveRequest);
-
-  console.log(`Listening on http://localhost:${server.addr.port}`);
 }

@@ -66,7 +66,7 @@ assert(
   PAGE_RE.test("v153/foo/index.html") && !PAGE_RE.test("v153/foo/member/index.html") &&
     !PAGE_RE.test("v153/index.html"),
 );
-const showcase = "https://chrome-platform-showcase.paulkinlan-ea.deno.net";
+const showcase = "https://chrome-platform-showcase.kinlan-test.workers.dev";
 assert(
   "own embedded demo wins even if another feature link occurs first",
   pathToIdentityFields(

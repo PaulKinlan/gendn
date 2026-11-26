@@ -206,7 +206,7 @@ assert("about:blank allowed", isLocalNavigation("about:blank"));
 assert("off-site https refused", !isLocalNavigation("https://example.com/"));
 assert(
   "showcase origin refused",
-  !isLocalNavigation("https://chrome-platform-showcase.paulkinlan-ea.deno.net/v1/x"),
+  !isLocalNavigation("https://chrome-platform-showcase.kinlan-test.workers.dev/v1/x"),
 );
 assert("lookalike host refused", !isLocalNavigation("http://localhost.evil.example/"));
 assert("userinfo trick refused", !isLocalNavigation("http://localhost@evil.example/"));

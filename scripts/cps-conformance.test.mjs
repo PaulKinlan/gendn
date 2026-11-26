@@ -3,7 +3,7 @@
 // silently become invented feature-root links. No live network or immutable suite rewrites.
 import { verifiedCpsConformance } from "./lib/cps-conformance.mjs";
 
-const origin = "https://chrome-platform-showcase.paulkinlan-ea.deno.net";
+const origin = "https://chrome-platform-showcase.kinlan-test.workers.dev";
 const concept = "/v900/alpha/interactive-demo/";
 const root = "/v900/alpha/";
 const meta = { identity: "1234", demo: origin + concept };

@@ -81,7 +81,7 @@ await sys.writeTextFile(
     status: `built${EVIL}`,
     demo: null,
     cpsFeature: {
-      host: `chrome-platform-showcase.paulkinlan-ea.deno.net.evil.test`,
+      host: `chrome-platform-showcase.kinlan-test.workers.dev.evil.test`,
       route: "/x/",
       conformanceRoute: "/v900/evil/conformance",
       note: "n",
@@ -150,7 +150,7 @@ await sys.writeTextFile(
     status: "built",
     demo: null,
     cpsFeature: {
-      host: "chrome-platform-showcase.paulkinlan-ea.deno.net",
+      host: "chrome-platform-showcase.kinlan-test.workers.dev",
       route: "/v900/ok/",
       conformanceRoute: "/v900/ok/conformance",
       note: "verified",
@@ -175,9 +175,9 @@ await sys.writeTextFile(
     identity: "4321",
     milestone: 900,
     status: "stub",
-    demo: "https://chrome-platform-showcase.paulkinlan-ea.deno.net/v900/unverified/concept/",
+    demo: "https://chrome-platform-showcase.kinlan-test.workers.dev/v900/unverified/concept/",
     cpsFeature: {
-      host: "chrome-platform-showcase.paulkinlan-ea.deno.net",
+      host: "chrome-platform-showcase.kinlan-test.workers.dev",
       route: "/v900/unverified/concept/",
       conformanceRoute: null,
       note: "No same-feature suite was verified.",
@@ -382,7 +382,7 @@ assert(
   R.suiteUnverified.includes("No independently verified same-feature") &&
     !R.suiteUnverified.includes("/null") &&
     !R.suiteUnverified.includes("/undefined") &&
-    !R.suiteUnverified.includes('href="https://chrome-platform-showcase.paulkinlan-ea.deno.net'),
+    !R.suiteUnverified.includes('href="https://chrome-platform-showcase.kinlan-test.workers.dev'),
 );
 assert("renderRunAll: missing reports/conformance/index.html returns null", R2.runAll === null);
 assert(
@@ -453,7 +453,7 @@ assert(
   R.suiteEvil.includes("/v900/evil/conformance (referenced, not forked)") &&
     !R.suiteEvil.includes('href="https://chrome-platform-showcase.') &&
     R.suiteOk.includes(
-      'href="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v900/ok/conformance"',
+      'href="https://chrome-platform-showcase.kinlan-test.workers.dev/v900/ok/conformance"',
     ),
 );
 
@@ -515,7 +515,7 @@ assert(
 assert(
   "cpsFeature block renders only when present",
   R.suiteEvil.includes("Chrome-platform-showcase conformance (listed assertions only):") &&
-    R.suiteOk.includes("chrome-platform-showcase.paulkinlan-ea.deno.net"),
+    R.suiteOk.includes("chrome-platform-showcase.kinlan-test.workers.dev"),
 );
 assert(
   "CPS contract copy does not claim every linked demo is embedded",

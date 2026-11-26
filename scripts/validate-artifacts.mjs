@@ -45,7 +45,7 @@ const FRONTEND_DIMENSIONS = new Set(["responsive-ux", "accessibility", "examples
 const CPS_DEMO_ROUTE_EXCEPTION = {
   id: "v150/disable-svg-filters-on-plugins-and-iframes",
   demo:
-    "https://chrome-platform-showcase.paulkinlan-ea.deno.net/v150/disable-svg-filters-on-plugins-and-iframes/filter-comparison/",
+    "https://chrome-platform-showcase.kinlan-test.workers.dev/v150/disable-svg-filters-on-plugins-and-iframes/filter-comparison/",
   route: "/v150/disable-svg-filters-on-plugins-and-iframes/",
   conformanceRoute: "/v150/disable-svg-filters-on-plugins-and-iframes/conformance",
 };

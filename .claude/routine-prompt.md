@@ -20,7 +20,7 @@ chromestatus source and slug function, so they target the same feature set from 
 listings. Every gendn page embeds the matching **live showcase demo as an iframe** (the sample MDN
 wants; Rachel Andrew's point — every Chrome feature reaching MDN should ship with an example, and
 the showcase produces those). The showcase is live at
-`https://chrome-platform-showcase.paulkinlan-ea.deno.net/`.
+`https://chrome-platform-showcase.kinlan-test.workers.dev/`.
 
 **This routine must run correctly STANDALONE — every rule below is load-bearing.** It runs
 unattended. Research each feature deeply (Step 4), generate an MDN-shaped page (Step 6), and verify
@@ -426,13 +426,13 @@ of the "look like MDN" goal:
    HEAD-check the showcase concept route first and embed only if it returns 200:
    ```bash
    for c in "" ; do :; done   # discover concept slugs: the showcase feature index lists them
-   curl -sI "https://chrome-platform-showcase.paulkinlan-ea.deno.net/v<N>/<slug>/" | head -1
+   curl -sI "https://chrome-platform-showcase.kinlan-test.workers.dev/v<N>/<slug>/" | head -1
    ```
    Prefer a CONCEPT route (`/v<N>/<slug>/<concept>/`) — those are the interactive ones — over the
    feature index. Emit:
    ```html
    <figure class="example-embed">
-     <iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v<N>/<slug>/<concept>/"
+     <iframe src="https://chrome-platform-showcase.kinlan-test.workers.dev/v<N>/<slug>/<concept>/"
        title="Live example — <concept name>" loading="lazy" width="100%" height="520"
        style="border:2px solid var(--border-black)"
        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>

@@ -304,7 +304,7 @@ assert(
 // --- canary: the rules MUST flag the pre-fix shape (the guard can fail) ---------------
 {
   const PREFIX_SHAPE =
-    `<iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/autofill-event/refill-flow/" title="Live example" loading="lazy" width="100%" height="520">`;
+    `<iframe src="https://chrome-platform-showcase.kinlan-test.workers.dev/v147/autofill-event/refill-flow/" title="Live example" loading="lazy" width="100%" height="520">`;
   assert(
     "canary: the EXACT pre-fix tag (third-party, no sandbox, no referrerpolicy) is flagged",
     auditIframeTag(PREFIX_SHAPE, "canary/prefix.html") !== null,
@@ -321,13 +321,13 @@ assert(
     auditIframeTag(noRp, "canary/norp.html") !== null,
   );
   const emptySandbox =
-    `<iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/x/y/" sandbox="" referrerpolicy="strict-origin-when-cross-origin">`;
+    `<iframe src="https://chrome-platform-showcase.kinlan-test.workers.dev/v147/x/y/" sandbox="" referrerpolicy="strict-origin-when-cross-origin">`;
   assert(
     'canary: sandbox="" (presence but scripts stripped — demo blanks) is flagged',
     auditIframeTag(emptySandbox, "canary/empty.html") !== null,
   );
   const uselessSandbox =
-    `<iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/x/y/" sandbox="allow-forms" referrerpolicy="strict-origin-when-cross-origin">`;
+    `<iframe src="https://chrome-platform-showcase.kinlan-test.workers.dev/v147/x/y/" sandbox="allow-forms" referrerpolicy="strict-origin-when-cross-origin">`;
   assert(
     'canary: sandbox="allow-forms" (a sandbox that permits nothing a demo needs) is flagged',
     auditIframeTag(uselessSandbox, "canary/useless.html") !== null,
@@ -339,7 +339,7 @@ assert(
     auditIframeTag(sneakyVariant, "canary/variant.html") !== null,
   );
   const compliant =
-    `<iframe src="https://chrome-platform-showcase.paulkinlan-ea.deno.net/v147/x/y/" sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin">`;
+    `<iframe src="https://chrome-platform-showcase.kinlan-test.workers.dev/v147/x/y/" sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin">`;
   assert(
     "canary: the compliant posture passes the same rules (the guard is not a blanket red light)",
     auditIframeTag(compliant, "canary/ok.html") === null,

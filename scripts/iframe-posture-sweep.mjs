@@ -23,7 +23,7 @@ import { PENDING_HARDENING } from "./lib/iframe-posture.mjs";
 import { mapPool, PAGE_CONCURRENCY } from "./lib/map-pool.mjs";
 
 const REPO = new URL("..", import.meta.url).pathname;
-const SHOWCASE = "https://chrome-platform-showcase.paulkinlan-ea.deno.net";
+const SHOWCASE = "https://chrome-platform-showcase.kinlan-test.workers.dev";
 const OUT = "/tmp/kjq-sweep";
 // Results are appended HERE as they accumulate (not buffered to the end): if this sweep is killed
 // at a time bound, the partial evidence survives with explicit gaps rather than vanishing.

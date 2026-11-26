@@ -62,6 +62,9 @@ export async function sha256Token(text) {
   return `'sha256-${b64}'`;
 }
 
+// The one cross-origin frame source gendn allows: the live chrome-platform-showcase origin.
+export const SHOWCASE_ORIGIN = "https://chrome-platform-showcase.kinlan-test.workers.dev";
+
 // Helper to validate security headers on any Response object
 export function validateSecurityHeaders(res, _desc) {
   const errs = [];
@@ -90,8 +93,16 @@ export function validateSecurityHeaders(res, _desc) {
       errs.push("font-src missing https://fonts.gstatic.com");
     }
     const frameSrc = parsed.get("frame-src") ?? [];
-    if (!frameSrc.includes("https://chrome-platform-showcase.paulkinlan-ea.deno.net")) {
-      errs.push("frame-src missing https://chrome-platform-showcase.paulkinlan-ea.deno.net");
+    if (!frameSrc.includes(SHOWCASE_ORIGIN)) {
+      errs.push(`frame-src missing ${SHOWCASE_ORIGIN}`);
+    }
+    // The showcase is the ONLY third-party frame origin. Its retired host (every path 404 since the
+    // 2026-11-26 move) must not linger in the allowlist, and no other origin may be added silently.
+    const extraFrames = frameSrc.filter((source) =>
+      source !== "'self'" && source !== SHOWCASE_ORIGIN
+    );
+    if (extraFrames.length) {
+      errs.push(`frame-src allows unexpected source(s): ${extraFrames.join(" ")}`);
     }
   }
   return { ok: errs.length === 0, errors: errs };
@@ -252,11 +263,16 @@ try {
       fontSrc.includes("https://fonts.gstatic.com"),
     );
 
-    // Check frame-src allows chrome-platform-showcase.paulkinlan-ea.deno.net
+    // Check frame-src allows the live showcase origin, and nothing beyond 'self' + that origin
     const frameSrc = parsed.get("frame-src") ?? [];
     assert(
-      `${desc} frame-src allows chrome-platform-showcase.paulkinlan-ea.deno.net`,
-      frameSrc.includes("https://chrome-platform-showcase.paulkinlan-ea.deno.net"),
+      `${desc} frame-src allows ${SHOWCASE_ORIGIN}`,
+      frameSrc.includes(SHOWCASE_ORIGIN),
+    );
+    assert(
+      `${desc} frame-src is exactly 'self' + the live showcase origin (no retired or extra host)`,
+      frameSrc.length === 2 && frameSrc.includes("'self'") && frameSrc.includes(SHOWCASE_ORIGIN),
+      frameSrc.join(" "),
     );
 
     // Check validator helper confirms this live response
@@ -588,7 +604,7 @@ try {
         "referrer-policy": "strict-origin-when-cross-origin",
         "x-frame-options": "SAMEORIGIN",
         "content-security-policy":
-          "default-src 'self'; script-src 'self' 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; frame-src 'self' https://chrome-platform-showcase.paulkinlan-ea.deno.net",
+          "default-src 'self'; script-src 'self' 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; frame-src 'self' https://chrome-platform-showcase.kinlan-test.workers.dev",
       },
     });
     const unsafeCheck = validateSecurityHeaders(unsafeRes, "unsafe script-src");
@@ -609,9 +625,25 @@ try {
     // A policy without the showcase origin would reject the iframe
     assert(
       "detector: a naive CSP without showcase origin is detected as lacking frame origin",
-      !(parsedBroken.get("frame-src") ?? []).includes(
-        "https://chrome-platform-showcase.paulkinlan-ea.deno.net",
-      ),
+      !(parsedBroken.get("frame-src") ?? []).includes(SHOWCASE_ORIGIN),
+    );
+
+    // A policy that still allows a second frame origin next to the showcase MUST fail validation:
+    // this is the dual-allow window the host move deliberately did not open.
+    const dualRes = new Response("html", {
+      headers: {
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "strict-origin-when-cross-origin",
+        "x-frame-options": "SAMEORIGIN",
+        "content-security-policy":
+          `default-src 'self'; script-src 'self'; font-src 'self' https://fonts.gstatic.com; frame-src 'self' ${SHOWCASE_ORIGIN} https://retired-showcase.example`,
+      },
+    });
+    const dualCheck = validateSecurityHeaders(dualRes, "dual frame-src");
+    assert(
+      "detector: a frame-src that allows a second origin beside the showcase is rejected",
+      !dualCheck.ok && dualCheck.errors.some((e) => e.includes("retired-showcase.example")),
+      dualCheck.errors.join("; "),
     );
 
     // Tampered script content does not match the CSP hash

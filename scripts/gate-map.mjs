@@ -352,6 +352,30 @@ export const RULES = [
     reason: "the threat model's citation-resolution guard (executable prose)",
   },
   {
+    id: "legacy-host",
+    // Every path here is ALSO declared by another rule above: this rule only ADDS the guard to their
+    // selection. It deliberately declares nothing new, because declaring a previously-unmapped path
+    // would stop that path escalating to the full tier - a quieter gate, not a safer one. Prose that
+    // is known non-code (CLAUDE.md, .claude/, schema/) is still scanned by the guard in the full tier
+    // and in CI; a fast run of a docs-only change selects it only through the reference scan.
+    exact: [
+      "server.ts",
+      "lib/lifecycle.ts",
+      "lib/site-index.ts",
+      "scripts/lib/artifacts.mjs",
+      "scripts/lib/judged-content.mjs",
+      "scripts/iframe-posture-sweep.mjs",
+      "migrations.json",
+      ".route-manifest.baseline.json",
+      "route-bindings.json",
+      "THREAT_MODEL.md",
+    ],
+    prefixes: [],
+    suites: ["test-no-legacy-host"],
+    reason:
+      "the files that carry the showcase origin (host constants, CSP, ledger, migrations): none may name the retired Deno Deploy host again",
+  },
+  {
     id: "doc-tests",
     exact: [
       "scripts/doc-tests.mjs",
@@ -411,6 +435,7 @@ export const PAGE_SUITES = [
   "test-example-adjacency",
   "test-iframe-posture",
   "test-source-disagreement",
+  "test-no-legacy-host",
 ];
 
 /** The basename/relative form of a path as it appears in an import or a readTextFile call. */
