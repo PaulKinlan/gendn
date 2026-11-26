@@ -95,7 +95,9 @@ export async function validateReferenceContractsInBrowser(records, { cwd } = {})
   let browser;
   const pages = [];
   try {
-    browser = await launch();
+    // port: 0 = an OS-assigned DevTools port owned by this run, so an overlapping run in another
+    // worktree cannot attach to this Chrome (the fixed default port allowed that).
+    browser = await launch({ port: 0 });
     for (const [name, viewport] of VIEWPORTS) {
       pages.push({ name, page: await browser.newPage(viewport) });
     }

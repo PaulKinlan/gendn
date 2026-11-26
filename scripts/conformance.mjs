@@ -644,7 +644,9 @@ async function main() {
   await sys.mkdir(OUT_DIR, { recursive: true });
   const server = await startServer();
   const RECYCLE_EVERY = 40; // relaunch Chrome periodically to bound memory over a 155-page run
-  let browser = await launch();
+  // port: 0 = an OS-assigned DevTools port owned by THIS run. The fixed default (9333) let two
+  // runs in different worktrees attach to each other's Chrome when they overlapped.
+  let browser = await launch({ port: 0 });
   const ctx = {
     base: server.base,
     origin: server.origin,
@@ -659,7 +661,7 @@ async function main() {
     } catch {
       // ignore
     }
-    browser = await launch();
+    browser = await launch({ port: 0 });
     ctx.desktop = await browser.newPage(DESKTOP);
     ctx.mobile = await browser.newPage(MOBILE);
   }
