@@ -618,6 +618,12 @@ try {
         needle: "fetch(`${base}${a.test}`",
         why: "http-status assertion against that same loopback server, not an outbound call",
       },
+      {
+        file: "scripts/lib/cdp.mjs",
+        needle: "fetch(url, init)",
+        why:
+          "pass-through test seam in launchDeps; its one caller (deps.fetch in the launch readiness loop) passes a http://127.0.0.1 DevTools URL with AbortSignal.timeout, so the real call is loopback and bounded",
+      },
     ];
     const DEFINITION_SITE = "lib/chromestatus.ts"; // fetchBounded: the ONE sanctioned bare fetch.
 

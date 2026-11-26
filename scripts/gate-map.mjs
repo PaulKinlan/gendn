@@ -160,9 +160,9 @@ export const RULES = [
   },
   {
     id: "capture-helpers",
-    exact: ["scripts/lib/cdp.mjs"],
+    exact: ["scripts/lib/cdp.mjs", "scripts/cdp-launch-retry.test.mjs"],
     prefixes: [],
-    suites: ["test-cdp", "test-cdp-owned-port"],
+    suites: ["test-cdp", "test-cdp-owned-port", "test-cdp-launch-retry"],
     reason: "the CDP launch/port/profile helpers every browser suite drives",
   },
   {
