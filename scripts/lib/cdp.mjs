@@ -453,56 +453,163 @@ export async function ownedDevToolsPort(userDataDir) {
   return port;
 }
 
-export async function launch({ port = 9333 } = {}) {
-  const bins = findChrome();
-  await sweepStaleProfileDirs();
-  const userDataDir = await sys.makeTempDir({
-    dir: tmpRoot(),
-    prefix: `${PROFILE_PREFIX}${process.pid}-`,
-  });
-  liveProfileDirs.add(userDataDir);
+// LAUNCH READINESS + BOUNDED RELAUNCH. CI flake of 2026-11-24: Actions runs 45367330002 and
+// 45417883999 both failed in reference-browser.mjs's launch(), the FIRST Chrome of the job on a
+// fresh runner, with "Chrome DevTools endpoint did not come up on requested port 9333". In
+// 45417883999 the last probe timed out after 2s instead of being refused, so by then something
+// was accepting connections on 9333: Chrome was still starting when the wait ran out. Across that
+// day's green runs the same test took either 4.3-5.3s or 11.2-14.6s, which points at a first start
+// that is often 7-10s slower, against a fixed-port wait of about 10s. WHY the first start is
+// sometimes that slow is not known: Chrome's stderr is discarded here and it never reproduced
+// locally.
+//  1. BUDGET. A fixed-port launch got 100 probes (about 10s) where a port=0 launch got 300 (about
+//     30s); 2c0cdbf kept the original count for fixed ports. Both now share one WALL-CLOCK budget.
+//     A probe count was never a time bound: a port that accepts but does not answer costs 2.1s a
+//     probe, so 300 probes could run 630s.
+//  2. EARLY EXIT. A fixed-port launch never checked whether Chrome had already exited, so a dead
+//     Chrome burned the whole budget. It now stops once the child is gone and nothing answers,
+//     and reports the exit code. A port that DOES answer is still accepted as before.
+//  3. RELAUNCH. One slow or crashed start failed the gate. launch() now makes at most
+//     LAUNCH_ATTEMPTS attempts, and starts the next one only after the failed attempt's Chrome
+//     is confirmed dead and its profile dir confirmed removed: on a fixed port a survivor would
+//     answer the next probe and the gate would drive the wrong browser. Unconfirmed cleanup means
+//     no relaunch. Every relaunch is announced on stderr, so an absorbed failure stays visible.
+// STILL LOUD AND BOUNDED. The final error starts with the first attempt's message verbatim (that
+// error is also its `cause`), then each later attempt's, each with how long it waited and whether
+// Chrome was still running. Worst case per attempt for a Chrome that hangs without exiting:
+// budget plus one probe (32s), terminateChild (10s), removeProfileDir (about 9s). Finding no
+// Chrome binary is not an attempt outcome: it throws at once and is never retried.
+export const LAUNCH_READY_BUDGET_MS = 30_000;
+export const LAUNCH_PROBE_TIMEOUT_MS = 2_000;
+export const LAUNCH_PROBE_INTERVAL_MS = 100;
+export const LAUNCH_ATTEMPTS = 2;
+export const LAUNCH_RETRY_DELAY_MS = 250;
+
+// Everything launch() touches outside this module, so scripts/cdp-launch-retry.test.mjs can drive
+// the real attempt/cleanup/relaunch logic with a fake Chrome and a fake clock.
+const launchDeps = {
+  bins: findChrome,
+  sweep: sweepStaleProfileDirs,
+  async makeProfileDir() {
+    const dir = await sys.makeTempDir({
+      dir: tmpRoot(),
+      prefix: `${PROFILE_PREFIX}${process.pid}-`,
+    });
+    liveProfileDirs.add(dir);
+    return dir;
+  },
+  spawn: (bin, args) => new sys.Command(bin, { args, stdout: "null", stderr: "null" }).spawn(),
+  fetch: (url, init) => fetch(url, init),
+  ownedPort: ownedDevToolsPort,
+  terminate: terminateChild,
+  removeProfileDir: (dir) => removeProfileDir(dir),
+  sleep,
+  now: () => performance.now(),
+  warn: (line) => console.error(line),
+};
+
+export function launch({ port = 9333 } = {}) {
+  return launchWith({}, { port });
+}
+
+// Exported for the fixture only: `overrides` replaces entries of launchDeps. Gates call launch().
+export async function launchWith(overrides = {}, { port = 9333 } = {}) {
+  const deps = { ...launchDeps, ...overrides };
+  const errors = [];
+  for (let attempt = 1;; attempt++) {
+    const { browser, error, noRelaunch } = await launchOnce(deps, port);
+    if (browser) {
+      if (attempt > 1) {
+        deps.warn(
+          `[cdp] Chrome launch attempt ${attempt}/${LAUNCH_ATTEMPTS} succeeded ` +
+            `(an earlier attempt failed; see the warning above)`,
+        );
+      }
+      return browser;
+    }
+    errors.push(error);
+    if (noRelaunch || attempt >= LAUNCH_ATTEMPTS) {
+      let message = errors[0].message;
+      for (let i = 1; i < errors.length; i++) {
+        message += `; launch attempt ${i + 1}/${LAUNCH_ATTEMPTS} also failed: ${errors[i].message}`;
+      }
+      if (attempt < LAUNCH_ATTEMPTS) message += `; not relaunching: ${noRelaunch}`;
+      const failure = new Error(message, { cause: errors[0] });
+      failure.attempts = errors;
+      throw failure;
+    }
+    deps.warn(
+      `[cdp] WARNING: Chrome launch attempt ${attempt}/${LAUNCH_ATTEMPTS} failed: ` +
+        `${error.message}. Its Chrome process and profile dir are gone; relaunching.`,
+    );
+    await deps.sleep(LAUNCH_RETRY_DELAY_MS);
+  }
+}
+
+// One attempt. Returns { browser }, or { error, noRelaunch } once this attempt's Chrome and
+// profile dir have been dealt with; noRelaunch names the cleanup step that could not be confirmed.
+async function launchOnce(deps, port) {
+  const bins = deps.bins();
+  await deps.sweep();
+  const userDataDir = await deps.makeProfileDir();
   let child = null;
   let lastErr = null;
   for (const bin of bins) {
     try {
-      const cmd = new sys.Command(bin, {
-        args: [
-          "--headless=new",
-          "--no-sandbox",
-          "--disable-gpu",
-          "--hide-scrollbars",
-          "--no-first-run",
-          "--disable-extensions",
-          "--disable-background-networking",
-          `--user-data-dir=${userDataDir}`,
-          `--remote-debugging-port=${port}`,
-          "about:blank",
-        ],
-        stdout: "null",
-        stderr: "null",
-      });
-      child = cmd.spawn();
+      const spawned = deps.spawn(bin, [
+        "--headless=new",
+        "--no-sandbox",
+        "--disable-gpu",
+        "--hide-scrollbars",
+        "--no-first-run",
+        "--disable-extensions",
+        "--disable-background-networking",
+        `--user-data-dir=${userDataDir}`,
+        `--remote-debugging-port=${port}`,
+        "about:blank",
+      ]);
+      // Node reports a missing or unrunnable binary asynchronously: spawn() returns a child with
+      // no pid whose status rejects, where Deno threw. Without this check the first candidate was
+      // always taken and the fallbacks after it were never tried.
+      if (spawned.pid === undefined) {
+        const notStarted = new Error(`${bin} did not start`);
+        lastErr = await raceWithTimeout(
+          spawned.status.then(() => notStarted, (err) => err),
+          1_000,
+          notStarted,
+        );
+        continue;
+      }
+      child = spawned;
       break;
     } catch (err) {
       lastErr = err;
     }
   }
   if (!child) {
-    await removeProfileDir(userDataDir);
+    await deps.removeProfileDir(userDataDir);
     throw new Error(`could not launch Chrome (tried ${bins.join(", ")}): ${lastErr}`);
   }
 
   // For port=0, obtain the actual bound port from THIS Chrome profile, never a guessed socket.
-  // Explicit fixed ports retain their existing behavior for callers that deliberately request one.
+  // Explicit fixed ports are probed directly, for callers that deliberately request one.
   let wsUrl = null;
   let actualPort = port;
   let exited = null;
-  child.status.then((status) => exited = status).catch(() => {});
+  let gone = false; // the child's status settled: there is no Chrome process left from this attempt
+  child.status.then((status) => {
+    exited = status;
+    gone = true;
+  }, () => {
+    gone = true;
+  });
   let lastFailure = "endpoint not ready";
+  let thrown = null;
+  const started = deps.now();
   try {
-    for (let i = 0; i < (port === 0 ? 300 : 100); i++) {
+    while (true) {
       if (port === 0) {
-        const owned = await ownedDevToolsPort(userDataDir);
+        const owned = await deps.ownedPort(userDataDir);
         if (owned) actualPort = owned;
         else if (exited) {
           lastFailure = `Chrome exited before announcing its DevTools port (exit ${exited.code})`;
@@ -515,8 +622,8 @@ export async function launch({ port = 9333 } = {}) {
       }
       if (actualPort !== 0) {
         try {
-          const res = await fetch(`http://127.0.0.1:${actualPort}/json/version`, {
-            signal: AbortSignal.timeout(2_000),
+          const res = await deps.fetch(`http://127.0.0.1:${actualPort}/json/version`, {
+            signal: AbortSignal.timeout(LAUNCH_PROBE_TIMEOUT_MS),
           });
           if (res.ok) {
             wsUrl = (await res.json()).webSocketDebuggerUrl;
@@ -524,27 +631,42 @@ export async function launch({ port = 9333 } = {}) {
           }
           lastFailure = `DevTools HTTP ${res.status} on port ${actualPort}`;
         } catch (error) {
-          lastFailure = `DevTools port ${actualPort} not ready: ${error.message}`;
+          const code = error?.cause?.code;
+          lastFailure = `DevTools port ${actualPort} not ready: ${error.message}` +
+            (code ? ` (${code})` : "");
         }
       }
-      await new Promise((r) => setTimeout(r, 100));
+      if (exited) {
+        lastFailure = `Chrome exited before DevTools was ready (exit ${exited.code}); ` +
+          `last probe: ${lastFailure}`;
+        break;
+      }
+      if (deps.now() - started >= LAUNCH_READY_BUDGET_MS) break;
+      await deps.sleep(LAUNCH_PROBE_INTERVAL_MS);
     }
   } catch (error) {
-    await terminateChild(child);
-    await removeProfileDir(userDataDir);
-    throw error;
+    thrown = error;
   }
-  if (!wsUrl) {
-    await terminateChild(child);
-    await removeProfileDir(userDataDir);
-    throw new Error(
-      port === 0
-        ? `Chrome did not establish its own DevTools port: ${lastFailure}; ` +
-          `DevToolsActivePort in ${userDataDir}`
-        : `Chrome DevTools endpoint did not come up on requested port ${port}: ${lastFailure}`,
-    );
-  }
-  return new Browser(child, wsUrl, userDataDir, actualPort);
+  if (wsUrl) return { browser: new Browser(child, wsUrl, userDataDir, actualPort) };
+
+  // Read the child's state BEFORE terminating it: afterwards it has always exited.
+  const waited = `waited ${Math.round(deps.now() - started)}ms; ` +
+    (exited ? `Chrome had exited (exit ${exited.code})` : "Chrome was still running");
+  const error = thrown ?? new Error(
+    (port === 0
+      ? `Chrome did not establish its own DevTools port: ${lastFailure}; ` +
+        `DevToolsActivePort in ${userDataDir}`
+      : `Chrome DevTools endpoint did not come up on requested port ${port}: ${lastFailure}`) +
+      ` [${waited}]`,
+  );
+  await deps.terminate(child);
+  const removed = await deps.removeProfileDir(userDataDir);
+  const noRelaunch = !gone
+    ? "the failed attempt's Chrome process could not be confirmed dead"
+    : removed !== true
+    ? `the failed attempt's profile dir ${userDataDir} could not be removed`
+    : null;
+  return { error, noRelaunch };
 }
 
 export class Conn {
