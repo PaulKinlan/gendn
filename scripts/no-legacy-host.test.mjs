@@ -238,7 +238,7 @@ assert(
   "detector: the account slug alone, or the gendn legacy host, is a violation",
   violationsFor([["CLAUDE.md", "legacy URL https://gendn.paulkinlan-ea.example/"]]).length === 1 &&
     violationsFor([["schema/x.schema.json", `{"$id":"https://gendn.${LEGACY_SUFFIX}/x"}`]])
-        .length === 1,
+      .length === 1,
 );
 assert(
   "detector: dated evidence in a LISTED critique is allowed",
@@ -277,11 +277,11 @@ assert(
   "detector: a migration may name the retired host in `from`, and in `to` only before the move",
   violationsFor([["migrations.json", migration(`https://${LIVE}/a/`, MOVE_DATE)]]).length === 0 &&
     violationsFor([["migrations.json", migration(`https://${LEGACY}/b/`, "2026-11-22")]])
-        .length === 0 &&
+      .length === 0 &&
     violationsFor([["migrations.json", migration(`https://${LEGACY}/b/`, MOVE_DATE)]])
-        .length === 1 &&
+      .length === 1 &&
     violationsFor([["migrations.json", migration(`https://${LEGACY}/b/`, "2027-01-05")]])
-        .length === 1,
+      .length === 1,
 );
 
 // ---- 3. the real tree ----

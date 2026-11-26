@@ -357,9 +357,12 @@ assert("every launch path waits the same 30s for DevTools", LAUNCH_READY_BUDGET_
 // 8. No Chrome binary is not a transient failure: it throws at once and is never retried.
 {
   for (
-    const [label, plan] of [["no pid (Node)", { noPid: true }], ["a throw (Deno)", {
-      throwOnSpawn: true,
-    }]]
+    const [label, plan] of [
+      ["no pid (Node)", { noPid: true }],
+      ["a throw (Deno)", {
+        throwOnSpawn: true,
+      }],
+    ]
   ) {
     const w = world([plan, plan, { readyAt: 0 }], { bins: ["chrome-a", "chrome-b"] });
     const { error } = await w.launch();
