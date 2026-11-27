@@ -192,14 +192,22 @@ export const RULES = [
       "test-speculation-rules",
       "test-site-discovery",
       "test-features-ux",
+      "test-shell-layout",
     ],
     reason: "server.ts routing/header behaviour is driven end-to-end by these fixtures",
+  },
+  {
+    id: "shell",
+    exact: ["lib/shell.ts", "scripts/shell-layout.test.mjs"],
+    prefixes: [],
+    suites: ["test-shell-layout", "test-security-headers", "test-lifecycle-units"],
+    reason: "shared editorial site shell, release filter CSP hash, and header/footer helpers",
   },
   {
     id: "features-ux",
     exact: ["lib/features-ux.ts", "public/favicon.svg", "scripts/features-ux.test.mjs"],
     prefixes: [],
-    suites: ["test-features-ux", "test-security-headers"],
+    suites: ["test-features-ux", "test-shell-layout", "test-security-headers"],
     reason: "upgraded /features catalogue renderer, CSP hash, and editorial SVG favicon",
   },
   {
@@ -360,6 +368,7 @@ export const RULES = [
     // and in CI; a fast run of a docs-only change selects it only through the reference scan.
     exact: [
       "server.ts",
+      "lib/shell.ts",
       "lib/lifecycle.ts",
       "lib/site-index.ts",
       "scripts/lib/artifacts.mjs",

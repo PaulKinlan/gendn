@@ -27,6 +27,15 @@ import {
   renderRunAll,
   renderSuite,
 } from "./lib/lifecycle.ts";
+import {
+  channelTone,
+  formatStableDate,
+  RELEASE_FILTER_SCRIPT,
+  RELEASE_FILTER_SCRIPT_SHA256,
+  renderSiteFooter,
+  renderSiteHeader,
+  statusBadgeFor,
+} from "./lib/shell.ts";
 import { siteFS } from "./lib/site-fs.ts";
 import {
   buildFeaturesApiJson,
@@ -321,6 +330,7 @@ function renderSeoHead({
 }): string {
   const canonical = origin ? `${origin}${path}` : path;
   return [
+    `<meta name="color-scheme" content="light dark">`,
     `<meta name="description" content="${escapeHTML(description)}">`,
     `<link rel="canonical" href="${escapeHTML(canonical)}">`,
     `<meta property="og:title" content="${escapeHTML(title)}">`,
@@ -331,80 +341,194 @@ function renderSeoHead({
   ].join("\n  ");
 }
 
-function renderSiteNav(current: "home" | "features" | "release" | "conformance"): string {
-  const link = (href: string, label: string, key?: typeof current) =>
-    `<a href="${href}"${key && key === current ? ' aria-current="page"' : ""}>${label}</a>`;
-  return `<nav class="site-nav" aria-label="Site navigation">
-    <a class="site-nav-brand" href="/">gendn</a>
-    <div class="site-nav-links">
-      ${link("/features", "All APIs", "features")}
-      ${link("/conformance", "Conformance", "conformance")}
-      ${link("/llms.txt", "llms.txt")}
-    </div>
-  </nav>`;
-}
+const EXPLORE_LENSES: readonly {
+  kicker: string;
+  title: string;
+  href: string;
+  blurb: string;
+  external?: boolean;
+}[] = [
+  {
+    kicker: "Index",
+    title: "All APIs",
+    href: "/features",
+    blurb:
+      "Search and filter every documented API across Chrome milestones by status, full ref vs MDN stub, or interactive demo.",
+  },
+  {
+    kicker: "Verification",
+    title: "Conformance Suites",
+    href: "/conformance",
+    blurb:
+      "Immutable doc-quality and source-fidelity contracts for all published references and MDN redirect stubs.",
+  },
+  {
+    kicker: "Rollup",
+    title: "Run-All Report",
+    href: "/conformance/run-all",
+    blurb:
+      "Latest headless-Chrome pass, fail, and blocked assertion matrix across desktop and mobile viewports.",
+  },
+  {
+    kicker: "Agents",
+    title: "llms.txt",
+    href: "/llms.txt",
+    blurb:
+      "Plain-text reference index grouped newest-first by Chrome milestone for coding agents and LLM tools.",
+  },
+  {
+    kicker: "Machine Data",
+    title: "JSON Catalogue",
+    href: "/api/features.json",
+    blurb:
+      "Structured API index with ChromeStatus IDs, implementation-contract summaries, demos, and child routes.",
+  },
+  {
+    kicker: "Sister Project",
+    title: "Chrome Platform Showcase",
+    href: "https://chrome-platform-showcase.com/",
+    blurb:
+      "Interactive live demos, boundary stress tests, and browser capability probes for the same Chrome features.",
+    external: true,
+  },
+];
 
 export async function renderIndex(channels: Channels, origin?: string): Promise<string> {
-  const commit = await getLatestCommit();
+  const [commit, sitePages] = await Promise.all([
+    getLatestCommit(),
+    getSitePages().catch(() => []),
+  ]);
+
+  const countsByMilestone = new Map<number, { built: number; stub: number }>();
+  for (const page of sitePages) {
+    const entry = countsByMilestone.get(page.milestone) ?? { built: 0, stub: 0 };
+    if (page.status === "stub") entry.stub++;
+    else entry.built++;
+    countsByMilestone.set(page.milestone, entry);
+  }
+  const totalPages = sitePages.length;
+
   const prevStable = channels.stable.mstone - 1;
-  const releases: { mstone: number; status: string; date: string }[] = [
+  const activeReleases: { mstone: number; status: string; date: string }[] = [
     { mstone: channels.dev.mstone, status: "Dev", date: channels.dev.stable_date },
     { mstone: channels.beta.mstone, status: "Beta", date: channels.beta.stable_date },
     {
       mstone: channels.stable.mstone,
-      status: "Stable (rolling out)",
+      status: "Rolling out",
       date: channels.stable.stable_date,
     },
     { mstone: prevStable, status: "Stable (live)", date: "" },
   ];
 
-  const seen = new Set(releases.map((r) => r.mstone));
+  const seen = new Set<number>(activeReleases.map((r) => r.mstone));
+  const archivedReleases: { mstone: number; status: string }[] = [];
+  const addArchive = (m: number) => {
+    if (!Number.isInteger(m) || seen.has(m)) return;
+    archivedReleases.push({
+      mstone: m,
+      status: m > channels.dev.mstone ? "Upcoming" : "Archive",
+    });
+    seen.add(m);
+  };
   try {
     for (const entry of await siteFS().readDir(".")) {
       if (entry.isDirectory && /^v\d+$/.test(entry.name)) {
-        const m = Number(entry.name.slice(1));
-        if (!seen.has(m)) {
-          releases.push({ mstone: m, status: "Archive", date: "" });
-          seen.add(m);
-        }
+        addArchive(Number(entry.name.slice(1)));
       }
     }
   } catch {
     // ignore
   }
-  releases.sort((a, b) => b.mstone - a.mstone);
+  for (const m of countsByMilestone.keys()) addArchive(m);
 
-  const cards = releases.map((r) => {
-    let note: string;
-    if (r.date) {
-      note = `Stable date: ${
-        new Date(r.date).toLocaleDateString("en-GB", {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-        })
+  activeReleases.sort((a, b) => Number(b.mstone) - Number(a.mstone));
+  archivedReleases.sort((a, b) => b.mstone - a.mstone);
+
+  const formatDocCount = (m: number): string => {
+    const counts = countsByMilestone.get(m);
+    if (!counts) return "Live milestone listing";
+    const total = counts.built + counts.stub;
+    if (counts.built > 0 && counts.stub > 0) {
+      return `${counts.built} ref${counts.built === 1 ? "" : "s"} · ${counts.stub} MDN stub${
+        counts.stub === 1 ? "" : "s"
       }`;
-    } else if (r.status === "Archive") {
-      note = "Backfilled";
-    } else {
-      note = "Most users are here";
     }
+    if (counts.built > 0) return `${counts.built} reference${counts.built === 1 ? "" : "s"}`;
+    return `${total} MDN stub${total === 1 ? "" : "s"}`;
+  };
+
+  const activeCards = activeReleases.map((r) => {
+    const tone = channelTone(r.status);
+    const formattedDate = formatStableDate(r.date);
+    const note = formattedDate
+      ? `Stable: ${formattedDate}`
+      : r.status === "Stable (live)"
+      ? "Most users are here"
+      : "Schedule pending";
     // Narrowed at runtime, not escaped (gendn-sxn / THREAT_MODEL.md invariant #4).
     const mstone = milestonePathSegment(r.mstone);
     const releaseAttrs = mstone
       ? `href="/v${milestonePathSegment(r.mstone)}/"`
       : 'aria-disabled="true"';
-    const releaseLabel = mstone ? `Chrome ${mstone}` : `Chrome ${escapeHTML(String(r.mstone))}`;
-    return `<li class="release-card">
+    const numLabel = mstone ?? escapeHTML(String(r.mstone));
+    const countLabel = mstone ? formatDocCount(Number(mstone)) : "Unavailable milestone";
+    return `<li class="channel-card release-card">
       <a class="release-card-link" ${releaseAttrs}>
-        <span class="release-card-row">
-          <span class="release-label">${releaseLabel}</span>
-          <span class="release-status">${escapeHTML(r.status)}</span>
+        <span class="channel-card-top">
+          <span class="channel-card-label">Chrome</span>
+          <span class="channel-pill channel-pill-${escapeHTML(tone)}">${escapeHTML(r.status)}</span>
         </span>
-        <span class="release-note">${escapeHTML(note)}</span>
+        <span class="channel-card-num">${numLabel}</span>
+        <span class="channel-card-meta">
+          <span class="channel-card-count">${escapeHTML(countLabel)}</span>
+          <span>${escapeHTML(note)}</span>
+        </span>
       </a>
     </li>`;
   }).join("");
+
+  const hubCards = EXPLORE_LENSES.map((lens) => {
+    const extAttrs = lens.external ? ' target="_blank" rel="noopener"' : "";
+    const arrow = lens.external ? "&#8599;" : "&rarr;";
+    return `<li class="hub-card">
+      <a class="hub-card-link" href="${escapeHTML(lens.href)}"${extAttrs}>
+        <span class="hub-card-kicker">${escapeHTML(lens.kicker)}</span>
+        <span class="hub-card-title">${
+      escapeHTML(lens.title)
+    } <span aria-hidden="true">${arrow}</span></span>
+        <p class="hub-card-blurb">${escapeHTML(lens.blurb)}</p>
+      </a>
+    </li>`;
+  }).join("");
+
+  const archiveCards = archivedReleases.map((r) => {
+    const mstone = milestonePathSegment(r.mstone);
+    if (!mstone) return "";
+    const counts = countsByMilestone.get(r.mstone);
+    const total = counts ? counts.built + counts.stub : 0;
+    const countText = total > 0 ? `${total} doc${total === 1 ? "" : "s"}` : r.status;
+    const subText = counts
+      ? `${counts.built} ref${counts.built === 1 ? "" : "s"} · ${counts.stub} stub${
+        counts.stub === 1 ? "" : "s"
+      }`
+      : r.status === "Upcoming"
+      ? "Upcoming"
+      : "Backfilled";
+    return `<li class="archive-card">
+      <a class="archive-card-link" href="/v${milestonePathSegment(r.mstone)}/">
+        <span class="archive-card-head">
+          <span class="archive-card-title">Chrome ${mstone}</span>
+          <span class="archive-card-count">${escapeHTML(countText)}</span>
+        </span>
+        <span class="archive-card-date">${escapeHTML(subText)}</span>
+      </a>
+    </li>`;
+  }).join("");
+
+  const milestoneCount = activeReleases.length + archivedReleases.length;
+  const heroKicker = totalPages > 0
+    ? `${totalPages} docs · ${milestoneCount} Chrome milestones`
+    : `${milestoneCount} Chrome milestones`;
 
   const pageTitle = "gendn — generated web platform docs";
   const pageDescription =
@@ -419,34 +543,56 @@ export async function renderIndex(channels: Channels, origin?: string): Promise<
   <link rel="stylesheet" href="/public/styles.css">
   ${SPECULATION_RULES}
 </head>
-<body>
-  <main>
-    ${renderSiteNav("home")}
-    <header class="lede-block">
-      <p class="eyebrow">work in progress</p>
+<body class="shell-page">
+  ${renderSiteHeader("releases")}
+  <main id="main-content" tabindex="-1">
+    <header class="lede-block home-hero">
+      <div class="home-kicker-row">
+        <p class="eyebrow">${escapeHTML(heroKicker)}</p>
+        ${formatCommitLine(commit)}
+      </div>
       <h1>gendn</h1>
-      <p class="lede">Generated reference docs for the APIs that ship in Chrome but don't yet have a page on MDN. When MDN already covers an API, gendn just links out. The goal is the gap between "shipped in Chrome" and "documented on developer.mozilla.org".</p>
-      ${formatCommitLine(commit)}
+      <p class="lede">Generated reference docs for the web platform APIs shipping in Chrome that don&rsquo;t yet have a page on MDN. When MDN already covers an API, gendn links straight out &mdash; closing the gap between &ldquo;shipped in Chrome&rdquo; and &ldquo;documented on developer.mozilla.org&rdquo;.</p>
+      <div class="home-actions">
+        <a class="action-btn action-btn-primary" href="/features">Browse all APIs &rarr;</a>
+        <a class="action-btn action-btn-secondary" href="/conformance">Conformance suites</a>
+        <a class="action-btn action-btn-secondary" href="/api/features.json">JSON API</a>
+      </div>
     </header>
 
-    <section>
-      <h2>releases</h2>
-      <ol class="release-list">${cards}</ol>
-      <p class="note">Or jump straight to <a href="/features">the full API catalogue</a> to search across every release at once.</p>
+    <section aria-labelledby="active-channels-heading">
+      <h2 id="active-channels-heading">Active channels <span class="section-kicker">Dev &middot; Beta &middot; Stable</span></h2>
+      <ol class="channel-grid">${activeCards}</ol>
     </section>
 
-    <section class="how">
-      <h2>how it works</h2>
-      <ol>
-        <li>A daily routine reads <a href="https://chromestatus.com/" target="_blank" rel="noopener">chromestatus.com</a> for features shipping in Chrome (stable, beta, dev, plus prev-stable).</li>
-        <li>For each, it checks MDN. If MDN has a page, gendn just links to MDN.</li>
-        <li>If MDN doesn't have a page, the routine writes a reference doc generated from the spec, explainer, and the IDL in Chromium source.</li>
-        <li>When MDN later ships its own page, the routine notices on the next pass and the gendn entry switches to a "see MDN" stub.</li>
-      </ol>
-      <p class="note">Sister project: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/" target="_blank" rel="noopener">chrome-platform-showcase</a> — interactive demos for the same set of features. Repo: <a href="https://github.com/PaulKinlan/gendn" target="_blank" rel="noopener">PaulKinlan/gendn</a>.</p>
+    <section aria-labelledby="explore-heading">
+      <h2 id="explore-heading">Explore gendn <span class="section-kicker">${EXPLORE_LENSES.length} views</span></h2>
+      <ul class="hub-grid">${hubCards}</ul>
     </section>
 
-    <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+    ${
+    archivedReleases.length > 0
+      ? `<section aria-labelledby="archive-heading">
+      <h2 id="archive-heading">All other milestones <span class="section-kicker">${archivedReleases.length} releases</span></h2>
+      <ol class="archive-grid">${archiveCards}</ol>
+    </section>`
+      : ""
+  }
+
+    <section aria-labelledby="how-heading">
+      <h2 id="how-heading">How it works <span class="section-kicker">Colophon</span></h2>
+      <div class="colophon-box">
+        <ol class="colophon-steps">
+          <li>Reads <a href="https://chromestatus.com/" target="_blank" rel="noopener">ChromeStatus</a> daily for features shipping in Chrome (dev, beta, rolling out, stable, plus archived milestones).</li>
+          <li>Checks live <a href="https://developer.mozilla.org/" target="_blank" rel="noopener">MDN</a> and BCD for each API &mdash; when MDN already covers it, gendn links directly out.</li>
+          <li>When MDN doesn&rsquo;t cover it yet, generates an implementation-sufficient reference from specs, explainers, WPT, and Chromium IDL with direct primary-source citations.</li>
+          <li>Verifies every published route against immutable conformance suites, desktop &amp; mobile responsive checks, and route-stability gates before deploying on Cloudflare Workers.</li>
+        </ol>
+        <p class="colophon-note">Sister project: <a href="https://chrome-platform-showcase.com/" target="_blank" rel="noopener">chrome-platform-showcase.com</a> &mdash; interactive demos for the same Chrome features. Source: <a href="https://github.com/PaulKinlan/gendn" target="_blank" rel="noopener">PaulKinlan/gendn</a>.</p>
+      </div>
+    </section>
+
+    ${renderSiteFooter()}
   </main>
 </body>
 </html>`;
@@ -556,9 +702,14 @@ export async function renderReleasePage(
   release: string,
   milestone: number,
   origin?: string,
+  opts?: { channels?: Channels; knownMilestones?: Set<number> },
 ): Promise<string> {
-  const features = await getMilestoneFeatures(milestone);
-  const identityIndex = await getIdentityIndex();
+  const [features, identityIndex] = await Promise.all([
+    getMilestoneFeatures(milestone),
+    getIdentityIndex(),
+  ]);
+
+  let documentedCount = 0;
 
   const sections = await Promise.all(features.groups.map(async (group) => {
     // Categories arrive as features_by_type object keys; the longest legitimate one is 35 chars
@@ -607,6 +758,7 @@ export async function renderReleasePage(
         : cross
         ? escapeHTML(cross)
         : null;
+      if (localDocHref) documentedCount++;
       let docTag: string;
       if (hasDoc) {
         docTag = referenceTag(release, slug);
@@ -629,8 +781,8 @@ export async function renderReleasePage(
         <p>${escapeHTML(summary)}${summary.length === SUMMARY_CAP ? "..." : ""}</p>
         <div class="demo-tags">
           <span class="tag">${escapeHTML(cat)}${catCut ? "..." : ""}</span>
-          ${docTag}
           ${csTag}
+          ${docTag}
         </div>
       </li>`;
     }));
@@ -640,27 +792,64 @@ export async function renderReleasePage(
       cat,
       catCut,
       count: group.features.length,
-      html: `<section id="${escapeHTML(groupId)}">
-      <h3 class="group-title">${escapeHTML(cat)}${
+      html: `<section id="${escapeHTML(groupId)}" data-release-group>
+      <h2 class="group-title">${escapeHTML(cat)}${
         catCut ? "..." : ""
-      } <span class="group-count">(${group.features.length})</span></h3>
+      } <span class="group-count">(${group.features.length})</span></h2>
       <ol class="demo-list">${cards.join("")}</ol>
     </section>`,
     };
   }));
 
-  const jumpNav = sections.length > 1
-    ? `<nav class="local-nav" aria-label="Jump to category">
-    <p class="local-nav-label">On this page</p>
-    <ul>${
+  const jumpStrip = sections.length > 1
+    ? `<nav class="group-jumps" aria-label="Jump to feature category">${
       sections.map((s) =>
-        `<li><a href="#${escapeHTML(s.groupId)}">${escapeHTML(s.cat)}${
+        `<a class="group-jump-link" href="#${escapeHTML(s.groupId)}">${escapeHTML(s.cat)}${
           s.catCut ? "..." : ""
-        } (${s.count})</a></li>`
+        } <span class="group-jump-count">${s.count}</span></a>`
       ).join("")
-    }</ul>
-  </nav>`
+    }</nav>`
     : "";
+
+  let pagerLinks = "";
+  if (opts?.knownMilestones && opts.knownMilestones.size > 1) {
+    const sortedKnown = [...opts.knownMilestones].sort((a, b) => a - b);
+    const idx = sortedKnown.indexOf(milestone);
+    const prev = idx > 0 ? sortedKnown[idx - 1] : null;
+    const next = idx !== -1 && idx < sortedKnown.length - 1 ? sortedKnown[idx + 1] : null;
+    const prevSeg = prev !== null ? milestonePathSegment(prev) : null;
+    const nextSeg = next !== null ? milestonePathSegment(next) : null;
+    const prevLink = prevSeg
+      ? `<a class="release-pager-link" rel="prev" href="/v${milestonePathSegment(prev)}/">` +
+        `&larr; Chrome ${prevSeg}</a>`
+      : "";
+    const nextLink = nextSeg
+      ? `<a class="release-pager-link" rel="next" href="/v${milestonePathSegment(next)}/">` +
+        `Chrome ${nextSeg} &rarr;</a>`
+      : "";
+    pagerLinks = [prevLink, nextLink].filter(Boolean).join("");
+  }
+
+  let statusPill = "";
+  let stableDateNote = "";
+  if (opts?.channels) {
+    const status = statusBadgeFor(opts.channels, milestone);
+    const tone = channelTone(status);
+    statusPill = `<span class="channel-pill channel-pill-${escapeHTML(tone)}">${
+      escapeHTML(status)
+    }</span>`;
+    const matchedDate = milestone === opts.channels.dev.mstone
+      ? opts.channels.dev.stable_date
+      : milestone === opts.channels.beta.mstone
+      ? opts.channels.beta.stable_date
+      : milestone === opts.channels.stable.mstone
+      ? opts.channels.stable.stable_date
+      : "";
+    const formatted = formatStableDate(matchedDate);
+    if (formatted) stableDateNote = `<span>Stable target: ${escapeHTML(formatted)}</span>`;
+  } else {
+    statusPill = `<span class="channel-pill channel-pill-archive">Chrome ${milestone}</span>`;
+  }
 
   const pageTitle = `chrome ${milestone} reference — gendn`;
   const pageDescription =
@@ -684,25 +873,58 @@ export async function renderReleasePage(
   <link rel="stylesheet" href="/public/styles.css">
   ${SPECULATION_RULES}
 </head>
-<body>
-<main>
-  ${renderSiteNav("release")}
-  <p class="crumbs"><a href="/">&larr; all releases</a> &middot; <a href="/features">all apis</a></p>
+<body class="shell-page">
+${renderSiteHeader("releases")}
+<main id="main-content" tabindex="-1">
+  <div class="release-nav-bar">
+    <nav aria-label="Breadcrumb">
+      <p class="crumbs"><a href="/">&larr; All releases</a> &middot; <a href="/features">All APIs</a></p>
+    </nav>
+    ${
+    pagerLinks
+      ? `<nav class="release-pager" aria-label="Adjacent Chrome milestones">${pagerLinks}</nav>`
+      : ""
+  }
+  </div>
 
   <header class="lede-block">
-    <p class="eyebrow">chrome ${milestone}</p>
-    <h1>chrome ${milestone} api reference</h1>
-    <p class="lede">${features.total} features tracked. Click any documented API to open its gendn reference (or MDN stub), or open ChromeStatus for upstream tracking.</p>
+    <div class="release-meta-strip">
+      ${statusPill}
+      <span>${features.total} feature${
+    features.total === 1 ? "" : "s"
+  } &middot; ${documentedCount} documented</span>
+      ${stableDateNote}
+    </div>
+    <h1>Chrome ${milestone} API reference</h1>
+    <p class="lede">${features.total} web platform features tracked for Chrome ${milestone}. Open any documented API for its gendn reference (or MDN stub), or jump straight to ChromeStatus for upstream status.</p>
+    ${jumpStrip}
   </header>
 
-  ${jumpNav}
+  <form id="release-filter-form" class="release-toolbar" role="search" aria-label="Filter Chrome ${milestone} features">
+    <div class="toolbar-field toolbar-search">
+      <label for="release-search">Filter</label>
+      <input id="release-search" type="search" placeholder="Search features in Chrome ${milestone}…" enterkeyhint="search" autocomplete="off">
+    </div>
+    <div class="toolbar-field">
+      <label for="release-coverage">Docs</label>
+      <select id="release-coverage" aria-label="Filter features by documentation status">
+        <option value="">All features (${features.total})</option>
+        <option value="documented">Documented (${documentedCount})</option>
+        <option value="pending">Doc pending (${features.total - documentedCount})</option>
+      </select>
+    </div>
+    <button type="button" id="release-clear" class="filter-clear" disabled>Clear</button>
+    <span id="release-filter-summary" class="release-filter-summary" role="status" aria-live="polite">${features.total} features in this release</span>
+  </form>
 
-  <section>
-    <h2>features (${features.total})</h2>
+  <div id="release-groups">
     ${sections.map((s) => s.html).join("\n")}
-  </section>
+  </div>
+  <p id="release-empty" class="release-empty" hidden>No features in Chrome ${milestone} match that filter. Clear the search box or switch Docs back to All.</p>
 
-  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+  <script>${RELEASE_FILTER_SCRIPT}</script>
+
+  ${renderSiteFooter()}
 </main>
 </body>
 </html>`;
@@ -877,7 +1099,7 @@ export async function knownReleaseMilestones(channels: Channels): Promise<Set<nu
 
 export const CSP_DIRECTIVES = [
   "default-src 'self'",
-  `script-src 'self' ${FEATURES_FILTER_SCRIPT_SHA256} 'sha256-QwyzFy+aVtqlhWpm/o9TrKyuCXBZ7CCOnC55e6JBn+A='`,
+  `script-src 'self' ${FEATURES_FILTER_SCRIPT_SHA256} ${RELEASE_FILTER_SCRIPT_SHA256} 'sha256-QwyzFy+aVtqlhWpm/o9TrKyuCXBZ7CCOnC55e6JBn+A='`,
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data:",
@@ -1147,9 +1369,12 @@ export async function handleRequest(req: Request): Promise<Response> {
 
     if (sub === "/" || sub === "/index.html") {
       try {
-        return new Response(await renderReleasePage(release, milestone, origin), {
-          headers: { "content-type": "text/html; charset=utf-8" },
-        });
+        return new Response(
+          await renderReleasePage(release, milestone, origin, { channels, knownMilestones: known }),
+          {
+            headers: { "content-type": "text/html; charset=utf-8" },
+          },
+        );
       } catch (err) {
         return serverError(req, `render release ${release}`, err);
       }

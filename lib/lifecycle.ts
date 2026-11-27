@@ -2,6 +2,7 @@
 //
 import { chromeStatusUrl } from "./chromestatus.ts";
 import { safeExternalUrl } from "./external-url.ts";
+import { renderSiteFooter, renderSiteHeader } from "./shell.ts";
 import { readSiteText, siteFS } from "./site-fs.ts";
 import { getSiteConformanceSuites } from "./site-index.ts";
 //
@@ -128,23 +129,28 @@ const HEAD = (
     : "";
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>${esc(title)}</title>${seoTags}
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
 <link rel="stylesheet" href="/public/styles.css">
 <style>
-  main{max-width:1000px;}
-  table{width:100%;border-collapse:collapse;font-family:var(--font-mono);font-size:0.82rem;}
-  th,td{padding:0.5rem 0.6rem;border-bottom:1px solid var(--border-black);text-align:left;vertical-align:top;}
-  th{background:var(--bg-stone);font-size:0.68rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);}
-  .tag{font-family:var(--font-mono);font-size:0.7rem;border:1px solid var(--border-black);padding:0.1rem 0.4rem;background:var(--bg-stone);}
-  .v{font-weight:700;text-transform:uppercase;font-size:0.7rem;padding:0.1rem 0.45rem;border:1px solid var(--border-black);}
-  .v-pass{color:var(--accent-emerald,#087);} .v-fail{color:var(--accent-rose,#b00);} .v-blocked{color:var(--text-muted);}
-  .meta{font-family:var(--font-mono);font-size:0.75rem;color:var(--text-muted);margin:0.5rem 0 1rem;}
-  @media (max-width:640px){main{padding:1rem;}table,thead,tbody,tr,td{display:block;width:100%;}thead{display:none;}tr{border:2px solid var(--border-black);margin-bottom:0.6rem;padding:0.5rem;box-shadow:var(--thin-shadow);}td{border:none;padding:0.2rem 0;}}
-</style>${extra}</head><body><main>`;
+  table{width:100%;border-collapse:collapse;font-family:var(--font-mono);font-size-adjust:var(--adjust-mono);font-size:0.82rem;background:var(--bg-paper);border:2px solid var(--border-black);box-shadow:var(--thin-shadow);}
+  th,td{padding:0.65rem 0.75rem;border-bottom:1px solid var(--border-hairline);text-align:start;vertical-align:top;}
+  tbody tr:hover{background:var(--surface-warm);}
+  th{background:var(--surface-warm);font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-black);border-bottom:2px solid var(--border-black);}
+  .tag{font-family:var(--font-mono);font-size-adjust:var(--adjust-mono);font-size:0.7rem;border:1px solid var(--border-black);padding:0.12rem 0.45rem;background:var(--bg-stone);color:var(--text-black);}
+  .v{font-weight:700;text-transform:uppercase;font-size:0.7rem;padding:0.14rem 0.5rem;border:1px solid var(--border-black);display:inline-block;}
+  .v-pass{color:var(--accent-emerald-deep);border-color:var(--accent-emerald-deep);background:color-mix(in srgb, var(--accent-emerald) 14%, var(--bg-paper));}
+  .v-fail{color:var(--accent-rose);border-color:var(--accent-rose);background:color-mix(in srgb, var(--accent-rose) 12%, var(--bg-paper));}
+  .v-blocked{color:var(--text-muted);background:var(--bg-stone);}
+  .meta{font-family:var(--font-mono);font-size-adjust:var(--adjust-mono);font-size:0.76rem;color:var(--text-muted);margin:0.5rem 0 1rem;}
+  @media (max-width:640px){table{background:transparent;border:none;box-shadow:none;}table,thead,tbody,tr,td{display:block;width:100%;}thead{display:none;}tr{border:2px solid var(--border-black);background:var(--bg-paper);margin-bottom:0.75rem;padding:0.65rem;box-shadow:var(--thin-shadow);}tbody tr:hover{background:var(--bg-paper);}td{border:none;padding:0.2rem 0;}}
+</style>${extra}</head><body class="shell-page">${
+    renderSiteHeader("conformance")
+  }<main id="main-content" tabindex="-1">`;
 };
-const FOOT = `<footer class="byline">gendn conformance lifecycle</footer></main></body></html>`;
+const FOOT = `${renderSiteFooter({ includeShowcaseLink: false })}</main></body></html>`;
 
 export async function renderConformanceIndex(origin?: string): Promise<string> {
   const suites = await getSiteConformanceSuites();
@@ -172,8 +178,8 @@ export async function renderConformanceIndex(origin?: string): Promise<string> {
     origin,
   }) +
     `<p class="crumbs"><a href="/">&larr; home</a> &middot; <a href="/conformance/run-all">run-all rollup</a></p>
-    <header class="lede-block"><p class="eyebrow">conformance</p><h1>conformance suites</h1>
-    <p class="lede">Every published reference page carries an immutable conformance suite — doc-quality contracts derived from its real chromestatus identity, route, structure, and embedded showcase demo. Platform behavior of an embedded demo is governed by the chrome-platform-showcase contract each suite references, not forked here.</p></header>
+    <header class="lede-block"><p class="eyebrow">conformance</p><h1>Conformance suites</h1>
+    <p class="lede">Every published reference page carries an immutable conformance suite &mdash; doc-quality contracts derived from its real chromestatus identity, route, structure, and embedded showcase demo. Platform behavior of an embedded demo is governed by the chrome-platform-showcase contract each suite references, not forked here.</p></header>
     <p class="meta">${suites.length} suites (${built} built / ${suites.length - built} stub)</p>
     <table><thead><tr><th>page</th><th>status</th><th>assertions</th><th>feature</th></tr></thead><tbody>${rows}</tbody></table>` +
     FOOT;

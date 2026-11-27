@@ -21,6 +21,7 @@
 import { chromeStatusUrl, milestonePathSegment } from "./chromestatus.ts";
 import { safeExternalUrl } from "./external-url.ts";
 import { escapeHTML } from "./html.ts";
+import { renderSiteFooter, renderSiteHeader } from "./shell.ts";
 
 export const NAME_CAP = 220;
 export const CATEGORY_CAP = 96;
@@ -299,27 +300,13 @@ export function renderFeaturesCatalogueHtml(opts: FeaturesCatalogueOptions): str
   <link rel="stylesheet" href="/public/styles.css">
   ${speculationRulesHtml}
   <style>
-    main { max-width: 1100px; }
-    .skip-link:focus-visible {
-      position: fixed;
-      inset-block-start: var(--space-3);
-      inset-inline-start: var(--space-3);
-      z-index: 100;
-      padding: var(--space-2) var(--space-4);
-      background: var(--text-black);
-      color: var(--bg-ivory);
-      border: 2px solid var(--border-black);
-      font-family: var(--font-mono);
-      font-size: 0.85rem;
-      text-decoration: none;
-    }
     .filters {
       display: flex;
-      gap: var(--space-3);
+      gap: var(--space-2) 0.55rem;
       flex-wrap: wrap;
       align-items: end;
-      margin: var(--space-4) 0 var(--space-5);
-      padding: var(--space-4);
+      margin: 0 0 var(--space-5);
+      padding: var(--space-3) var(--space-4);
       background: var(--bg-paper);
       border: 2px solid var(--border-black);
       box-shadow: var(--thin-shadow);
@@ -331,13 +318,13 @@ export function renderFeaturesCatalogueHtml(opts: FeaturesCatalogueOptions): str
       min-inline-size: 0;
     }
     .filter-field--search {
-      flex: 1 1 220px;
+      flex: 1 1 140px;
     }
     .filter-field > label:not(.filter-toggle) {
       font-family: var(--font-mono);
       font-size-adjust: var(--adjust-mono);
       font-size: 0.7rem;
-      font-weight: 500;
+      font-weight: 600;
       letter-spacing: 0.08em;
       text-transform: uppercase;
       color: var(--text-muted);
@@ -346,30 +333,39 @@ export function renderFeaturesCatalogueHtml(opts: FeaturesCatalogueOptions): str
     .filters select {
       font-family: var(--font-mono);
       font-size-adjust: var(--adjust-mono);
-      font-size: 0.85rem;
-      padding: 0.45rem 0.6rem;
-      background: var(--bg-paper);
+      font-size: 0.8rem;
+      min-block-size: 44px;
+      padding: 0.4rem 0.45rem;
+      background: var(--bg-ivory);
       color: var(--text-black);
       border: 2px solid var(--border-black);
       min-inline-size: 0;
+    }
+    .filters button.filter-clear {
+      min-block-size: 44px;
+      padding: 0.4rem 0.65rem;
+      font-size: 0.76rem;
     }
     .filters input:focus-visible,
     .filters select:focus-visible {
       outline: 2px solid var(--accent-blue);
       outline-offset: 2px;
+      background: var(--bg-paper);
     }
     .filter-toggle {
       display: inline-flex;
       align-items: center;
-      gap: var(--space-2);
+      gap: 0.4rem;
+      min-block-size: 44px;
       font-family: var(--font-mono);
       font-size-adjust: var(--adjust-mono);
-      font-size: 0.8rem;
+      font-size: 0.78rem;
       color: var(--text-black);
-      background: var(--bg-paper);
+      background: var(--bg-ivory);
       border: 2px solid var(--border-black);
-      padding: 0.45rem 0.65rem;
+      padding: 0.4rem 0.55rem;
       cursor: pointer;
+      white-space: nowrap;
     }
     .filter-toggle:has(:checked) {
       background: var(--bg-stone);
@@ -380,31 +376,58 @@ export function renderFeaturesCatalogueHtml(opts: FeaturesCatalogueOptions): str
       accent-color: var(--accent-blue);
       cursor: pointer;
     }
-    .features-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    .features-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.92rem;
+      background: var(--bg-paper);
+      border: 2px solid var(--border-black);
+      box-shadow: var(--thin-shadow);
+    }
     .features-table th,
     .features-table td {
-      padding: 0.65rem 0.6rem;
+      padding: 0.7rem 0.75rem;
       text-align: start;
-      border-bottom: 1px solid var(--border-black);
-      vertical-align: top;
+      border-bottom: 1px solid var(--border-hairline);
+      vertical-align: middle;
+    }
+    .features-table tbody tr:hover {
+      background: var(--surface-warm);
     }
     .features-table th {
       font-family: var(--font-mono);
       font-size-adjust: var(--adjust-mono);
-      font-size: 0.7rem;
+      font-size: 0.72rem;
+      font-weight: 700;
       letter-spacing: 0.08em;
       text-transform: uppercase;
-      color: var(--text-muted);
-      background: var(--bg-stone);
+      color: var(--text-black);
+      background: var(--surface-warm);
+      border-bottom: 2px solid var(--border-black);
+      white-space: nowrap;
+      overflow-wrap: normal;
+    }
+    .features-table td:nth-child(2),
+    .features-table td:nth-child(3),
+    .features-table td:nth-child(4) {
+      white-space: nowrap;
+    }
+    .features-table tbody tr:nth-child(n+25) {
+      content-visibility: auto;
+      contain-intrinsic-size: auto none auto 52px;
     }
     .features-table tr.hidden { display: none; }
     .features-table .api-link {
       color: var(--text-black);
       font-weight: 500;
       text-decoration: underline;
+      text-decoration-color: var(--border-rule);
       text-underline-offset: 3px;
     }
-    .features-table .api-link:hover { color: var(--accent-blue); }
+    .features-table .api-link:hover {
+      color: var(--accent-blue);
+      text-decoration-color: var(--accent-blue);
+    }
     .features-table .api-name { color: var(--text-black); font-weight: 500; }
     .features-table .cs-link {
       display: inline-block;
@@ -429,7 +452,7 @@ export function renderFeaturesCatalogueHtml(opts: FeaturesCatalogueOptions): str
       color: var(--text-black);
       background: var(--bg-paper);
       border: 1px solid var(--border-black);
-      padding: 0.15rem 0.5rem;
+      padding: 0.16rem 0.5rem;
       text-decoration: none;
     }
     .features-table .tag-live {
@@ -440,7 +463,7 @@ export function renderFeaturesCatalogueHtml(opts: FeaturesCatalogueOptions): str
     .features-table a.tag-live:hover {
       background: var(--accent-blue);
       border-color: var(--accent-blue);
-      color: var(--bg-ivory);
+      color: var(--pill-ink);
     }
     .features-table .tag-stub {
       color: var(--text-charcoal);
@@ -464,7 +487,7 @@ export function renderFeaturesCatalogueHtml(opts: FeaturesCatalogueOptions): str
     }
     .features-table .doc-pills {
       display: inline-flex;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       gap: var(--space-1);
       align-items: center;
     }
@@ -474,24 +497,26 @@ export function renderFeaturesCatalogueHtml(opts: FeaturesCatalogueOptions): str
     .features-table .release-status {
       background: var(--text-black);
       color: var(--bg-ivory);
-      padding: 0.15rem 0.5rem;
-      font-size: 0.75rem;
+      padding: 0.18rem 0.55rem;
+      font-size: 0.74rem;
     }
     .stats {
       font-family: var(--font-mono);
       font-size-adjust: var(--adjust-mono);
       font-size: 0.8rem;
       color: var(--text-muted);
-      margin-bottom: var(--space-2);
+      margin-bottom: var(--space-3);
     }
     .empty-state {
       margin-top: var(--space-4);
-      padding: var(--space-4);
+      padding: var(--space-5);
       background: var(--bg-paper);
       border: 2px solid var(--border-black);
-      font-family: var(--font-mono);
-      font-size: 0.85rem;
+      box-shadow: var(--thin-shadow);
+      font-family: var(--font-serif);
+      font-size-adjust: var(--adjust-serif);
       color: var(--text-charcoal);
+      max-width: none;
     }
 
     @media (pointer: coarse) {
@@ -515,7 +540,6 @@ export function renderFeaturesCatalogueHtml(opts: FeaturesCatalogueOptions): str
     }
 
     @media (max-width: 640px) {
-      main { padding-inline: var(--space-4); }
       .crumbs a {
         display: inline-flex;
         align-items: center;
@@ -537,6 +561,7 @@ export function renderFeaturesCatalogueHtml(opts: FeaturesCatalogueOptions): str
         min-block-size: 44px;
         font-size: 1rem;
       }
+      .features-table { background: transparent; border: none; box-shadow: none; }
       .features-table thead { display: none; }
       .features-table,
       .features-table tbody,
@@ -552,9 +577,10 @@ export function renderFeaturesCatalogueHtml(opts: FeaturesCatalogueOptions): str
         padding: var(--space-3);
         box-shadow: var(--thin-shadow);
       }
+      .features-table tbody tr:hover { background: var(--bg-paper); }
       .features-table td {
         border: none;
-        padding: 0.2rem 0;
+        padding: 0.25rem 0;
       }
       .features-table td:first-child {
         display: flex;
@@ -578,29 +604,21 @@ export function renderFeaturesCatalogueHtml(opts: FeaturesCatalogueOptions): str
         inline-size: auto;
         margin-inline-end: var(--space-2);
         vertical-align: middle;
+        white-space: normal;
+      }
+      .features-table .doc-pills {
+        flex-wrap: wrap;
       }
     }
   </style>
 </head>
-<body>
-<a class="skip-link sr-only" href="#catalogue-main">Skip to catalogue</a>
+<body class="shell-page">
+${renderSiteHeader("features", "catalogue-main")}
 <main id="catalogue-main" tabindex="-1">
-  <nav class="site-nav" aria-label="Site navigation">
-    <a class="site-nav-brand" href="/">gendn</a>
-    <div class="site-nav-links">
-      <a href="/features" aria-current="page">All APIs</a>
-      <a href="/conformance">Conformance</a>
-      <a href="/llms.txt">llms.txt</a>
-    </div>
-  </nav>
-  <nav aria-label="Breadcrumb">
-    <p class="crumbs"><a href="/">&larr; home</a></p>
-  </nav>
-
   <header class="lede-block">
     <p class="eyebrow">catalogue</p>
-    <h1>all apis</h1>
-    <p class="lede">Every API with a written reference, across every milestone. Filter by name, milestone, rollout status, or doc type. Pending APIs still show up on the per-release pages.</p>
+    <h1>All APIs</h1>
+    <p class="lede">Every API with a written reference across every tracked Chrome milestone. Filter by name, milestone, rollout status, full reference vs MDN stub, or interactive demo availability.</p>
   </header>
 
   <form class="filters" id="filters-form" role="search" aria-label="Filter API catalogue" action="/features" method="get">
@@ -652,7 +670,7 @@ export function renderFeaturesCatalogueHtml(opts: FeaturesCatalogueOptions): str
 
   <script>${FEATURES_FILTER_SCRIPT}</script>
 
-  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+  ${renderSiteFooter()}
 </main>
 </body>
 </html>`;
