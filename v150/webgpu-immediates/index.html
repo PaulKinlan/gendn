@@ -4,39 +4,75 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>WebGPU: Immediates — Chrome 150 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
   <link rel="stylesheet" href="/public/styles.css">
   <style>
-    .doc-table { margin: 1rem 0; font-size: 0.85rem; }
-    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    h1, code { overflow-wrap: anywhere; }
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
     .doc-table tr:last-child td { border-bottom: none; }
     .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .scroll-table { min-width: 30rem; }
   </style>
 </head>
 <body>
 <main>
-  <p class="crumbs"><a href="/v150/">&larr; Chrome 150 reference</a></p>
+  <p class="crumbs"><a href="/v150/">&larr; Chrome 150 reference</a> &middot; <a href="/features">All APIs</a></p>
 
   <header class="lede-block">
-    <p class="eyebrow">v150 · web api · shipped</p>
+    <p class="eyebrow">v150 &middot; web api &middot; shipped</p>
     <h1>WebGPU: Immediates</h1>
-    <p class="lede">A new mechanism for passing small amounts of frequently-updated data directly to GPU shaders — without creating GPU buffer objects or bind groups — by introducing an <code>immediate</code> address space in WGSL and a <code>setImmediateData()</code> method on render passes, compute passes, and render bundle encoders. Ships in Chrome 150.</p>
+    <p class="lede">A new mechanism for passing small amounts of frequently-updated data directly to GPU shaders &mdash; without creating GPU buffer objects or bind groups &mdash; by introducing an <code>immediate</code> address space in WGSL and a <code>setImmediateData()</code> method on render passes, compute passes, and render bundle encoders. Ships in Chrome 150.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; shipped in Chrome 150 and Edge 150 (where WebGPU is supported); not yet shipped in Firefox or Safari (both Positive)</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 150 (ChromeOS, macOS, Windows, Linux Intel Gen12+ GPUs, Android &amp; WebView per BCD)</li>
+        <li>Edge &middot; 150 (mirrors Chromium)</li>
+        <li class="limited">Firefox &middot; Not yet shipped (Positive via WebGPU spec PR #5423)</li>
+        <li class="limited">Safari &middot; Not yet shipped (Positive via WebGPU spec PR #5423)</li>
+      </ul>
+      <p>No dedicated <code>web-features</code> entry exists on <a href="https://api.webstatus.dev/v1/features?q=immediates" target="_blank" rel="noopener">webstatus.dev</a> for WebGPU Immediates (the parent <a href="https://webstatus.dev/features/webgpu" target="_blank" rel="noopener"><code>webgpu</code> feature</a> is Limited availability; checked 2026-11-27). BCD already records Chrome/Edge <strong>150</strong> (and Firefox/Safari <code>false</code>) for <a href="https://github.com/mdn/browser-compat-data/blob/main/api/GPURenderPassEncoder.json" target="_blank" rel="noopener"><code>GPURenderPassEncoder.setImmediates</code></a>, <a href="https://github.com/mdn/browser-compat-data/blob/main/api/GPUComputePassEncoder.json" target="_blank" rel="noopener"><code>GPUComputePassEncoder.setImmediates</code></a>, <a href="https://github.com/mdn/browser-compat-data/blob/main/api/GPURenderBundleEncoder.json" target="_blank" rel="noopener"><code>GPURenderBundleEncoder.setImmediates</code></a>, <a href="https://github.com/mdn/browser-compat-data/blob/main/api/GPUSupportedLimits.json" target="_blank" rel="noopener"><code>GPUSupportedLimits.maxImmediateSize</code></a>, and <a href="https://github.com/mdn/browser-compat-data/blob/main/api/GPUDevice.json" target="_blank" rel="noopener"><code>GPUDevice.createPipelineLayout</code> (<code>descriptor.immediateSize</code>)</a>. Live MDN prose does not yet cover WebGPU Immediates as of 2026-11-27 (<code>setImmediates</code> and <code>maxImmediateSize</code> pages return HTTP 404, and <a href="https://developer.mozilla.org/en-US/docs/Web/API/GPUDevice/createPipelineLayout" target="_blank" rel="noopener">MDN <code>GPUDevice.createPipelineLayout()</code></a> does not yet document <code>immediateSize</code>).</p>
+    </div>
   </header>
 
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#at-a-glance">At a glance</a></li>
+      <li><a href="#why-it-exists">Why it exists</a></li>
+      <li><a href="#pipeline-layout">Pipeline layout</a></li>
+      <li><a href="#wgsl-immediate">WGSL shader</a></li>
+      <li><a href="#syntax">JavaScript API</a></li>
+      <li><a href="#constraints">Constraints</a></li>
+      <li><a href="#browser-support">Browser support</a></li>
+      <li><a href="#see-also">See also</a></li>
+    </ul>
+  </nav>
+
   <section>
-    <h2>at a glance</h2>
-    <table class="doc-table">
-      <tr><th>Shipped in</th><td>Chrome 150 (desktop, Android, WebView where WebGPU hardware is available)</td></tr>
-      <tr><th>Status</th><td>Enabled by default</td></tr>
-      <tr><th>Spec</th><td><a href="https://gpuweb.github.io/gpuweb/" target="_blank" rel="noopener">WebGPU specification (gpuweb/gpuweb)</a></td></tr>
-      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5199437611794432" target="_blank" rel="noopener">5199437611794432 — WebGPU: Immediates</a></td></tr>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="glance-caption">
+    <table class="doc-table scroll-table">
+      <caption id="glance-caption">Release metadata and specification links for WebGPU Immediates</caption>
+      <tbody>
+        <tr><th scope="row">Shipped in</th><td>Chrome 150 (desktop, Android, WebView where WebGPU hardware is available; confirmed in <a href="https://github.com/mdn/browser-compat-data/blob/main/api/GPURenderPassEncoder.json" target="_blank" rel="noopener">BCD</a>)</td></tr>
+        <tr><th scope="row">Status</th><td>Enabled by default (<a href="https://chromestatus.com/api/v0/features/5199437611794432" target="_blank" rel="noopener">ChromeStatus API</a> lists desktop/Android/WebView 150)</td></tr>
+        <tr><th scope="row">Spec</th><td><a href="https://gpuweb.github.io/gpuweb/" target="_blank" rel="noopener">WebGPU specification (gpuweb/gpuweb)</a> &middot; <a href="https://gpuweb.github.io/gpuweb/wgsl/" target="_blank" rel="noopener">WGSL specification</a></td></tr>
+        <tr><th scope="row">Standards position</th><td>Firefox: Positive (<a href="https://github.com/gpuweb/gpuweb/pull/5423#pullrequestreview-42388072000" target="_blank" rel="noopener">gpuweb PR #5423 review</a>) &nbsp;&middot;&nbsp; Safari: Positive (<a href="https://github.com/gpuweb/gpuweb/pull/5423#issuecomment-3499601340" target="_blank" rel="noopener">gpuweb PR #5423 review</a>)</td></tr>
+        <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5199437611794432" target="_blank" rel="noopener">5199437611794432 &mdash; WebGPU: Immediates</a> (<a href="https://chromestatus.com/api/v0/features/5199437611794432" target="_blank" rel="noopener">API record</a>)</td></tr>
+      </tbody>
     </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5199437611794432" target="_blank" rel="noopener">chromestatus.com/feature/5199437611794432</a>; <a href="https://github.com/gpuweb/gpuweb/pull/5423" target="_blank" rel="noopener">gpuweb spec PR #5423</a>.</span>
   </section>
 
   <section>
-    <h2>why it exists</h2>
-    <p>In a typical WebGPU draw loop, per-draw parameters — object index, material index, transform matrix — are updated every call. The standard pattern is to write these into a GPU buffer and set a bind group pointing to it. For data that changes every draw, this creates significant overhead: buffer writes, bind group updates, and descriptor validation on the critical path.</p>
-    <p>GPU hardware has long supported a concept sometimes called "push constants" (Vulkan) or "root constants" (D3D12): a small block of bytes that travel directly with a pipeline draw command, bypassing buffer and bind group machinery. WebGPU Immediates exposes this mechanism to web applications, enabling a common high-performance GPU programming pattern without workarounds.</p>
-    <span class="citation">Source: <a href="https://github.com/gpuweb/gpuweb/issues/5118" target="_blank" rel="noopener">gpuweb/gpuweb — Immediates proposal (#5118)</a>.</span>
+    <h2 id="why-it-exists">why it exists</h2>
+    <p>In a typical WebGPU draw loop, per-draw parameters &mdash; object index, material index, transform matrix &mdash; are updated every call. The standard pattern is to write these into a GPU buffer and set a bind group pointing to it. For data that changes every draw, this creates significant overhead: buffer writes, bind group updates, and descriptor validation on the critical path.</p>
+    <p>GPU hardware has long supported a concept sometimes called &ldquo;push constants&rdquo; (Vulkan) or &ldquo;root constants&rdquo; (D3D12): a small block of bytes that travel directly with a pipeline draw command, bypassing buffer and bind group machinery. WebGPU Immediates exposes this mechanism to web applications, enabling a common high-performance GPU programming pattern without workarounds.</p>
+    <span class="citation">Source: <a href="https://github.com/gpuweb/gpuweb/issues/5118" target="_blank" rel="noopener">gpuweb/gpuweb &mdash; Immediates proposal (#5118)</a>.</span>
   </section>
 
   <section>
@@ -44,16 +80,16 @@
 
     <h3 id="pipeline-layout">pipeline layout: declare immediate data range</h3>
     <p>When creating a pipeline layout, declare the size (in bytes) of the immediate data block the pipeline will use:</p>
-<pre><code>const layout = device.createPipelineLayout({
+    <pre tabindex="0"><code>const layout = device.createPipelineLayout({
   bindGroupLayouts: [ /* ... */ ],
   immediateDataRangeByteSize: 16,  // 16 bytes = 4 × float32
 });</code></pre>
 
-
     <p>Dictionary member name disagreement, both sides reported rather than resolved (fetched 2026-10-07): this page documents immediateDataRangeByteSize in the pipeline layout descriptor, while the cited WebGPU specification declares GPUSize32 immediateSize = 0. Neither side is adjudicated here.</p>
+
     <h3 id="wgsl-immediate">WGSL shader: read from immediate address space</h3>
     <p>In the shader, declare a variable in the new <code>immediate</code> address space. The type must be a host-shareable struct:</p>
-<pre><code>struct DrawParams {
+    <pre tabindex="0"><code>struct DrawParams {
   object_index: u32,
   material_index: u32,
   time: f32,
@@ -62,14 +98,14 @@
 
 var&lt;immediate&gt; params: DrawParams;
 
-@vertex fn vs_main(@builtin(vertex_index) vi: u32) -> @builtin(position) vec4f {
+@vertex fn vs_main(@builtin(vertex_index) vi: u32) -&gt; @builtin(position) vec4f {
   let obj = objects[params.object_index];
   /* ... */
 }</code></pre>
 
     <h3 id="syntax">JavaScript: set data per draw</h3>
     <p><code>setImmediateData(offset, data)</code> is available on <code>GPURenderPassEncoder</code>, <code>GPUComputePassEncoder</code>, and <code>GPURenderBundleEncoder</code>:</p>
-<pre><code>const passEncoder = commandEncoder.beginRenderPass(/* ... */);
+    <pre tabindex="0"><code>const passEncoder = commandEncoder.beginRenderPass(/* ... */);
 passEncoder.setPipeline(pipeline);
 
 // Per-object loop: update immediates before each draw, no bind group change
@@ -80,40 +116,56 @@ for (const [i, obj] of objects.entries()) {
 }
 
 passEncoder.end();</code></pre>
-    <span class="citation">Source: <a href="https://chromestatus.com/feature/5199437611794432" target="_blank" rel="noopener">chromestatus.com — WebGPU: Immediates</a> and <a href="https://github.com/gpuweb/gpuweb/pull/5423" target="_blank" rel="noopener">gpuweb spec PR #5423</a>.</span>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5199437611794432" target="_blank" rel="noopener">chromestatus.com &mdash; WebGPU: Immediates</a> and <a href="https://github.com/gpuweb/gpuweb/pull/5423" target="_blank" rel="noopener">gpuweb spec PR #5423</a>.</span>
 
     <p>API name disagreement, both sides reported rather than resolved (fetched 2026-10-07): this page documents setImmediateData(offset, data) on render passes, compute passes and render bundle encoders, while the cited WebGPU specification defines setImmediates(rangeOffset, data, dataOffset, dataSize). Neither side is adjudicated here.</p>
   </section>
 
   <section>
     <h2 id="constraints">constraints</h2>
-    <table class="doc-table">
-      <tr><th>Maximum size</th><td>Defined by the device limit <code>maxImmediateDataRangeByteSize</code> (at least 128 bytes guaranteed)</td></tr>
-      <tr><th>Alignment</th><td>Offset must be aligned to 4 bytes</td></tr>
-      <tr><th>Scope</th><td>Immediate data is per-pass — it does not persist across passes or render bundles re-executed in a different pass</td></tr>
-      <tr><th>Types</th><td>Host-shareable structs only; cannot reference textures or samplers</td></tr>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="constraints-caption">
+    <table class="doc-table scroll-table">
+      <caption id="constraints-caption">WebGPU immediate data size, alignment, scope, and type constraints</caption>
+      <tbody>
+        <tr><th scope="row">Maximum size</th><td>Defined by the device limit <code>maxImmediateDataRangeByteSize</code> (at least 128 bytes guaranteed)</td></tr>
+        <tr><th scope="row">Alignment</th><td>Offset must be aligned to 4 bytes</td></tr>
+        <tr><th scope="row">Scope</th><td>Immediate data is per-pass &mdash; it does not persist across passes or render bundles re-executed in a different pass</td></tr>
+        <tr><th scope="row">Types</th><td>Host-shareable structs only; cannot reference textures or samplers</td></tr>
+      </tbody>
     </table>
+    </div>
 
     <p>Device limit name and value disagreement, both sides reported rather than resolved (fetched 2026-10-07): this page documents the device limit maxImmediateDataRangeByteSize with at least 128 bytes guaranteed, while the cited WebGPU specification declares maxImmediateSize with a default of 64 bytes. Neither side is adjudicated here.</p>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/" target="_blank" rel="noopener">WebGPU specification</a>; <a href="https://gpuweb.github.io/gpuweb/wgsl/" target="_blank" rel="noopener">WGSL specification</a>.</span>
   </section>
 
   <section>
     <h2 id="browser-support">browser support</h2>
-    <table class="doc-table">
-      <tr><th>Chrome / Edge</th><td>150 (where WebGPU hardware is available)</td></tr>
-      <tr><th>Firefox</th><td>Not yet; following the WebGPU spec</td></tr>
-      <tr><th>Safari</th><td>Not yet; following the WebGPU spec</td></tr>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Browser support for WebGPU Immediates from BCD and ChromeStatus 5199437611794432 (checked 2026-11-27)</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col">Support</th><th scope="col">Notes</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Chrome / Edge</th><td>150+</td><td>Enabled by default where WebGPU hardware is available (<a href="https://github.com/mdn/browser-compat-data/blob/main/api/GPURenderPassEncoder.json" target="_blank" rel="noopener">BCD</a>: ChromeOS, macOS, Windows, Linux Intel Gen12+ GPUs, Android &amp; WebView)</td></tr>
+        <tr><th scope="row">Firefox</th><td>Not yet shipped (<code>false</code> in BCD)</td><td>Positive (<a href="https://github.com/gpuweb/gpuweb/pull/5423#pullrequestreview-42388072000" target="_blank" rel="noopener">approved WebGPU spec PR #5423</a>); following the WebGPU spec</td></tr>
+        <tr><th scope="row">Safari</th><td>Not yet shipped (<code>false</code> in BCD)</td><td>Positive (<a href="https://github.com/gpuweb/gpuweb/pull/5423#issuecomment-3499601340" target="_blank" rel="noopener">WebGPU spec PR #5423 review</a>); following the WebGPU spec</td></tr>
+      </tbody>
     </table>
-    <span class="citation">Source: <a href="https://chromestatus.com/feature/5199437611794432" target="_blank" rel="noopener">chromestatus.com browser positions, May 2026</a>.</span>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5199437611794432" target="_blank" rel="noopener">chromestatus.com browser positions</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/GPURenderPassEncoder.json" target="_blank" rel="noopener">BCD <code>api/GPURenderPassEncoder.json</code></a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/GPUSupportedLimits.json" target="_blank" rel="noopener">BCD <code>api/GPUSupportedLimits.json</code></a>.</span>
   </section>
 
   <section>
     <h2 id="see-also">see also</h2>
     <ul>
       <li><a href="https://gpuweb.github.io/gpuweb/" target="_blank" rel="noopener">WebGPU specification</a></li>
-      <li><a href="https://github.com/gpuweb/gpuweb/issues/5118" target="_blank" rel="noopener">gpuweb/gpuweb issue #5118 — Immediates proposal</a></li>
+      <li><a href="https://gpuweb.github.io/gpuweb/wgsl/" target="_blank" rel="noopener">WGSL specification</a></li>
+      <li><a href="https://github.com/gpuweb/gpuweb/issues/5118" target="_blank" rel="noopener">gpuweb/gpuweb issue #5118 &mdash; Immediates proposal</a></li>
+      <li><a href="https://github.com/gpuweb/gpuweb/pull/5423" target="_blank" rel="noopener">gpuweb/gpuweb PR #5423 &mdash; Immediate data specification PR</a></li>
       <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/WebGPU_API" target="_blank" rel="noopener">MDN: WebGPU API</a></li>
-      <li><a href="https://chromestatus.com/feature/5199437611794432" target="_blank" rel="noopener">chromestatus.com — WebGPU: Immediates (5199437611794432)</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/GPUDevice/createPipelineLayout" target="_blank" rel="noopener">MDN: GPUDevice.createPipelineLayout()</a></li>
+      <li><a href="https://chromestatus.com/feature/5199437611794432" target="_blank" rel="noopener">chromestatus.com &mdash; WebGPU: Immediates (5199437611794432)</a></li>
+      <li><a href="https://chromestatus.com/api/v0/features/5199437611794432" target="_blank" rel="noopener">ChromeStatus API record (5199437611794432)</a></li>
     </ul>
   </section>
 
