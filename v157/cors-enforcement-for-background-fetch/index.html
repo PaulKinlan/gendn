@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CORS enforcement for Background Fetch — Chrome 157 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .scroll-table { min-width: 30rem; }
+    .example-embed { margin: 1.25rem 0; }
+    .example-embed iframe { display: block; inline-size: 100%; max-inline-size: 100%; border: 2px solid var(--border-black); background: var(--surface, #fff); }
+    .example-embed figcaption { margin-top: 0.5rem; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v157/">&larr; Chrome 157 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v157 &middot; security &middot; background fetch &middot; enabled by default</p>
+    <h1>CORS enforcement for Background Fetch</h1>
+
+    <p class="lede">Aligns Chromium&rsquo;s Background Fetch downloads with the Fetch CORS protocol by passing each request&rsquo;s originating <code>RequestMode</code> (such as <code>"cors"</code> or <code>"same-origin"</code>) into the Network Service instead of treating downloads as navigation requests (<code>kNavigate</code>). Cross-origin Background Fetch downloads now require valid CORS opt-in headers (<code>Access-Control-Allow-Origin</code>, and <code>Access-Control-Allow-Credentials: true</code> when credentials are included) and undergo companion Fetch security checks including CORP/COEP/DIP and Local Network Access.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; Background Fetch is Chromium-only; Network Service CORS enforcement ships enabled by default in Chrome 157 (desktop and Android)</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 157 (desktop, Android; WebView &amp; iOS unsupported; base API since Chrome 74)</li>
+        <li>Edge &middot; Mirrors Chromium (157; base API since Edge 79)</li>
+        <li class="limited">Firefox &middot; No implementation (Background Fetch unsupported)</li>
+        <li class="limited">Safari &middot; No implementation (Background Fetch unsupported)</li>
+      </ul>
+      <p>The <a href="https://webstatus.dev/features/background-fetch" target="_blank" rel="noopener"><code>background-fetch</code> web-feature</a> is <strong>Limited availability</strong> on <a href="https://api.webstatus.dev/v1/features/background-fetch" target="_blank" rel="noopener">webstatus.dev</a> (Chrome 74, Edge 79; Firefox and Safari unsupported; checked 2026-11-27). <a href="https://github.com/mdn/browser-compat-data/blob/main/api/BackgroundFetchManager.json" target="_blank" rel="noopener">BCD <code>api/BackgroundFetchManager.json</code></a> and <a href="https://developer.mozilla.org/en-US/docs/Web/API/BackgroundFetchManager" target="_blank" rel="noopener">MDN&rsquo;s <code>BackgroundFetchManager</code> docs</a> cover the baseline API surface but do not document Chrome 157&rsquo;s Network Service CORS enforcement change, preflight restriction, or migration requirements &mdash; so gendn publishes a dedicated reference here.</p>
+    </div>
+  </header>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#at-a-glance">At a glance</a></li>
+      <li><a href="#why">Why it exists</a></li>
+      <li><a href="#syntax">Syntax</a></li>
+      <li><a href="#cors-mode-enforcement">Request mode &amp; CORS</a></li>
+      <li><a href="#cors-preflight-restriction">Preflight restriction</a></li>
+      <li><a href="#response-and-failure-handling">Failure &amp; responseReady</a></li>
+      <li><a href="#errors">Errors &amp; migration</a></li>
+      <li><a href="#context">Context &amp; prerequisites</a></li>
+      <li><a href="#lifecycle">Lifecycle &amp; timing</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#security-and-privacy">Security &amp; privacy</a></li>
+      <li><a href="#specifications">Specifications</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="At a glance">
+    <table class="doc-table">
+      <tr><th scope="row">Shipped in</th><td>Chrome 157 (desktop and Android; Android WebView &amp; iOS <code>null</code>), enabled by default &mdash; filed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=157" target="_blank" rel="noopener">milestone=157 listing</a></td></tr>
+      <tr><th scope="row">Feature flag</th><td><code>BackgroundFetchCorsEnforcement</code> (<code>BASE_FEATURE(kBackgroundFetchCorsEnforcement, base::FEATURE_ENABLED_BY_DEFAULT)</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/components/download/public/background_service/features.cc" target="_blank" rel="noopener"><code>components/download/public/background_service/features.cc</code></a>)</td></tr>
+      <tr><th scope="row">Specifications</th><td><a href="https://wicg.github.io/background-fetch/" target="_blank" rel="noopener">WICG Background Fetch</a> (<a href="https://wicg.github.io/background-fetch/#dom-backgroundfetchmanager-fetch" target="_blank" rel="noopener"><code>BackgroundFetchManager.fetch()</code></a>) &middot; <a href="https://fetch.spec.whatwg.org/#cors-protocol" target="_blank" rel="noopener">WHATWG Fetch Standard &mdash; CORS protocol</a></td></tr>
+      <tr><th scope="row">Intent &amp; meta bug</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6abfe174.b816ca50.7065.0796.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a> &middot; <a href="https://issues.chromium.org/issues/515243254" target="_blank" rel="noopener">issues.chromium.org/515243254</a> (Background Fetch security meta bug)</td></tr>
+      <tr><th scope="row">Chromium source</th><td><a href="https://chromium.googlesource.com/chromium/src/+/main/components/download/internal/common/download_utils.cc" target="_blank" rel="noopener"><code>download_utils.cc</code></a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/download/content/internal/download_driver_impl.cc" target="_blank" rel="noopener"><code>download_driver_impl.cc</code></a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/background_fetch/background_fetch_manager.cc" target="_blank" rel="noopener"><code>background_fetch_manager.cc</code></a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/background_fetch/background_fetch_delegate_proxy.cc" target="_blank" rel="noopener"><code>background_fetch_delegate_proxy.cc</code></a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/background_fetch/background_fetch_job_controller.cc" target="_blank" rel="noopener"><code>background_fetch_job_controller.cc</code></a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/background_fetch/background_fetch_cross_origin_filter.cc" target="_blank" rel="noopener"><code>background_fetch_cross_origin_filter.cc</code></a></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/6210300985606144" target="_blank" rel="noopener">6210300985606144 &mdash; CORS enforcement for Background Fetch</a> (<a href="https://chromestatus.com/api/v0/features/6210300985606144" target="_blank" rel="noopener">API record</a>)</td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>The <a href="https://wicg.github.io/background-fetch/" target="_blank" rel="noopener">Background Fetch specification</a> routes every background request through Fetch so the same cross-origin security checks apply as regular <code>fetch()</code>. Historically, however, Chromium&rsquo;s Download Service constructed the underlying network request with <code>RequestMode::kNavigate</code> (the mode used for top-level browser downloads), which bypassed Network Service CORS checks as well as companion security policies such as CORP, COEP, Document Isolation Policy (DIP), and Local Network Access. Although Chromium applied a post-response browser-side filter (<code>BackgroundFetchCrossOriginFilter</code>) to suppress unreadable response bodies, the underlying request still bypassed wire-level Fetch enforcement. Chrome 157 closes this bypass by propagating the originating <code>fetch_request_mode</code> (<code>kCors</code> / <code>kSameOrigin</code>) directly into <code>network::ResourceRequest::mode</code>.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6210300985606144" target="_blank" rel="noopener">ChromeStatus 6210300985606144</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/download/internal/common/download_utils.cc" target="_blank" rel="noopener">Chromium <code>download_utils.cc</code></a>; <a href="https://issues.chromium.org/issues/515243254" target="_blank" rel="noopener">Chromium Issue 515243254</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>This feature adds no new WebIDL methods or dictionaries &mdash; it enforces the existing Fetch CORS protocol across <code>registration.backgroundFetch.fetch()</code>, cross-origin HTTP response headers (<code>Access-Control-Allow-Origin</code>), Chromium&rsquo;s <code>RequiresCorsPreflight()</code> gate (which produces <code>failureReason = "fetch-error"</code>), and Service Worker completion via <code>backgroundfetchfail</code> / <code>record.responseReady</code>:</p>
+    <pre tabindex="0"><code data-doc-test="skip" data-doc-test-reason="API call signature and required HTTP CORS response headers for cross-origin Background Fetch.">// Client or Service Worker call (mode defaults to "cors"; "no-cors" rejects with TypeError)
+const bgFetch = await registration.backgroundFetch.fetch(
+  id,
+  [new Request("https://cdn.example.com/archive.bin", { mode: "cors", credentials: "omit" })],
+  { title: "Downloading archive", downloadTotal: 10_485_760 }
+);
+
+// Required response headers on cross-origin targets (credential-less):
+Access-Control-Allow-Origin: *
+// Or exact origin (mandatory when credentials: "include"):
+Access-Control-Allow-Origin: https://app.example.com
+Access-Control-Allow-Credentials: true
+
+// Service Worker completion / failure observation:
+// - Success: "backgroundfetchsuccess" -> await record.responseReady
+// - CORS / preflight block (RequiresCorsPreflight): "backgroundfetchfail" with failureReason === "fetch-error"</code></pre>
+    <p>This reference documents the three behavioral contracts developers must satisfy in Chrome 157+: <a href="#cors-mode-enforcement">request mode &amp; Network Service CORS enforcement</a>, <a href="#cors-preflight-restriction">cross-origin CORS-preflight blocking</a>, and <a href="#response-and-failure-handling">failure state &amp; <code>record.responseReady</code> behavior</a>.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/background-fetch/#dom-backgroundfetchmanager-fetch" target="_blank" rel="noopener">WICG Background Fetch <code>fetch()</code></a>; <a href="https://fetch.spec.whatwg.org/#cors-protocol" target="_blank" rel="noopener">WHATWG Fetch CORS protocol</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/download/internal/common/download_utils.cc" target="_blank" rel="noopener">Chromium <code>download_utils.cc</code></a>.</span>
+
+    <h3 id="cors-mode-enforcement">Request mode &amp; Network Service CORS enforcement (<code>backgroundFetch.fetch()</code>)</h3>
+    <p><strong>Inputs.</strong> Each entry passed to <code>registration.backgroundFetch.fetch(id, requests, options)</code> is converted to a Fetch <code>Request</code> whose <code>mode</code> defaults to <code>"cors"</code> (or may be explicitly set to <code>"cors"</code> or <code>"same-origin"</code>) and whose <code>credentials</code> defaults to <code>"same-origin"</code> (may be <code>"omit"</code>, <code>"same-origin"</code>, or <code>"include"</code>). Passing a <code>Request</code> with <code>mode: "no-cors"</code> is rejected upfront in Blink (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/background_fetch/background_fetch_manager.cc" target="_blank" rel="noopener"><code>background_fetch_manager.cc</code></a>) with a <code>TypeError</code> (<code>"the request mode must not be no-cors"</code>).</p>
+    <p><strong>Outputs &amp; wire behavior.</strong> In Chrome 157 (<a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/background_fetch/background_fetch_delegate_proxy.cc" target="_blank" rel="noopener"><code>background_fetch_delegate_proxy.cc</code></a> &rarr; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/download/content/internal/download_driver_impl.cc" target="_blank" rel="noopener"><code>download_driver_impl.cc</code></a> &rarr; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/download/internal/common/download_utils.cc" target="_blank" rel="noopener"><code>download_utils.cc</code></a>), Chromium appends the serialized <code>Origin</code> header for CORS and non-<code>GET</code>/<code>HEAD</code> requests and copies <code>fetch_request_mode</code> onto <code>network::ResourceRequest::mode</code>:</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="cors-matrix-caption">
+    <table class="doc-table scroll-table">
+      <caption id="cors-matrix-caption">Background Fetch request outcomes under Chrome 157 Network Service CORS enforcement</caption>
+      <thead><tr><th scope="col">Request scenario</th><th scope="col">Required server response</th><th scope="col">Chrome 157 outcome</th></tr></thead>
+      <tbody>
+        <tr><td>Same-origin request</td><td>Standard HTTP 2xx response (no CORS header needed)</td><td>Succeeds; readable via <code>record.responseReady</code></td></tr>
+        <tr><td>Cross-origin, <code>credentials: "omit"</code> or <code>"same-origin"</code> (no cookies sent)</td><td><code>Access-Control-Allow-Origin: *</code> or exact initiating origin</td><td>Succeeds with CORS-filtered response; fails with <code>fetch-error</code> if header is absent or mismatched</td></tr>
+        <tr><td>Cross-origin, <code>credentials: "include"</code></td><td>Exact <code>Access-Control-Allow-Origin: &lt;origin&gt;</code> (wildcard <code>*</code> is rejected) <strong>and</strong> <code>Access-Control-Allow-Credentials: true</code></td><td>Succeeds with credentialed CORS response; fails if wildcard is returned or <code>Allow-Credentials</code> is missing</td></tr>
+        <tr><td>Cross-origin redirect chain</td><td>Every cross-origin hop must pass Fetch CORS validation</td><td>Network Service enforces CORS across redirects</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/background_fetch/background_fetch_manager.cc" target="_blank" rel="noopener">Blink <code>background_fetch_manager.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/background_fetch/background_fetch_delegate_proxy.cc" target="_blank" rel="noopener">Chromium <code>background_fetch_delegate_proxy.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/download/internal/common/download_utils.cc" target="_blank" rel="noopener">Chromium <code>download_utils.cc</code></a>; <a href="https://fetch.spec.whatwg.org/#cors-protocol" target="_blank" rel="noopener">WHATWG Fetch CORS protocol</a>.</span>
+
+    <h3 id="cors-preflight-restriction">Cross-origin CORS-preflight blocking (<code>RequiresCorsPreflight()</code>)</h3>
+    <p><strong>Inputs.</strong> Before dispatching a request to the Download Service, Chromium&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/background_fetch/background_fetch_job_controller.cc" target="_blank" rel="noopener"><code>BackgroundFetchJobController::RequiresCorsPreflight()</code></a> inspects every cross-origin request&rsquo;s HTTP method and header list against Fetch&rsquo;s CORS-safelisted definitions:</p>
+    <ul>
+      <li><strong>Non-safelisted methods:</strong> Any cross-origin method other than <code>GET</code>, <code>HEAD</code>, or <code>POST</code> (for example <code>PUT</code>, <code>PATCH</code>, or <code>DELETE</code>) triggers a preflight requirement.</li>
+      <li><strong>CORS-unsafe headers:</strong> Any cross-origin request header not on Fetch&rsquo;s CORS-safelisted request-header list (for example <code>Authorization</code>, <code>X-API-Key</code>, or <code>Content-Type: application/json</code>) triggers a preflight requirement.</li>
+    </ul>
+    <p><strong>Outputs.</strong> Because Chromium&rsquo;s browser-side Background Fetch controller does not yet execute CORS <code>OPTIONS</code> preflight exchanges, any cross-origin request for which <code>RequiresCorsPreflight()</code> returns <code>true</code> is immediately terminated without hitting the network and marked with <code>FailureReason::FETCH_ERROR</code> (exposed in JS as <code>registration.failureReason === "fetch-error"</code>). Same-origin requests bypass <code>RequiresCorsPreflight()</code> and may use custom methods or headers freely.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/background_fetch/background_fetch_job_controller.cc" target="_blank" rel="noopener">Chromium <code>background_fetch_job_controller.cc</code> (<code>RequiresCorsPreflight</code>)</a>; <a href="https://fetch.spec.whatwg.org/#cors-safelisted-request-header" target="_blank" rel="noopener">WHATWG Fetch CORS-safelisted request headers</a>.</span>
+
+    <h3 id="response-and-failure-handling">Failure state, progress suppression, and <code>BackgroundFetchRecord.responseReady</code></h3>
+    <p><strong>Inputs.</strong> In the Service Worker, listen for <code>backgroundfetchsuccess</code> and <code>backgroundfetchfail</code> (and optionally <code>backgroundfetchabort</code>), inspect <code>event.registration.result</code> and <code>event.registration.failureReason</code>, and resolve each downloaded record via <code>await event.registration.matchAll()</code> followed by <code>await record.responseReady</code>.</p>
+    <p><strong>Outputs.</strong> When a cross-origin request fails CORS enforcement or <code>RequiresCorsPreflight()</code>:</p>
+    <ul>
+      <li>The registration transitions to <code>result === "failure"</code> with <code>failureReason === "fetch-error"</code> and dispatches the <code>backgroundfetchfail</code> event to the Service Worker.</li>
+      <li>Per <a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/background_fetch/background_fetch_job_controller.cc" target="_blank" rel="noopener"><code>BackgroundFetchJobController::DidUpdateRequest()</code></a> and <code>AbortFromDelegate()</code>, if a cross-origin check fails, Chromium suppresses <code>downloaded</code> byte-progress updates and masks <code>download-total-exceeded</code> behind <code>"fetch-error"</code> so cross-origin resource sizes are never leaked to the calling origin.</li>
+      <li>Awaiting <code>record.responseReady</code> on a failed/blocked record rejects (rather than yielding an unreadable opaque body or leaking cross-origin bytes).</li>
+    </ul>
+    <span class="citation">Source: <a href="https://wicg.github.io/background-fetch/#background-fetch-record" target="_blank" rel="noopener">WICG Background Fetch <code>BackgroundFetchRecord</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/background_fetch/background_fetch_job_controller.cc" target="_blank" rel="noopener">Chromium <code>background_fetch_job_controller.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/background_fetch/background_fetch_cross_origin_filter.cc" target="_blank" rel="noopener">Chromium <code>background_fetch_cross_origin_filter.cc</code></a>.</span>
+
+    <h3 id="errors">Errors, failure reasons, and migration checklist</h3>
+    <ul>
+      <li><strong><code>TypeError</code> at <code>backgroundFetch.fetch()</code> call time:</strong> Thrown immediately if any request uses <code>mode: "no-cors"</code>, fails CSP, uses a blocked port/scheme (non-HTTPS except loopback), embeds URL credentials, or lacks transient user activation / permission.</li>
+      <li><strong><code>backgroundfetchfail</code> with <code>failureReason === "fetch-error"</code> (CORS rejection):</strong> Occurs when a cross-origin server omits <code>Access-Control-Allow-Origin</code>, returns <code>*</code> for a <code>credentials: "include"</code> request, omits <code>Access-Control-Allow-Credentials: true</code>, fails CORP/COEP/DIP or Local Network Access checks, or triggers <code>RequiresCorsPreflight()</code> via a non-safelisted method or custom header.</li>
+      <li><strong><code>record.responseReady</code> rejection:</strong> Rejects for any record whose network fetch failed; wrap <code>await record.responseReady</code> inside <code>try / catch</code> in <code>backgroundfetchfail</code> handlers when salvaging partial multi-file downloads.</li>
+      <li><strong>Migration fixes:</strong> (1) Add <code>Access-Control-Allow-Origin</code> (and <code>Access-Control-Allow-Credentials: true</code> if needed) on cross-origin CDNs serving Background Fetch assets; (2) remove non-safelisted headers like <code>Authorization</code> from cross-origin Background Fetch requests (use signed URLs or proxy through your own origin instead); (3) never pass <code>mode: "no-cors"</code>.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/background_fetch/background_fetch_manager.cc" target="_blank" rel="noopener">Blink <code>background_fetch_manager.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/background_fetch/background_fetch_job_controller.cc" target="_blank" rel="noopener">Chromium <code>background_fetch_job_controller.cc</code></a>; <a href="https://chromestatus.com/feature/6210300985606144" target="_blank" rel="noopener">ChromeStatus 6210300985606144</a>.</span>
+
+    <h3 id="context">Context, exposure, and prerequisites</h3>
+    <p><code>BackgroundFetchManager</code> is exposed on <code>ServiceWorkerRegistration.prototype.backgroundFetch</code> in <strong>secure contexts</strong> (<code>Window</code> and <code>ServiceWorkerGlobalScope</code>) and requires an active registered Service Worker. Calling <code>backgroundFetch.fetch()</code> from a window context requires transient user activation (or background-fetch permission), and only <code>https:</code> URLs (or <code>http:</code> for loopback IPs during local development) are permitted. In Chromium, the Network Service CORS enforcement applies to both desktop and Android Chrome 157+; Android WebView and iOS do not support Background Fetch.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/background-fetch/#background-fetch-manager" target="_blank" rel="noopener">WICG Background Fetch <code>BackgroundFetchManager</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/background_fetch/background_fetch_manager.cc" target="_blank" rel="noopener">Blink <code>background_fetch_manager.cc</code></a>; <a href="https://chromestatus.com/api/v0/features/6210300985606144" target="_blank" rel="noopener">ChromeStatus 6210300985606144</a>.</span>
+
+    <h3 id="lifecycle">Lifecycle and state transitions</h3>
+    <p>A Background Fetch registration progresses through five stages under Chrome 157 CORS enforcement:</p>
+    <ol>
+      <li><strong>Renderer validation:</strong> <code>backgroundFetch.fetch()</code> checks URL validity, scheme, CSP, and rejects <code>mode: "no-cors"</code> with a <code>TypeError</code> before any network traffic begins.</li>
+      <li><strong>Browser preflight gate:</strong> For each queued request, <code>BackgroundFetchJobController::StartRequest()</code> checks mixed content and <code>RequiresCorsPreflight()</code>; cross-origin requests requiring a preflight fail immediately with <code>FETCH_ERROR</code>.</li>
+      <li><strong>Network Service fetch:</strong> <code>BackgroundFetchDelegateProxy</code> attaches the <code>Origin</code> header and forwards <code>fetch_request_mode</code> + <code>credentials_mode</code> through the Download Service into <code>network::ResourceRequest</code>, where the Network Service enforces CORS, CORP/COEP/DIP, and Local Network Access before streaming bytes to disk.</li>
+      <li><strong>Cross-origin response filter &amp; progress:</strong> <code>BackgroundFetchCrossOriginFilter</code> validates <code>Access-Control-Allow-Origin</code> / <code>Access-Control-Allow-Credentials</code> before exposing download progress or response bodies; failures suppress progress updates and mask <code>download-total-exceeded</code>.</li>
+      <li><strong>Service Worker settlement:</strong> Once all requests settle, the browser wakes the Service Worker with <code>backgroundfetchsuccess</code> (if every record succeeded) or <code>backgroundfetchfail</code> (if any record failed CORS/network checks), keeping records available until the event&rsquo;s <code>waitUntil()</code> promise settles.</li>
+    </ol>
+    <span class="citation">Source: <a href="https://wicg.github.io/background-fetch/#background-fetch-lifecycle" target="_blank" rel="noopener">WICG Background Fetch lifecycle</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/background_fetch/background_fetch_job_controller.cc" target="_blank" rel="noopener">Chromium <code>background_fetch_job_controller.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/download/internal/common/download_utils.cc" target="_blank" rel="noopener">Chromium <code>download_utils.cc</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+
+    <h3 id="example-cors-and-headers">Interactive URL audit tool &amp; CORS-safe Background Fetch registration</h3>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/cors-enforcement-for-background-fetch/what-changed/"
+        title="Live example — Audit Background Fetch URLs for CORS enforcement impact" loading="lazy" width="100%" height="540"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live interactive auditor showing how same-origin, CORS-enabled cross-origin, and preflight-triggering URLs behave under CORS enforcement. Sibling demos on the <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/cors-enforcement-for-background-fetch/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase feature index</a> (filed under v154 when first tracked; shipped enabled by default in Chrome 157): <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/cors-enforcement-for-background-fetch/same-origin/" target="_blank" rel="noopener">same-origin baseline</a> and <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/cors-enforcement-for-background-fetch/cross-origin/" target="_blank" rel="noopener">cross-origin with &amp; without CORS headers</a>. <span class="citation">Source: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/cors-enforcement-for-background-fetch/what-changed/" target="_blank" rel="noopener">chrome-platform-showcase</a>.</span></figcaption>
+    </figure>
+
+    <pre tabindex="0"><code data-doc-test="js">async function startCorsSafeBackgroundFetch(urls) {
+  const reg = await navigator.serviceWorker.ready;
+  if (!("backgroundFetch" in reg)) {
+    throw new Error("Background Fetch API is not supported in this browser");
+  }
+
+  // Keep cross-origin requests CORS-safelisted (GET, no custom headers) so
+  // Chromium's RequiresCorsPreflight() gate does not fail with "fetch-error".
+  // Remote origins must return Access-Control-Allow-Origin: * (or exact origin).
+  const requests = urls.map(
+    (url) =&gt; new Request(url, { method: "GET", mode: "cors", credentials: "omit" })
+  );
+
+  return reg.backgroundFetch.fetch("media-pack-v1", requests, {
+    title: "Downloading media pack",
+    downloadTotal: 15_000_000,
+  });
+}</code></pre>
+    <span class="citation">Source: <a href="https://wicg.github.io/background-fetch/#dom-backgroundfetchmanager-fetch" target="_blank" rel="noopener">WICG Background Fetch <code>fetch()</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/background_fetch/background_fetch_job_controller.cc" target="_blank" rel="noopener">Chromium <code>background_fetch_job_controller.cc</code></a>.</span>
+
+    <h3 id="example-sw-failure-handling">Service Worker handling of <code>backgroundfetchfail</code> and <code>record.responseReady</code></h3>
+    <pre tabindex="0"><code data-doc-test="js">// Inside service-worker.js
+self.addEventListener("backgroundfetchsuccess", (event) =&gt; {
+  event.waitUntil(
+    (async () =&gt; {
+      const cache = await caches.open("bg-downloads");
+      const records = await event.registration.matchAll();
+      for (const record of records) {
+        const response = await record.responseReady;
+        await cache.put(record.request, response);
+      }
+      await event.updateUI({ title: "Download complete" });
+    })()
+  );
+});
+
+self.addEventListener("backgroundfetchfail", (event) =&gt; {
+  event.waitUntil(
+    (async () =&gt; {
+      const { id, failureReason } = event.registration;
+      // CORS blocks, missing Access-Control-Allow-Origin, and preflight blocks
+      // all surface as failureReason === "fetch-error".
+      const records = await event.registration.matchAll();
+      const failedUrls = [];
+      for (const record of records) {
+        try {
+          await record.responseReady;
+        } catch {
+          failedUrls.push(record.request.url);
+        }
+      }
+      console.error("Background fetch failed", { id, failureReason, failedUrls });
+      await event.updateUI({ title: `Download failed (${failureReason})` });
+    })()
+  );
+});</code></pre>
+    <span class="citation">Source: <a href="https://wicg.github.io/background-fetch/#background-fetch-record" target="_blank" rel="noopener">WICG Background Fetch <code>BackgroundFetchRecord</code></a>; <a href="https://developer.mozilla.org/en-US/docs/Web/API/BackgroundFetchRecord/responseReady" target="_blank" rel="noopener">MDN <code>BackgroundFetchRecord.responseReady</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Support for Chrome 157 Network Service CORS enforcement in Background Fetch alongside base Background Fetch API availability. Combines ChromeStatus 6210300985606144, webstatus.dev <code>background-fetch</code>, and BCD <code>api/BackgroundFetchManager.json</code> (checked 2026-11-27).</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col">CORS enforcement in Background Fetch</th><th scope="col">Evidence / notes</th><th scope="col">Base Background Fetch (BCD)</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Chrome (desktop &amp; Android)</th><td>157</td><td>Enabled by default in Chrome 157 per <a href="https://chromestatus.com/api/v0/features/6210300985606144" target="_blank" rel="noopener">ChromeStatus 6210300985606144</a> (Finch feature <code>BackgroundFetchCorsEnforcement</code>); Android WebView &amp; iOS do not support Background Fetch</td><td>74 (desktop &amp; Android)</td></tr>
+        <tr><th scope="row">Edge</th><td>157 (mirror)</td><td>Chromium-based; inherits <code>kBackgroundFetchCorsEnforcement</code> in Chromium 157</td><td>79</td></tr>
+        <tr><th scope="row">Firefox</th><td>Not applicable (unsupported)</td><td>Background Fetch is not implemented in Gecko (<a href="https://github.com/mozilla/standards-positions/issues/30" target="_blank" rel="noopener">Mozilla standards-positions#30</a>)</td><td>No</td></tr>
+        <tr><th scope="row">Safari</th><td>Not applicable (unsupported)</td><td>Background Fetch is not implemented in WebKit (<a href="https://github.com/WebKit/standards-positions/issues/149" target="_blank" rel="noopener">WebKit standards-positions#149</a>)</td><td>No</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/6210300985606144" target="_blank" rel="noopener">ChromeStatus API record (6210300985606144)</a>; <a href="https://api.webstatus.dev/v1/features/background-fetch" target="_blank" rel="noopener">webstatus.dev <code>background-fetch</code></a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/BackgroundFetchManager.json" target="_blank" rel="noopener">BCD <code>api/BackgroundFetchManager.json</code></a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/BackgroundFetchRecord.json" target="_blank" rel="noopener">BCD <code>api/BackgroundFetchRecord.json</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <p>This change is a security hardening fix tracked under Chromium&rsquo;s Background Fetch security meta bug (<a href="https://issues.chromium.org/issues/515243254" target="_blank" rel="noopener">crbug.com/515243254</a>). Previously, dispatching Background Fetch downloads with <code>RequestMode::kNavigate</code> allowed sites to bypass Network Service CORS checks as well as Cross-Origin Resource Policy (CORP), Cross-Origin Embedder Policy (COEP), Document Isolation Policy (DIP), and Local Network Access protections. Propagating <code>fetch_request_mode</code> into the Network Service closes the bypass, ensures cross-origin servers must explicitly opt in via <code>Access-Control-Allow-Origin</code>, and prevents cross-origin resource size disclosure by suppressing progress updates and masking <code>download-total-exceeded</code> behind <code>"fetch-error"</code> on failed CORS checks.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6210300985606144" target="_blank" rel="noopener">ChromeStatus 6210300985606144</a>; <a href="https://issues.chromium.org/issues/515243254" target="_blank" rel="noopener">Chromium Issue 515243254</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/download/internal/common/download_utils.cc" target="_blank" rel="noopener">Chromium <code>download_utils.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/background_fetch/background_fetch_job_controller.cc" target="_blank" rel="noopener">Chromium <code>background_fetch_job_controller.cc</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Specifications">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Specification</th><th scope="col">Section</th></tr></thead>
+      <tbody>
+        <tr><td><a href="https://wicg.github.io/background-fetch/" target="_blank" rel="noopener">WICG Background Fetch</a></td><td><a href="https://wicg.github.io/background-fetch/#dom-backgroundfetchmanager-fetch" target="_blank" rel="noopener"><code>BackgroundFetchManager.fetch()</code></a> &middot; <a href="https://wicg.github.io/background-fetch/#background-fetch-record" target="_blank" rel="noopener"><code>BackgroundFetchRecord</code></a></td></tr>
+        <tr><td><a href="https://fetch.spec.whatwg.org/" target="_blank" rel="noopener">WHATWG Fetch Standard</a></td><td><a href="https://fetch.spec.whatwg.org/#cors-protocol" target="_blank" rel="noopener">CORS protocol</a> &middot; <a href="https://fetch.spec.whatwg.org/#cors-safelisted-request-header" target="_blank" rel="noopener">CORS-safelisted request headers</a></td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/cors-enforcement-for-background-fetch/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase &mdash; CORS enforcement for Background Fetch demos</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/BackgroundFetchManager" target="_blank" rel="noopener">MDN &mdash; <code>BackgroundFetchManager</code></a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/BackgroundFetchRecord/responseReady" target="_blank" rel="noopener"><code>BackgroundFetchRecord.responseReady</code></a></li>
+      <li><a href="https://webstatus.dev/features/background-fetch" target="_blank" rel="noopener">webstatus.dev &mdash; <code>background-fetch</code></a></li>
+      <li><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6abfe174.b816ca50.7065.0796.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship &mdash; CORS enforcement for Background Fetch</a></li>
+      <li><a href="https://issues.chromium.org/issues/515243254" target="_blank" rel="noopener">Chromium Issue 515243254 (Background Fetch security meta bug)</a></li>
+      <li><a href="https://chromestatus.com/feature/6210300985606144" target="_blank" rel="noopener">ChromeStatus &mdash; CORS enforcement for Background Fetch (6210300985606144)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

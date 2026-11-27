@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Connection Allowlists - Embedded Enforcement — Chrome 157 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .scroll-table { min-width: 30rem; }
+    .example-embed { margin: 1.25rem 0; }
+    .example-embed iframe { display: block; inline-size: 100%; max-inline-size: 100%; border: 2px solid var(--border-black); background: var(--surface, #fff); }
+    .example-embed figcaption { margin-top: 0.5rem; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v157/">&larr; Chrome 157 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v157 &middot; security &middot; origin trial</p>
+    <h1>Connection Allowlists - Embedded Enforcement</h1>
+
+    <p class="lede">Extends <a href="/v152/connection-allowlists/">Connection Allowlists</a> (shipped in Chrome 152) with an opt-in embedded-enforcement handshake modeled on CSP Embedded Enforcement. An embedder declares a required allowlist on an <code>&lt;iframe connectionallowlist="..."&gt;</code> element (reflected as <code>HTMLIFrameElement.connectionAllowlist</code>); the browser sends <code>Sec-Required-Connection-Allowlist</code> with the frame navigation, blocks any framed document that fails to opt in (via a satisfying <code>Connection-Allowlist</code> header, an <code>Allow-Connection-Allowlist-From</code> response header, or local-scheme inheritance), and propagates the unresolved requirement down the frame and worker tree so descendants can only tighten &mdash; never loosen &mdash; the constraint.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; Origin trial in Chrome 157&ndash;168 (not yet enabled by default); Firefox and Safari have no implementation yet</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; Origin trial 157&ndash;168 (desktop, Android, WebView; not yet shipped enabled by default)</li>
+        <li>Edge &middot; Mirrors Chromium origin trial (Microsoft authored the spec &amp; explainer)</li>
+        <li class="limited">Firefox &middot; Positive on base Connection Allowlists (#1322); no embedded-enforcement implementation</li>
+        <li class="limited">Safari &middot; No signal (#583)</li>
+      </ul>
+      <p>No <code>web-features</code> entry or BCD record exists for Embedded Enforcement yet (checked 2026-11-27 against <a href="https://api.webstatus.dev/v1/features?q=connection+allowlist" target="_blank" rel="noopener">webstatus.dev</a> and <a href="https://github.com/mdn/browser-compat-data/blob/main/api/HTMLIFrameElement.json" target="_blank" rel="noopener">BCD <code>api/HTMLIFrameElement.json</code></a>); base <a href="https://webstatus.dev/features/connection-allowlists" target="_blank" rel="noopener"><code>connection-allowlists</code></a> is <strong>Limited availability</strong> (Chrome/Edge 152). MDN has no reference pages for <code>HTMLIFrameElement.connectionAllowlist</code>, <code>Sec-Required-Connection-Allowlist</code>, or <code>Allow-Connection-Allowlist-From</code>.</p>
+    </div>
+  </header>
+
+  <div class="warn-block" role="note" aria-label="Experimental feature notice">
+    <strong>Origin trial in Chrome 157&ndash;168 (not yet enabled by default):</strong> To enroll in production, register for the <code>ConnectionAllowlistEmbeddedEnforcement</code> origin trial (ID <code>3609072151384031233</code>) at <a href="https://developer.chrome.com/origintrials/" target="_blank" rel="noopener">Chrome Origin Trials</a> and deliver the token on the embedding document. For local testing without a token, enable <code>chrome://flags/#enable-experimental-web-platform-features</code> or launch Chromium with <code>--enable-blink-features=ConnectionAllowlistEmbeddedEnforcement</code> (defined with <code>status: "experimental"</code> and <code>origin_trial_feature_name: "ConnectionAllowlistEmbeddedEnforcement"</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener"><code>runtime_enabled_features.json5</code></a>; there is no dedicated <code>chrome://flags</code> toggle).
+  </div>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#at-a-glance">At a glance</a></li>
+      <li><a href="#why">Why it exists</a></li>
+      <li><a href="#syntax">Syntax</a></li>
+      <li><a href="#connectionallowlist-attribute">iframe attribute &amp; IDL</a></li>
+      <li><a href="#sec-required-header">Sec-Required header</a></li>
+      <li><a href="#allow-from-header">Allow-From header</a></li>
+      <li><a href="#handshake-and-subsumption">Handshake &amp; subsumption</a></li>
+      <li><a href="#errors">Errors &amp; blocking</a></li>
+      <li><a href="#context">Context &amp; scope</a></li>
+      <li><a href="#lifecycle">Lifecycle &amp; inheritance</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#security-and-privacy">Security &amp; privacy</a></li>
+      <li><a href="#specifications">Specifications</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="At a glance">
+    <table class="doc-table">
+      <tr><th scope="row">Status</th><td>Origin trial in Chrome 157&ndash;168 (desktop, Android, Android WebView; iOS <code>null</code>; no stable ship milestone yet) &mdash; filed under &ldquo;Origin trial&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=157" target="_blank" rel="noopener">milestone=157 listing</a></td></tr>
+      <tr><th scope="row">Runtime flag / OT</th><td><code>ConnectionAllowlistEmbeddedEnforcement</code> (Origin trial ID <code>3609072151384031233</code>; UseCounter <code>kConnectionAllowlistEmbeddedEnforcement</code>; test locally with <code>--enable-blink-features=ConnectionAllowlistEmbeddedEnforcement</code> or <code>chrome://flags/#enable-experimental-web-platform-features</code>)</td></tr>
+      <tr><th scope="row">Parent feature</th><td>Builds on <a href="/v152/connection-allowlists/">Connection Allowlists</a> (Chrome 152, ChromeStatus <a href="https://chromestatus.com/feature/5175745573945344" target="_blank" rel="noopener">5175745573945344</a>)</td></tr>
+      <tr><th scope="row">Specification</th><td><a href="https://w3c.github.io/connection-allowlists/#embedded-enforcement" target="_blank" rel="noopener">W3C Connection Allowlists &sect;4 Embedded Enforcement</a> (modeled on <a href="https://www.w3.org/TR/csp-embedded-enforcement/" target="_blank" rel="noopener">W3C CSP Embedded Enforcement</a>)</td></tr>
+      <tr><th scope="row">Explainer &amp; PR</th><td><a href="https://github.com/WICG/connection-allowlists/blob/main/iframe-embedded-enforcement-explainer.md" target="_blank" rel="noopener">Embedded Enforcement explainer</a> &middot; <a href="https://github.com/WICG/connection-allowlists/pull/29" target="_blank" rel="noopener">Spec PR #29</a> &middot; <a href="https://github.com/WICG/connection-allowlists/issues/1" target="_blank" rel="noopener">WICG/connection-allowlists#1</a></td></tr>
+      <tr><th scope="row">Intents</th><td><a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/QHhBWQ0oUrA" target="_blank" rel="noopener">blink-dev Intent to Prototype</a> &middot; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/PH0PR00MB33477A8DDBB9B679579195ADB9B92%40PH0PR00MB3347.namprd00.prod.outlook.com" target="_blank" rel="noopener">blink-dev Intent to Experiment</a></td></tr>
+      <tr><th scope="row">Chromium source</th><td><a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_iframe_element.idl" target="_blank" rel="noopener">Blink <code>html_iframe_element.idl</code></a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_iframe_element.cc" target="_blank" rel="noopener"><code>html_iframe_element.cc</code></a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener"><code>runtime_enabled_features.json5</code></a></td></tr>
+      <tr><th scope="row">Web platform tests</th><td><a href="https://github.com/web-platform-tests/wpt/tree/master/connection-allowlist/tentative" target="_blank" rel="noopener">WPT <code>connection-allowlist/tentative</code></a></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5657801797009408" target="_blank" rel="noopener">5657801797009408 &mdash; Connection Allowlists - Embedded Enforcement</a> (<a href="https://chromestatus.com/api/v0/features/5657801797009408" target="_blank" rel="noopener">API record</a>)</td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>Base <a href="/v152/connection-allowlists/">Connection Allowlists</a> (<code>Connection-Allowlist</code>) restricts only the document or worker whose response delivered the header. A cross-origin <code>&lt;iframe&gt;</code> establishes its own policy container from its own HTTP response, so an unconstrained third-party widget embedded inside a tightly allowlisted host page could still exfiltrate data sent to it over <code>postMessage()</code> or URL parameters. Embedded Enforcement closes that bypass by letting the embedder require a minimum allowlist of its framed documents (and any nested frames or workers inside them), while requiring explicit opt-in from cross-origin documents so embedders cannot silently break unwilling third-party sites.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/connection-allowlists/blob/main/iframe-embedded-enforcement-explainer.md" target="_blank" rel="noopener">Embedded Enforcement explainer</a>; <a href="https://w3c.github.io/connection-allowlists/#embedded-enforcement" target="_blank" rel="noopener">W3C Connection Allowlists &sect;4</a>; <a href="https://chromestatus.com/feature/5657801797009408" target="_blank" rel="noopener">ChromeStatus 5657801797009408</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>Embedded Enforcement spans one reflected WebIDL attribute on <code>HTMLIFrameElement</code> (<a href="https://w3c.github.io/connection-allowlists/#connection-allowlist-attribute" target="_blank" rel="noopener">&sect;4.1</a>), two HTTP headers (<a href="https://w3c.github.io/connection-allowlists/#embedded-enforcement-headers" target="_blank" rel="noopener">&sect;4.2</a>), and the policy-container opt-in and <code>satisfies</code> subsumption algorithm (<a href="https://w3c.github.io/connection-allowlists/#embedded-enforcement-strictness" target="_blank" rel="noopener">&sect;4.3&ndash;&sect;4.4</a>):</p>
+    <pre tabindex="0"><code data-doc-test="idl">partial interface HTMLIFrameElement {
+  [CEReactions] attribute DOMString connectionAllowlist;
+};</code></pre>
+    <pre tabindex="0"><code data-doc-test="skip" data-doc-test-reason="HTML attribute plus HTTP request/response header grammar (RFC 9651 Structured Field and ABNF) for Connection Allowlists Embedded Enforcement.">&lt;!-- Embedder declares required allowlist on &lt;iframe&gt; (RFC 9651 Structured Field list) --&gt;
+&lt;iframe connectionallowlist='("https://good.example" response-origin)'
+        src="https://widget.example/"&gt;&lt;/iframe&gt;
+
+# Browser -> framed document (forbidden Sec-* request header, set by user agent only):
+Sec-Required-Connection-Allowlist: ("https://good.example" response-origin)
+
+# Framed document opts in via either:
+# (1) An asserted Connection-Allowlist that satisfies (is a subset of) the requirement:
+Connection-Allowlist: (response-origin)
+# (2) Or Allow-Connection-Allowlist-From (ABNF: origin-or-null / "*"):
+Allow-Connection-Allowlist-From: https://embedder.example
+# (3) Or implicit inheritance via policy container for local schemes (about:srcdoc, data:).</code></pre>
+    <p>This reference documents all four developer-facing surfaces: the <a href="#connectionallowlist-attribute"><code>&lt;iframe connectionallowlist&gt;</code> content &amp; reflected IDL attribute</a>, the <a href="#sec-required-header"><code>Sec-Required-Connection-Allowlist</code> request header</a>, the <a href="#allow-from-header"><code>Allow-Connection-Allowlist-From</code> response header</a>, and the <a href="#handshake-and-subsumption">opt-in handshake, <code>satisfies</code> strictness comparison, and policy container inheritance</a>.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/connection-allowlists/#connection-allowlist-attribute" target="_blank" rel="noopener">W3C Connection Allowlists &sect;4.1</a>; <a href="https://w3c.github.io/connection-allowlists/#embedded-enforcement-headers" target="_blank" rel="noopener">&sect;4.2</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_iframe_element.idl" target="_blank" rel="noopener">Blink <code>html_iframe_element.idl</code></a>.</span>
+
+    <h3 id="connectionallowlist-attribute"><code>&lt;iframe connectionallowlist&gt;</code> &amp; <code>HTMLIFrameElement.connectionAllowlist</code></h3>
+    <p><strong>Inputs.</strong> Set the <code>connectionallowlist</code> HTML content attribute (case-insensitive in HTML) or assign the reflected <code>iframe.connectionAllowlist</code> <code>DOMString</code> property using the exact RFC 9651 Structured Field list-of-inner-lists grammar of the <a href="/v152/connection-allowlists/"><code>Connection-Allowlist</code></a> header: a parenthesized inner list of quoted <code>URLPattern</code> strings and/or the <code>response-origin</code> token, with optional inner-list parameters (<code>redirects=allow|block</code>, <code>webrtc=allow|block</code>, <code>report-to=&lt;token&gt;</code>; both <code>redirects</code> and <code>webrtc</code> default to <code>block</code>). In Blink (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_iframe_element.cc" target="_blank" rel="noopener"><code>ParseConnectionAllowlistAttribute()</code></a>), a valid attribute value must be non-empty, <strong>at most 4096 characters</strong> (<code>kMaxLengthConnectionAllowlistAttribute</code>), parse cleanly as a Structured Field list whose first item is an inner list (with zero parser issues and no CR/LF), and be <strong>at least as strict as</strong> any requirement the embedder already inherited from its own parent.</p>
+    <p><strong>Outputs.</strong> Reading <code>iframe.connectionAllowlist</code> reflects the raw content attribute string (empty string if unset). At navigation time, HTML&rsquo;s <em>determine the required connection allowlist</em> algorithm snapshots the validated attribute string (or falls back to the embedder&rsquo;s inherited <code>parent required</code> string if the attribute is empty, over-long, malformed, or looser than <code>parent required</code>) into <code>target snapshot params</code> and <code>navigation params</code>. Because the attribute is snapshotted per navigation (mirroring <code>sandbox</code>), mutating <code>iframe.connectionAllowlist</code> takes effect on the frame&rsquo;s <em>next</em> navigation.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/connection-allowlists/#connection-allowlist-attribute" target="_blank" rel="noopener">W3C Connection Allowlists &sect;4.1</a>; <a href="https://w3c.github.io/connection-allowlists/#embedded-enforcement-checking" target="_blank" rel="noopener">&sect;4.4 Obtaining and enforcing a requirement</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_iframe_element.cc" target="_blank" rel="noopener">Blink <code>html_iframe_element.cc</code></a>.</span>
+
+    <h3 id="sec-required-header"><code>Sec-Required-Connection-Allowlist</code> request header</h3>
+    <p><strong>Inputs.</strong> Generated automatically by the browser process during <em>create navigation params by fetching</em> whenever the navigation&rsquo;s snapshotted required connection allowlist is non-<code>null</code>. Because its name begins with <code>Sec-</code>, <code>Sec-Required-Connection-Allowlist</code> is a Fetch <strong>forbidden request-header</strong>: page JavaScript cannot set, spoof, or delete it via <code>fetch()</code> or <code>new Request()</code>.</p>
+    <p><strong>Outputs.</strong> The framed server receives the unresolved serialized Structured Field requirement string verbatim (for example <code>Sec-Required-Connection-Allowlist: ("https://good.example" response-origin)</code>). Keeping the string unresolved ensures that the <code>response-origin</code> token resolves against the <em>framed document&rsquo;s</em> own response URL rather than freezing to the embedder&rsquo;s origin, allowing servers to inspect what is required and decide whether to opt in.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/connection-allowlists/#embedded-enforcement-headers" target="_blank" rel="noopener">W3C Connection Allowlists &sect;4.2</a>; <a href="https://w3c.github.io/connection-allowlists/#html" target="_blank" rel="noopener">&sect;5.2 Integration with HTML</a>.</span>
+
+    <h3 id="allow-from-header"><code>Allow-Connection-Allowlist-From</code> response header</h3>
+    <p><strong>Inputs.</strong> Returned by the framed HTTP response using the ABNF grammar <code>Allow-Connection-Allowlist-From = origin-or-null / "*"</code> (identical to <a href="https://www.w3.org/TR/csp-embedded-enforcement/#allow-csp-from-header" target="_blank" rel="noopener"><code>Allow-CSP-From</code></a>): either a single serialized origin such as <code>https://embedder.example</code> (with scheme, host, and non-default port if any, no trailing slash or path), the literal string <code>null</code> (for opaque origins), or the wildcard <code>*</code> to consent to any embedder.</p>
+    <p><strong>Outputs.</strong> Per <a href="https://w3c.github.io/connection-allowlists/#embedded-enforcement-headers" target="_blank" rel="noopener">&sect;4.2</a>, the browser compares the header value <strong>byte-for-byte</strong> against <code>*</code> or the byte-serialized embedder request origin (with zero URL parsing, matching Fetch&rsquo;s <code>Access-Control-Allow-Origin</code> check). When it matches, the navigation is allowed to commit and the browser enforces the embedder&rsquo;s required allowlist inside the framed document&rsquo;s policy container alongside any allowlist the response itself asserted.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/connection-allowlists/#embedded-enforcement-headers" target="_blank" rel="noopener">W3C Connection Allowlists &sect;4.2</a>; <a href="https://www.w3.org/TR/csp-embedded-enforcement/" target="_blank" rel="noopener">W3C CSP Embedded Enforcement</a>.</span>
+
+    <h3 id="handshake-and-subsumption">Opt-in handshake, <code>satisfies</code> subsumption, and policy container inheritance</h3>
+    <p><strong>Inputs.</strong> When a child navigable receives a navigation response under a non-<code>null</code> required connection allowlist, Fetch runs <em>should be blocked by Connection Allowlist embedded enforcement</em> against the response&rsquo;s headers, URL, and the embedder&rsquo;s request origin.</p>
+    <p><strong>Outputs &amp; three opt-in paths.</strong> A framed navigation succeeds if and only if one of the following three opt-in conditions holds:</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="optin-caption">
+    <table class="doc-table scroll-table">
+      <caption id="optin-caption">Connection Allowlists Embedded Enforcement opt-in paths and resulting policy container state (W3C Connection Allowlists &sect;4.3&ndash;&sect;4.4)</caption>
+      <thead><tr><th scope="col">Opt-in path</th><th scope="col">Condition</th><th scope="col">Enforced allowlists on framed document</th></tr></thead>
+      <tbody>
+        <tr><td>1. Asserted <code>Connection-Allowlist</code> satisfies requirement</td><td>Response&rsquo;s parsed <code>Connection-Allowlist</code> (enforcing) <strong>satisfies</strong> the requirement: every asserted <code>URLPattern</code> struct appears in the requirement&rsquo;s pattern list (conservative syntactic set-membership; no semantic subsumption), and if the requirement sets <code>redirects=block</code> or <code>webrtc=block</code> the candidate also sets <code>block</code>. An empty <code>()</code> allowlist is a subset of every allowlist.</td><td>Document&rsquo;s own stricter/equal <code>Connection-Allowlist</code> is enforced (the redundant requirement is not appended), and the unresolved requirement string is stored in the <code>policy container</code>&rsquo;s <code>required connection allowlist</code> for descendants.</td></tr>
+        <tr><td>2. <code>Allow-Connection-Allowlist-From</code> header</td><td>Header equals <code>*</code> or byte-matches the embedder&rsquo;s serialized request origin.</td><td>Parsed requirement is <strong>appended</strong> to the document&rsquo;s <code>policy container</code> <code>connection allowlists</code> alongside any own headers, and the unresolved requirement string is stored for descendants.</td></tr>
+        <tr><td>3. Local-scheme document (<code>about:srcdoc</code>, <code>data:</code>)</td><td>Implicit opt-in (no HTTP response).</td><td>Inherits the embedder&rsquo;s entire <code>policy container</code> directly, including both its enforced allowlists and its <code>required connection allowlist</code>.</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p><strong>Never-loosen rule across nesting.</strong> When a constrained frame embeds a grandchild iframe with its own <code>connectionallowlist</code> attribute, the browser checks whether the grandchild&rsquo;s attribute <em>is at least as strict as</em> the inherited requirement (treating <code>response-origin</code> literally as equal to itself before any response URL is known). If the grandchild attempts to loosen the policy, its attribute is ignored and the parent&rsquo;s stricter requirement is inherited unchanged.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/connection-allowlists/#embedded-enforcement-strictness" target="_blank" rel="noopener">W3C Connection Allowlists &sect;4.3 Comparing allowlists</a>; <a href="https://w3c.github.io/connection-allowlists/#embedded-enforcement-checking" target="_blank" rel="noopener">&sect;4.4 Obtaining and enforcing</a>; <a href="https://w3c.github.io/connection-allowlists/#html" target="_blank" rel="noopener">&sect;5.2 HTML integration</a>.</span>
+
+    <h3 id="errors">Errors, malformed inputs, and blocked navigations</h3>
+    <ul>
+      <li><strong>No opt-in (navigation blocked):</strong> If a framed HTTP response omits both a matching <code>Allow-Connection-Allowlist-From</code> header and a satisfying <code>Connection-Allowlist</code> header, Fetch replaces the navigation response with a <strong>network error</strong> (the iframe fails to load and logs a console/DevTools Issue message).</li>
+      <li><strong>Malformed asserted <code>Connection-Allowlist</code>:</strong> Parses to <code>null</code> and does <em>not</em> count as an opt-in; unless <code>Allow-Connection-Allowlist-From</code> matches, the frame is blocked.</li>
+      <li><strong>Malformed, empty, or &gt;4096-character <code>connectionallowlist</code> attribute:</strong> Ignored defensively by Blink (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_iframe_element.cc" target="_blank" rel="noopener"><code>ParseConnectionAllowlistAttribute()</code></a>) so an unparseable value is never emitted in <code>Sec-Required-Connection-Allowlist</code>. If the embedder already has an inherited requirement, that inherited requirement continues to apply unchanged; if there is no inherited requirement, no requirement is enforced (rather than blocking the frame).</li>
+      <li><strong>Origin mismatch or trailing slash in <code>Allow-Connection-Allowlist-From</code>:</strong> Because matching is byte-for-byte against the serialized origin (no URL parsing), returning <code>https://embedder.example/</code> with a trailing slash fails to match <code>https://embedder.example</code> and blocks the frame.</li>
+      <li><strong>Syntactic-only <code>satisfies</code> mismatch:</strong> Because <code>satisfies</code> uses URL-pattern-struct equality rather than semantic subsumption, asserting <code>("https://good.example/api/v1")</code> does <em>not</em> satisfy a requirement of <code>("https://good.example/*")</code> unless the server either matches the exact pattern or sends <code>Allow-Connection-Allowlist-From</code>.</li>
+      <li><strong>Ungovernable contexts (fenced frames):</strong> Contexts whose requests are not governed by their embedder&rsquo;s <code>policy container</code> (such as fenced frames) are blocked whenever an embedder requires a connection allowlist of them.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://w3c.github.io/connection-allowlists/#embedded-enforcement-checking" target="_blank" rel="noopener">W3C Connection Allowlists &sect;4.4</a>; <a href="https://w3c.github.io/connection-allowlists/#security-embedded-enforcement" target="_blank" rel="noopener">&sect;6.2 Security</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_iframe_element.cc" target="_blank" rel="noopener">Blink <code>html_iframe_element.cc</code></a>.</span>
+
+    <h3 id="context">Context, exposure, and feature detection</h3>
+    <p><code>HTMLIFrameElement.prototype.connectionAllowlist</code> is exposed in <code>Window</code> contexts when the <code>ConnectionAllowlistEmbeddedEnforcement</code> runtime feature is active (via origin trial token in Chrome 157&ndash;168 or the experimental web platform flag). Feature-detect via <code>"connectionAllowlist" in HTMLIFrameElement.prototype</code> before assuming browsers will send <code>Sec-Required-Connection-Allowlist</code> or enforce frame blocking; browsers without the feature ignore the HTML attribute and load the iframe unrestricted. Workers inherit <code>policy container</code>&rsquo;s <code>required connection allowlist</code> via <em>clone a policy container</em>.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_iframe_element.idl" target="_blank" rel="noopener">Blink <code>html_iframe_element.idl</code></a>; <a href="https://w3c.github.io/connection-allowlists/#html" target="_blank" rel="noopener">W3C Connection Allowlists &sect;5.2</a>.</span>
+
+    <h3 id="lifecycle">Lifecycle, navigation snapshotting, and propagation</h3>
+    <ol>
+      <li><strong>Attribute declaration:</strong> Embedder sets <code>&lt;iframe connectionallowlist="..."&gt;</code> or assigns <code>iframe.connectionAllowlist</code>. Blink validates length (&le;4096) and Structured Field syntax and syncs the requirement to the browser process.</li>
+      <li><strong>Navigation snapshot:</strong> On <em>every</em> navigation of the child navigable (including child-initiated navigations and redirects), the browser snapshots the effective requirement (the iframe&rsquo;s valid attribute if at least as strict as the parent&rsquo;s requirement, otherwise the parent&rsquo;s requirement) into <code>target snapshot params</code> &rarr; <code>navigation params</code>.</li>
+      <li><strong>Request header &amp; opt-in check:</strong> For HTTP(S) navigations, the browser attaches <code>Sec-Required-Connection-Allowlist</code> to the outgoing request and evaluates the final response&rsquo;s <code>Allow-Connection-Allowlist-From</code> and <code>Connection-Allowlist</code> headers; failure aborts the navigation with a network error.</li>
+      <li><strong>Policy container commit &amp; inheritance:</strong> On opt-in (or for <code>about:srcdoc</code> / <code>data:</code> local-scheme documents), the resolved requirement is enforced on all outgoing connections (subresource fetches, navigations, WebSockets, WebTransport, DNS prefetch) for the lifetime of that document, and the unresolved string persists on its <code>policy container</code> so descendant frames and workers inherit it with fresh per-frame <code>response-origin</code> resolution.</li>
+    </ol>
+    <span class="citation">Source: <a href="https://w3c.github.io/connection-allowlists/#html" target="_blank" rel="noopener">W3C Connection Allowlists &sect;5.2 Integration with HTML</a>; <a href="https://github.com/WICG/connection-allowlists/blob/main/iframe-embedded-enforcement-explainer.md" target="_blank" rel="noopener">Embedded Enforcement explainer</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+
+    <h3 id="example-handshake-and-headers">Interactive handshake lab &amp; full HTML / HTTP opt-in handshake</h3>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.kinlan-test.workers.dev/v157/connection-allowlists-embedded-enforcement/handshake-lab/"
+        title="Live example — Connection Allowlists Embedded Enforcement handshake lab" loading="lazy" width="100%" height="560"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live interactive handshake lab testing all three outcomes (satisfying <code>Connection-Allowlist</code>, <code>Allow-Connection-Allowlist-From</code> opt-in, and non-opted-in frame blocking). Sibling demos on the <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v157/connection-allowlists-embedded-enforcement/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase feature index</a>: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v157/connection-allowlists-embedded-enforcement/surface-probe/" target="_blank" rel="noopener">IDL &amp; header surface probe</a> and <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v157/connection-allowlists-embedded-enforcement/allowlist-builder/" target="_blank" rel="noopener">allowlist builder &amp; satisfies comparator</a>. <span class="citation">Source: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v157/connection-allowlists-embedded-enforcement/handshake-lab/" target="_blank" rel="noopener">chrome-platform-showcase</a>.</span></figcaption>
+    </figure>
+
+    <pre tabindex="0"><code data-doc-test="html">&lt;!-- On https://embedder.example (with origin trial token for Chrome 157-168) --&gt;
+&lt;iframe
+  connectionallowlist='("https://api.good.example/*" response-origin)'
+  src="https://widget.example/embed"&gt;
+&lt;/iframe&gt;</code></pre>
+
+    <pre tabindex="0"><code data-doc-test="http"># 1. Request sent automatically by the browser (forbidden Sec-* header):
+GET /embed HTTP/1.1
+Host: widget.example
+Sec-Required-Connection-Allowlist: ("https://api.good.example/*" response-origin)
+
+# 2a. Opt-in Option A: acknowledge the embedder origin (enforced via policy container):
+HTTP/1.1 200 OK
+Allow-Connection-Allowlist-From: https://embedder.example
+
+# 2b. Opt-in Option B: assert an own Connection-Allowlist that satisfies the requirement:
+HTTP/1.1 200 OK
+Connection-Allowlist: (response-origin)</code></pre>
+    <span class="citation">Source: <a href="https://w3c.github.io/connection-allowlists/#embedded-enforcement" target="_blank" rel="noopener">W3C Connection Allowlists &sect;4</a>; <a href="https://github.com/WICG/connection-allowlists/blob/main/iframe-embedded-enforcement-explainer.md" target="_blank" rel="noopener">Embedded Enforcement explainer</a>.</span>
+
+    <h3 id="example-js-reflection">Feature detection and dynamic <code>connectionAllowlist</code> reflection in JavaScript</h3>
+    <pre tabindex="0"><code data-doc-test="js">function createConstrainedWidgetFrame(widgetUrl, allowedPatterns) {
+  const supportsEmbeddedEnforcement =
+    "connectionAllowlist" in HTMLIFrameElement.prototype;
+
+  const iframe = document.createElement("iframe");
+  const serialized = `(${allowedPatterns.join(" ")})`;
+
+  if (supportsEmbeddedEnforcement) {
+    // Takes effect on the navigation triggered when src is assigned (like sandbox).
+    iframe.connectionAllowlist = serialized;
+  } else {
+    // Fallback attribute reflection for inspection; older browsers will not enforce it.
+    iframe.setAttribute("connectionallowlist", serialized);
+  }
+
+  iframe.src = widgetUrl;
+  return { iframe, supportsEmbeddedEnforcement };
+}</code></pre>
+    <span class="citation">Source: <a href="https://w3c.github.io/connection-allowlists/#connection-allowlist-attribute" target="_blank" rel="noopener">W3C Connection Allowlists &sect;4.1</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_iframe_element.idl" target="_blank" rel="noopener">Blink <code>html_iframe_element.idl</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Support for Connection Allowlists - Embedded Enforcement (<code>&lt;iframe connectionallowlist&gt;</code>, <code>Sec-Required-Connection-Allowlist</code>, <code>Allow-Connection-Allowlist-From</code>). BCD has no entry yet (checked 2026-11-27); interim data comes from ChromeStatus 5657801797009408 and webstatus.dev <code>connection-allowlists</code>.</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col">Embedded Enforcement</th><th scope="col">Evidence / notes</th><th scope="col">Base <code>Connection-Allowlist</code> (webstatus.dev)</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Chrome (desktop, Android, WebView)</th><td>Origin trial 157&ndash;168</td><td>Origin trial <code>ConnectionAllowlistEmbeddedEnforcement</code> (ID <code>3609072151384031233</code>) or <code>--enable-blink-features=ConnectionAllowlistEmbeddedEnforcement</code> per <a href="https://chromestatus.com/api/v0/features/5657801797009408" target="_blank" rel="noopener">ChromeStatus 5657801797009408</a>; not yet enabled by default</td><td>152 (desktop &amp; Android)</td></tr>
+        <tr><th scope="row">Edge</th><td>Origin trial 157&ndash;168 (mirror)</td><td>Chromium-based; Microsoft Edge engineers authored the spec PR and explainer</td><td>152</td></tr>
+        <tr><th scope="row">Firefox</th><td>No release</td><td>Positive standards position on base Connection Allowlists (<a href="https://github.com/mozilla/standards-positions/issues/1322" target="_blank" rel="noopener">Mozilla #1322</a>); no embedded-enforcement implementation</td><td>No release</td></tr>
+        <tr><th scope="row">Safari</th><td>No signal / No release</td><td>No signal on <a href="https://github.com/WebKit/standards-positions/issues/583" target="_blank" rel="noopener">WebKit #583</a></td><td>No release</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5657801797009408" target="_blank" rel="noopener">ChromeStatus API record (5657801797009408)</a>; <a href="https://api.webstatus.dev/v1/features?q=connection+allowlist" target="_blank" rel="noopener">webstatus.dev <code>connection-allowlists</code></a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/HTMLIFrameElement.json" target="_blank" rel="noopener">BCD <code>api/HTMLIFrameElement.json</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <ul>
+      <li><strong>Mandatory opt-in:</strong> Cross-origin frames are never silently constrained; they must assert a satisfying <code>Connection-Allowlist</code> or return <code>Allow-Connection-Allowlist-From</code> naming the embedder (or <code>*</code>), preventing embedders from probing or breaking unwilling cross-origin sites.</li>
+      <li><strong>Browser-process trust boundary:</strong> Even under a compromised-renderer threat model, the renderer only reflects and length-validates the attribute; the browser process enforces every trust decision (subsumption check, emitting <code>Sec-Required-Connection-Allowlist</code>, verifying opt-in, storing the requirement on the policy container, and re-checking on every navigation).</li>
+      <li><strong>No relaxation &amp; conservative failure:</strong> Descendants can only tighten requirements; malformed asserted allowlists parse to <code>null</code> and fail closed; ungovernable contexts such as fenced frames are blocked when an embedder sets a requirement.</li>
+      <li><strong>Same-origin &amp; worker boundary caveats:</strong> Connection Allowlists govern network connections, not <code>postMessage()</code> / <code>BroadcastChannel</code> / <code>MessageChannel</code>. Same-origin contexts with different allowlists remain an open follow-up (potentially requiring agent-cluster isolation); isolate untrusted widgets on distinct origins or with <code>iframe sandbox</code>, and restrict <code>blob:</code> shared workers with CSP <code>worker-src</code>.</li>
+      <li><strong>Privacy:</strong> Exposes <code>Sec-Required-Connection-Allowlist</code> to the framed server by design (analogous to <code>Sec-Required-CSP</code>) so it can decide whether to opt in; introduces no persistent storage or cross-site tracking state.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://w3c.github.io/connection-allowlists/#security-embedded-enforcement" target="_blank" rel="noopener">W3C Connection Allowlists &sect;6.2 Security &mdash; Embedded Enforcement</a>; <a href="https://github.com/WICG/connection-allowlists/blob/main/iframe-embedded-enforcement-explainer.md" target="_blank" rel="noopener">Embedded Enforcement explainer (Security &amp; Privacy)</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Specifications">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Specification</th><th scope="col">Section</th></tr></thead>
+      <tbody>
+        <tr><td><a href="https://w3c.github.io/connection-allowlists/" target="_blank" rel="noopener">W3C Connection Allowlists</a></td><td><a href="https://w3c.github.io/connection-allowlists/#embedded-enforcement" target="_blank" rel="noopener">&sect;4 Embedded Enforcement</a> &middot; <a href="https://w3c.github.io/connection-allowlists/#connection-allowlist-attribute" target="_blank" rel="noopener">&sect;4.1 <code>connectionAllowlist</code></a> &middot; <a href="https://w3c.github.io/connection-allowlists/#embedded-enforcement-headers" target="_blank" rel="noopener">&sect;4.2 Headers</a> &middot; <a href="https://w3c.github.io/connection-allowlists/#embedded-enforcement-strictness" target="_blank" rel="noopener">&sect;4.3 Comparing allowlists</a> &middot; <a href="https://w3c.github.io/connection-allowlists/#embedded-enforcement-checking" target="_blank" rel="noopener">&sect;4.4 Obtaining and enforcing</a></td></tr>
+        <tr><td><a href="https://www.w3.org/TR/csp-embedded-enforcement/" target="_blank" rel="noopener">W3C Content Security Policy: Embedded Enforcement</a></td><td><a href="https://www.w3.org/TR/csp-embedded-enforcement/#allow-csp-from-header" target="_blank" rel="noopener"><code>Allow-CSP-From</code> header &amp; embedded policy model</a></td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="/v152/connection-allowlists/">gendn &mdash; Connection Allowlists (Chrome 152 base feature reference)</a></li>
+      <li><a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v157/connection-allowlists-embedded-enforcement/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase &mdash; Connection Allowlists - Embedded Enforcement demos</a></li>
+      <li><a href="https://github.com/WICG/connection-allowlists/blob/main/iframe-embedded-enforcement-explainer.md" target="_blank" rel="noopener">WICG Embedded Enforcement explainer</a></li>
+      <li><a href="https://github.com/WICG/connection-allowlists/pull/29" target="_blank" rel="noopener">WICG/connection-allowlists#29 (Embedded Enforcement spec PR)</a></li>
+      <li><a href="https://github.com/web-platform-tests/wpt/tree/master/connection-allowlist/tentative" target="_blank" rel="noopener">WPT <code>connection-allowlist/tentative</code> test suite</a></li>
+      <li><a href="https://chromestatus.com/feature/5657801797009408" target="_blank" rel="noopener">ChromeStatus &mdash; Connection Allowlists - Embedded Enforcement (5657801797009408)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

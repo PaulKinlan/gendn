@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebGPU: atomic-vec2u-min-max — Chrome 157 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .scroll-table { min-width: 30rem; }
+    .example-embed { margin: 1.25rem 0; }
+    .example-embed iframe { display: block; inline-size: 100%; max-inline-size: 100%; border: 2px solid var(--border-black); background: var(--surface, #fff); }
+    .example-embed figcaption { margin-top: 0.5rem; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v157/">&larr; Chrome 157 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v157 &middot; graphics &middot; webgpu &middot; enabled by default</p>
+    <h1>WebGPU: atomic-vec2u-min-max</h1>
+
+    <p class="lede">Adds the optional WebGPU adapter feature <code>"atomic-vec2u-min-max"</code> and matching WGSL enable extension <code>enable atomic_vec2u_min_max;</code>, allowing shaders in <code>compute</code> and <code>fragment</code> stages to perform 64-bit unsigned integer atomic minimum and maximum writes on <code>atomic&lt;vec2&lt;u32&gt;&gt;</code> (<code>atomic&lt;vec2u&gt;</code>) storage buffers via <code>atomicStoreMin()</code> and <code>atomicStoreMax()</code> &mdash; without requiring full 64-bit scalar integer support in WGSL.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; enabled by default in Chrome 157 on adapters with hardware 64-bit atomic min/max support; Firefox and Safari do not ship <code>"atomic-vec2u-min-max"</code> yet</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 157 (desktop, Android, WebView; hardware-dependent; dev trial in 155)</li>
+        <li>Edge &middot; Mirrors Chromium (157, hardware-dependent)</li>
+        <li class="limited">Firefox &middot; No release yet (participated in W3C WG PR #5610)</li>
+        <li class="limited">Safari &middot; Positive signal via PR #5610; no release yet</li>
+      </ul>
+      <p>The parent <a href="https://webstatus.dev/features/webgpu" target="_blank" rel="noopener"><code>webgpu</code> web-feature</a> is <strong>Limited availability</strong> on <a href="https://api.webstatus.dev/v1/features/webgpu" target="_blank" rel="noopener">webstatus.dev</a> (checked 2026-11-27), and no separate <code>web-features</code> entry exists for <code>"atomic-vec2u-min-max"</code>. <a href="https://github.com/mdn/browser-compat-data/blob/main/api/GPUSupportedFeatures.json" target="_blank" rel="noopener">BCD <code>api/GPUSupportedFeatures.json</code></a> does not yet list <code>"atomic-vec2u-min-max"</code>, and <a href="https://developer.mozilla.org/en-US/docs/Web/API/GPUSupportedFeatures" target="_blank" rel="noopener">MDN&rsquo;s <code>GPUSupportedFeatures</code> page</a> does not document this feature or WGSL&rsquo;s <code>atomicStoreMin()</code>/<code>atomicStoreMax()</code> built-ins &mdash; so gendn publishes a complete spec-backed reference here.</p>
+    </div>
+  </header>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#at-a-glance">At a glance</a></li>
+      <li><a href="#why">Why it exists</a></li>
+      <li><a href="#syntax">Syntax</a></li>
+      <li><a href="#gpu-feature-name">WebGPU feature</a></li>
+      <li><a href="#wgsl-extension-and-type">WGSL extension &amp; type</a></li>
+      <li><a href="#atomic-store-min-max">atomicStoreMin / Max</a></li>
+      <li><a href="#errors">Errors &amp; limits</a></li>
+      <li><a href="#context">Context &amp; hardware</a></li>
+      <li><a href="#lifecycle">Lifecycle &amp; memory model</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#security-and-privacy">Security &amp; privacy</a></li>
+      <li><a href="#specifications">Specifications</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="At a glance">
+    <table class="doc-table">
+      <tr><th scope="row">Shipped in</th><td>Chrome 157 (desktop, Android, Android WebView; iOS <code>null</code>), enabled by default on capable GPU adapters &mdash; filed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=157" target="_blank" rel="noopener">milestone=157 listing</a> (graduated from Developer Trial in Chrome 155 on desktop and Android)</td></tr>
+      <tr><th scope="row">WebGPU / WGSL names</th><td>WebGPU <code>GPUFeatureName</code>: <code>"atomic-vec2u-min-max"</code> (hyphens) &middot; WGSL enable directive: <code>enable atomic_vec2u_min_max;</code> (underscores) &middot; WGSL built-ins: <code>atomicStoreMin()</code>, <code>atomicStoreMax()</code></td></tr>
+      <tr><th scope="row">Specifications</th><td><a href="https://www.w3.org/TR/webgpu/#dom-gpufeaturename-atomic-vec2u-min-max" target="_blank" rel="noopener">W3C WebGPU &sect;25.25 <code>"atomic-vec2u-min-max"</code></a> &middot; <a href="https://www.w3.org/TR/WGSL/#extension-atomic_vec2u_min_max" target="_blank" rel="noopener">W3C WGSL &sect;4.1.1 <code>atomic_vec2u_min_max</code></a>, <a href="https://www.w3.org/TR/WGSL/#atomic-types" target="_blank" rel="noopener">&sect;6.2.8 Atomic Types</a>, and <a href="https://www.w3.org/TR/WGSL/#atomic-store-min-max" target="_blank" rel="noopener">&sect;17.8.6 Atomic Store Min and Max Functions</a></td></tr>
+      <tr><th scope="row">Proposal &amp; PR</th><td><a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/atomic-64-min-max.md" target="_blank" rel="noopener">GPUWeb 64-bit atomics proposal</a> &middot; <a href="https://github.com/gpuweb/gpuweb/issues/5071" target="_blank" rel="noopener">gpuweb/gpuweb#5071</a> &middot; <a href="https://github.com/gpuweb/gpuweb/pull/5610" target="_blank" rel="noopener">Spec PR #5610</a></td></tr>
+      <tr><th scope="row">Intent &amp; bug</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6ab1a50b.89f37149.359470.01dc.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a> &middot; <a href="https://issues.chromium.org/issues/453689550" target="_blank" rel="noopener">issues.chromium.org/453689550</a></td></tr>
+      <tr><th scope="row">Chromium / Dawn source</th><td><a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgpu/gpu_supported_features.idl" target="_blank" rel="noopener">Blink <code>gpu_supported_features.idl</code></a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgpu/dawn_enum_conversions.cc" target="_blank" rel="noopener"><code>dawn_enum_conversions.cc</code></a> &middot; <a href="https://dawn.googlesource.com/dawn/+/refs/heads/main/src/tint/lang/wgsl/wgsl.def" target="_blank" rel="noopener">Tint <code>wgsl.def</code></a></td></tr>
+      <tr><th scope="row">Conformance tests</th><td>WebGPU CTS: <a href="https://github.com/gpuweb/cts/pull/4662" target="_blank" rel="noopener">gpuweb/cts#4662</a> (Dawn/Tint CTS suite)</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/4882016087703552" target="_blank" rel="noopener">4882016087703552 &mdash; WebGPU: atomic-vec2u-min-max</a> (<a href="https://chromestatus.com/api/v0/features/4882016087703552" target="_blank" rel="noopener">API record</a>)</td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>GPU compute rasterizers (such as software visibility buffers for virtual geometry), dense point-cloud splatting, and key-value reduction kernels routinely need to compare a 32-bit sort key (such as Z-depth) and atomically store an associated 32-bit payload (such as a triangle ID or packed color) in one indivisible memory update. Standard WGSL only provides 32-bit <code>atomic&lt;u32&gt;</code> and <code>atomic&lt;i32&gt;</code> and has no scalar <code>u64</code> type. Splitting depth and payload across two 32-bit buffers introduces race conditions, while packing both into a single 32-bit word sacrifices depth precision. Hardware backends differ in which 64-bit atomic operations they support &mdash; in particular, Metal 2.4+ restricts 64-bit atomics to void-returning <code>min</code> and <code>max</code> on <code>uint64_t</code>. Scoping this optional feature to 64-bit unsigned <code>atomicStoreMin</code> and <code>atomicStoreMax</code> over the existing 8-byte <code>vec2&lt;u32&gt;</code> surrogate type delivers broad cross-API reach across Vulkan, Metal, and Direct3D 12.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/4882016087703552" target="_blank" rel="noopener">ChromeStatus 4882016087703552</a>; <a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/atomic-64-min-max.md" target="_blank" rel="noopener">GPUWeb 64-bit atomics proposal</a>; <a href="https://github.com/gpuweb/gpuweb/issues/5071" target="_blank" rel="noopener">gpuweb/gpuweb#5071</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>The feature adds one enum value to WebGPU&rsquo;s <code>GPUFeatureName</code> (<a href="https://www.w3.org/TR/webgpu/#dom-gpufeaturename-atomic-vec2u-min-max" target="_blank" rel="noopener">W3C WebGPU &sect;25.25</a>) and pairs it with one WGSL enable directive, one 64-bit surrogate atomic storage type, and two void-returning WGSL built-in functions (<a href="https://www.w3.org/TR/WGSL/#atomic-store-min-max" target="_blank" rel="noopener">W3C WGSL &sect;17.8.6</a>):</p>
+    <pre tabindex="0"><code data-doc-test="skip" data-doc-test-reason="WebGPU GPUFeatureName enum excerpt plus WGSL enable extension, type, and built-in signatures.">// WebGPU WebIDL enum addition (GPUFeatureName)
+"atomic-vec2u-min-max"
+
+// JavaScript adapter check &amp; device opt-in
+adapter.features.has("atomic-vec2u-min-max")
+await adapter.requestDevice({ requiredFeatures: ["atomic-vec2u-min-max"] })
+
+// WGSL enable directive (top of shader module)
+enable atomic_vec2u_min_max;
+
+// WGSL storage buffer declaration (read_write storage only; 8-byte size &amp; alignment)
+@group(0) @binding(0)
+var&lt;storage, read_write&gt; target: array&lt;atomic&lt;vec2&lt;u32&gt;&gt;&gt;; // alias: array&lt;atomic&lt;vec2u&gt;&gt;
+
+// WGSL built-in functions (compute and fragment stages only; no return value)
+fn atomicStoreMin(atomic_ptr: ptr&lt;storage, atomic&lt;vec2&lt;u32&gt;&gt;, read_write&gt;, v: vec2&lt;u32&gt;)
+fn atomicStoreMax(atomic_ptr: ptr&lt;storage, atomic&lt;vec2&lt;u32&gt;&gt;, read_write&gt;, v: vec2&lt;u32&gt;)</code></pre>
+    <p>This reference covers all three surfaces of the contract: the <a href="#gpu-feature-name"><code>"atomic-vec2u-min-max"</code> WebGPU adapter feature</a>, the <a href="#wgsl-extension-and-type"><code>enable atomic_vec2u_min_max;</code> WGSL extension and <code>atomic&lt;vec2u&gt;</code> storage type</a>, and the <a href="#atomic-store-min-max"><code>atomicStoreMin()</code> and <code>atomicStoreMax()</code> built-in functions</a>.</p>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/webgpu/#dom-gpufeaturename-atomic-vec2u-min-max" target="_blank" rel="noopener">W3C WebGPU &sect;25.25</a>; <a href="https://www.w3.org/TR/WGSL/#extension-atomic_vec2u_min_max" target="_blank" rel="noopener">W3C WGSL &sect;4.1.1</a>; <a href="https://www.w3.org/TR/WGSL/#atomic-store-min-max" target="_blank" rel="noopener">W3C WGSL &sect;17.8.6</a>; <a href="https://dawn.googlesource.com/dawn/+/refs/heads/main/src/tint/lang/wgsl/wgsl.def" target="_blank" rel="noopener">Dawn/Tint <code>wgsl.def</code></a>.</span>
+
+    <h3 id="gpu-feature-name">WebGPU feature: <code>GPUFeatureName "atomic-vec2u-min-max"</code></h3>
+    <p><strong>Inputs.</strong> Pass the string <code>"atomic-vec2u-min-max"</code> to <code>adapter.features.has("atomic-vec2u-min-max")</code> to probe hardware and driver support on a <code>GPUAdapter</code>, and include <code>"atomic-vec2u-min-max"</code> in the <code>requiredFeatures</code> sequence of <code>GPUDeviceDescriptor</code> when calling <code>adapter.requestDevice({ requiredFeatures: ["atomic-vec2u-min-max"] })</code>. There are no companion feature dependencies in <a href="https://www.w3.org/TR/webgpu/#feature-dependencies" target="_blank" rel="noopener">W3C WebGPU &sect;3.6.1.2</a>.</p>
+    <p><strong>Outputs.</strong> <code>adapter.features.has("atomic-vec2u-min-max")</code> returns <code>true</code> when the adapter exposes the capability (note the hyphenated JS name versus the underscored WGSL name). When granted by <code>adapter.requestDevice()</code>, <code>device.features.has("atomic-vec2u-min-max")</code> is <code>true</code> and <code>device.createShaderModule()</code> accepts WGSL shaders declaring <code>enable atomic_vec2u_min_max;</code>. In Blink (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgpu/dawn_enum_conversions.cc" target="_blank" rel="noopener"><code>dawn_enum_conversions.cc</code></a>), <code>V8GPUFeatureName::Enum::kAtomicVec2UMinMax</code> maps directly to Dawn&rsquo;s <code>wgpu::FeatureName::AtomicVec2uMinMax</code>.</p>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/webgpu/#dom-gpufeaturename-atomic-vec2u-min-max" target="_blank" rel="noopener">W3C WebGPU &sect;25.25</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgpu/gpu_supported_features.idl" target="_blank" rel="noopener">Blink <code>gpu_supported_features.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgpu/dawn_enum_conversions.cc" target="_blank" rel="noopener">Blink <code>dawn_enum_conversions.cc</code></a>.</span>
+
+    <h3 id="wgsl-extension-and-type">WGSL enable extension: <code>enable atomic_vec2u_min_max;</code> and <code>atomic&lt;vec2&lt;u32&gt;&gt;</code></h3>
+    <p><strong>Inputs &amp; declaration rules.</strong> A WGSL shader module must declare <code>enable atomic_vec2u_min_max;</code> at global scope before any declaration that uses <code>atomic&lt;vec2&lt;u32&gt;&gt;</code> (or its predeclared alias <code>atomic&lt;vec2u&gt;</code>). Note that in Dawn/Tint (<a href="https://dawn.googlesource.com/dawn/+/refs/heads/main/src/tint/lang/wgsl/wgsl.def" target="_blank" rel="noopener"><code>wgsl.def</code></a>), <code>atomic_vec2u_min_max</code> is registered as a WGSL <code>extension</code> (requiring <code>enable atomic_vec2u_min_max;</code> and the WebGPU device feature <code>"atomic-vec2u-min-max"</code>), not as an automatic <code>navigator.gpu.wgslLanguageFeatures</code> entry.</p>
+    <p><strong>Outputs &amp; 64-bit word layout.</strong> Per <a href="https://www.w3.org/TR/WGSL/#atomic-types" target="_blank" rel="noopener">W3C WGSL &sect;6.2.8</a>, <code>atomic&lt;vec2&lt;u32&gt;&gt;</code> has size 8 bytes and alignment 8 bytes (matching <code>vec2&lt;u32&gt;</code>) and represents an unsigned 64-bit integer in little-endian word order:</p>
+    <ul>
+      <li><strong>Component 0 (<code>v[0]</code> / <code>v.x</code>):</strong> the <strong>32 least significant bits</strong> (payload / tie-breaker).</li>
+      <li><strong>Component 1 (<code>v[1]</code> / <code>v.y</code>):</strong> the <strong>32 most significant bits</strong> (primary comparison key, e.g., Z-depth).</li>
+      <li><strong>Numeric value:</strong> <code>value64 = 2^32 &times; v[1] + v[0]</code>. Swapping <code>.x</code> and <code>.y</code> compares the payload before the sort key &mdash; always place the sort key in <code>.y</code> (index 1) and the payload in <code>.x</code> (index 0).</li>
+    </ul>
+    <p><strong>Address space constraint.</strong> If a variable&rsquo;s store type is or contains <code>atomic&lt;vec2&lt;u32&gt;&gt;</code>, the variable <em>must</em> be declared in the <code>storage</code> address space with <code>read_write</code> access mode (<code>var&lt;storage, read_write&gt;</code>). Declaring <code>atomic&lt;vec2u&gt;</code> in the <code>workgroup</code> address space, in a <code>read</code>-only storage buffer, or in textures is forbidden and fails shader creation. Expressions cannot evaluate to an atomic type.</p>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/WGSL/#extension-atomic_vec2u_min_max" target="_blank" rel="noopener">W3C WGSL &sect;4.1.1</a>; <a href="https://www.w3.org/TR/WGSL/#atomic-types" target="_blank" rel="noopener">W3C WGSL &sect;6.2.8 Atomic Types</a>; <a href="https://dawn.googlesource.com/dawn/+/refs/heads/main/src/tint/lang/wgsl/wgsl.def" target="_blank" rel="noopener">Dawn/Tint <code>wgsl.def</code></a>.</span>
+
+    <h3 id="atomic-store-min-max">Built-ins: <code>atomicStoreMin()</code> and <code>atomicStoreMax()</code></h3>
+    <p><strong>Inputs.</strong> Both functions require <code>enable atomic_vec2u_min_max;</code> and accept two arguments in <code>compute</code> or <code>fragment</code> shader stages:</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="builtins-caption">
+    <table class="doc-table scroll-table">
+      <caption id="builtins-caption">WGSL 64-bit atomic min/max built-in functions (W3C WGSL &sect;17.8.6 &amp; Tint <code>wgsl.def</code>)</caption>
+      <thead><tr><th scope="col">Function</th><th scope="col">Parameters</th><th scope="col">Return value &amp; atomic effect</th></tr></thead>
+      <tbody>
+        <tr><td><code>atomicStoreMin(atomic_ptr, v)</code></td><td><code>atomic_ptr: ptr&lt;storage, atomic&lt;vec2&lt;u32&gt;&gt;, read_write&gt;</code>, <code>v: vec2&lt;u32&gt;</code></td><td><strong>No return value (void).</strong> Atomically loads <code>old</code>, computes <code>new64 = min(2^32 &times; old[1] + old[0], 2^32 &times; v[1] + v[0])</code>, and stores <code>vec2u(lo32(new64), hi32(new64))</code> back to <code>atomic_ptr</code>.</td></tr>
+        <tr><td><code>atomicStoreMax(atomic_ptr, v)</code></td><td><code>atomic_ptr: ptr&lt;storage, atomic&lt;vec2&lt;u32&gt;&gt;, read_write&gt;</code>, <code>v: vec2&lt;u32&gt;</code></td><td><strong>No return value (void).</strong> Atomically loads <code>old</code>, computes <code>new64 = max(2^32 &times; old[1] + old[0], 2^32 &times; v[1] + v[0])</code>, and stores <code>vec2u(lo32(new64), hi32(new64))</code> back to <code>atomic_ptr</code>.</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p><strong>Outputs &amp; differences from 32-bit atomics.</strong> Unlike 32-bit <code>atomicMin()</code> and <code>atomicMax()</code> (which return the previous <code>u32</code>/<code>i32</code> value), <code>atomicStoreMin()</code> and <code>atomicStoreMax()</code> <strong>do not return a value</strong> and cannot be used in an expression. Furthermore, no other WGSL atomic built-ins &mdash; including <code>atomicLoad</code>, <code>atomicStore</code>, <code>atomicAdd</code>, <code>atomicSub</code>, <code>atomicExchange</code>, or <code>atomicCompareExchangeWeak</code> &mdash; are overloaded for <code>atomic&lt;vec2u&gt;</code>. Initialize the buffer before the pass (with <code>commandEncoder.clearBuffer()</code> for max-reductions or a compute clear pass writing <code>vec2u(0xffffffffu, 0xffffffffu)</code> for min-reductions) and read the resolved 64-bit pairs in a subsequent pass that binds the same <code>GPUBuffer</code> as plain <code>array&lt;vec2u&gt;</code>.</p>
+    <p><strong>Backend mappings.</strong> Per the <a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/atomic-64-min-max.md" target="_blank" rel="noopener">GPUWeb proposal</a>, Tint lowers <code>atomicStoreMin</code> / <code>atomicStoreMax</code> to SPIR-V <code>OpAtomicUMin</code> / <code>OpAtomicUMax</code> (Vulkan), MSL <code>atomic_min_explicit</code> / <code>atomic_max_explicit</code> (Metal), and HLSL SM 6.6 <code>InterlockedMin</code> / <code>InterlockedMax</code> (Direct3D 12).</p>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/WGSL/#atomic-store-min-max" target="_blank" rel="noopener">W3C WGSL &sect;17.8.6</a>; <a href="https://dawn.googlesource.com/dawn/+/refs/heads/main/src/tint/lang/wgsl/wgsl.def" target="_blank" rel="noopener">Dawn/Tint <code>wgsl.def</code></a>; <a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/atomic-64-min-max.md" target="_blank" rel="noopener">GPUWeb 64-bit atomics proposal</a>.</span>
+
+    <h3 id="errors">Errors, validation failures, and fallbacks</h3>
+    <ul>
+      <li><strong>Unsupported adapter (<code>requestDevice</code> rejection):</strong> Calling <code>adapter.requestDevice({ requiredFeatures: ["atomic-vec2u-min-max"] })</code> when <code>adapter.features.has("atomic-vec2u-min-max")</code> is <code>false</code> rejects with a <code>TypeError</code> per WebGPU&rsquo;s <code>requestDevice()</code> feature-validation rules. Always probe <code>adapter.features.has("atomic-vec2u-min-max")</code> first and fall back to packed 32-bit <code>atomic&lt;u32&gt;</code> or a multi-pass/render-pipeline depth buffer when absent.</li>
+      <li><strong>Missing <code>enable</code> directive or missing device feature (shader-creation error):</strong> Using <code>atomic&lt;vec2u&gt;</code>, <code>atomicStoreMin()</code>, or <code>atomicStoreMax()</code> without <code>enable atomic_vec2u_min_max;</code> &mdash; or compiling a shader with <code>enable atomic_vec2u_min_max;</code> on a <code>GPUDevice</code> that did not enable <code>"atomic-vec2u-min-max"</code> &mdash; fails WGSL compilation and reports an error message in <code>shaderModule.getCompilationInfo()</code> plus a WebGPU validation error on the device.</li>
+      <li><strong>Disallowed address space, stage, or atomic op (shader-creation error):</strong> Declaring <code>var&lt;workgroup&gt; x: atomic&lt;vec2u&gt;</code>, calling <code>atomicStoreMin</code>/<code>atomicStoreMax</code> from a <code>vertex</code> shader, assigning their void return value (<code>let old = atomicStoreMin(...)</code>), or calling <code>atomicLoad</code>/<code>atomicStore</code>/<code>atomicMin</code>/<code>atomicMax</code> on an <code>atomic&lt;vec2u&gt;</code> pointer all produce shader-creation errors.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/webgpu/#dom-gpufeaturename-atomic-vec2u-min-max" target="_blank" rel="noopener">W3C WebGPU &sect;25.25</a>; <a href="https://www.w3.org/TR/WGSL/#extension-atomic_vec2u_min_max" target="_blank" rel="noopener">W3C WGSL &sect;4.1.1</a>; <a href="https://www.w3.org/TR/WGSL/#atomic-types" target="_blank" rel="noopener">W3C WGSL &sect;6.2.8</a>; <a href="https://www.w3.org/TR/WGSL/#atomic-store-min-max" target="_blank" rel="noopener">W3C WGSL &sect;17.8.6</a>.</span>
+
+    <h3 id="context">Context, exposure, and hardware requirements</h3>
+    <p><code>GPUSupportedFeatures</code> and <code>navigator.gpu</code> are exposed in <code>Window</code> and <code>Worker</code> (including <code>DedicatedWorkerGlobalScope</code>) in <strong>secure contexts</strong> (HTTPS or loopback) only. Because <code>"atomic-vec2u-min-max"</code> is an optional hardware-backed feature, Chrome 157 only populates it in <code>adapter.features</code> when the active GPU driver satisfies backend 64-bit storage-buffer atomic requirements:</p>
+    <ul>
+      <li><strong>Vulkan:</strong> Vulkan 1.2 <code>shaderBufferInt64Atomics</code> or the <code>VK_KHR_shader_atomic_int64</code> device extension.</li>
+      <li><strong>Metal:</strong> Metal 2.4+ with 64-bit atomic min/max support (for example Apple GPU family 9 and modern macOS/iOS GPUs supporting MSL 64-bit <code>atomic_min_explicit</code>/<code>atomic_max_explicit</code>).</li>
+      <li><strong>Direct3D 12:</strong> Shader Model 6.6 with <code>D3D12_FEATURE_D3D12_OPTIONS1::Int64ShaderOps</code> and 64-bit integer atomics.</li>
+    </ul>
+    <p>Software fallback adapters or older mobile GPUs without 64-bit buffer atomics will return <code>false</code> from <code>adapter.features.has("atomic-vec2u-min-max")</code> even on Chrome 157+.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgpu/gpu_supported_features.idl" target="_blank" rel="noopener">Blink <code>gpu_supported_features.idl</code></a>; <a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/atomic-64-min-max.md" target="_blank" rel="noopener">GPUWeb 64-bit atomics proposal (Backend Requirements)</a>; <a href="https://chromestatus.com/feature/4882016087703552" target="_blank" rel="noopener">ChromeStatus 4882016087703552</a>.</span>
+
+    <h3 id="lifecycle">Lifecycle, memory scope, and synchronization</h3>
+    <p>Feature availability is immutable for a given <code>GPUAdapter</code> / <code>GPUDevice</code> pair: once enabled at <code>requestDevice()</code> time, <code>"atomic-vec2u-min-max"</code> stays active until <code>device.destroy()</code> or device loss. Inside WGSL, <code>atomic&lt;vec2&lt;u32&gt;&gt;</code> lives exclusively in the <code>storage</code> address space and therefore has a <strong><code>QueueFamily</code> memory scope</strong> (<a href="https://www.w3.org/TR/WGSL/#atomic-types" target="_blank" rel="noopener">W3C WGSL &sect;6.2.8</a>). Every call to <code>atomicStoreMin</code> or <code>atomicStoreMax</code> counts as an atomic modification (even when the existing value wins the comparison) and is mutually ordered per atomic object across invocations in the dispatch or render pass. Because there is no <code>atomicLoad</code> on <code>atomic&lt;vec2u&gt;</code>, separate the atomic write pass from the non-atomic readback/resolve pass using WebGPU pass boundaries (two compute passes or a compute/fragment pass followed by a resolve pass reading the same <code>GPUBuffer</code> as <code>array&lt;vec2u&gt;</code>) so WebGPU inserts the required storage-buffer barrier automatically.</p>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/WGSL/#atomic-types" target="_blank" rel="noopener">W3C WGSL &sect;6.2.8 Atomic Types</a>; <a href="https://www.w3.org/TR/WGSL/#atomic-store-min-max" target="_blank" rel="noopener">W3C WGSL &sect;17.8.6</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+
+    <h3 id="example-probe-and-device">Interactive word-order inspector &amp; WebGPU feature check</h3>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/webgpu-atomic-vec2u-min-max/wgsl-vec2u-endian-inspector/"
+        title="Live example — WGSL vec2u 64-bit word-order and endian inspector" loading="lazy" width="100%" height="540"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live interactive demo illustrating why <code>.y</code> (component 1) is the high 32-bit sort key and <code>.x</code> (component 0) is the low 32-bit payload in <code>atomic&lt;vec2u&gt;</code>. Sibling demos on the <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/webgpu-atomic-vec2u-min-max/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase feature index</a>: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/webgpu-atomic-vec2u-min-max/depth-id-visibility-buffer/" target="_blank" rel="noopener">64-bit depth + ID visibility buffer</a> and <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/webgpu-atomic-vec2u-min-max/point-cloud-splatting-benchmark/" target="_blank" rel="noopener">point-cloud splatting &amp; CAS benchmark</a>. Note: the showcase was authored during the v156 dev-trial cycle and mentions early <code>atomicMin</code>/<code>atomicMax</code> naming; Chrome 157 and W3C WGSL ship the normative void-returning <code>atomicStoreMin()</code> and <code>atomicStoreMax()</code> built-ins shown below. <span class="citation">Source: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/webgpu-atomic-vec2u-min-max/wgsl-vec2u-endian-inspector/" target="_blank" rel="noopener">chrome-platform-showcase</a>.</span></figcaption>
+    </figure>
+
+    <pre tabindex="0"><code data-doc-test="js">async function initAtomicVec2uDevice() {
+  if (!navigator.gpu) {
+    return { supported: false, reason: "WebGPU unavailable" };
+  }
+
+  const adapter = await navigator.gpu.requestAdapter();
+  if (!adapter) {
+    return { supported: false, reason: "No WebGPU adapter" };
+  }
+
+  const hasFeature = adapter.features.has("atomic-vec2u-min-max");
+  const device = await adapter.requestDevice(
+    hasFeature ? { requiredFeatures: ["atomic-vec2u-min-max"] } : {}
+  );
+
+  return {
+    supported: device.features.has("atomic-vec2u-min-max"),
+    device,
+  };
+}</code></pre>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/webgpu/#dom-gpufeaturename-atomic-vec2u-min-max" target="_blank" rel="noopener">W3C WebGPU &sect;25.25</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgpu/gpu_supported_features.idl" target="_blank" rel="noopener">Blink <code>gpu_supported_features.idl</code></a>.</span>
+
+    <h3 id="example-wgsl-shader">WGSL compute shader using <code>enable atomic_vec2u_min_max;</code>, <code>atomicStoreMin</code>, and <code>atomicStoreMax</code></h3>
+    <pre tabindex="0"><code data-doc-test="skip" data-doc-test-reason="WGSL compute shader source demonstrating enable atomic_vec2u_min_max, atomic<vec2u>, atomicStoreMin, and atomicStoreMax.">enable atomic_vec2u_min_max;
+
+struct Sample {
+  pixelIndex: u32,
+  payloadId: u32,
+  depthBits: u32,
+};
+
+@group(0) @binding(0) var&lt;storage, read&gt; samples: array&lt;Sample&gt;;
+@group(0) @binding(1) var&lt;storage, read_write&gt; minVisBuffer: array&lt;atomic&lt;vec2u&gt;&gt;;
+@group(0) @binding(2) var&lt;storage, read_write&gt; maxVisBuffer: array&lt;atomic&lt;vec2u&gt;&gt;;
+
+@compute @workgroup_size(64)
+fn splat(@builtin(global_invocation_id) gid: vec3u) {
+  if (gid.x &gt;= arrayLength(&amp;samples)) {
+    return;
+  }
+  let s = samples[gid.x];
+
+  // Component 0 (.x) = low 32 bits (payload), component 1 (.y) = high 32 bits (sort key).
+  // Both built-ins return void; read results in a subsequent pass binding array&lt;vec2u&gt;.
+  let packed = vec2u(s.payloadId, s.depthBits);
+  atomicStoreMin(&amp;minVisBuffer[s.pixelIndex], packed);
+  atomicStoreMax(&amp;maxVisBuffer[s.pixelIndex], packed);
+}</code></pre>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/WGSL/#extension-atomic_vec2u_min_max" target="_blank" rel="noopener">W3C WGSL &sect;4.1.1</a>; <a href="https://www.w3.org/TR/WGSL/#atomic-types" target="_blank" rel="noopener">W3C WGSL &sect;6.2.8</a>; <a href="https://www.w3.org/TR/WGSL/#atomic-store-min-max" target="_blank" rel="noopener">W3C WGSL &sect;17.8.6</a>.</span>
+
+    <h3 id="example-shader-compile-js">Compiling and validating the shader in JavaScript</h3>
+    <pre tabindex="0"><code data-doc-test="js">async function createAtomicVisPipeline(device, wgslSource) {
+  if (!device.features.has("atomic-vec2u-min-max")) {
+    throw new Error("Device was not created with requiredFeatures: ['atomic-vec2u-min-max']");
+  }
+
+  const module = device.createShaderModule({ code: wgslSource });
+  const info = await module.getCompilationInfo();
+  const errors = info.messages.filter((m) =&gt; m.type === "error");
+  if (errors.length &gt; 0) {
+    throw new Error(errors.map((m) =&gt; `${m.lineNum}: ${m.message}`).join("\n"));
+  }
+
+  return device.createComputePipelineAsync({
+    layout: "auto",
+    compute: { module, entryPoint: "splat" },
+  });
+}</code></pre>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/webgpu/#dom-gpufeaturename-atomic-vec2u-min-max" target="_blank" rel="noopener">W3C WebGPU &sect;25.25</a>; <a href="https://www.w3.org/TR/WGSL/#atomic-store-min-max" target="_blank" rel="noopener">W3C WGSL &sect;17.8.6</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Support for WebGPU <code>"atomic-vec2u-min-max"</code> / WGSL <code>atomic_vec2u_min_max</code> (<code>atomicStoreMin</code>, <code>atomicStoreMax</code>). BCD <code>api/GPUSupportedFeatures.json</code> does not yet contain a sub-entry for <code>atomic-vec2u-min-max</code> (checked 2026-11-27); interim Chrome ship data comes from ChromeStatus 4882016087703552 and webstatus.dev <code>webgpu</code>.</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col"><code>"atomic-vec2u-min-max"</code></th><th scope="col">Evidence / notes</th><th scope="col">Base WebGPU (webstatus.dev)</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Chrome (desktop, Android, WebView)</th><td>157 (hardware-dependent)</td><td>Enabled by default in Chrome 157 per <a href="https://chromestatus.com/api/v0/features/4882016087703552" target="_blank" rel="noopener">ChromeStatus 4882016087703552</a> (dev trial in Chrome 155 on desktop &amp; Android); requires Vulkan 1.2 / Metal 2.4+ / D3D12 SM 6.6 64-bit atomics; no BCD key yet</td><td>Available (desktop 144 / Android 121 per webstatus.dev)</td></tr>
+        <tr><th scope="row">Edge</th><td>157 (mirror)</td><td>Chromium-based; inherits Dawn/Tint <code>AtomicVec2uMinMax</code> support on capable GPU hardware</td><td>Available (144 per webstatus.dev)</td></tr>
+        <tr><th scope="row">Firefox</th><td>Unknown / No release</td><td>No signal recorded on <a href="https://chromestatus.com/feature/4882016087703552" target="_blank" rel="noopener">ChromeStatus</a>; participated in W3C WG standardization (<a href="https://github.com/gpuweb/gpuweb/pull/5610" target="_blank" rel="noopener">gpuweb#5610</a>)</td><td>No release in webstatus.dev <code>webgpu</code></td></tr>
+        <tr><th scope="row">Safari (macOS &amp; iOS)</th><td>No release yet</td><td>Positive signal via specification approval on <a href="https://github.com/gpuweb/gpuweb/pull/5610" target="_blank" rel="noopener">gpuweb#5610</a>; no shipped Safari release announced</td><td>Available (26 per webstatus.dev)</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/4882016087703552" target="_blank" rel="noopener">ChromeStatus API record (4882016087703552)</a>; <a href="https://api.webstatus.dev/v1/features/webgpu" target="_blank" rel="noopener">webstatus.dev <code>webgpu</code></a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/GPUSupportedFeatures.json" target="_blank" rel="noopener">BCD <code>api/GPUSupportedFeatures.json</code></a>; <a href="https://github.com/gpuweb/gpuweb/pull/5610" target="_blank" rel="noopener">gpuweb/gpuweb#5610</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <p><code>"atomic-vec2u-min-max"</code> executes within WebGPU&rsquo;s existing bounds-checked storage-buffer memory model and secure-context boundary. Like other hardware-dependent optional entries in <code>adapter.features</code>, presence or absence of <code>"atomic-vec2u-min-max"</code> adds one bit of GPU capability entropy (for example distinguishing GPUs supporting Vulkan <code>shaderBufferInt64Atomics</code>, Metal Apple9+/2.4+, or D3D12 SM 6.6 from older devices), consistent with existing WebGPU adapter feature probing. Out-of-bounds buffer indexing remains subject to WebGPU&rsquo;s robust buffer access protections, and the feature adds no network, storage, or cross-origin capability.</p>
+    <span class="citation">Source: <a href="https://www.w3.org/TR/webgpu/#dom-gpufeaturename-atomic-vec2u-min-max" target="_blank" rel="noopener">W3C WebGPU &sect;25.25</a>; <a href="https://www.w3.org/TR/WGSL/#atomic-types" target="_blank" rel="noopener">W3C WGSL &sect;6.2.8</a>; <a href="https://chromestatus.com/feature/4882016087703552" target="_blank" rel="noopener">ChromeStatus 4882016087703552</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Specifications">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Specification</th><th scope="col">Section</th></tr></thead>
+      <tbody>
+        <tr><td><a href="https://www.w3.org/TR/webgpu/" target="_blank" rel="noopener">W3C WebGPU</a></td><td><a href="https://www.w3.org/TR/webgpu/#dom-gpufeaturename-atomic-vec2u-min-max" target="_blank" rel="noopener">&sect;25.25 <code>"atomic-vec2u-min-max"</code></a></td></tr>
+        <tr><td><a href="https://www.w3.org/TR/WGSL/" target="_blank" rel="noopener">W3C WebGPU Shading Language (WGSL)</a></td><td><a href="https://www.w3.org/TR/WGSL/#extension-atomic_vec2u_min_max" target="_blank" rel="noopener">&sect;4.1.1 <code>atomic_vec2u_min_max</code></a> &middot; <a href="https://www.w3.org/TR/WGSL/#atomic-types" target="_blank" rel="noopener">&sect;6.2.8 Atomic Types</a> &middot; <a href="https://www.w3.org/TR/WGSL/#atomic-store-min-max" target="_blank" rel="noopener">&sect;17.8.6 Atomic Store Min and Max Functions</a></td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/webgpu-atomic-vec2u-min-max/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase &mdash; WebGPU: atomic-vec2u-min-max demos</a></li>
+      <li><a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/atomic-64-min-max.md" target="_blank" rel="noopener">GPUWeb 64-bit atomics proposal (<code>atomic-64-min-max.md</code>)</a></li>
+      <li><a href="https://github.com/gpuweb/gpuweb/issues/5071" target="_blank" rel="noopener">gpuweb/gpuweb#5071 &mdash; 64-bit atomic min/max discussion</a></li>
+      <li><a href="https://github.com/gpuweb/gpuweb/pull/5610" target="_blank" rel="noopener">gpuweb/gpuweb#5610 &mdash; WebGPU &amp; WGSL specification PR</a></li>
+      <li><a href="https://github.com/gpuweb/cts/pull/4662" target="_blank" rel="noopener">gpuweb/cts#4662 &mdash; WebGPU CTS tests</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/GPUSupportedFeatures" target="_blank" rel="noopener">MDN &mdash; <code>GPUSupportedFeatures</code></a></li>
+      <li><a href="https://chromestatus.com/feature/4882016087703552" target="_blank" rel="noopener">ChromeStatus &mdash; WebGPU: atomic-vec2u-min-max (4882016087703552)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
