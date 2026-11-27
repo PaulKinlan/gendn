@@ -4,73 +4,110 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Disconnect WebSockets on BFCache Entry — Chrome 149 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
   <link rel="stylesheet" href="/public/styles.css">
   <style>
-    .doc-table { margin: 1rem 0; font-size: 0.85rem; }
-    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
     .doc-table tr:last-child td { border-bottom: none; }
     .doc-table code { background: transparent; border: none; padding: 0; }
-    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--text-charcoal); display: block; margin-bottom: 0.4rem; }
+    .compat-table { min-width: 30rem; }
   </style>
 </head>
 <body>
 <main>
-  <p class="crumbs"><a href="/v149/">&larr; Chrome 149 reference</a></p>
+  <p class="crumbs"><a href="/v149/">&larr; Chrome 149 reference</a> &middot; <a href="/features">All APIs</a></p>
 
   <header class="lede-block">
-    <p class="eyebrow">v149 · platform behavior · shipped</p>
+    <p class="eyebrow">v149 &middot; platform behavior &middot; shipped</p>
     <h1>Disconnect WebSockets on BFCache Entry</h1>
     <p class="lede">Pages with active WebSocket connections can now enter the back/forward cache. Chrome 149 closes open connections when the page is cached, fires the <code>close</code> event, and expects apps to reconnect when <code>pageshow</code> fires with <code>persisted: true</code>.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Platform behavior change &mdash; WebSockets API is Baseline Widely available; Chrome 149 aligns Chromium BFCache handling with Safari (<a href="https://github.com/WebKit/standards-positions/issues/648" target="_blank" rel="noopener">WebKit #648</a>), with a positive Firefox signal (<a href="https://github.com/mozilla/standards-positions/issues/1390" target="_blank" rel="noopener">Mozilla #1390</a>)</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 149 (desktop, Android)</li>
+        <li>Edge &middot; 149 (Chromium)</li>
+        <li>Safari &middot; Shipped/Shipping (<a href="https://github.com/WebKit/standards-positions/issues/648" target="_blank" rel="noopener">#648</a>)</li>
+        <li class="limited">Firefox &middot; Positive (<a href="https://github.com/mozilla/standards-positions/issues/1390" target="_blank" rel="noopener">#1390</a>)</li>
+      </ul>
+      <p>The underlying <a href="https://webstatus.dev/features/websockets" target="_blank" rel="noopener"><code>websockets</code> Web API</a> is <strong>Baseline Widely available</strong> on <a href="https://api.webstatus.dev/v1/features/websockets" target="_blank" rel="noopener">webstatus.dev</a>, while this BFCache behavior change is tracked in <a href="https://chromestatus.com/api/v0/features/5068439115923456" target="_blank" rel="noopener">ChromeStatus API 5068439115923456</a> (desktop &amp; Android 149; Finch: <code>DisconnectWebSocketOnBFCache</code>; accurate as of 2026-10-13) and specified in <a href="https://github.com/whatwg/html/pull/12349" target="_blank" rel="noopener">WHATWG HTML PR #12349</a>. Live MDN check (2026-11-27): <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API" target="_blank" rel="noopener">MDN: WebSockets API</a> and <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API/Writing_WebSocket_client_applications#working_with_the_bfcache" target="_blank" rel="noopener">Writing WebSocket client applications</a> still document the older rule that open WebSockets may prevent bfcache entry and advise manual closing on <code>pagehide</code>, without covering Chrome 149&rsquo;s automatic disconnect-on-BFCache-entry behavior, so gendn maintains this reference.</p>
+    </div>
   </header>
 
-  <div class="warn-block warn-block--common">
+  <div class="warn-block warn-block--common" role="note">
     <strong>Action required</strong>
-    If your app holds long-lived WebSocket connections (chat, live feeds, collaborative editing), test BFCache restoration after this change. Apps that reconnect on the <code>close</code> event work correctly; apps that assume a connection is always live will stall after a back/forward navigation.
+    <p>If your app holds long-lived WebSocket connections (chat, live feeds, collaborative editing), test BFCache restoration after this change. Apps that reconnect on the <code>close</code> event work correctly; apps that assume a connection is always live will stall after a back/forward navigation.</p>
   </div>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#at-a-glance">At a glance</a></li>
+      <li><a href="#why-it-exists">Why it exists</a></li>
+      <li><a href="#what-changes">What changes</a></li>
+      <li><a href="#example">Example</a></li>
+      <li><a href="#compatibility-notes">Compatibility notes</a></li>
+      <li><a href="#browser-support">Browser support</a></li>
+      <li><a href="#see-also">See also</a></li>
+    </ul>
+  </nav>
 
   <section>
     <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="glance-caption">
     <table class="doc-table">
-      <tr><th>Shipped in</th><td>Chrome 149 (desktop + Android)</td></tr>
-      <tr><th>Status</th><td>Browser behavior change (no new API)</td></tr>
-      <tr><th>Flag</th><td>None</td></tr>
-      <tr><th>Spec</th><td><a href="https://github.com/whatwg/html/pull/12349" target="_blank" rel="noopener">WHATWG HTML PR #12349</a></td></tr>
-      <tr><th>Web Platform Tests</th><td><a href="https://wpt.fyi/results/websockets/back-forward-cache-closes-open-websocket-connection.tentative.window.html" target="_blank" rel="noopener">websockets/back-forward-cache-closes-open-websocket-connection</a></td></tr>
-      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5068439115923456" target="_blank" rel="noopener">5068439115923456 — Disconnect WebSockets on BFCache entry</a></td></tr>
+      <caption id="glance-caption">Chrome 149 shipping metadata and specification pointers for Disconnect WebSockets on BFCache Entry</caption>
+      <tbody>
+        <tr><th scope="row">Shipped in</th><td>Chrome 149 (desktop + Android)</td></tr>
+        <tr><th scope="row">Status</th><td>Browser behavior change (no new API; Finch: <code>DisconnectWebSocketOnBFCache</code>)</td></tr>
+        <tr><th scope="row">Flag</th><td>None</td></tr>
+        <tr><th scope="row">Spec</th><td><a href="https://github.com/whatwg/html/pull/12349" target="_blank" rel="noopener">WHATWG HTML PR #12349</a></td></tr>
+        <tr><th scope="row">Web Platform Tests</th><td><a href="https://wpt.fyi/results/websockets/back-forward-cache-closes-open-websocket-connection.tentative.window.html" target="_blank" rel="noopener">websockets/back-forward-cache-closes-open-websocket-connection</a></td></tr>
+        <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5068439115923456" target="_blank" rel="noopener">5068439115923456 &mdash; Disconnect WebSockets on BFCache entry</a></td></tr>
+      </tbody>
     </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5068439115923456" target="_blank" rel="noopener">chromestatus.com/feature/5068439115923456</a> (<a href="https://chromestatus.com/api/v0/features/5068439115923456" target="_blank" rel="noopener">API record</a>).</span>
   </section>
 
   <section>
-    <h2>why it exists</h2>
-    <p>The back/forward cache (BFCache) stores a page's full live state in memory so that back-button and forward-button navigation is nearly instant. Until Chrome 149, any page with an active WebSocket connection was disqualified from BFCache — the browser couldn't safely freeze a live connection. Popular web apps like Notion, Figma, and Slack Web all keep persistent WebSocket connections, so BFCache was effectively unavailable for them, hurting navigation performance for millions of users.</p>
+    <h2 id="why-it-exists">why it exists</h2>
+    <p>The back/forward cache (BFCache) stores a page&rsquo;s full live state in memory so that back-button and forward-button navigation is nearly instant. Until Chrome 149, any page with an active WebSocket connection was disqualified from BFCache &mdash; the browser couldn&rsquo;t safely freeze a live connection. Popular web apps like Notion, Figma, and Slack Web all keep persistent WebSocket connections, so BFCache was effectively unavailable for them, hurting navigation performance for millions of users.</p>
     <p>Chrome 149 resolves the incompatibility by closing WebSocket connections when the page enters BFCache rather than blocking caching entirely. Well-written apps already handle the <code>close</code> event to reconnect on unexpected disconnections (network drops, server restarts). Those apps get BFCache for free.</p>
     <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/52nlr8z3Png" target="_blank" rel="noopener">blink-dev Web-Facing Change PSA</a> and <a href="https://chromestatus.com/feature/5068439115923456" target="_blank" rel="noopener">chromestatus motivation</a>.</span>
   </section>
 
   <section>
     <h2 id="what-changes">what changes</h2>
-    <table class="doc-table">
-      <tr>
-        <th>Before Chrome 149</th>
-        <td>A page with any open <code>WebSocket</code> is ineligible for BFCache. Navigating away and pressing Back causes a full page reload.</td>
-      </tr>
-      <tr>
-        <th>Chrome 149+</th>
-        <td>On BFCache entry, Chrome closes open WebSocket connections. The <code>close</code> event fires on each socket. The page is stored in the cache.</td>
-      </tr>
-      <tr>
-        <th>On BFCache restore</th>
-        <td><code>pageshow</code> fires with <code>event.persisted === true</code>. The app's existing close-and-reconnect logic (if present) reopens the connection.</td>
-      </tr>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="changes-caption">
+    <table class="doc-table compat-table">
+      <caption id="changes-caption">Lifecycle behavior of open WebSocket connections on BFCache entry and restore</caption>
+      <thead><tr><th scope="col">Stage</th><th scope="col">Behavior</th></tr></thead>
+      <tbody>
+        <tr>
+          <th scope="row">Before Chrome 149</th>
+          <td>A page with any open <code>WebSocket</code> is ineligible for BFCache. Navigating away and pressing Back causes a full page reload.</td>
+        </tr>
+        <tr>
+          <th scope="row">Chrome 149+</th>
+          <td>On BFCache entry, Chrome closes open WebSocket connections. The <code>close</code> event fires on each socket. The page is stored in the cache.</td>
+        </tr>
+        <tr>
+          <th scope="row">On BFCache restore</th>
+          <td><code>pageshow</code> fires with <code>event.persisted === true</code>. The app&rsquo;s existing close-and-reconnect logic (if present) reopens the connection.</td>
+        </tr>
+      </tbody>
     </table>
+    </div>
     <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/12349" target="_blank" rel="noopener">WHATWG HTML PR #12349</a>.</span>
   </section>
 
   <section>
-    <h2>example</h2>
+    <h2 id="example">example</h2>
 
     <h3 id="reconnect-example">Reconnect on BFCache restore</h3>
-<pre><code>let ws;
+    <pre tabindex="0"><code>let ws;
 
 function connect() {
   ws = new WebSocket("wss://example.com/live");
@@ -94,53 +131,67 @@ window.addEventListener("pageshow", (event) => {
 });</code></pre>
 
     <h3>Check BFCache eligibility in DevTools</h3>
-<pre><code>// Chrome DevTools: Application → Back/Forward Cache → Test.
+    <pre tabindex="0"><code>// Chrome DevTools: Application → Back/Forward Cache → Test.
 // A page with an open WebSocket now shows as BFCache-eligible.
 // Previously it listed "WebSocket" in the blocking-reasons list.</code></pre>
   </section>
 
   <section>
     <h2 id="compatibility-notes">compatibility notes</h2>
-    <table class="doc-table">
-      <tr>
-        <th>Apps that reconnect on close</th>
-        <td>No action needed. BFCache now works. Users get faster back/forward navigation.</td>
-      </tr>
-      <tr>
-        <th>Apps that assume connection is always live</th>
-        <td>Will stall after BFCache restore. Add a <code>pageshow</code> + <code>readyState</code> check.</td>
-      </tr>
-      <tr>
-        <th>Apps that use <code>WebSocketStream</code></th>
-        <td>Same behavior — streams are closed on BFCache entry.</td>
-      </tr>
-      <tr>
-        <th>Server-side sessions tied to socket lifetime</th>
-        <td>A close from BFCache entry looks identical to a normal close. Server-side timeout/reconnect logic should handle it cleanly.</td>
-      </tr>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-notes-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-notes-caption">Application and server-side compatibility impact when WebSockets close on BFCache entry</caption>
+      <thead><tr><th scope="col">Pattern</th><th scope="col">Impact and guidance</th></tr></thead>
+      <tbody>
+        <tr>
+          <th scope="row">Apps that reconnect on close</th>
+          <td>No action needed. BFCache now works. Users get faster back/forward navigation.</td>
+        </tr>
+        <tr>
+          <th scope="row">Apps that assume connection is always live</th>
+          <td>Will stall after BFCache restore. Add a <code>pageshow</code> + <code>readyState</code> check.</td>
+        </tr>
+        <tr>
+          <th scope="row">Apps that use <code>WebSocketStream</code></th>
+          <td>Same behavior &mdash; streams are closed on BFCache entry.</td>
+        </tr>
+        <tr>
+          <th scope="row">Server-side sessions tied to socket lifetime</th>
+          <td>A close from BFCache entry looks identical to a normal close. Server-side timeout/reconnect logic should handle it cleanly.</td>
+        </tr>
+      </tbody>
     </table>
+    </div>
     <p>BFCache WebSocket handling divergence, both sides reported rather than resolved (fetched 2026-10-07): this page notes "check MDN BFCache docs" and states that Chrome 149 "closes open WebSocket connections" on BFCache entry so "Apps that reconnect on close" get cached navigation, while the <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API" target="_blank" rel="noopener">MDN WebSockets API</a> documents the older rule that if a page has an open socket "the browser may not add it to the" bfcache and that it is "good practice to close the connection". Neither side is adjudicated here.</p>
   </section>
 
   <section>
     <h2 id="browser-support">browser support</h2>
-    <table class="doc-table">
-      <tr><th>Chrome</th><td>149 — WebSocket connections no longer block BFCache</td></tr>
-      <tr><th>Edge</th><td>149 (Chromium)</td></tr>
-      <tr><th>Firefox</th><td>BFCache supported; WebSocket behaviour may differ — check MDN BFCache docs</td></tr>
-      <tr><th>Safari</th><td>BFCache supported; WebSocket behaviour may differ — check WebKit release notes</td></tr>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="support-caption">
+    <table class="doc-table compat-table">
+      <caption id="support-caption">Browser support and BFCache WebSocket behavior across engines (verified 2026-11-27)</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col">Support</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Chrome</th><td>149 &mdash; WebSocket connections no longer block BFCache</td></tr>
+        <tr><th scope="row">Edge</th><td>149 (Chromium)</td></tr>
+        <tr><th scope="row">Firefox</th><td>BFCache supported; WebSocket behaviour may differ &mdash; check MDN BFCache docs</td></tr>
+        <tr><th scope="row">Safari</th><td>BFCache supported; WebSocket behaviour may differ &mdash; check WebKit release notes</td></tr>
+      </tbody>
     </table>
-    <span class="citation">Source: <a href="https://chromestatus.com/feature/5068439115923456" target="_blank" rel="noopener">chromestatus browser views</a>, May 2026.</span>
-    <p>Browser-support view disagreement, both sides reported rather than resolved (fetched 2026-10-07): this page reports Safari as "check WebKit release notes" and Firefox as "check MDN BFCache docs", while the <a href="https://chromestatus.com/feature/5068439115923456" target="_blank" rel="noopener">ChromeStatus record 5068439115923456</a> lists the Safari view as "Shipped/Shipping" (WebKit standards-positions issue 648) and the Firefox view as "Positive" (Mozilla standards-positions issue 1390). Neither side is adjudicated here.</p>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5068439115923456" target="_blank" rel="noopener">chromestatus browser views</a>, May 2026 (re-verified 2026-11-27).</span>
+    <p>Browser-support view disagreement, both sides reported rather than resolved (fetched 2026-10-07): this page reports Safari as "check WebKit release notes" and Firefox as "check MDN BFCache docs", while the <a href="https://chromestatus.com/feature/5068439115923456" target="_blank" rel="noopener">ChromeStatus record 5068439115923456</a> lists the Safari view as "Shipped/Shipping" (<a href="https://github.com/WebKit/standards-positions/issues/648" target="_blank" rel="noopener">WebKit standards-positions issue 648</a>) and the Firefox view as "Positive" (<a href="https://github.com/mozilla/standards-positions/issues/1390" target="_blank" rel="noopener">Mozilla standards-positions issue 1390</a>). Neither side is adjudicated here.</p>
   </section>
 
   <section>
-    <h2>see also</h2>
+    <h2 id="see-also">see also</h2>
     <ul>
       <li><a href="https://developer.mozilla.org/en-US/docs/Glossary/bfcache" target="_blank" rel="noopener">MDN: bfcache</a></li>
       <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API" target="_blank" rel="noopener">MDN: WebSockets API</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API/Writing_WebSocket_client_applications#working_with_the_bfcache" target="_blank" rel="noopener">MDN: Writing WebSocket client applications &mdash; Working with the bfcache</a></li>
       <li><a href="https://web.dev/articles/bfcache" target="_blank" rel="noopener">web.dev: Back/forward cache (bfcache)</a></li>
-      <li><a href="https://github.com/whatwg/html/pull/12349" target="_blank" rel="noopener">WHATWG HTML PR #12349</a> — the normative spec change</li>
+      <li><a href="https://github.com/whatwg/html/pull/12349" target="_blank" rel="noopener">WHATWG HTML PR #12349</a> &mdash; the normative spec change</li>
+      <li><a href="https://chromestatus.com/api/v0/features/5068439115923456" target="_blank" rel="noopener">ChromeStatus API record 5068439115923456</a></li>
       <li><a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v149/disconnect-websockets-on-bfcache-entry/" target="_blank" rel="noopener">chrome-platform-showcase: BFCache WebSocket demos</a></li>
     </ul>
   </section>
