@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebGPU: WGSL Fragment Depth — Chrome 156 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .scroll-table { min-width: 32rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v156/">&larr; Chrome 156 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v156 &middot; graphics &middot; enabled by default</p>
+    <h1>WebGPU: WGSL Fragment Depth</h1>
+
+    <p class="lede">Adds the <code>fragment_depth</code> WGSL language extension, introducing an optional <code>depth_mode</code> second parameter (<code>less</code> or <code>greater</code>) on the <code>@builtin(frag_depth)</code> fragment output attribute. Declaring <code>@builtin(frag_depth, less)</code> or <code>@builtin(frag_depth, greater)</code> lets a fragment shader promise that any written depth value moves monotonically in one direction relative to the rasterized fragment depth, allowing GPU hardware to preserve early-Z and hierarchical-Z culling optimizations instead of disabling them for the entire draw call.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; ships enabled by default in Chrome 156; Safari/WebKit signaled positive via WGSL PR #6299 and Firefox has not yet signaled</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 156 (desktop, Android, WebView)</li>
+        <li>Edge &middot; Mirrors Chromium (156)</li>
+        <li class="limited">Firefox &middot; No signal yet</li>
+        <li class="limited">Safari &middot; Positive signal (no release yet)</li>
+      </ul>
+      <p>The <a href="https://webstatus.dev/features/webgpu" target="_blank" rel="noopener"><code>webgpu</code> web-feature</a> is <strong>Limited availability</strong> on <a href="https://api.webstatus.dev/v1/features/webgpu" target="_blank" rel="noopener">webstatus.dev</a>, and no dedicated <code>web-features</code> entry or <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WGSLLanguageFeatures.json" target="_blank" rel="noopener">BCD <code>api/WGSLLanguageFeatures.json</code></a> subkey exists yet for <code>fragment_depth</code> (checked 2026-11-27). Support is detected synchronously at runtime with <code>navigator.gpu.wgslLanguageFeatures.has("fragment_depth")</code>. Neither <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebGPU_API" target="_blank" rel="noopener">MDN&rsquo;s WebGPU documentation</a> nor WGSL guides on MDN document <code>fragment_depth</code> yet, so gendn publishes the full reference here.</p>
+    </div>
+  </header>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#at-a-glance">At a glance</a></li>
+      <li><a href="#why">Why it exists</a></li>
+      <li><a href="#syntax">Syntax</a></li>
+      <li><a href="#language-extension"><code>fragment_depth</code> extension</a></li>
+      <li><a href="#depth-mode-contract"><code>@builtin(frag_depth, less | greater)</code></a></li>
+      <li><a href="#errors">Errors &amp; contract violations</a></li>
+      <li><a href="#context">Context &amp; exposure</a></li>
+      <li><a href="#lifecycle">Lifecycle &amp; backend mapping</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#security-and-privacy">Security &amp; privacy</a></li>
+      <li><a href="#specifications">Specifications</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="At a glance">
+    <table class="doc-table">
+      <tr><th scope="row">Shipped in</th><td>Chrome 156 (desktop, Android, Android WebView; iOS <code>null</code>) &mdash; filed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=156" target="_blank" rel="noopener">milestone=156 listing</a> (<a href="https://chromestatus.com/api/v0/features/5663304168112128" target="_blank" rel="noopener">ChromeStatus API record 5663304168112128</a>)</td></tr>
+      <tr><th scope="row">Feature detection</th><td><code>navigator.gpu?.wgslLanguageFeatures.has("fragment_depth")</code> &mdash; exposed as a WGSL language extension (no <code>requestDevice({ requiredFeatures })</code> entry needed; Dawn enum mapping in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgpu/dawn_enum_conversions.cc" target="_blank" rel="noopener"><code>dawn_enum_conversions.cc</code></a>)</td></tr>
+      <tr><th scope="row">Specification</th><td><a href="https://gpuweb.github.io/gpuweb/wgsl/#frag-depth-builtin-value" target="_blank" rel="noopener">WGSL &sect;13.3.1.1.2 <code>frag_depth</code></a> &middot; <a href="https://gpuweb.github.io/gpuweb/wgsl/#depth-mode-names" target="_blank" rel="noopener">WGSL &sect;3.8.9 Depth Mode Names</a> &middot; <a href="https://gpuweb.github.io/gpuweb/wgsl/#language_extension-fragment_depth" target="_blank" rel="noopener">WGSL Language Extension <code>fragment_depth</code></a> (<a href="https://github.com/gpuweb/gpuweb/pull/6299" target="_blank" rel="noopener">gpuweb/gpuweb#6299</a>)</td></tr>
+      <tr><th scope="row">Explainer</th><td><a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/fragment-depth.md" target="_blank" rel="noopener">gpuweb/gpuweb <code>proposals/fragment-depth.md</code></a></td></tr>
+      <tr><th scope="row">Intent &amp; bug</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a8c6b45.e9f9f009.2da420.0058.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a> &middot; <a href="https://crbug.com/457993779" target="_blank" rel="noopener">crbug.com/457993779</a></td></tr>
+      <tr><th scope="row">Chromium &amp; Dawn source</th><td><a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgpu/wgsl_language_features.cc" target="_blank" rel="noopener">Blink <code>wgsl_language_features.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgpu/dawn_enum_conversions.cc" target="_blank" rel="noopener">Blink <code>dawn_enum_conversions.cc</code></a>; <a href="https://dawn.googlesource.com/dawn/+/refs/heads/main/src/tint/lang/wgsl/feature_status.cc" target="_blank" rel="noopener">Tint <code>feature_status.cc</code></a></td></tr>
+      <tr><th scope="row">Conformance tests (CTS)</th><td><a href="https://github.com/gpuweb/cts/pull/4679" target="_blank" rel="noopener">gpuweb/cts#4679</a> &middot; <a href="https://github.com/gpuweb/cts/pull/4689" target="_blank" rel="noopener">gpuweb/cts#4689</a></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5663304168112128" target="_blank" rel="noopener">5663304168112128 &mdash; WebGPU: WGSL Fragment Depth</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>Fragment shaders often write custom depth values via <code>@builtin(frag_depth)</code> for ray-marched impostors, custom shadow depth biasing, decals, and depth-aware volumetric effects. Without a directional guarantee, the GPU driver must assume the fragment shader could move depth in either direction (closer or farther than the rasterizer&rsquo;s interpolated depth), forcing it to disable early-Z / hierarchical-Z fragment rejection for the entire draw call so every occluded pixel still executes the fragment shader. Adding the <code>less</code> and <code>greater</code> depth-mode modifiers mirrors conservative depth qualifiers already available in Vulkan/SPIR-V, Metal, HLSL, and OpenGL, allowing the driver to reject occluded fragments early whenever the interpolated depth already fails the depth test and the declared modifier cannot make it pass.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5663304168112128" target="_blank" rel="noopener">ChromeStatus 5663304168112128</a>; <a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/fragment-depth.md" target="_blank" rel="noopener">WGSL Fragment Depth proposal</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>Defined by <a href="https://github.com/gpuweb/gpuweb/pull/6299" target="_blank" rel="noopener">gpuweb/gpuweb#6299</a> in <a href="https://gpuweb.github.io/gpuweb/wgsl/#depth-mode-names" target="_blank" rel="noopener">WGSL &sect;3.8.9</a>, <a href="https://gpuweb.github.io/gpuweb/wgsl/#requires-directive" target="_blank" rel="noopener">WGSL &sect;4.2 <code>requires</code> directives</a>, and <a href="https://gpuweb.github.io/gpuweb/wgsl/#frag-depth-builtin-value" target="_blank" rel="noopener">WGSL &sect;13.3.1.1.2 <code>frag_depth</code></a>. Both the WGSL shader grammar and the JavaScript runtime feature check are shown below:</p>
+    <pre tabindex="0"><code data-doc-test="skip" data-doc-test-reason="WGSL formal syntax and attribute forms, not JavaScript or CSS.">// Optional portability directive at the top of a WGSL module (before declarations)
+requires fragment_depth;
+
+// Depth mode name-tokens (WGSL §3.8.9)
+depth_mode := 'less' | 'greater'
+
+// @builtin(frag_depth) output attribute forms (fragment stage, type f32)
+@builtin(frag_depth)            // implicit unrestricted mode (any)
+@builtin(frag_depth, less)      // promises output &lt;= rasterized fragment depth
+@builtin(frag_depth, greater)   // promises output &gt;= rasterized fragment depth</code></pre>
+    <pre tabindex="0"><code data-doc-test="js">// Synchronous feature detection on the WebGPU entry point (Window or DedicatedWorker)
+const hasFragmentDepth = Boolean(
+  navigator.gpu?.wgslLanguageFeatures?.has("fragment_depth")
+);</code></pre>
+    <p>This reference covers both halves of the surface: the <a href="#language-extension"><code>fragment_depth</code> WGSL language extension and <code>wgslLanguageFeatures</code> check</a>, and the <a href="#depth-mode-contract"><code>@builtin(frag_depth, less | greater)</code> depth-mode contract</a>.</p>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/wgsl/#frag-depth-builtin-value" target="_blank" rel="noopener">WGSL &sect;13.3.1.1.2</a>; <a href="https://gpuweb.github.io/gpuweb/wgsl/#depth-mode-names" target="_blank" rel="noopener">WGSL &sect;3.8.9</a>; <a href="https://gpuweb.github.io/gpuweb/wgsl/#requires-directive" target="_blank" rel="noopener">WGSL &sect;4.2</a>.</span>
+
+    <h3 id="language-extension"><code>fragment_depth</code> WGSL language extension &amp; <code>wgslLanguageFeatures</code></h3>
+    <p><strong>Inputs.</strong> Check support in JavaScript by calling <code>navigator.gpu.wgslLanguageFeatures.has("fragment_depth")</code> (a <code>readonly setlike&lt;DOMString&gt;</code> on <code>GPU</code>, exposed in Blink via <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgpu/wgsl_language_features.cc" target="_blank" rel="noopener"><code>wgsl_language_features.cc</code></a> and mapped from <code>wgpu::WGSLLanguageFeatureName::FragmentDepth</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgpu/dawn_enum_conversions.cc" target="_blank" rel="noopener"><code>dawn_enum_conversions.cc</code></a>). Inside WGSL, authors may optionally place <code>requires fragment_depth;</code> in the module&rsquo;s top-level directive section before any declaration.</p>
+    <p><strong>Outputs &amp; behavior.</strong> Per <a href="https://gpuweb.github.io/gpuweb/wgsl/#requires-directive" target="_blank" rel="noopener">WGSL &sect;4.2</a>, <code>fragment_depth</code> is a <em>language extension</em> (not a GPU device feature requiring <code>enable</code> or <code>requestDevice({ requiredFeatures })</code>). When supported by the implementation, the second parameter on <code>@builtin(frag_depth)</code> is active immediately whether or not <code>requires fragment_depth;</code> is written; adding <code>requires fragment_depth;</code> documents the shader&rsquo;s portability bar and forces shader creation to fail cleanly on implementations that lack the extension.</p>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/wgsl/#language_extension-fragment_depth" target="_blank" rel="noopener">WGSL <code>fragment_depth</code> language extension</a>; <a href="https://gpuweb.github.io/gpuweb/wgsl/#requires-directive" target="_blank" rel="noopener">WGSL &sect;4.2</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgpu/dawn_enum_conversions.cc" target="_blank" rel="noopener">Blink <code>dawn_enum_conversions.cc</code></a>.</span>
+
+    <h3 id="depth-mode-contract"><code>@builtin(frag_depth, less | greater)</code> depth-mode contract</h3>
+    <p><strong>Inputs.</strong> Applied to a fragment entry point&rsquo;s return type or a member of its returned struct with store type <code>f32</code>. The optional second argument is one of two depth mode name-tokens defined in <a href="https://gpuweb.github.io/gpuweb/wgsl/#depth-mode-names" target="_blank" rel="noopener">WGSL &sect;3.8.9</a>: <code>less</code> or <code>greater</code>. Omitting the second parameter retains unrestricted depth writes (implicitly <code>any</code>).</p>
+    <p><strong>Outputs &amp; early-Z guarantees.</strong> The output <code>f32</code> sets the updated depth of the fragment in the viewport depth range (default <code>[0.0, 1.0]</code>). The &ldquo;original depth of the fragment&rdquo; is the depth property of the fragment&rsquo;s <code>RasterizationPoint</code> (i.e. <code>@builtin(position).z</code>). The directional promises work as follows:</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="depth-modes-caption">
+    <table class="doc-table scroll-table">
+      <caption id="depth-modes-caption">WGSL <code>@builtin(frag_depth)</code> depth-mode semantics and early-Z compatibility</caption>
+      <thead><tr><th scope="col">Attribute form</th><th scope="col">Shader promise (when not executing <code>discard</code>)</th><th scope="col">Early-Z / Hi-Z optimization</th></tr></thead>
+      <tbody>
+        <tr><td><code>@builtin(frag_depth)</code></td><td>None (unrestricted; implicitly <code>any</code>)</td><td>Typically disables early-Z rejection for the draw call</td></tr>
+        <tr><td><code>@builtin(frag_depth, greater)</code></td><td>Returned depth &ge; rasterized fragment depth</td><td>Preserves early-Z rejection for standard depth tests (<code>depthCompare: "less"</code> / <code>"less-equal"</code>): fragments already failing at interpolated depth can only move farther away and still fail</td></tr>
+        <tr><td><code>@builtin(frag_depth, less)</code></td><td>Returned depth &le; rasterized fragment depth</td><td>Preserves early-Z rejection for reverse-Z depth tests (<code>depthCompare: "greater"</code> / <code>"greater-equal"</code>): fragments already failing at interpolated depth can only move closer to 0 and still fail</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p>Note that <code>less</code> and <code>greater</code> are inclusive promises (&le; and &ge; respectively, per <a href="https://gpuweb.github.io/gpuweb/wgsl/#frag-depth-builtin-value" target="_blank" rel="noopener">WGSL &sect;13.3.1.1.2</a>) and apply only when the fragment shader returns a depth value &mdash; invoking <code>discard</code> exempts that fragment from the depth write.</p>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/wgsl/#frag-depth-builtin-value" target="_blank" rel="noopener">WGSL &sect;13.3.1.1.2 <code>frag_depth</code></a>; <a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/fragment-depth.md" target="_blank" rel="noopener">WGSL Fragment Depth proposal</a>.</span>
+
+    <h3 id="errors">Errors, validation, and contract violations</h3>
+    <ul>
+      <li><strong>Unsupported extension (<code>requires fragment_depth;</code>):</strong> Calling <code>device.createShaderModule()</code> on an implementation that does not expose <code>fragment_depth</code> produces a shader-creation validation error (reported via <code>GPUShaderModule.getCompilationInfo()</code> and uncaptured / pushed <code>"validation"</code> error scopes). Guard shader variants with <code>navigator.gpu.wgslLanguageFeatures.has("fragment_depth")</code>.</li>
+      <li><strong>Invalid attribute arguments or placement:</strong> Passing any token other than <code>less</code> or <code>greater</code> (for example <code>@builtin(frag_depth, any)</code> or the typo <code>lesser</code>), applying a <code>depth_mode</code> parameter to any built-in other than <code>frag_depth</code>, using <code>frag_depth</code> on a non-fragment stage or input parameter, or declaring a type other than <code>f32</code> fails WGSL validation at shader creation time.</li>
+      <li><strong>Runtime violation of the depth-mode promise:</strong> The GPU does <em>not</em> throw an exception or validation error if a shader declared with <code>@builtin(frag_depth, greater)</code> returns a value strictly less than the rasterized depth (or strictly greater under <code>less</code>). Instead, per <a href="https://gpuweb.github.io/gpuweb/wgsl/#frag-depth-builtin-value" target="_blank" rel="noopener">WGSL &sect;13.3.1.1.2</a>, an <strong>indeterminate depth value</strong> may be used for that fragment (for instance, hardware may clamp the value or cull the fragment early). Always enforce the bound explicitly in WGSL with <code>max(inPos.z, computedDepth)</code> for <code>greater</code> or <code>min(inPos.z, computedDepth)</code> for <code>less</code>.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/wgsl/#frag-depth-builtin-value" target="_blank" rel="noopener">WGSL &sect;13.3.1.1.2</a>; <a href="https://gpuweb.github.io/gpuweb/wgsl/#requires-directive" target="_blank" rel="noopener">WGSL &sect;4.2</a>; <a href="https://github.com/gpuweb/cts/pull/4679" target="_blank" rel="noopener">gpuweb/cts#4679</a>.</span>
+
+    <h3 id="context">Context and exposure</h3>
+    <p>Available anywhere WebGPU is exposed: secure contexts (<code>https://</code> or <code>localhost</code>) in <code>Window</code> and <code>DedicatedWorkerGlobalScope</code> via <code>navigator.gpu.wgslLanguageFeatures</code> and <code>GPUDevice.createShaderModule()</code>. No user permission prompt or <code>GPUAdapter.requestDevice()</code> feature toggle is required; because <code>fragment_depth</code> is a WGSL language extension, it is queried synchronously before adapter or device creation. The render pipeline using the shader must include a <code>depthStencil</code> configuration compatible with writing fragment depth.</p>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/wgsl/#language_extension-fragment_depth" target="_blank" rel="noopener">WGSL <code>fragment_depth</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgpu/wgsl_language_features.cc" target="_blank" rel="noopener">Blink <code>wgsl_language_features.cc</code></a>.</span>
+
+    <h3 id="lifecycle">Lifecycle and native shader-backend mapping</h3>
+    <p><strong>Compilation lifecycle.</strong> <code>navigator.gpu.wgslLanguageFeatures</code> is populated when the WebGPU instance initializes and remains constant for the lifetime of the browsing context. During <code>device.createShaderModule({ code })</code>, Chromium&rsquo;s Tint compiler validates the <code>requires fragment_depth;</code> directive and <code>@builtin(frag_depth, less | greater)</code> attribute and emits the native backend qualifier when creating the <code>GPURenderPipeline</code>:</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="backend-map-caption">
+    <table class="doc-table scroll-table">
+      <caption id="backend-map-caption">WGSL <code>frag_depth</code> depth-mode translation to native GPU shading languages</caption>
+      <thead><tr><th scope="col">WGSL attribute</th><th scope="col">SPIR-V (Vulkan)</th><th scope="col">MSL (Metal)</th><th scope="col">HLSL (D3D12)</th><th scope="col">GLSL (OpenGL)</th></tr></thead>
+      <tbody>
+        <tr><td><code>@builtin(frag_depth)</code></td><td><code>SpvBuiltInFragDepth</code></td><td><code>depth(any)</code></td><td><code>SV_Depth</code></td><td><code>layout(depth_any)</code></td></tr>
+        <tr><td><code>@builtin(frag_depth, greater)</code></td><td><code>SpvBuiltInFragDepth</code> + <code>OpExecutionMode DepthGreater</code></td><td><code>depth(greater)</code></td><td><code>SV_DepthGreaterEqual</code></td><td><code>layout(depth_greater)</code></td></tr>
+        <tr><td><code>@builtin(frag_depth, less)</code></td><td><code>SpvBuiltInFragDepth</code> + <code>OpExecutionMode DepthLess</code></td><td><code>depth(less)</code></td><td><code>SV_DepthLessEqual</code></td><td><code>layout(depth_less)</code></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p><strong>Note on Dawn rollout status:</strong> While <a href="https://chromestatus.com/api/v0/features/5663304168112128" target="_blank" rel="noopener">ChromeStatus 5663304168112128</a> ships <code>fragment_depth</code> enabled by default in Chrome 156, Dawn&rsquo;s upstream <a href="https://dawn.googlesource.com/dawn/+/refs/heads/main/src/tint/lang/wgsl/feature_status.cc" target="_blank" rel="noopener"><code>src/tint/lang/wgsl/feature_status.cc</code></a> tracks <code>LanguageFeature::kFragmentDepth</code> separately during promotion; always gate on <code>navigator.gpu.wgslLanguageFeatures.has("fragment_depth")</code> rather than browser version sniffing.</p>
+    <span class="citation">Source: <a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/fragment-depth.md" target="_blank" rel="noopener">WGSL Fragment Depth proposal</a>; <a href="https://dawn.googlesource.com/dawn/+/refs/heads/main/src/tint/lang/wgsl/feature_status.cc" target="_blank" rel="noopener">Dawn/Tint <code>feature_status.cc</code></a>; <a href="https://chromestatus.com/api/v0/features/5663304168112128" target="_blank" rel="noopener">ChromeStatus 5663304168112128</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+
+    <h3 id="example-wgsl-shader">WGSL fragment shader with <code>requires fragment_depth;</code> and <code>greater</code> / <code>less</code></h3>
+    <p>The first shader uses <code>@builtin(frag_depth, greater)</code> for a standard depth buffer (<code>depthCompare: "less"</code>) where an impostor or decal only pushes depth farther away from the camera, clamping with <code>max()</code> so the promise cannot be violated. The second shows the reverse-Z counterpart using <code>@builtin(frag_depth, less)</code> with <code>depthCompare: "greater"</code>:</p>
+    <pre tabindex="0"><code data-doc-test="skip" data-doc-test-reason="WGSL shader source, not JavaScript or CSS.">requires fragment_depth;
+
+struct FragOut {
+  @location(0) color: vec4&lt;f32&gt;,
+  // Promises returned depth &gt;= interpolated inPos.z (safe for depthCompare: "less")
+  @builtin(frag_depth, greater) depth: f32,
+};
+
+@fragment
+fn fs_standard_z(@builtin(position) inPos: vec4&lt;f32&gt;) -&gt; FragOut {
+  let biased = clamp(inPos.z + 0.002, inPos.z, 1.0);
+  return FragOut(vec4&lt;f32&gt;(0.15, 0.55, 0.95, 1.0), biased);
+}
+
+// Reverse-Z variant (near = 1.0, far = 0.0, depthCompare: "greater"):
+// pushing farther from the camera means decreasing depth (&lt;= inPos.z).
+@fragment
+fn fs_reverse_z(@builtin(position) inPos: vec4&lt;f32&gt;) -&gt; @builtin(frag_depth, less) f32 {
+  return min(inPos.z, max(0.0, inPos.z - 0.002));
+}</code></pre>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/wgsl/#frag-depth-builtin-value" target="_blank" rel="noopener">WGSL &sect;13.3.1.1.2</a>; <a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/fragment-depth.md" target="_blank" rel="noopener">WGSL Fragment Depth proposal</a>.</span>
+
+    <h3 id="example-js-detection">Runtime feature detection with graceful fallback in WebGPU</h3>
+    <p>Query <code>navigator.gpu.wgslLanguageFeatures.has("fragment_depth")</code> before compiling the shader module so browsers without the extension fall back cleanly to unrestricted <code>@builtin(frag_depth)</code>:</p>
+    <pre tabindex="0"><code data-doc-test="js">async function createConservativeDepthShader(device, mode = "greater") {
+  const supportsFragmentDepth = Boolean(
+    navigator.gpu?.wgslLanguageFeatures?.has("fragment_depth")
+  );
+  const validMode = mode === "less" ? "less" : "greater";
+  const directive = supportsFragmentDepth ? "requires fragment_depth;\n" : "";
+  const depthAttr = supportsFragmentDepth
+    ? `@builtin(frag_depth, ${validMode})`
+    : "@builtin(frag_depth)";
+  const clampExpr = validMode === "less"
+    ? "min(inPos.z, max(0.0, inPos.z - 0.002))"
+    : "max(inPos.z, min(1.0, inPos.z + 0.002))";
+
+  const code = `${directive}
+struct FragOut {
+  @location(0) color: vec4&lt;f32&gt;,
+  ${depthAttr} depth: f32,
+};
+
+@fragment
+fn main(@builtin(position) inPos: vec4&lt;f32&gt;) -&gt; FragOut {
+  return FragOut(vec4&lt;f32&gt;(0.2, 0.7, 0.4, 1.0), ${clampExpr});
+}
+`;
+
+  const module = device.createShaderModule({ label: "conservative-depth", code });
+  const info = await module.getCompilationInfo();
+  const errors = info.messages.filter((m) =&gt; m.type === "error");
+  if (errors.length &gt; 0) {
+    throw new Error(errors.map((m) =&gt; m.message).join("\n"));
+  }
+  return { module, supportsFragmentDepth };
+}</code></pre>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/wgsl/#language_extension-fragment_depth" target="_blank" rel="noopener">WGSL <code>fragment_depth</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgpu/wgsl_language_features.cc" target="_blank" rel="noopener">Blink <code>wgsl_language_features.cc</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Interim compatibility table for WGSL <code>fragment_depth</code> (<code>@builtin(frag_depth, less | greater)</code>). BCD <code>api/WGSLLanguageFeatures.json</code> does not yet carry a <code>fragment_depth</code> subkey (checked 2026-11-27); ChromeStatus 5663304168112128 and webstatus.dev <code>webgpu</code> provide the interim browser matrix.</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col">WGSL <code>fragment_depth</code></th><th scope="col">Evidence / notes</th><th scope="col">Base <code>WGSLLanguageFeatures</code> (BCD)</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Chrome (desktop, Android, WebView)</th><td>156</td><td>Enabled by default in Chrome 156 across desktop, Android, and WebView per <a href="https://chromestatus.com/api/v0/features?milestone=156" target="_blank" rel="noopener">milestone=156</a> &amp; <a href="https://chromestatus.com/api/v0/features/5663304168112128" target="_blank" rel="noopener">ChromeStatus 5663304168112128</a> (<a href="https://crbug.com/457993779" target="_blank" rel="noopener">crbug.com/457993779</a>); detect via <code>wgslLanguageFeatures.has("fragment_depth")</code></td><td>144 (full; 115 partial; Android 121)</td></tr>
+        <tr><th scope="row">Edge</th><td>156 (mirror)</td><td>Chromium-based; follows Chromium milestone 156 rollout</td><td>144 (mirror)</td></tr>
+        <tr><th scope="row">Firefox</th><td>No release</td><td>No signal recorded on <a href="https://chromestatus.com/api/v0/features/5663304168112128" target="_blank" rel="noopener">ChromeStatus 5663304168112128</a> (feedback via <a href="https://github.com/gpuweb/gpuweb/pull/6299" target="_blank" rel="noopener">gpuweb/gpuweb#6299</a>)</td><td>141 (partial: Windows / Apple Silicon macOS)</td></tr>
+        <tr><th scope="row">Safari (macOS &amp; iOS)</th><td>No release</td><td>Positive signal via specification approval on <a href="https://github.com/gpuweb/gpuweb/pull/6299" target="_blank" rel="noopener">gpuweb/gpuweb#6299</a> (per <a href="https://github.com/WebKit/standards-positions/issues/294#issuecomment-1877411933" target="_blank" rel="noopener">WebKit standards-positions#294</a>); no shipped version recorded yet</td><td>26</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5663304168112128" target="_blank" rel="noopener">ChromeStatus API record (5663304168112128)</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WGSLLanguageFeatures.json" target="_blank" rel="noopener">BCD <code>api/WGSLLanguageFeatures.json</code></a>; <a href="https://api.webstatus.dev/v1/features/webgpu" target="_blank" rel="noopener">webstatus.dev <code>webgpu</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <p>The <code>fragment_depth</code> WGSL language extension operates solely inside the caller&rsquo;s own WebGPU render pass and depth attachment. It introduces no new permissions, storage, or cross-origin memory access. Checking <code>navigator.gpu.wgslLanguageFeatures.has("fragment_depth")</code> adds one boolean capability bit consistent with existing WGSL language extension detection. Per <a href="https://gpuweb.github.io/gpuweb/wgsl/#frag-depth-builtin-value" target="_blank" rel="noopener">WGSL &sect;13.3.1.1.2</a>, breaking the declared <code>less</code> or <code>greater</code> promise yields an indeterminate depth value for that fragment rather than triggering undefined host behavior or cross-process GPU memory leaks.</p>
+    <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/wgsl/#frag-depth-builtin-value" target="_blank" rel="noopener">WGSL &sect;13.3.1.1.2</a>; <a href="https://chromestatus.com/api/v0/features/5663304168112128" target="_blank" rel="noopener">ChromeStatus 5663304168112128</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Specifications">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Specification</th><th scope="col">Section</th></tr></thead>
+      <tbody>
+        <tr><td><a href="https://gpuweb.github.io/gpuweb/wgsl/" target="_blank" rel="noopener">WebGPU Shading Language (WGSL)</a></td><td><a href="https://gpuweb.github.io/gpuweb/wgsl/#frag-depth-builtin-value" target="_blank" rel="noopener">&sect;13.3.1.1.2 <code>frag_depth</code></a> &middot; <a href="https://gpuweb.github.io/gpuweb/wgsl/#depth-mode-names" target="_blank" rel="noopener">&sect;3.8.9 Depth Mode Names</a> &middot; <a href="https://gpuweb.github.io/gpuweb/wgsl/#language_extension-fragment_depth" target="_blank" rel="noopener">Language Extension <code>fragment_depth</code></a></td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://github.com/gpuweb/gpuweb/pull/6299" target="_blank" rel="noopener">gpuweb/gpuweb#6299 &mdash; Add <code>fragment_depth</code> WGSL language extension</a></li>
+      <li><a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/fragment-depth.md" target="_blank" rel="noopener">WGSL Fragment Depth proposal (<code>proposals/fragment-depth.md</code>)</a></li>
+      <li><a href="https://github.com/gpuweb/cts/pull/4679" target="_blank" rel="noopener">WebGPU CTS PR #4679</a> &middot; <a href="https://github.com/gpuweb/cts/pull/4689" target="_blank" rel="noopener">WebGPU CTS PR #4689</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/WebGPU_API" target="_blank" rel="noopener">MDN &mdash; WebGPU API</a></li>
+      <li><a href="https://chromestatus.com/feature/5663304168112128" target="_blank" rel="noopener">ChromeStatus &mdash; WebGPU: WGSL Fragment Depth (5663304168112128)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

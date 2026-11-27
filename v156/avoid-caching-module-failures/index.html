@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Avoid caching module failures — Chrome 156 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .scroll-table { min-width: 32rem; }
+    .example-embed { margin: 1.25rem 0; }
+    .example-embed iframe { display: block; inline-size: 100%; max-inline-size: 100%; border: 2px solid var(--border-black); background: var(--surface, #fff); }
+    .example-embed figcaption { margin-top: 0.5rem; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v156/">&larr; Chrome 156 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v156 &middot; network &middot; enabled by default</p>
+    <h1>Avoid caching module failures</h1>
+
+    <p class="lede">Changes HTML&rsquo;s <code>fetch a single module script</code> algorithm so that failed module fetches (network errors, non-2xx HTTP statuses, CORS/SRI fetch failures, and MIME type mismatches) remove their entry from the document or worker&rsquo;s <strong>module map</strong> instead of caching a permanent <code>null</code> failure. Subsequent calls such as dynamic <code>import()</code> now issue a fresh network request rather than immediately re-rejecting, enabling manual recovery over unstable networks without reloading the page or appending cache-busting query strings.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; shipped in Firefox 155 and Chrome/Edge 156, with Safari in Technology Preview</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 156 (desktop, Android, WebView)</li>
+        <li>Edge &middot; 156 (mirror)</li>
+        <li>Firefox &middot; 155</li>
+        <li class="limited">Safari &middot; Preview (WebKit Bug 319492)</li>
+      </ul>
+      <p>No dedicated <code>web-features</code> entry exists on <a href="https://api.webstatus.dev/v1/features?q=module" target="_blank" rel="noopener">webstatus.dev</a> yet (recorded as <code>Missing feature</code> in <a href="https://chromestatus.com/api/v0/features/5214647044145152" target="_blank" rel="noopener">ChromeStatus 5214647044145152</a>). <a href="https://github.com/mdn/browser-compat-data/blob/main/javascript/operators/import.json" target="_blank" rel="noopener">BCD <code>javascript/operators/import.json</code></a> (<code>http_errors_not_cached</code>) confirms Chrome <strong>156</strong>, Edge <strong>156</strong>, Firefox <strong>155</strong>, and Safari <strong>preview</strong> (checked 2026-11-27). <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/import" target="_blank" rel="noopener">MDN&rsquo;s <code>import()</code> page</a> summarizes the change in a single paragraph without detailing module-map callback lists, MIME-mismatch eviction, transitive dependency recovery, worker module maps, or HTTP cache interaction &mdash; so gendn publishes a complete spec-backed reference here.</p>
+    </div>
+  </header>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#at-a-glance">At a glance</a></li>
+      <li><a href="#why">Why it exists</a></li>
+      <li><a href="#syntax">Syntax &amp; entry points</a></li>
+      <li><a href="#failed-fetch-eviction">Module map failure eviction</a></li>
+      <li><a href="#dedup-and-cached-errors">In-flight deduplication &amp; cached errors</a></li>
+      <li><a href="#errors">Errors &amp; HTTP cache pitfalls</a></li>
+      <li><a href="#context">Context &amp; exposure</a></li>
+      <li><a href="#lifecycle">Module map state transitions</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#security-and-privacy">Security &amp; privacy</a></li>
+      <li><a href="#specifications">Specifications</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="At a glance">
+    <table class="doc-table">
+      <tr><th scope="row">Shipped in</th><td>Chrome 156 (desktop, Android, Android WebView; iOS <code>null</code>) &mdash; filed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=156" target="_blank" rel="noopener">milestone=156 listing</a> (<a href="https://chromestatus.com/api/v0/features/5214647044145152" target="_blank" rel="noopener">ChromeStatus API record 5214647044145152</a>)</td></tr>
+      <tr><th scope="row">Runtime flag</th><td>Blink runtime feature <code>ModuleMapDoNotCacheFailedFetch</code> (<code>status: "stable"</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener"><code>runtime_enabled_features.json5</code></a>)</td></tr>
+      <tr><th scope="row">Specification</th><td><a href="https://html.spec.whatwg.org/multipage/webappapis.html#fetch-a-single-module-script" target="_blank" rel="noopener">HTML Living Standard &mdash; Fetch a single module script</a> &middot; <a href="https://html.spec.whatwg.org/multipage/webappapis.html#module-map" target="_blank" rel="noopener">Module map</a> (<a href="https://github.com/whatwg/html/pull/10327" target="_blank" rel="noopener">whatwg/html#10327</a>)</td></tr>
+      <tr><th scope="row">Explainer</th><td><a href="https://gist.github.com/yoavweiss/a54501545ab2ad22bfde0ebed02a115c" target="_blank" rel="noopener">Avoid caching module failures explainer (Yoav Weiss)</a></td></tr>
+      <tr><th scope="row">Intent &amp; bug</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/CAOmohS%2ByokAFhVf66miVAqGqqO7Scps2GwrfqH3AO%2B0N72_Qeg%40mail.gmail.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a> &middot; <a href="https://issues.chromium.org/issues/534781954" target="_blank" rel="noopener">issues.chromium.org/534781954</a></td></tr>
+      <tr><th scope="row">Chromium source</th><td><a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/script/module_map.cc" target="_blank" rel="noopener">Blink <code>module_map.cc</code></a> (<code>ModuleMap::Entry::NotifyNewSingleModuleFinished</code> &amp; <code>ModuleMap::RemoveEntry</code>)</td></tr>
+      <tr><th scope="row">Web platform tests</th><td><a href="https://wpt.fyi/results/html/semantics/scripting-1/the-script-element/module/dynamic-import/repeated-imports.any.html?label=experimental&amp;label=master&amp;aligned" target="_blank" rel="noopener"><code>dynamic-import/repeated-imports.any.html</code></a> &middot; <a href="https://wpt.fyi/results/html/semantics/scripting-1/the-script-element/json-module/repeated-imports.any.html?label=experimental&amp;label=master&amp;aligned" target="_blank" rel="noopener"><code>json-module/repeated-imports.any.html</code></a></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5214647044145152" target="_blank" rel="noopener">5214647044145152 &mdash; Avoid caching module failures</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>Previously, HTML&rsquo;s <code>fetch a single module script</code> algorithm wrote a permanent <code>null</code> value into the document or worker&rsquo;s module map whenever fetching a module failed due to a transient offline blip, flaky mobile radio, or temporary HTTP 503. Because the module map is consulted before any network activity, every subsequent <code>import()</code> for the same <code>(requestURL, moduleType)</code> pair rejected immediately without touching the network for the entire lifetime of the page or worker. Developers had to force full page reloads or invent cache-busting URL suffixes (such as <code>import(`${url}#retry=1`)</code>, which broke module singleton identity and risked duplicate execution). Removing failed fetches from the module map allows straightforward, standards-compliant retry logic.</p>
+    <span class="citation">Source: <a href="https://gist.github.com/yoavweiss/a54501545ab2ad22bfde0ebed02a115c" target="_blank" rel="noopener">Avoid caching module failures explainer</a>; <a href="https://chromestatus.com/feature/5214647044145152" target="_blank" rel="noopener">ChromeStatus 5214647044145152</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax &amp; entry points</h2>
+    <p>This feature introduces no new JavaScript syntax or Web APIs. It modifies the runtime module-loading contract behind existing ES module entry points &mdash; dynamic <code>import()</code> (including import attributes for JSON/CSS modules), static <code>import</code> dependency graphs, and <code>&lt;script type="module"&gt;</code> &mdash; all keyed in the environment&rsquo;s <strong>module map</strong> by the <code>(requestURL, moduleType)</code> tuple. Failed fetches reject with a <code>TypeError</code> and evict the module map entry, while parse failures reject with a <code>SyntaxError</code> and remain cached:</p>
+    <pre tabindex="0"><code data-doc-test="js">// Existing dynamic import() entry points governed by the module map (requestURL, moduleType)
+async function loadModules() {
+  const jsMod = await import("/assets/widget.js");
+  const jsonMod = await import("/assets/config.json", { with: { type: "json" } });
+  return { jsMod, jsonMod };
+}</code></pre>
+    <p>This reference covers both halves of the updated module map contract: <a href="#failed-fetch-eviction">module map eviction on failed fetches</a> and <a href="#dedup-and-cached-errors">in-flight callback deduplication vs. permanently cached parse/evaluation errors</a>.</p>
+    <span class="citation">Source: <a href="https://html.spec.whatwg.org/multipage/webappapis.html#fetch-a-single-module-script" target="_blank" rel="noopener">HTML Living Standard &mdash; Fetch a single module script</a>; <a href="https://github.com/whatwg/html/pull/10327" target="_blank" rel="noopener">whatwg/html#10327</a>.</span>
+
+    <h3 id="failed-fetch-eviction">Module map failure eviction</h3>
+    <p><strong>Inputs.</strong> Any module fetch keyed by <code>(requestURL, moduleType)</code> in the environment settings object&rsquo;s <strong>module map</strong>, where <code>requestURL</code> is the resolved request URL (before redirects) and <code>moduleType</code> is <code>"javascript-or-wasm"</code>, <code>"json"</code>, or <code>"css"</code> (driven by <code>import()</code>, static <code>import</code>, or <code>&lt;script type="module"&gt;</code>).</p>
+    <p><strong>Outputs &amp; eviction rule.</strong> Per <a href="https://github.com/whatwg/html/pull/10327" target="_blank" rel="noopener">whatwg/html#10327</a> and Blink&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/script/module_map.cc" target="_blank" rel="noopener"><code>ModuleMap::Entry::NotifyNewSingleModuleFinished()</code></a>, when a single-module fetch finishes with a <code>null</code> module script, the browser calls <code>RemoveEntry()</code> to delete <code>moduleMap[(url, moduleType)]</code> instead of storing <code>null</code>, then notifies all waiting callers with <code>null</code> (which rejects dynamic <code>import()</code> with <code>TypeError</code>). A later <code>import()</code> for the same <code>(url, moduleType)</code> sees no cached entry and issues a brand-new fetch. In Blink and <a href="https://raw.githubusercontent.com/web-platform-tests/wpt/master/html/semantics/scripting-1/the-script-element/module/dynamic-import/repeated-imports.any.js" target="_blank" rel="noopener">WPT <code>dynamic-import/repeated-imports.any.js</code></a>, this covers:</p>
+    <ul>
+      <li>Network errors (offline, DNS failure, TCP reset, timeout, aborted connection, CORS failure, or blocked CSP / failed Subresource Integrity fetch).</li>
+      <li>Non-2xx HTTP status responses (such as <code>404 Not Found</code>, <code>500 Internal Server Error</code>, or <code>503 Service Unavailable</code>).</li>
+      <li>Invalid or mismatched MIME types (for example, serving <code>application/json</code> or <code>text/html</code> for a JS <code>import()</code>, which produces <code>null</code> and removes the entry so a later retry succeeds once the server sends <code>text/javascript</code>).</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/10327" target="_blank" rel="noopener">whatwg/html#10327</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/script/module_map.cc" target="_blank" rel="noopener">Blink <code>module_map.cc</code></a>; <a href="https://raw.githubusercontent.com/web-platform-tests/wpt/master/html/semantics/scripting-1/the-script-element/module/dynamic-import/repeated-imports.any.js" target="_blank" rel="noopener">WPT <code>dynamic-import/repeated-imports.any.js</code></a>.</span>
+
+    <h3 id="dedup-and-cached-errors">In-flight deduplication and what stays cached</h3>
+    <p><strong>Inputs.</strong> Concurrent or sequential <code>import()</code> requests targeting the same <code>(requestURL, moduleType)</code>, or a module graph whose root or transitive child fails during fetching, parsing (<code>SyntaxError</code>), linking, or top-level evaluation.</p>
+    <p><strong>Outputs &amp; failure matrix.</strong> Only <em>fetch-stage</em> failures that yield a <code>null</code> module script are evicted from the module map. Once a valid response with a matching MIME type is received, the resulting <code>ModuleScript</code> object is stored in the module map even if parsing or evaluation fails, preserving JavaScript&rsquo;s single-evaluation module invariant:</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="cache-matrix-caption">
+    <table class="doc-table scroll-table">
+      <caption id="cache-matrix-caption">Module map caching behavior after Chrome 156 (<code>ModuleMapDoNotCacheFailedFetch</code>)</caption>
+      <thead><tr><th scope="col">Outcome of first <code>import()</code></th><th scope="col">Rejection / result</th><th scope="col">Cached in module map?</th><th scope="col">Behavior on second <code>import()</code></th></tr></thead>
+      <tbody>
+        <tr><td>Network error / offline / CORS / SRI fetch error</td><td><code>TypeError</code></td><td><strong>No</strong> (evicted)</td><td>Issues a new network fetch</td></tr>
+        <tr><td>HTTP non-ok status (404, 500, 503, &hellip;)</td><td><code>TypeError</code></td><td><strong>No</strong> (evicted)</td><td>Issues a new fetch (subject to HTTP cache headers)</td></tr>
+        <tr><td>MIME type mismatch (e.g. <code>text/html</code> for JS)</td><td><code>TypeError</code></td><td><strong>No</strong> (evicted)</td><td>Issues a new fetch</td></tr>
+        <tr><td>HTTP 200 + valid MIME + JS/JSON parse error</td><td><code>SyntaxError</code></td><td><strong>Yes</strong> (errored <code>ModuleScript</code>)</td><td>Re-rejects immediately with cached <code>SyntaxError</code>; no network fetch</td></tr>
+        <tr><td>Linking error (missing named export)</td><td><code>SyntaxError</code></td><td><strong>Yes</strong> (parsed records cached)</td><td>Re-fails linking on the cached module graph; no network fetch</td></tr>
+        <tr><td>Top-level evaluation throws</td><td>Thrown error</td><td><strong>Yes</strong> (errored module record)</td><td>Re-rejects with the exact same thrown error; never re-executes</td></tr>
+        <tr><td>Healthy module succeeds</td><td>Module namespace</td><td><strong>Yes</strong></td><td>Returns the identical module namespace singleton; no network fetch</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p><strong>Transitive dependencies:</strong> If module <code>A</code> fetches and parses cleanly, statically imports <code>B</code>, and <code>B</code> fails with a network error or <code>503</code>, <code>A</code> stays cached while <code>B</code> is evicted. Retrying <code>import("./A.js")</code> re-fetches only <code>B</code> and succeeds once <code>B</code> recovers.</p>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/10327" target="_blank" rel="noopener">whatwg/html#10327</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/script/module_map.cc" target="_blank" rel="noopener">Blink <code>module_map.cc</code></a>; <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/avoid-caching-module-failures/conformance.json" target="_blank" rel="noopener" data-demo-rel="related">CPS conformance suite</a>.</span>
+
+    <h3 id="errors">Errors and HTTP cache pitfalls</h3>
+    <ul>
+      <li><strong>Retry still rejects while broken:</strong> Evicting the module map entry causes the retry of <code>import()</code> to reach the network again; if the origin is still unreachable or returning <code>404</code>, the retry rejects again with <code>TypeError</code>.</li>
+      <li><strong>HTTP cache is separate from the module map:</strong> Removing the module map entry allows Fetch to run again, but if the server sent a cacheable error response (for example <code>404</code> with <code>Cache-Control: max-age=300</code>), the browser&rsquo;s HTTP cache may still satisfy the retry with the cached error without hitting the origin. Serve transient errors (<code>5xx</code>, temporary <code>404</code>, captive-portal responses) with <code>Cache-Control: no-store</code> or <code>no-cache</code>.</li>
+      <li><strong>Parse errors (<code>SyntaxError</code>) remain sticky:</strong> A truncated or malformed JS/JSON payload served with HTTP <code>200</code> and a valid MIME type creates an errored <code>ModuleScript</code> in the module map. Retrying the exact same URL will not re-fetch corrected source until the document or worker reloads.</li>
+      <li><strong>Type-attribute mismatch:</strong> Importing <code>module.json</code> without <code>{ with: { type: "json" } }</code> rejects with <code>TypeError</code> under key <code>(url, "javascript-or-wasm")</code> and does not poison <code>import("./module.json", { with: { type: "json" } })</code> (verified in <a href="https://raw.githubusercontent.com/web-platform-tests/wpt/master/html/semantics/scripting-1/the-script-element/json-module/repeated-imports.any.js" target="_blank" rel="noopener">WPT <code>json-module/repeated-imports.any.js</code></a>).</li>
+    </ul>
+    <span class="citation">Source: <a href="https://html.spec.whatwg.org/multipage/webappapis.html#fetch-a-single-module-script" target="_blank" rel="noopener">HTML Living Standard</a>; <a href="https://raw.githubusercontent.com/web-platform-tests/wpt/master/html/semantics/scripting-1/the-script-element/json-module/repeated-imports.any.js" target="_blank" rel="noopener">WPT <code>json-module/repeated-imports.any.js</code></a>.</span>
+
+    <h3 id="context">Context and exposure</h3>
+    <p>Applies to the module map of every <code>Document</code> (<code>Window</code>), <code>DedicatedWorkerGlobalScope</code>, and <code>SharedWorkerGlobalScope</code> (tested across all three globals in <a href="https://wpt.fyi/results/html/semantics/scripting-1/the-script-element/module/dynamic-import/repeated-imports.any.html?label=experimental&amp;label=master&amp;aligned" target="_blank" rel="noopener">WPT <code>repeated-imports.any.html</code></a>). No secure context or permission is required beyond standard CORS requirements for module scripts. Controlled in Blink by <code>ModuleMapDoNotCacheFailedFetch</code> (<code>status: "stable"</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener"><code>runtime_enabled_features.json5</code></a>).</p>
+    <span class="citation">Source: <a href="https://html.spec.whatwg.org/multipage/webappapis.html#module-map" target="_blank" rel="noopener">HTML Living Standard &mdash; Module map</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Blink <code>runtime_enabled_features.json5</code></a>.</span>
+
+    <h3 id="lifecycle">Module map state transitions and concurrent deduplication</h3>
+    <p>Per <a href="https://github.com/whatwg/html/pull/10327" target="_blank" rel="noopener">whatwg/html#10327</a>, HTML replaced the legacy <code>"fetching"</code> string placeholder in the module map with an explicit list of pending completion callbacks:</p>
+    <ol>
+      <li><strong>Cache hit (<code>ModuleScript</code>):</strong> If <code>moduleMap[(url, moduleType)]</code> holds a <code>ModuleScript</code> (succeeded or parse-errored), immediately invoke <code>onComplete</code> with that record and return without fetching.</li>
+      <li><strong>In-flight hit (callback list):</strong> If a fetch for <code>(url, moduleType)</code> is already in progress, append <code>onComplete</code> to the entry&rsquo;s callback list and return. Concurrent <code>import()</code> calls share a single HTTP request and all settle together when it finishes.</li>
+      <li><strong>Cache miss:</strong> Insert a new list <code>&laquo; onComplete &raquo;</code> at <code>moduleMap[(url, moduleType)]</code> and start Fetch.</li>
+      <li><strong>Settlement:</strong> When Fetch finishes, snapshot <code>callbacks</code>. If the result is <code>null</code> (network error, non-ok status, or MIME mismatch), <strong>remove</strong> <code>moduleMap[(url, moduleType)]</code>; otherwise store the resulting <code>ModuleScript</code>. Then invoke every callback in <code>callbacks</code>. Because removal happens before callbacks run, a retry triggered inside a <code>.catch()</code> handler immediately sees an empty slot and starts a fresh fetch.</li>
+    </ol>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/10327" target="_blank" rel="noopener">whatwg/html#10327</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/script/module_map.cc" target="_blank" rel="noopener">Blink <code>module_map.cc</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+
+    <h3 id="example-live">Live demo &amp; exponential-backoff <code>import()</code> retry helper</h3>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/avoid-caching-module-failures/flaky-network-recovery/"
+        title="Live example — Flaky network recovery with dynamic import()" loading="lazy" width="100%" height="540"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live interactive demo recovering a dynamically imported module after simulated network failures without reloading or cache-busting the URL. Sibling demos on the <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/avoid-caching-module-failures/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase feature index</a>: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/avoid-caching-module-failures/retry-refetch-probe/" target="_blank" rel="noopener">retry refetch probe</a> and <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/avoid-caching-module-failures/what-stays-cached/" target="_blank" rel="noopener">what stays cached (parse vs. fetch failure)</a>. <span class="citation">Source: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/avoid-caching-module-failures/flaky-network-recovery/" target="_blank" rel="noopener">chrome-platform-showcase</a>.</span></figcaption>
+    </figure>
+
+    <pre tabindex="0"><code data-doc-test="js">async function importWithRetry(specifier, { maxAttempts = 3, baseDelayMs = 300 } = {}) {
+  let lastError;
+  for (let attempt = 1; attempt &lt;= maxAttempts; attempt++) {
+    try {
+      // Retries reuse the canonical URL — no cache-busting query string needed
+      // because failed fetches are evicted from the module map.
+      return await import(specifier);
+    } catch (err) {
+      lastError = err;
+      // SyntaxError indicates a parse/link error (which remains cached in the module map);
+      // only retry TypeError fetch failures.
+      if (!(err instanceof TypeError) || attempt === maxAttempts) {
+        throw err;
+      }
+      const delay = baseDelayMs * (2 ** (attempt - 1));
+      await new Promise((resolve) =&gt; setTimeout(resolve, delay));
+    }
+  }
+  throw lastError;
+}</code></pre>
+    <span class="citation">Source: <a href="https://html.spec.whatwg.org/multipage/webappapis.html#fetch-a-single-module-script" target="_blank" rel="noopener">HTML Living Standard</a>; <a href="https://gist.github.com/yoavweiss/a54501545ab2ad22bfde0ebed02a115c" target="_blank" rel="noopener">Avoid caching module failures explainer</a>.</span>
+
+    <h3 id="example-fallback">Legacy-browser fallback &amp; JSON module type-attribute retry</h3>
+    <pre tabindex="0"><code data-doc-test="js">// If you must also support older engines (Chrome &lt;=155, Firefox &lt;=154, Safari stable)
+// that permanently cache null fetch failures, fall back to a retry query param only
+// after confirming a plain retry failed without hitting the network.
+async function importJsonConfig(url) {
+  try {
+    return await import(url, { with: { type: "json" } });
+  } catch (err) {
+    if (err instanceof TypeError) {
+      // Retry the same module map key (url, "json") on Chrome 156+ / Firefox 155+
+      return await import(url, { with: { type: "json" } });
+    }
+    throw err;
+  }
+}</code></pre>
+    <span class="citation">Source: <a href="https://raw.githubusercontent.com/web-platform-tests/wpt/master/html/semantics/scripting-1/the-script-element/json-module/repeated-imports.any.js" target="_blank" rel="noopener">WPT <code>json-module/repeated-imports.any.js</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Support for not caching failed module fetches from BCD <code>javascript/operators/import.json</code> (<code>http_errors_not_cached</code>) and ChromeStatus 5214647044145152 (checked 2026-11-27).</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col">Failed fetches not cached (<code>http_errors_not_cached</code>)</th><th scope="col">Evidence / notes</th><th scope="col">Dynamic <code>import()</code> (BCD)</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Chrome (desktop, Android, WebView)</th><td>156</td><td>Enabled by default in Chrome 156 (<a href="https://chromestatus.com/api/v0/features/5214647044145152" target="_blank" rel="noopener">ChromeStatus 5214647044145152</a>; <a href="https://issues.chromium.org/issues/534781954" target="_blank" rel="noopener">issues.chromium.org/534781954</a>; Blink <code>ModuleMapDoNotCacheFailedFetch</code>; confirmed in BCD)</td><td>63</td></tr>
+        <tr><th scope="row">Edge</th><td>156</td><td>Chromium-based (confirmed in BCD)</td><td>79 (mirror)</td></tr>
+        <tr><th scope="row">Firefox (desktop &amp; Android)</th><td>155</td><td>Shipped in Firefox 155 (<a href="https://bugzilla.mozilla.org/show_bug.cgi?id=2055211" target="_blank" rel="noopener">Mozilla Bug 2055211</a>; confirmed in BCD)</td><td>67</td></tr>
+        <tr><th scope="row">Safari (macOS &amp; iOS)</th><td>Preview</td><td>Implemented in WebKit (<a href="https://bugs.webkit.org/show_bug.cgi?id=319492" target="_blank" rel="noopener">WebKit Bug 319492</a>; BCD records <code>preview</code>)</td><td>11.1</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/javascript/operators/import.json" target="_blank" rel="noopener">BCD <code>javascript/operators/import.json</code></a>; <a href="https://chromestatus.com/api/v0/features/5214647044145152" target="_blank" rel="noopener">ChromeStatus 5214647044145152</a>; <a href="https://bugzilla.mozilla.org/show_bug.cgi?id=2055211" target="_blank" rel="noopener">Mozilla Bug 2055211</a>; <a href="https://bugs.webkit.org/show_bug.cgi?id=319492" target="_blank" rel="noopener">WebKit Bug 319492</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <p>Evicting failed fetches from the module map preserves all existing security invariants: every retried module fetch runs the full Fetch, CORS, Content Security Policy (<code>script-src</code>), MIME-type, and Subresource Integrity (SRI) checks from scratch, and Blink continues to verify CSP and SRI metadata before reusing cached module map entries (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/script/module_map.cc" target="_blank" rel="noopener"><code>module_map.cc</code></a>). No new permissions or storage surfaces are added. Operational caution: because failed <code>import()</code> calls now re-hit the network, always cap retry attempts and apply exponential backoff so client retries do not amplify load during an origin outage.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/script/module_map.cc" target="_blank" rel="noopener">Blink <code>module_map.cc</code></a>; <a href="https://chromestatus.com/api/v0/features/5214647044145152" target="_blank" rel="noopener">ChromeStatus 5214647044145152</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Specifications">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Specification</th><th scope="col">Section</th></tr></thead>
+      <tbody>
+        <tr><td><a href="https://html.spec.whatwg.org/multipage/webappapis.html" target="_blank" rel="noopener">HTML Living Standard</a></td><td><a href="https://html.spec.whatwg.org/multipage/webappapis.html#fetch-a-single-module-script" target="_blank" rel="noopener">Fetch a single module script</a> &middot; <a href="https://html.spec.whatwg.org/multipage/webappapis.html#module-map" target="_blank" rel="noopener">Module map</a> (<a href="https://github.com/whatwg/html/pull/10327" target="_blank" rel="noopener">whatwg/html#10327</a>)</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/avoid-caching-module-failures/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase &mdash; Avoid caching module failures demos</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/import" target="_blank" rel="noopener">MDN &mdash; <code>import()</code> operator</a></li>
+      <li><a href="https://github.com/whatwg/html/pull/10327" target="_blank" rel="noopener">whatwg/html#10327 &mdash; Do not cache failed module fetches in the module map</a></li>
+      <li><a href="https://gist.github.com/yoavweiss/a54501545ab2ad22bfde0ebed02a115c" target="_blank" rel="noopener">Explainer &mdash; Avoid caching module failures</a></li>
+      <li><a href="https://chromestatus.com/feature/5214647044145152" target="_blank" rel="noopener">ChromeStatus &mdash; Avoid caching module failures (5214647044145152)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

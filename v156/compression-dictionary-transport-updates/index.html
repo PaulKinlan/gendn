@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Compression dictionary transport Updates — Chrome 156 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .scroll-table { min-width: 32rem; }
+    .example-embed { margin: 1.25rem 0; }
+    .example-embed iframe { display: block; inline-size: 100%; max-inline-size: 100%; border: 2px solid var(--border-black); background: var(--surface, #fff); }
+    .example-embed figcaption { margin-top: 0.5rem; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v156/">&larr; Chrome 156 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v156 &middot; network &middot; enabled by default</p>
+    <h1>Compression dictionary transport Updates</h1>
+
+    <p class="lede">Aligns Chromium&rsquo;s <code>&lt;link rel="compression-dictionary"&gt;</code> and HTTP <code>Link: &lt;...&gt;; rel="compression-dictionary"</code> fetching behavior with the updated <a href="https://github.com/whatwg/html/pull/11620" target="_blank" rel="noopener">WHATWG HTML specification (PR #11620)</a> and <a href="https://www.rfc-editor.org/rfc/rfc9842.html" target="_blank" rel="noopener">RFC 9842</a>. Dictionary requests now use <code>"compression-dictionary"</code> as their Fetch <code>RequestDestination</code> (and <code>Sec-Fetch-Dest</code> header), honor the <code>crossorigin</code> attribute (promoting omitted <code>No CORS</code> to <code>anonymous</code> with <code>mode: "cors"</code> and <code>credentials: "same-origin"</code> instead of hardcoding <code>credentials: "omit"</code>), and respect <code>referrerpolicy</code> and the document referrer instead of hardcoding <code>no-referrer</code>.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; Compression Dictionary Transport shipped in Chrome/Edge 130 with Chrome 156 aligning link fetch semantics to HTML PR #11620; Firefox supports dictionaries behind a preference (145 / preview) and Safari has not shipped</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 156 updates (base CDT since 130)</li>
+        <li>Edge &middot; Mirrors Chromium (156 updates; base CDT since 130)</li>
+        <li class="limited">Firefox &middot; Behind preference (145) / Preview</li>
+        <li class="limited">Safari &middot; No release</li>
+      </ul>
+      <p>The <a href="https://webstatus.dev/features/compression-dictionary-transport" target="_blank" rel="noopener"><code>compression-dictionary-transport</code> web-feature</a> is <strong>Limited availability</strong> on <a href="https://api.webstatus.dev/v1/features/compression-dictionary-transport" target="_blank" rel="noopener">webstatus.dev</a>, and <a href="https://github.com/mdn/browser-compat-data/blob/main/html/elements/link.json" target="_blank" rel="noopener">BCD <code>html/elements/link.json</code></a> (<code>rel.compression-dictionary</code>) records Chrome/Edge 130, Firefox 145 behind <code>network.http.dictionaries.enable</code> (and preview), and Safari <code>false</code> (checked 2026-11-27). <a href="https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Attributes/rel/compression-dictionary" target="_blank" rel="noopener">MDN&rsquo;s <code>rel="compression-dictionary"</code> page</a> is a two-paragraph overview that omits <code>crossorigin</code>, <code>referrerpolicy</code>, and request credentials, and <a href="https://developer.mozilla.org/en-US/docs/Web/API/Request/destination" target="_blank" rel="noopener">MDN&rsquo;s <code>Request.destination</code> page</a> does not list <code>"compression-dictionary"</code> &mdash; so gendn publishes a complete reference here.</p>
+    </div>
+  </header>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#at-a-glance">At a glance</a></li>
+      <li><a href="#why">Why it exists</a></li>
+      <li><a href="#syntax">Syntax</a></li>
+      <li><a href="#destination"><code>"compression-dictionary"</code> destination</a></li>
+      <li><a href="#crossorigin"><code>crossorigin</code> &amp; credentials</a></li>
+      <li><a href="#referrerpolicy"><code>referrerpolicy</code> &amp; referrer</a></li>
+      <li><a href="#errors">Errors &amp; migration pitfalls</a></li>
+      <li><a href="#context">Context &amp; exposure</a></li>
+      <li><a href="#lifecycle">Fetch scheduling &amp; events</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#security-and-privacy">Security &amp; privacy</a></li>
+      <li><a href="#specifications">Specifications</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="At a glance">
+    <table class="doc-table">
+      <tr><th scope="row">Shipped in</th><td>Chrome 156 &mdash; filed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=156" target="_blank" rel="noopener">milestone=156 listing</a> (<a href="https://chromestatus.com/api/v0/features/4895435813683200" target="_blank" rel="noopener">ChromeStatus API record 4895435813683200</a>, desktop stage 156; feature type &ldquo;Chromium catches up&rdquo;; base CDT shipped in Chrome 130)</td></tr>
+      <tr><th scope="row">Runtime flags</th><td>Blink flags <code>CDTNewDestination</code>, <code>CDTNewCrossOriginHandling</code>, and <code>CDTNewReferrerAndReferrerPolicyHandling</code> alongside <code>CompressionDictionaryTransport</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener"><code>runtime_enabled_features.json5</code></a></td></tr>
+      <tr><th scope="row">Specifications</th><td><a href="https://github.com/whatwg/html/pull/11620" target="_blank" rel="noopener">WHATWG HTML PR #11620 (<code>rel="compression-dictionary"</code> &amp; <code>load a compression dictionary</code>)</a> &middot; <a href="https://html.spec.whatwg.org/multipage/links.html#link-type-compression-dictionary" target="_blank" rel="noopener">HTML Living Standard &mdash; Link type <code>compression-dictionary</code></a> &middot; <a href="https://www.rfc-editor.org/rfc/rfc9842.html" target="_blank" rel="noopener">IETF RFC 9842 Compression Dictionary Transport</a></td></tr>
+      <tr><th scope="row">Intent &amp; bug</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/fadc038b-6874-4d95-a112-a3eff995412a%40igalia.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a> &middot; <a href="https://issues.chromium.org/issues/40255884" target="_blank" rel="noopener">issues.chromium.org/40255884</a></td></tr>
+      <tr><th scope="row">Chromium source</th><td><a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/loader/preload_helper.cc" target="_blank" rel="noopener">Blink <code>preload_helper.cc</code></a> (<code>FetchCompressionDictionaryIfNeeded</code>); <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/fetch/request.idl" target="_blank" rel="noopener">Blink <code>request.idl</code></a> (<code>RequestDestination</code>)</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/4895435813683200" target="_blank" rel="noopener">4895435813683200 &mdash; Compression dictionary transport Updates</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>Chromium originally shipped Compression Dictionary Transport in Chrome 130 before HTML and Fetch finalized the processing model for <code>rel="compression-dictionary"</code>. As Mozilla and Igalia implemented dictionary transport in Firefox and WebKit and added Web Platform Tests, <a href="https://github.com/whatwg/html/pull/11620" target="_blank" rel="noopener">whatwg/html#11620</a> standardized how <code>&lt;link rel="compression-dictionary"&gt;</code> and HTTP <code>Link</code> headers build their Fetch request. Chrome 156 catches Chromium up to that interoperable model so dictionary fetches expose a dedicated <code>"compression-dictionary"</code> request destination and obey standard HTML <code>crossorigin</code> and <code>referrerpolicy</code> attributes rather than hardcoded <code>credentials: "omit"</code> and <code>no-referrer</code> overrides.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/4895435813683200" target="_blank" rel="noopener">ChromeStatus 4895435813683200</a>; <a href="https://github.com/whatwg/html/pull/11620" target="_blank" rel="noopener">whatwg/html#11620</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>HTML element, HTTP response header, Fetch metadata header, and JavaScript feature-detection forms per <a href="https://github.com/whatwg/html/pull/11620" target="_blank" rel="noopener">whatwg/html#11620</a> and <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/fetch/request.idl" target="_blank" rel="noopener">Blink <code>request.idl</code></a> (<code>RequestDestination</code> enum value <code>"compression-dictionary"</code>):</p>
+    <pre tabindex="0"><code data-doc-test="html">&lt;!-- HTML &lt;link&gt; element (body-ok: allowed in &lt;head&gt; or &lt;body&gt;) --&gt;
+&lt;link rel="compression-dictionary"
+      href="https://cdn.example/dicts/app-v1.dict"
+      crossorigin="anonymous"
+      referrerpolicy="strict-origin-when-cross-origin"&gt;</code></pre>
+    <pre tabindex="0"><code data-doc-test="http"># Equivalent HTTP response Link header
+Link: &lt;https://cdn.example/dicts/app-v1.dict&gt;; rel="compression-dictionary"; crossorigin="anonymous"; referrerpolicy="strict-origin-when-cross-origin"
+
+# Outgoing request Fetch Metadata header emitted by the browser
+Sec-Fetch-Dest: compression-dictionary
+Sec-Fetch-Mode: cors</code></pre>
+    <p>This reference covers all three Chrome 156 updates: the <a href="#destination"><code>"compression-dictionary"</code> request destination</a>, <a href="#crossorigin"><code>crossorigin</code> mode and credentials handling</a>, and <a href="#referrerpolicy"><code>referrerpolicy</code> and referrer handling</a>.</p>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/11620" target="_blank" rel="noopener">whatwg/html#11620</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/fetch/request.idl" target="_blank" rel="noopener">Blink <code>request.idl</code></a>; <a href="https://www.rfc-editor.org/rfc/rfc9842.html" target="_blank" rel="noopener">RFC 9842</a>.</span>
+
+    <h3 id="destination"><code>"compression-dictionary"</code> Fetch <code>RequestDestination</code> &amp; <code>Sec-Fetch-Dest</code></h3>
+    <p><strong>Inputs.</strong> Triggered whenever the user agent executes <code>load a compression dictionary</code> for a <code>&lt;link rel="compression-dictionary"&gt;</code> element or an HTTP <code>Link: &lt;...&gt;; rel="compression-dictionary"</code> response header (Blink sets <code>network::mojom::RequestDestination::kCompressionDictionary</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/loader/preload_helper.cc" target="_blank" rel="noopener"><code>PreloadHelper::FetchCompressionDictionaryIfNeeded()</code></a>).</p>
+    <p><strong>Outputs.</strong> The Fetch request&rsquo;s <code>destination</code> is set to <code>"compression-dictionary"</code> (added to the <code>RequestDestination</code> enum in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/fetch/request.idl" target="_blank" rel="noopener"><code>request.idl</code></a>). Servers observe <code>Sec-Fetch-Dest: compression-dictionary</code> on the incoming HTTP request, and Service Worker <code>fetch</code> handlers observe <code>event.request.destination === "compression-dictionary"</code> (replacing the legacy generic empty/subresource destination behavior). Under Content Security Policy, this destination maps to <code>connect-src</code> (falling back to <code>default-src</code>).</p>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/11620" target="_blank" rel="noopener">whatwg/html#11620</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/fetch/request.idl" target="_blank" rel="noopener">Blink <code>request.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/loader/preload_helper.cc" target="_blank" rel="noopener">Blink <code>preload_helper.cc</code></a>.</span>
+
+    <h3 id="crossorigin"><code>crossorigin</code> attribute, request mode, and credentials</h3>
+    <p><strong>Inputs.</strong> The <code>crossorigin</code> attribute on <code>&lt;link rel="compression-dictionary"&gt;</code> (or the <code>crossorigin</code> parameter on an HTTP <code>Link</code> header): omitted (<code>No CORS</code>), <code>""</code> / <code>"anonymous"</code>, or <code>"use-credentials"</code>.</p>
+    <p><strong>Outputs.</strong> Per step 1 of <code>load a compression dictionary</code> in <a href="https://github.com/whatwg/html/pull/11620" target="_blank" rel="noopener">whatwg/html#11620</a> (implemented in Blink&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/loader/preload_helper.cc" target="_blank" rel="noopener"><code>preload_helper.cc</code></a> under <code>CDTNewCrossOriginHandling</code>), if <code>crossorigin</code> is unset (<code>No CORS</code>), it is promoted to <code>anonymous</code> before calling <code>create a link request</code>. This changes request mode and credentials compared to Chrome 130&ndash;155:</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="cors-table-caption">
+    <table class="doc-table scroll-table">
+      <caption id="cors-table-caption"><code>crossorigin</code> mapping for <code>rel="compression-dictionary"</code> in Chrome 156 vs. legacy Chrome 130&ndash;155</caption>
+      <thead><tr><th scope="col"><code>crossorigin</code> value</th><th scope="col">Chrome 130&ndash;155 (legacy)</th><th scope="col">Chrome 156+ (HTML PR #11620)</th></tr></thead>
+      <tbody>
+        <tr><td>Omitted (<code>No CORS</code>)</td><td><code>mode: "cors"</code>, <code>credentials: "omit"</code></td><td>Promoted to <code>anonymous</code> &rarr; <code>mode: "cors"</code>, <code>credentials: "same-origin"</code></td></tr>
+        <tr><td><code>""</code> or <code>"anonymous"</code> (or invalid value)</td><td><code>mode: "cors"</code>, <code>credentials: "omit"</code></td><td><code>mode: "cors"</code>, <code>credentials: "same-origin"</code></td></tr>
+        <tr><td><code>"use-credentials"</code></td><td>Ignored (still <code>credentials: "omit"</code>)</td><td><code>mode: "cors"</code>, <code>credentials: "include"</code> (sends cookies/auth cross-origin)</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/11620" target="_blank" rel="noopener">whatwg/html#11620</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/loader/preload_helper.cc" target="_blank" rel="noopener">Blink <code>preload_helper.cc</code></a>.</span>
+
+    <h3 id="referrerpolicy"><code>referrerpolicy</code> attribute and request referrer</h3>
+    <p><strong>Inputs.</strong> The <code>referrerpolicy</code> attribute on <code>&lt;link rel="compression-dictionary"&gt;</code> (or the <code>referrerpolicy</code> parameter on an HTTP <code>Link</code> header), accepting standard Fetch referrer policy tokens such as <code>no-referrer</code>, <code>origin</code>, <code>same-origin</code>, <code>strict-origin</code>, <code>strict-origin-when-cross-origin</code>, or <code>unsafe-url</code> (defaulting to the document&rsquo;s referrer policy when omitted).</p>
+    <p><strong>Outputs.</strong> Under <code>CDTNewReferrerAndReferrerPolicyHandling</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/loader/preload_helper.cc" target="_blank" rel="noopener"><code>preload_helper.cc</code></a>, Chromium now passes <code>params.referrer_policy</code> and the document&rsquo;s referrer into the Fetch request instead of unconditionally setting <code>Referrer::NoReferrer()</code> and <code>ReferrerPolicy::kNever</code>. As a result, dictionary fetches now emit a standard <code>Referer</code> header according to the link&rsquo;s <code>referrerpolicy</code> (or the document&rsquo;s default policy, typically <code>strict-origin-when-cross-origin</code>).</p>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/11620" target="_blank" rel="noopener">whatwg/html#11620</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/loader/preload_helper.cc" target="_blank" rel="noopener">Blink <code>preload_helper.cc</code></a>; <a href="https://chromestatus.com/feature/4895435813683200" target="_blank" rel="noopener">ChromeStatus 4895435813683200</a>.</span>
+
+    <h3 id="errors">Errors and migration pitfalls</h3>
+    <ul>
+      <li><strong>CORS failures on cross-origin dictionaries:</strong> Because <code>rel="compression-dictionary"</code> always fetches with <code>mode: "cors"</code>, cross-origin dictionary servers must emit a matching <code>Access-Control-Allow-Origin</code> header (and <code>Access-Control-Allow-Credentials: true</code> with a non-wildcard origin when <code>crossorigin="use-credentials"</code> is specified). Otherwise the fetch fails as a network error, fires <code>error</code> on the <code>&lt;link&gt;</code> element, and does not store the dictionary.</li>
+      <li><strong>Same-origin cookies &amp; <code>Referer</code> migration:</strong> Servers upgrading from Chrome 130&ndash;155 that assumed dictionary fetches never carried same-origin cookies or a <code>Referer</code> header will now receive same-origin credentials (<code>credentials: "same-origin"</code>) and the document&rsquo;s referrer policy by default. Set <code>referrerpolicy="no-referrer"</code> explicitly if you need to suppress <code>Referer</code>.</li>
+      <li><strong>CSP &amp; secure context requirements:</strong> Compression Dictionary Transport is active only in secure contexts (<code>https://</code> or <code>localhost</code>) and requires the response&rsquo;s <code>Use-As-Dictionary</code> header (<a href="https://www.rfc-editor.org/rfc/rfc9842.html" target="_blank" rel="noopener">RFC 9842</a>) plus CSP <code>connect-src</code> permission; a blocked fetch triggers the <code>&lt;link&gt;</code> element&rsquo;s <code>error</code> event.</li>
+      <li><strong><code>RequestDestination</code> check in Service Workers:</strong> Service Worker routing code that previously matched dictionary links by <code>request.destination === ""</code> must be updated to match <code>request.destination === "compression-dictionary"</code>.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/11620" target="_blank" rel="noopener">whatwg/html#11620</a>; <a href="https://www.rfc-editor.org/rfc/rfc9842.html" target="_blank" rel="noopener">RFC 9842</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/loader/preload_helper.cc" target="_blank" rel="noopener">Blink <code>preload_helper.cc</code></a>.</span>
+
+    <h3 id="context">Context and exposure</h3>
+    <p>Compression Dictionary Transport requires a secure context (<code>self.isSecureContext === true</code>, i.e. HTTPS or <code>localhost</code>). Per <a href="https://github.com/whatwg/html/pull/11620" target="_blank" rel="noopener">whatwg/html#11620</a>, <code>rel="compression-dictionary"</code> is <strong><code>body-ok</code></strong> (allowed on <code>&lt;link&gt;</code> elements in both <code>&lt;head&gt;</code> and <code>&lt;body&gt;</code>) and is listed in <code>HTMLLinkElement.relList.supports("compression-dictionary")</code>. It can also be triggered via HTTP <code>Link:</code> response headers. The <code>"compression-dictionary"</code> destination is observable server-side via <code>Sec-Fetch-Dest</code> and client-side in Service Workers via <code>FetchEvent.request.destination</code>.</p>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/11620" target="_blank" rel="noopener">whatwg/html#11620</a>; <a href="https://html.spec.whatwg.org/multipage/links.html#link-type-compression-dictionary" target="_blank" rel="noopener">HTML Living Standard</a>; <a href="https://www.rfc-editor.org/rfc/rfc9842.html" target="_blank" rel="noopener">RFC 9842</a>.</span>
+
+    <h3 id="lifecycle">Fetch triggers, idle scheduling, and <code>load</code> / <code>error</code> events</h3>
+    <p>Per <a href="https://github.com/whatwg/html/pull/11620" target="_blank" rel="noopener">whatwg/html#11620</a>, a <code>&lt;link rel="compression-dictionary"&gt;</code> triggers <code>load a compression dictionary</code> when: (1) created while browsing-context connected, (2) inserted into a browsing-context connected document, (3) its <code>href</code> attribute changes while connected, or (4) its <code>crossorigin</code> attribute is set, changed, or removed while connected. HTML explicitly permits user agents to delay the dictionary fetch to prioritize critical document resources; Blink schedules the fetch via <code>ScriptedIdleTaskController</code> (<code>LoadDictionaryWhenIdleTask</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/loader/preload_helper.cc" target="_blank" rel="noopener"><code>preload_helper.cc</code></a>). After consuming the response body, the browser fires <code>error</code> at the <code>&lt;link&gt;</code> element if the response is a network error, or <code>load</code> otherwise. When the response carries a valid <code>Use-As-Dictionary</code> header, later matching fetches send <code>Available-Dictionary</code>, optional <code>Dictionary-ID</code>, and <code>dcb</code> / <code>dcz</code> in <code>Accept-Encoding</code>.</p>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/11620" target="_blank" rel="noopener">whatwg/html#11620</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/loader/preload_helper.cc" target="_blank" rel="noopener">Blink <code>preload_helper.cc</code></a>; <a href="https://www.rfc-editor.org/rfc/rfc9842.html" target="_blank" rel="noopener">RFC 9842</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+
+    <h3 id="example-live">Live demo &amp; declarative <code>&lt;link&gt;</code> / HTTP <code>Link</code> setup</h3>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/compression-dictionary-transport-updates/link-request-semantics/"
+        title="Live example — Compression dictionary link request semantics" loading="lazy" width="100%" height="540"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live interactive demo inspecting the outgoing <code>Sec-Fetch-Dest</code>, CORS mode, credentials, and <code>Referer</code> sent by <code>&lt;link rel="compression-dictionary"&gt;</code>. Sibling demos on the <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/compression-dictionary-transport-updates/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase feature index</a>: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/compression-dictionary-transport-updates/dictionary-negotiation/" target="_blank" rel="noopener">dictionary negotiation</a> and <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/compression-dictionary-transport-updates/client-observable-probe/" target="_blank" rel="noopener">client-observable probe</a>. <span class="citation">Source: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/compression-dictionary-transport-updates/link-request-semantics/" target="_blank" rel="noopener">chrome-platform-showcase</a>.</span></figcaption>
+    </figure>
+
+    <pre tabindex="0"><code data-doc-test="html">&lt;!-- Same-origin dictionary: omits crossorigin (promoted to anonymous: mode=cors, credentials=same-origin) --&gt;
+&lt;link rel="compression-dictionary"
+      href="/static/app-v1.dict"
+      referrerpolicy="same-origin"&gt;
+
+&lt;!-- Cross-origin authenticated CDN dictionary: explicitly sends credentials --&gt;
+&lt;link rel="compression-dictionary"
+      href="https://cdn.example/static/app-v1.dict"
+      crossorigin="use-credentials"
+      referrerpolicy="no-referrer"&gt;</code></pre>
+    <pre tabindex="0"><code data-doc-test="http"># Dictionary response headers required by RFC 9842 + CORS for cross-origin use
+HTTP/2 200 OK
+Content-Type: application/octet-stream
+Cache-Control: public, max-age=86400
+Use-As-Dictionary: match="/static/app-*.js", id="app-v1"
+Access-Control-Allow-Origin: https://app.example
+Access-Control-Allow-Credentials: true</code></pre>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/11620" target="_blank" rel="noopener">whatwg/html#11620</a>; <a href="https://www.rfc-editor.org/rfc/rfc9842.html" target="_blank" rel="noopener">RFC 9842</a>.</span>
+
+    <h3 id="example-js-sw">Feature detection, dynamic <code>&lt;link&gt;</code> insertion, and Service Worker inspection</h3>
+    <pre tabindex="0"><code data-doc-test="js">function registerCompressionDictionary(href, { crossorigin = "anonymous", referrerpolicy = "strict-origin-when-cross-origin" } = {}) {
+  const link = document.createElement("link");
+  const supported = Boolean(link.relList?.supports?.("compression-dictionary"));
+  if (!supported || !self.isSecureContext) {
+    return { supported, inserted: false };
+  }
+
+  link.rel = "compression-dictionary";
+  link.href = href;
+  link.crossOrigin = crossorigin;
+  link.referrerPolicy = referrerpolicy;
+  link.addEventListener("load", () =&gt; console.log("Dictionary fetched:", href));
+  link.addEventListener("error", () =&gt; console.warn("Dictionary fetch failed:", href));
+  document.head.append(link);
+  return { supported, inserted: true };
+}
+
+// Inside a Service Worker fetch listener, Chrome 156+ exposes the dedicated RequestDestination:
+function isCompressionDictionaryFetch(event) {
+  return event.request.destination === "compression-dictionary";
+}</code></pre>
+    <span class="citation">Source: <a href="https://github.com/whatwg/html/pull/11620" target="_blank" rel="noopener">whatwg/html#11620</a>; <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/compression-dictionary-transport-updates/conformance.json" target="_blank" rel="noopener">CPS conformance suite</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Support for Chrome 156 <code>rel="compression-dictionary"</code> Fetch/HTML updates alongside base Compression Dictionary Transport support from BCD <code>html/elements/link.json</code>, webstatus.dev <code>compression-dictionary-transport</code>, and ChromeStatus 4895435813683200 (checked 2026-11-27).</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col">HTML PR #11620 updates (<code>destination</code>, <code>crossorigin</code>, <code>referrerpolicy</code>)</th><th scope="col">Evidence / notes</th><th scope="col">Base <code>rel="compression-dictionary"</code> (BCD)</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Chrome</th><td>156 (desktop listed; Android/WebView unrecorded in API)</td><td>Enabled by default in <a href="https://chromestatus.com/api/v0/features?milestone=156" target="_blank" rel="noopener">milestone=156</a> (<a href="https://chromestatus.com/api/v0/features/4895435813683200" target="_blank" rel="noopener">ChromeStatus 4895435813683200</a>, <a href="https://issues.chromium.org/issues/40255884" target="_blank" rel="noopener">issues.chromium.org/40255884</a>; Blink flags <code>CDTNewDestination</code>, <code>CDTNewCrossOriginHandling</code>, <code>CDTNewReferrerAndReferrerPolicyHandling</code>)</td><td>130 (desktop, Android, WebView)</td></tr>
+        <tr><th scope="row">Edge</th><td>156 (mirror)</td><td>Chromium-based; follows Chromium milestone 156 rollout</td><td>130 (mirror)</td></tr>
+        <tr><th scope="row">Firefox</th><td>In development / preview</td><td>Mozilla co-authored spec updates and WPTs; base CDT behind <code>network.http.dictionaries.enable</code> since 145 (<a href="https://bugzilla.mozilla.org/show_bug.cgi?id=1918013" target="_blank" rel="noopener">Mozilla Bug 1918013</a>) and preview (<a href="https://bugzilla.mozilla.org/show_bug.cgi?id=1882979" target="_blank" rel="noopener">Mozilla Bug 1882979</a>) per BCD</td><td>Preview / 145 (behind flag)</td></tr>
+        <tr><th scope="row">Safari (macOS &amp; iOS)</th><td>No release</td><td>Igalia WebKit work referenced in <a href="https://chromestatus.com/api/v0/features/4895435813683200" target="_blank" rel="noopener">ChromeStatus 4895435813683200</a>; BCD reads <code>false</code></td><td>No release</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/html/elements/link.json" target="_blank" rel="noopener">BCD <code>html/elements/link.json</code></a>; <a href="https://api.webstatus.dev/v1/features/compression-dictionary-transport" target="_blank" rel="noopener">webstatus.dev <code>compression-dictionary-transport</code></a>; <a href="https://chromestatus.com/api/v0/features/4895435813683200" target="_blank" rel="noopener">ChromeStatus 4895435813683200</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <p>Promoting omitted <code>crossorigin</code> (<code>No CORS</code>) to <code>anonymous</code> enforces <code>mode: "cors"</code> on every dictionary fetch, ensuring cross-origin compression dictionaries require explicit <code>Access-Control-Allow-Origin</code> opt-in and cannot silently read opaque cross-origin bodies into a compression oracle (mitigating BREACH/CRIME-style side channels detailed in <a href="https://www.rfc-editor.org/rfc/rfc9842.html#name-security-considerations" target="_blank" rel="noopener">RFC 9842 &sect;9 Security Considerations</a>). Exposing <code>Sec-Fetch-Dest: compression-dictionary</code> lets origins enforce Fetch Metadata isolation rules specifically for dictionary requests, CSP <code>connect-src</code> governs allowed dictionary endpoints, and honoring <code>referrerpolicy</code> gives site authors direct control over <code>Referer</code> disclosure rather than silently overriding it.</p>
+    <span class="citation">Source: <a href="https://www.rfc-editor.org/rfc/rfc9842.html#name-security-considerations" target="_blank" rel="noopener">RFC 9842 &sect;9 Security Considerations</a>; <a href="https://github.com/whatwg/html/pull/11620" target="_blank" rel="noopener">whatwg/html#11620</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Specifications">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Specification</th><th scope="col">Section</th></tr></thead>
+      <tbody>
+        <tr><td><a href="https://html.spec.whatwg.org/multipage/links.html" target="_blank" rel="noopener">HTML Living Standard</a></td><td><a href="https://html.spec.whatwg.org/multipage/links.html#link-type-compression-dictionary" target="_blank" rel="noopener">Link type <code>"compression-dictionary"</code></a> (<a href="https://github.com/whatwg/html/pull/11620" target="_blank" rel="noopener">whatwg/html#11620</a>)</td></tr>
+        <tr><td><a href="https://www.rfc-editor.org/rfc/rfc9842.html" target="_blank" rel="noopener">IETF RFC 9842</a></td><td><a href="https://www.rfc-editor.org/rfc/rfc9842.html#name-the-compression-dictionary-" target="_blank" rel="noopener">The <code>compression-dictionary</code> Link Relation Type</a> &middot; <a href="https://www.rfc-editor.org/rfc/rfc9842.html#name-security-considerations" target="_blank" rel="noopener">Security Considerations</a></td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/compression-dictionary-transport-updates/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase &mdash; Compression dictionary transport Updates demos</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Attributes/rel/compression-dictionary" target="_blank" rel="noopener">MDN &mdash; <code>rel="compression-dictionary"</code> HTML attribute value</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Compression_dictionary_transport" target="_blank" rel="noopener">MDN &mdash; Compression Dictionary Transport guide</a></li>
+      <li><a href="https://webstatus.dev/features/compression-dictionary-transport" target="_blank" rel="noopener">webstatus.dev &mdash; <code>compression-dictionary-transport</code></a></li>
+      <li><a href="https://github.com/whatwg/html/pull/11620" target="_blank" rel="noopener">whatwg/html#11620 &mdash; Specify <code>rel="compression-dictionary"</code></a></li>
+      <li><a href="https://chromestatus.com/feature/4895435813683200" target="_blank" rel="noopener">ChromeStatus &mdash; Compression dictionary transport Updates (4895435813683200)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
