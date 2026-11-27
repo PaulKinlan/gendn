@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HTML-in-canvas — Chrome 157 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .scroll-table { min-width: 30rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v157/">&larr; Chrome 157 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v157 &middot; canvas &middot; enabled by default</p>
+    <h1>HTML-in-canvas</h1>
+
+    <p class="lede">Lets web applications lay out live HTML descendants inside a <code>&lt;canvas content="drawable"&gt;</code> element and draw snapshots of elements marked with the <code>drawable</code> attribute into 2D Canvas (<code>drawElementImage()</code>), WebGL (<code>texElementSubImage2D()</code>), or WebGPU (<code>GPUQueue.drawElementImageToTexture()</code>) — while preserving DOM hit testing, accessibility geometry, worker-transferable <code>ElementImage</code> snapshots, and read-back-safe rendering.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; shipped enabled by default in Chrome 157 and Edge 157; Firefox and Safari have not shipped</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 157 (desktop, Android, WebView; shipped 2026-11-03)</li>
+        <li>Edge &middot; 157 (shipped 2026-11-05)</li>
+        <li class="limited">Firefox &middot; Not supported (No signal)</li>
+        <li class="limited">Safari &middot; Not supported (Positive signal; early WebKit work)</li>
+      </ul>
+      <p>The <a href="https://webstatus.dev/features/canvas-html" target="_blank" rel="noopener"><code>canvas-html</code> web-feature</a> is <strong>Limited availability</strong> on <a href="https://api.webstatus.dev/v1/features/canvas-html" target="_blank" rel="noopener">webstatus.dev</a> (Chrome 157, Chrome Android 157, Edge 157; checked 2026-11-27). <a href="https://github.com/mdn/browser-compat-data/blob/main/api/HTMLCanvasElement.json" target="_blank" rel="noopener">BCD <code>api/HTMLCanvasElement.json</code></a>, <a href="https://github.com/mdn/browser-compat-data/blob/main/api/CanvasRenderingContext2D.json" target="_blank" rel="noopener"><code>api/CanvasRenderingContext2D.json</code></a>, <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebGLRenderingContext.json" target="_blank" rel="noopener"><code>api/WebGLRenderingContext.json</code></a>, and <a href="https://github.com/mdn/browser-compat-data/blob/main/api/GPUQueue.json" target="_blank" rel="noopener"><code>api/GPUQueue.json</code></a> all record Chrome 157 and Edge 157 support. MDN has no dedicated reference pages yet (verified 404 on 2026-11-27).</p>
+    </div>
+  </header>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#at-a-glance">At a glance</a></li>
+      <li><a href="#why">Why it exists</a></li>
+      <li><a href="#syntax">Syntax</a></li>
+      <li><a href="#errors">Errors</a></li>
+      <li><a href="#context">Context &amp; exposure</a></li>
+      <li><a href="#lifecycle">Lifecycle &amp; timing</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#security-and-privacy">Security &amp; privacy</a></li>
+      <li><a href="#specifications">Specifications</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="At a glance">
+    <table class="doc-table">
+      <tr><th scope="row">Shipped in</th><td>Chrome 157 (desktop, Android, Android WebView; iOS <code>null</code>) &mdash; enabled by default in the <a href="https://chromestatus.com/api/v0/features?milestone=157" target="_blank" rel="noopener">milestone=157 listing</a> (<a href="https://chromestatus.com/api/v0/features/5172548013916160" target="_blank" rel="noopener">ChromeStatus API record 5172548013916160</a>)</td></tr>
+      <tr><th scope="row">Runtime flag</th><td>Blink runtime feature <code>CanvasDrawElement</code> has <code>status: "stable"</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener"><code>runtime_enabled_features.json5</code></a> (no flag or origin trial token needed in Chrome 157+)</td></tr>
+      <tr><th scope="row">Origin trial history</th><td>Replaces the retired Chrome 148&ndash;150 origin trial surface (<code>layoutsubtree</code>, <code>DOMMatrix</code> return from <code>drawElementImage()</code>, <code>texElementImage2D()</code>, <code>device.copyElementImageToTexture()</code>) preserved at <a href="/v148/html-in-canvas/"><code>/v148/html-in-canvas/</code></a></td></tr>
+      <tr><th scope="row">Spec &amp; explainer</th><td><a href="https://github.com/WICG/html-in-canvas/blob/main/README.md" target="_blank" rel="noopener">WICG HTML-in-Canvas explainer</a> &middot; <a href="https://github.com/whatwg/html/pull/11588" target="_blank" rel="noopener">WHATWG HTML PR #11588</a></td></tr>
+      <tr><th scope="row">Intent &amp; bug</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6abd0a2e.082f26cb.5221b.0060.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a> &middot; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/t_nGEmJ_v4s" target="_blank" rel="noopener">Intent to Experiment</a> &middot; <a href="https://issues.chromium.org/issues/500967896" target="_blank" rel="noopener">issues.chromium.org/500967896</a></td></tr>
+      <tr><th scope="row">TAG &amp; vendor signals</th><td>TAG: <a href="https://github.com/w3ctag/design-reviews/issues/1204" target="_blank" rel="noopener">w3ctag/design-reviews#1204</a> (Pending) &middot; Safari: <a href="https://github.com/WebKit/standards-positions/issues/630" target="_blank" rel="noopener">Positive (#630)</a> (<a href="https://github.com/WebKit/WebKit/pull/70542" target="_blank" rel="noopener">WebKit PR #70542</a>) &middot; Firefox: <a href="https://github.com/mozilla/standards-positions/issues/1076" target="_blank" rel="noopener">No signal (#1076)</a></td></tr>
+      <tr><th scope="row">Web platform tests</th><td><a href="https://wpt.fyi/results/html/canvas/element/manual/draw-element-image?label=experimental&amp;label=master&amp;aligned" target="_blank" rel="noopener">wpt.fyi &mdash; draw-element-image</a></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5172548013916160" target="_blank" rel="noopener">5172548013916160 &mdash; HTML-in-canvas</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>Applications built on 2D Canvas, WebGL, and WebGPU &mdash; such as data visualizations, creative design tools, 3D scenes, and games &mdash; previously had to choose between re-implementing complex text layout, internationalization, form controls, and accessibility in JavaScript, or floating a detached DOM overlay above the canvas and manually synchronizing transforms and clipping. HTML-in-canvas unites both models: HTML descendants placed inside <code>&lt;canvas content="drawable"&gt;</code> participate in browser layout, keyboard focus, and the accessibility tree without painting directly to the page, while script draws their recorded snapshots into 2D, WebGL, or WebGPU pipelines and synchronizes hit-test geometry back to the DOM.</p>
+    <p>Compared to the earlier Chrome 148&ndash;150 origin trial documented at <a href="/v148/html-in-canvas/"><code>/v148/html-in-canvas/</code></a>, the shipped Chrome 157 API replaces the boolean <code>layoutsubtree</code> attribute with <code>content="drawable"</code> plus per-subtree <code>drawable</code> attributes, changes <code>drawElementImage()</code> to return <code>void</code> and update geometry automatically by default, adds <code>ElementImage</code> for worker-thread <code>OffscreenCanvas</code> rendering, adds explicit geometry helpers (<code>updateElementGeometry()</code>, <code>clearElementGeometry()</code>, <code>getElementTransform()</code>, <code>getElementImageDefaultSize()</code>, <code>requestPaint()</code>, <code>onelementgeometryupdate</code>), renames WebGL&rsquo;s upload method to <code>texElementSubImage2D()</code>, and standardizes WebGPU upload on <code>GPUQueue.drawElementImageToTexture()</code>.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/html-in-canvas/blob/main/README.md" target="_blank" rel="noopener">WICG HTML-in-Canvas explainer</a>; <a href="https://chromestatus.com/api/v0/features/5172548013916160" target="_blank" rel="noopener">ChromeStatus API record 5172548013916160</a>; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6abd0a2e.082f26cb.5221b.0060.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>Verbatim WebIDL shipped in Chrome 157 from Chromium trunk (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/html_canvas_element.idl" target="_blank" rel="noopener"><code>html_canvas_element.idl</code></a>, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/offscreencanvas/offscreen_canvas.idl" target="_blank" rel="noopener"><code>offscreen_canvas.idl</code></a>, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/canvas/canvas2d/canvas_draw_element_image.idl" target="_blank" rel="noopener"><code>canvas_draw_element_image.idl</code></a>, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/canvas/canvas2d/draw_element_image_options.idl" target="_blank" rel="noopener"><code>draw_element_image_options.idl</code></a>, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/element_image.idl" target="_blank" rel="noopener"><code>element_image.idl</code></a>, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/element_image_default_size.idl" target="_blank" rel="noopener"><code>element_image_default_size.idl</code></a>, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/update_element_geometry_options.idl" target="_blank" rel="noopener"><code>update_element_geometry_options.idl</code></a>, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/canvas_paint_event.idl" target="_blank" rel="noopener"><code>canvas_paint_event.idl</code></a>, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/element_geometry_update_event.idl" target="_blank" rel="noopener"><code>element_geometry_update_event.idl</code></a>, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.idl" target="_blank" rel="noopener"><code>webgl_rendering_context_base.idl</code></a>, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgl/webgl_copy_element_image_config.idl" target="_blank" rel="noopener"><code>webgl_copy_element_image_config.idl</code></a>, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgpu/gpu_queue.idl" target="_blank" rel="noopener"><code>gpu_queue.idl</code></a>, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgpu/gpu_draw_element_image_source.idl" target="_blank" rel="noopener"><code>gpu_draw_element_image_source.idl</code></a>, and <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgpu/gpu_draw_element_image_destination.idl" target="_blank" rel="noopener"><code>gpu_draw_element_image_destination.idl</code></a>):</p>
+    <pre tabindex="0"><code data-doc-test="idl">partial interface HTMLCanvasElement {
+  [CEReactions, Reflect, ReflectOnly=("fallback", "drawable"),
+   ReflectMissing="fallback", ReflectInvalid="fallback"]
+  attribute DOMString content;
+
+  attribute EventHandler onpaint;
+  attribute EventHandler onelementgeometryupdate;
+
+  void requestPaint();
+  ElementImageDefaultSize getElementImageDefaultSize((Element or ElementImage) element);
+  [NewObject] DOMMatrix getElementTransform(Element element);
+  ElementImage captureElementImage(Element element);
+  void updateElementGeometry(
+      (Element or ElementImage) element,
+      optional UpdateElementGeometryOptions options = {});
+  void clearElementGeometry((Element or ElementImage) element);
+};
+
+partial interface OffscreenCanvas {
+  ElementImageDefaultSize getElementImageDefaultSize((Element or ElementImage) element);
+  void updateElementGeometry(
+      (Element or ElementImage) element,
+      optional UpdateElementGeometryOptions options = {});
+  void clearElementGeometry((Element or ElementImage) element);
+};
+
+interface mixin CanvasDrawElementImage {
+  void drawElementImage((Element or ElementImage) element,
+                        unrestricted double dx,
+                        unrestricted double dy,
+                        optional DrawElementImageOptions options = {});
+  void drawElementImage((Element or ElementImage) element,
+                        unrestricted double dx,
+                        unrestricted double dy,
+                        unrestricted double dwidth,
+                        unrestricted double dheight,
+                        optional DrawElementImageOptions options = {});
+  void drawElementImage((Element or ElementImage) element,
+                        unrestricted double sx,
+                        unrestricted double sy,
+                        unrestricted double swidth,
+                        unrestricted double sheight,
+                        unrestricted double dx,
+                        unrestricted double dy,
+                        optional DrawElementImageOptions options = {});
+  void drawElementImage((Element or ElementImage) element,
+                        unrestricted double sx,
+                        unrestricted double sy,
+                        unrestricted double swidth,
+                        unrestricted double sheight,
+                        unrestricted double dx,
+                        unrestricted double dy,
+                        unrestricted double dwidth,
+                        unrestricted double dheight,
+                        optional DrawElementImageOptions options = {});
+};
+CanvasRenderingContext2D includes CanvasDrawElementImage;
+OffscreenCanvasRenderingContext2D includes CanvasDrawElementImage;
+
+dictionary DrawElementImageOptions {
+  boolean preserveElementGeometry = false;
+};
+
+dictionary UpdateElementGeometryOptions {
+  boolean preserveHitTestOrder = false;
+  DOMRectInit canvasClip;
+  DOMMatrixInit canvasTransform;
+};
+
+dictionary ElementImageDefaultSize {
+  double width;
+  double height;
+};
+
+[Exposed=(Window, Worker), Transferable]
+interface ElementImage {
+  void close();
+};
+
+[Exposed=Window]
+interface CanvasPaintEvent : Event {
+  constructor(DOMString type, optional CanvasPaintEventInit eventInitDict = {});
+  [SameObject] readonly attribute FrozenArray&lt;Element&gt; changedElements;
+};
+
+dictionary CanvasPaintEventInit : EventInit {
+  sequence&lt;Element&gt; changedElements = [];
+};
+
+[Exposed=Window]
+interface ElementGeometryUpdateEvent : Event {
+  constructor(DOMString type, optional ElementGeometryUpdateEventInit eventInitDict = {});
+  [SameObject] readonly attribute FrozenArray&lt;Element&gt; elements;
+};
+
+dictionary ElementGeometryUpdateEventInit : EventInit {
+  sequence&lt;Element&gt; elements = [];
+};
+
+partial interface WebGLRenderingContextBase {
+  void texElementSubImage2D(GLenum target, GLint level,
+                            GLint xoffset, GLint yoffset,
+                            (Element or ElementImage) element,
+                            optional WebGLCopyElementImageConfig config = {});
+};
+
+dictionary WebGLCopyElementImageConfig {
+  GLfloat sx;
+  GLfloat sy;
+  GLfloat swidth;
+  GLfloat sheight;
+  GLsizei width;
+  GLsizei height;
+};
+
+partial interface GPUQueue {
+  void drawElementImageToTexture(
+      GPUDrawElementImageSource source,
+      GPUDrawElementImageDestination destination);
+};
+
+dictionary GPUDrawElementImageSource {
+  required (Element or ElementImage) source;
+  float sourceX;
+  float sourceY;
+  float sourceWidth;
+  float sourceHeight;
+};
+
+dictionary GPUDrawElementImageDestination : GPUImageCopyTextureTagged {
+  GPUExtent3D size;
+};</code></pre>
+    <p>HTML markup pairs <code>&lt;canvas content="drawable"&gt;</code> with the boolean <code>drawable</code> content attribute on descendant elements (note: in Chromium trunk, <code>drawable</code> is a content attribute inspected via <code>hasAttribute("drawable")</code> / <code>setAttribute("drawable", "")</code> rather than a reflected IDL property on <code>HTMLElement</code>). Detailed member contracts follow below: <a href="#canvas-content-and-drawable"><code>content</code> &amp; <code>drawable</code></a>, <a href="#paint-event-and-request-paint"><code>onpaint</code> / <code>requestPaint()</code> / <code>CanvasPaintEvent</code></a>, <a href="#draw-element-image"><code>drawElementImage()</code></a>, <a href="#capture-element-image-and-default-size"><code>captureElementImage()</code> / <code>ElementImage</code> / <code>getElementImageDefaultSize()</code></a>, <a href="#element-geometry-sync"><code>updateElementGeometry()</code> / <code>clearElementGeometry()</code> / <code>getElementTransform()</code></a>, <a href="#element-geometry-update-event"><code>onelementgeometryupdate</code> / <code>ElementGeometryUpdateEvent</code></a>, <a href="#webgl-tex-element-sub-image-2d"><code>texElementSubImage2D()</code></a>, and <a href="#webgpu-draw-element-image-to-texture"><code>GPUQueue.drawElementImageToTexture()</code></a>.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/html_canvas_element.idl" target="_blank" rel="noopener">Blink <code>html_canvas_element.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/canvas/canvas2d/canvas_draw_element_image.idl" target="_blank" rel="noopener"><code>canvas_draw_element_image.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.idl" target="_blank" rel="noopener"><code>webgl_rendering_context_base.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgpu/gpu_queue.idl" target="_blank" rel="noopener"><code>gpu_queue.idl</code></a>.</span>
+
+    <h3 id="canvas-content-and-drawable"><code>HTMLCanvasElement.content</code> and the <code>drawable</code> attribute</h3>
+    <p><strong>Inputs.</strong> The <code>content</code> attribute on <code>&lt;canvas&gt;</code> accepts the enumerated keywords <code>"fallback"</code> (missing/invalid default) or <code>"drawable"</code>, reflected as <code>HTMLCanvasElement.content</code>. Any descendant element you intend to draw must carry the boolean HTML content attribute <code>drawable</code> (for example, <code>&lt;form drawable&gt;</code> or <code>el.setAttribute("drawable", "")</code>).</p>
+    <p><strong>Outputs &amp; layout effects.</strong> Setting <code>content="drawable"</code> opts canvas descendants into normal layout (blockifying immediate children with static positioning) and exposes them to the accessibility tree while suppressing their direct page paint; descendants remain non-hit-testable until geometry is synced. Marking a descendant with <code>drawable</code> implies <code>isolation: isolate</code> and establishes a containing block for its descendants. Nested <code>drawable</code> elements form separate <em>drawable subtrees</em>: drawing an outer <code>drawable</code> element excludes nested <code>drawable</code> descendants and their subtrees so each can be composited independently.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/html-in-canvas/blob/main/README.md" target="_blank" rel="noopener">WICG HTML-in-Canvas explainer</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/html_canvas_element.idl" target="_blank" rel="noopener">Blink <code>html_canvas_element.idl</code></a>.</span>
+
+    <h3 id="paint-event-and-request-paint"><code>onpaint</code>, <code>requestPaint()</code>, and <code>CanvasPaintEvent</code></h3>
+    <p><strong>Inputs.</strong> Listen for <code>paint</code> via <code>canvas.onpaint</code> or <code>canvas.addEventListener("paint", handler)</code>. Call <code>canvas.requestPaint()</code> (no arguments) to force a single <code>paint</code> event on the next rendering opportunity even when no <code>drawable</code> descendant invalidated. Programmatic construction accepts <code>new CanvasPaintEvent(type, { changedElements })</code> where <code>changedElements</code> defaults to <code>[]</code>.</p>
+    <p><strong>Outputs.</strong> <code>requestPaint()</code> returns <code>undefined</code> and schedules a repaint check on the frame view. When dispatched, the <code>CanvasPaintEvent</code> exposes <code>event.changedElements</code>, a <code>[SameObject]</code> <code>FrozenArray&lt;Element&gt;</code> listing the canvas&rsquo;s <code>drawable</code> descendants whose cached rendering snapshots changed since the last frame. Canvas draw calls executed inside the handler appear in the current frame; DOM mutations made inside the handler take effect on the subsequent rendering update.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/canvas_paint_event.idl" target="_blank" rel="noopener">Blink <code>canvas_paint_event.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc" target="_blank" rel="noopener">Blink <code>html_canvas_element.cc</code></a>; <a href="https://github.com/WICG/html-in-canvas/blob/main/README.md" target="_blank" rel="noopener">WICG explainer</a>.</span>
+
+    <h3 id="draw-element-image"><code>CanvasDrawElementImage.drawElementImage()</code> and <code>DrawElementImageOptions</code></h3>
+    <p><strong>Inputs.</strong> Included on both <code>CanvasRenderingContext2D</code> and <code>OffscreenCanvasRenderingContext2D</code>. Accepts four overloads matching 2D <code>drawImage()</code> conventions: <code>(element, dx, dy, options?)</code>, <code>(element, dx, dy, dwidth, dheight, options?)</code>, <code>(element, sx, sy, swidth, sheight, dx, dy, options?)</code>, and <code>(element, sx, sy, swidth, sheight, dx, dy, dwidth, dheight, options?)</code>. <code>element</code> is an <code>Element</code> (main thread) or <code>ElementImage</code> (main thread or worker). Coordinates <code>sx</code>/<code>sy</code>/<code>swidth</code>/<code>sheight</code> are CSS-pixel offsets relative to the element&rsquo;s border box before CSS transforms (and may extend outside the border box to capture ink overflow); <code>dx</code>/<code>dy</code>/<code>dwidth</code>/<code>dheight</code> are canvas coordinate-space coordinates. The optional <code>DrawElementImageOptions</code> dictionary accepts <code>preserveElementGeometry</code> (boolean, default <code>false</code>).</p>
+    <p><strong>Outputs.</strong> Returns <code>undefined</code> (<code>void</code>). Draws the latest recorded snapshot of the element&rsquo;s drawable subtree into the 2D context, scaling by default to preserve visual proportions relative to the canvas backing-grid scale factor when <code>dwidth</code>/<code>dheight</code> are omitted. When <code>preserveElementGeometry</code> is <code>false</code> (the default), Blink automatically invokes <code>updateElementGeometry()</code> with the active 2D transform mapping the element&rsquo;s border box to its drawn destination and pushes the element to the top of the canvas hit-test stack. Passing <code>{ preserveElementGeometry: true }</code> suppresses that automatic geometry update (for example, when drawing a shadow pass or duplicate reflection).</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/canvas/canvas2d/canvas_draw_element_image.idl" target="_blank" rel="noopener">Blink <code>canvas_draw_element_image.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/canvas/canvas2d/draw_element_image_options.idl" target="_blank" rel="noopener"><code>draw_element_image_options.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc" target="_blank" rel="noopener"><code>base_rendering_context_2d.cc</code></a>.</span>
+
+    <h3 id="capture-element-image-and-default-size"><code>captureElementImage()</code>, <code>ElementImage</code>, and <code>getElementImageDefaultSize()</code></h3>
+    <p><strong>Inputs.</strong> <code>canvas.captureElementImage(element)</code> takes an eligible <code>drawable</code> descendant <code>Element</code> on the main thread. <code>canvas.getElementImageDefaultSize(element)</code> and <code>offscreenCanvas.getElementImageDefaultSize(element)</code> accept either an <code>Element</code> or an <code>ElementImage</code>. <code>elementImage.close()</code> takes no arguments.</p>
+    <p><strong>Outputs.</strong> <code>captureElementImage()</code> returns a transferable <code>ElementImage</code> object (<code>[Exposed=(Window, Worker), Transferable]</code>) holding an immutable handle to the element&rsquo;s most recent cached paint record so it can be transferred to a worker via <code>postMessage(img, [img])</code> and drawn onto an <code>OffscreenCanvas</code> (2D, WebGL, or WebGPU). Calling <code>elementImage.close()</code> releases the underlying paint record immediately (subsequent draw calls with a closed <code>ElementImage</code> throw <code>InvalidStateError</code>). <code>getElementImageDefaultSize()</code> returns an <code>ElementImageDefaultSize</code> dictionary <code>{ width, height }</code> giving the element&rsquo;s default raster size in canvas backing-grid coordinates (<code>box_size * canvas_grid_scale_factor</code>), useful for allocating WebGL/WebGPU textures or laying out draw calls.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/element_image.idl" target="_blank" rel="noopener">Blink <code>element_image.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/element_image_default_size.idl" target="_blank" rel="noopener"><code>element_image_default_size.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc" target="_blank" rel="noopener"><code>html_canvas_element.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/offscreencanvas/offscreen_canvas.idl" target="_blank" rel="noopener"><code>offscreen_canvas.idl</code></a>.</span>
+
+    <h3 id="element-geometry-sync"><code>updateElementGeometry()</code>, <code>clearElementGeometry()</code>, and <code>getElementTransform()</code></h3>
+    <p><strong>Inputs.</strong> Both <code>HTMLCanvasElement</code> and <code>OffscreenCanvas</code> expose <code>updateElementGeometry(element, options?)</code> and <code>clearElementGeometry(element)</code> accepting <code>Element</code> or <code>ElementImage</code> (worker threads must pass an <code>ElementImage</code>). <code>UpdateElementGeometryOptions</code> takes three optional fields: <code>preserveHitTestOrder</code> (boolean, default <code>false</code> &mdash; if <code>true</code> and the element is already in the canvas hit-test stack, keep its stack order; otherwise move it to the top), <code>canvasClip</code> (<code>DOMRectInit</code> evaluated in the coordinate space of <code>canvasTransform</code>; omitted preserves any existing clip), and <code>canvasTransform</code> (<code>DOMMatrixInit</code> mapping the element&rsquo;s border box before CSS transforms into canvas coordinates; omitted preserves any existing transform). <code>canvas.getElementTransform(element)</code> takes a <code>drawable</code> <code>Element</code> on <code>HTMLCanvasElement</code>.</p>
+    <p><strong>Outputs.</strong> <code>updateElementGeometry()</code> and <code>clearElementGeometry()</code> return <code>undefined</code>. Updating geometry sets the element&rsquo;s hit-test transform, hit-test clip, hit-test stacking order, and accessibility bounding geometry without invalidating the element&rsquo;s snapshot (so it does <em>not</em> trigger another <code>paint</code> event). <code>clearElementGeometry()</code> resets that geometry state so the element stops participating in hit testing and reverts to geometry-less accessibility reporting. <code>getElementTransform(element)</code> returns a new <code>DOMMatrix</code> reflecting the currently applied canvas transform, or an identity <code>DOMMatrix</code> if none is set.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/update_element_geometry_options.idl" target="_blank" rel="noopener">Blink <code>update_element_geometry_options.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc" target="_blank" rel="noopener"><code>html_canvas_element.cc</code></a>; <a href="https://github.com/WICG/html-in-canvas/blob/main/README.md" target="_blank" rel="noopener">WICG explainer</a>.</span>
+
+    <h3 id="element-geometry-update-event"><code>onelementgeometryupdate</code> and <code>ElementGeometryUpdateEvent</code></h3>
+    <p><strong>Inputs.</strong> Attach a listener to the main-thread <code>HTMLCanvasElement</code> via <code>canvas.onelementgeometryupdate</code> or <code>canvas.addEventListener("elementgeometryupdate", handler)</code>. Programmatic construction accepts <code>new ElementGeometryUpdateEvent(type, { elements })</code> where <code>elements</code> defaults to <code>[]</code>.</p>
+    <p><strong>Outputs.</strong> Fires on the associated <code>HTMLCanvasElement</code> once batched geometry updates originating from a transferred <code>OffscreenCanvas</code> (via <code>drawElementImage()</code>, <code>updateElementGeometry()</code>, or <code>clearElementGeometry()</code>) have been applied on the main thread. <code>event.elements</code> is a <code>[SameObject]</code> <code>FrozenArray&lt;Element&gt;</code> listing the still-connected elements whose geometry changed in that batch; after this event fires, main-thread APIs such as <code>getBoundingClientRect()</code> and <code>getElementTransform()</code> reflect the worker&rsquo;s updated transform.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/element_geometry_update_event.idl" target="_blank" rel="noopener">Blink <code>element_geometry_update_event.idl</code></a>; <a href="https://github.com/WICG/html-in-canvas/blob/main/README.md" target="_blank" rel="noopener">WICG explainer</a>.</span>
+
+    <h3 id="webgl-tex-element-sub-image-2d">WebGL: <code>texElementSubImage2D()</code> and <code>WebGLCopyElementImageConfig</code></h3>
+    <p><strong>Inputs.</strong> Exposed on <code>WebGLRenderingContext</code> and <code>WebGL2RenderingContext</code> (via <code>WebGLRenderingContextBase</code>): <code>gl.texElementSubImage2D(target, level, xoffset, yoffset, element, config?)</code>. Pre-allocate texture storage first (for example via <code>texImage2D</code> with <code>null</code> data or <code>texStorage2D</code>). <code>element</code> is an <code>Element</code> or <code>ElementImage</code>. Optional <code>WebGLCopyElementImageConfig</code> accepts a source crop rectangle (<code>sx</code>, <code>sy</code>, <code>swidth</code>, <code>sheight</code> &mdash; all four must be specified together or all omitted) and a destination raster size (<code>width</code>, <code>height</code> &mdash; both must be specified together or both omitted).</p>
+    <p><strong>Outputs.</strong> Returns <code>undefined</code> and uploads the element&rsquo;s read-back-safe snapshot into the bound 2D texture at <code>(xoffset, yoffset)</code> for mip level <code>level</code>. Unlike 2D <code>drawElementImage()</code>, WebGL does <em>not</em> update DOM hit-testing geometry automatically because shader projections are opaque to the browser &mdash; call <code>canvas.updateElementGeometry(element, { canvasTransform })</code> explicitly to align pointer events and accessibility bounds with your rendered 3D quad.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.idl" target="_blank" rel="noopener">Blink <code>webgl_rendering_context_base.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgl/webgl_copy_element_image_config.idl" target="_blank" rel="noopener"><code>webgl_copy_element_image_config.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc" target="_blank" rel="noopener"><code>webgl_rendering_context_base.cc</code></a>.</span>
+
+    <h3 id="webgpu-draw-element-image-to-texture">WebGPU: <code>GPUQueue.drawElementImageToTexture()</code></h3>
+    <p><strong>Inputs.</strong> <code>device.queue.drawElementImageToTexture(source, destination)</code> takes a <code>GPUDrawElementImageSource</code> dictionary (required <code>source</code> of type <code>Element</code> or <code>ElementImage</code>, plus optional <code>sourceX</code>, <code>sourceY</code>, <code>sourceWidth</code>, <code>sourceHeight</code> &mdash; must supply all four or none) and a <code>GPUDrawElementImageDestination</code> dictionary extending <code>GPUImageCopyTextureTagged</code> (required <code>texture</code>, plus optional <code>mipLevel</code>, <code>origin</code>, <code>aspect</code>, <code>colorSpace</code>, <code>premultipliedAlpha</code>, and optional <code>size</code> of type <code>GPUExtent3D</code>).</p>
+    <p><strong>Outputs.</strong> Returns <code>undefined</code> and enqueues rasterization of the element&rsquo;s cached snapshot into <code>destination.texture</code> on the GPU queue (the destination texture must include the required copy/render-attachment usages just like <code>copyExternalImageToTexture()</code>). As with WebGL, call <code>updateElementGeometry()</code> explicitly on the canvas or <code>OffscreenCanvas</code> whenever the rendered quad&rsquo;s screen-space transform changes.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgpu/gpu_queue.idl" target="_blank" rel="noopener">Blink <code>gpu_queue.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgpu/gpu_draw_element_image_source.idl" target="_blank" rel="noopener"><code>gpu_draw_element_image_source.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgpu/gpu_draw_element_image_destination.idl" target="_blank" rel="noopener"><code>gpu_draw_element_image_destination.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgpu/gpu_queue.cc" target="_blank" rel="noopener"><code>gpu_queue.cc</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="errors">Errors and edge cases</h2>
+    <p>Verified directly against Blink&rsquo;s exception checks in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc" target="_blank" rel="noopener"><code>html_canvas_element.cc</code></a>, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc" target="_blank" rel="noopener"><code>base_rendering_context_2d.cc</code></a>, <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc" target="_blank" rel="noopener"><code>webgl_rendering_context_base.cc</code></a>, and <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgpu/gpu_queue.cc" target="_blank" rel="noopener"><code>gpu_queue.cc</code></a>:</p>
+    <ul>
+      <li><strong><code>InvalidStateError</code> &mdash; missing <code>content="drawable"</code> or <code>drawable</code> attribute:</strong> Calling <code>drawElementImage()</code>, <code>captureElementImage()</code>, <code>getElementImageDefaultSize()</code>, <code>getElementTransform()</code>, <code>texElementSubImage2D()</code>, or <code>drawElementImageToTexture()</code> throws <code>DOMException("InvalidStateError")</code> if the enclosing <code>&lt;canvas&gt;</code> does not have <code>content="drawable"</code>, if the passed <code>Element</code> lacks the <code>drawable</code> attribute, or if the element&rsquo;s nearest ancestor <code>&lt;canvas&gt;</code> is not the target canvas.</li>
+      <li><strong><code>InvalidStateError</code> &mdash; no cached paint record or closed <code>ElementImage</code>:</strong> Calling <code>drawElementImage()</code>, <code>captureElementImage()</code>, <code>getElementImageDefaultSize()</code>, <code>texElementSubImage2D()</code>, or <code>drawElementImageToTexture()</code> before the first rendering update has recorded a snapshot (before the first <code>onpaint</code> / <code>requestPaint()</code> frame, or for a <code>display: none</code> element) throws <code>InvalidStateError</code> (<code>"No cached paint record for element."</code>). Passing an <code>ElementImage</code> after <code>close()</code> or after transferring it throws <code>InvalidStateError</code> (<code>"The ElementImage has been closed."</code>).</li>
+      <li><strong><code>InvalidStateError</code> &mdash; canvas mismatch in geometry helpers:</strong> Calling <code>updateElementGeometry()</code> or <code>clearElementGeometry()</code> with an <code>Element</code> or <code>ElementImage</code> belonging to a different <code>&lt;canvas&gt;</code> throws <code>InvalidStateError</code>. Passing an invalid <code>canvasTransform</code> matrix (for example, malformed <code>DOMMatrixInit</code>) propagates the <code>DOMMatrix.fromMatrix()</code> <code>TypeError</code>.</li>
+      <li><strong><code>OperationError</code> &mdash; partial crop/size options in WebGL and WebGPU:</strong> In <code>texElementSubImage2D()</code> (<code>WebGLCopyElementImageConfig</code>), specifying only a subset of <code>(sx, sy, swidth, sheight)</code> or only one of <code>(width, height)</code> throws <code>DOMException("OperationError")</code>. In <code>GPUQueue.drawElementImageToTexture()</code> (<code>GPUDrawElementImageSource</code>), specifying only a subset of <code>(sourceX, sourceY, sourceWidth, sourceHeight)</code> throws <code>DOMException("OperationError")</code>.</li>
+      <li><strong>Silent no-ops and <code>onelementgeometryupdate</code> omissions:</strong> In 2D <code>drawElementImage()</code>, non-finite or empty source/destination rects return without drawing (matching <code>drawImage()</code>). If a canvas descendant is disconnected before an asynchronous <code>OffscreenCanvas</code> batch commits, it is silently omitted from <code>ElementGeometryUpdateEvent.elements</code>; <code>CanvasPaintEvent.changedElements</code> only lists elements invalidated for the current update.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc" target="_blank" rel="noopener">Blink <code>html_canvas_element.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc" target="_blank" rel="noopener"><code>base_rendering_context_2d.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc" target="_blank" rel="noopener"><code>webgl_rendering_context_base.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgpu/gpu_queue.cc" target="_blank" rel="noopener"><code>gpu_queue.cc</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="context">Context and exposure</h2>
+    <ul>
+      <li><strong>Main thread (<code>Window</code>):</strong> <code>HTMLCanvasElement</code> additions (<code>content</code>, <code>onpaint</code>, <code>onelementgeometryupdate</code>, <code>requestPaint()</code>, <code>captureElementImage()</code>, <code>getElementTransform()</code>, <code>getElementImageDefaultSize()</code>, <code>updateElementGeometry()</code>, <code>clearElementGeometry()</code>), <code>CanvasPaintEvent</code>, <code>ElementGeometryUpdateEvent</code>, <code>CanvasRenderingContext2D.drawElementImage()</code>, and WebGL <code>texElementSubImage2D()</code> are available in regular browsing contexts without requiring a secure context, permission prompt, or user activation.</li>
+      <li><strong>Workers (<code>Window</code> and <code>Worker</code>):</strong> <code>ElementImage</code> (transferable), <code>OffscreenCanvas</code> geometry/sizing methods (<code>getElementImageDefaultSize()</code>, <code>updateElementGeometry()</code>, <code>clearElementGeometry()</code>), <code>OffscreenCanvasRenderingContext2D.drawElementImage()</code>, WebGL <code>texElementSubImage2D()</code>, and WebGPU <code>GPUQueue.drawElementImageToTexture()</code> work in workers using transferred <code>ElementImage</code> handles.</li>
+      <li><strong>WebGPU secure context:</strong> <code>GPUQueue</code> (including <code>drawElementImageToTexture()</code>) inherits WebGPU&rsquo;s <code>[SecureContext]</code> requirement (HTTPS or <code>localhost</code>) and adapter/device availability.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/html_canvas_element.idl" target="_blank" rel="noopener">Blink <code>html_canvas_element.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/element_image.idl" target="_blank" rel="noopener"><code>element_image.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/canvas/offscreencanvas2d/offscreen_canvas_rendering_context_2d.idl" target="_blank" rel="noopener"><code>offscreen_canvas_rendering_context_2d.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgpu/gpu_queue.idl" target="_blank" rel="noopener"><code>gpu_queue.idl</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">Lifecycle, ordering, and synchronization</h2>
+    <ol>
+      <li><strong>Snapshot recording during Update the Rendering:</strong> On each frame, after animation frames, style/layout, ResizeObserver, IntersectionObserver, and browser paint recording, Blink records read-back-safe snapshots of every <code>drawable</code> descendant of every <code>&lt;canvas content="drawable"&gt;</code>.</li>
+      <li><strong>Reverse-order <code>paint</code> dispatch:</strong> For each canvas with at least one changed <code>drawable</code> subtree (or a pending <code>requestPaint()</code> call), Blink fires <code>CanvasPaintEvent</code> (<code>paint</code>) in <em>reverse</em> document order (child frames before parent documents) and <em>reverse</em> tree order within a document so nested canvases finish painting before ancestors snapshot them.</li>
+      <li><strong>Single-pass frame commit:</strong> Canvas draw calls executed inside <code>onpaint</code> commit in the <em>current</em> frame. Any DOM or CSS mutations made inside <code>onpaint</code> do not re-loop layout in the same frame; they produce updated snapshots on the next rendering update.</li>
+      <li><strong>Main-thread vs. <code>OffscreenCanvas</code> geometry batching:</strong> On the main thread, <code>drawElementImage()</code> (unless <code>preserveElementGeometry: true</code>), <code>updateElementGeometry()</code>, and <code>clearElementGeometry()</code> update hit-testing and accessibility geometry synchronously without re-triggering <code>paint</code>. On an <code>OffscreenCanvas</code> (main thread or worker), geometry updates are queued and flushed in a microtask (posted asynchronously to the main thread from a worker), applying atomically and firing a single <code>elementgeometryupdate</code> event on the backing <code>HTMLCanvasElement</code>.</li>
+      <li><strong>Resource cleanup:</strong> Calling <code>elementImage.close()</code> frees snapshot memory eagerly on either thread; transferring an <code>ElementImage</code> detaches the sender&rsquo;s handle immediately.</li>
+    </ol>
+    <span class="citation">Source: <a href="https://github.com/WICG/html-in-canvas/blob/main/README.md" target="_blank" rel="noopener">WICG HTML-in-Canvas explainer</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc" target="_blank" rel="noopener">Blink <code>html_canvas_element.cc</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+    <p>Interactive demos using the shipped Chrome 157 API are hosted by the WICG editors: <a href="https://wicg.github.io/html-in-canvas/Examples/complex-text.html" target="_blank" rel="noopener">rotated complex text (2D)</a>, <a href="https://wicg.github.io/html-in-canvas/Examples/pie-chart.html" target="_blank" rel="noopener">pie chart with HTML labels (2D)</a>, <a href="https://wicg.github.io/html-in-canvas/Examples/webGL.html" target="_blank" rel="noopener">3D WebGL card (<code>texElementSubImage2D</code>)</a>, <a href="https://wicg.github.io/html-in-canvas/Examples/webgpu-jelly-slider/" target="_blank" rel="noopener">WebGPU jelly slider (<code>drawElementImageToTexture</code>)</a>, and <a href="https://wicg.github.io/html-in-canvas/Examples/nested-sparkles.html" target="_blank" rel="noopener">nested <code>drawable</code> subtrees</a>.</p>
+
+    <h3 id="example-2d-interactive">2D Canvas: interactive HTML form, default size, and geometry helpers</h3>
+    <pre tabindex="0"><code data-doc-test="html">&lt;canvas id="stage" content="drawable" style="width: 480px; height: 240px;"&gt;
+  &lt;form id="hud" drawable&gt;
+    &lt;label for="player"&gt;Player name:&lt;/label&gt;
+    &lt;input id="player" type="text" value="Ada"&gt;
+    &lt;button type="submit"&gt;Ready&lt;/button&gt;
+  &lt;/form&gt;
+&lt;/canvas&gt;</code></pre>
+    <pre tabindex="0"><code data-doc-test="js">function attachHtmlInCanvas2D(canvas, hud) {
+  const ctx = canvas.getContext("2d");
+  if (!ctx || !("drawElementImage" in ctx) || canvas.content !== "drawable") {
+    return false;
+  }
+
+  let angle = 0;
+
+  canvas.onpaint = (event) =&gt; {
+    // event is a CanvasPaintEvent exposing event.changedElements
+    const changed = event.changedElements;
+    ctx.reset();
+
+    // Query default raster dimensions in canvas backing-grid coordinates
+    const { width, height } = canvas.getElementImageDefaultSize(hud);
+
+    // Draw a subtle shadow copy without overwriting hit-test geometry
+    ctx.save();
+    ctx.globalAlpha = 0.25;
+    ctx.drawElementImage(hud, 48, 48, width, height, { preserveElementGeometry: true });
+    ctx.restore();
+
+    // Draw the interactive copy; default preserveElementGeometry: false syncs hit-testing
+    ctx.save();
+    ctx.translate(40, 40);
+    ctx.rotate(angle);
+    ctx.drawElementImage(hud, 0, 0);
+    ctx.restore();
+
+    // Inspect the synced transform, or refine clip / clear geometry manually
+    const currentMatrix = canvas.getElementTransform(hud);
+    canvas.updateElementGeometry(hud, {
+      preserveHitTestOrder: true,
+      canvasTransform: currentMatrix,
+      canvasClip: { x: 0, y: 0, width: hud.offsetWidth, height: hud.offsetHeight },
+    });
+    if (changed.length === 0 &amp;&amp; hud.hidden) {
+      canvas.clearElementGeometry(hud);
+    }
+  };
+
+  // Keep canvas backing store aligned with device pixels and trigger a paint
+  new ResizeObserver(([entry]) =&gt; {
+    const box = entry.devicePixelContentBoxSize?.[0];
+    if (box) {
+      canvas.width = box.inlineSize;
+      canvas.height = box.blockSize;
+      canvas.requestPaint();
+    }
+  }).observe(canvas, { box: "device-pixel-content-box" });
+
+  return {
+    setAngle(nextAngle) {
+      angle = nextAngle;
+      canvas.requestPaint();
+    },
+  };
+}</code></pre>
+    <span class="citation">Source: <a href="https://github.com/WICG/html-in-canvas/blob/main/README.md" target="_blank" rel="noopener">WICG HTML-in-Canvas explainer</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/html_canvas_element.idl" target="_blank" rel="noopener">Blink <code>html_canvas_element.idl</code></a>.</span>
+
+    <h3 id="example-offscreen-worker">OffscreenCanvas in a Worker: <code>captureElementImage()</code>, <code>ElementImage.close()</code>, and <code>onelementgeometryupdate</code></h3>
+    <pre tabindex="0"><code data-doc-test="js">function attachOffscreenHtmlInCanvas(canvas, form, workerUrl) {
+  if (!("captureElementImage" in canvas) || typeof canvas.transferControlToOffscreen !== "function") {
+    return null;
+  }
+
+  const worker = new Worker(workerUrl);
+  const offscreen = canvas.transferControlToOffscreen();
+  worker.postMessage({ type: "init", canvas: offscreen }, [offscreen]);
+
+  // Main thread captures an ElementImage snapshot on each paint and transfers it
+  canvas.onpaint = () =&gt; {
+    const snapshot = canvas.captureElementImage(form);
+    worker.postMessage({ type: "frame", elementImage: snapshot }, [snapshot]);
+  };
+
+  // Fires on the main thread after worker OffscreenCanvas geometry updates apply
+  canvas.onelementgeometryupdate = (event) =&gt; {
+    for (const el of event.elements) {
+      // el.getBoundingClientRect() and canvas.getElementTransform(el) now match worker draw
+      void el.getBoundingClientRect();
+    }
+  };
+
+  return worker;
+}
+
+// Worker-side handler (runs inside workerUrl):
+function handleWorkerMessage(event, ctx) {
+  if (event.data.type === "frame") {
+    const img = event.data.elementImage;
+    const size = ctx.canvas.getElementImageDefaultSize(img);
+    ctx.reset();
+    ctx.drawElementImage(img, 24, 24, size.width, size.height);
+    img.close(); // Release snapshot resources immediately after drawing
+  }
+}</code></pre>
+    <span class="citation">Source: <a href="https://github.com/WICG/html-in-canvas/blob/main/README.md" target="_blank" rel="noopener">WICG HTML-in-Canvas explainer (OffscreenCanvas example)</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/element_image.idl" target="_blank" rel="noopener">Blink <code>element_image.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/canvas/element_geometry_update_event.idl" target="_blank" rel="noopener"><code>element_geometry_update_event.idl</code></a>.</span>
+
+    <h3 id="example-webgl-and-webgpu">WebGL <code>texElementSubImage2D()</code> and WebGPU <code>GPUQueue.drawElementImageToTexture()</code></h3>
+    <pre tabindex="0"><code data-doc-test="js">function uploadElementToWebGL(canvas, gl, texture, cardEl, quadMatrix) {
+  const { width, height } = canvas.getElementImageDefaultSize(cardEl);
+  const texWidth = Math.max(1, Math.round(width));
+  const texHeight = Math.max(1, Math.round(height));
+
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texImage2D(
+    gl.TEXTURE_2D, 0, gl.RGBA, texWidth, texHeight, 0,
+    gl.RGBA, gl.UNSIGNED_BYTE, null
+  );
+  // Optional WebGLCopyElementImageConfig: specify all 4 of (sx,sy,swidth,sheight) or none
+  gl.texElementSubImage2D(gl.TEXTURE_2D, 0, 0, 0, cardEl, {
+    width: texWidth,
+    height: texHeight,
+  });
+
+  // WebGL requires explicit DOM hit-test / a11y synchronization
+  canvas.updateElementGeometry(cardEl, { canvasTransform: quadMatrix });
+}
+
+function uploadElementToWebGPU(canvas, device, texture, panelEl, quadMatrix) {
+  const { width, height } = canvas.getElementImageDefaultSize(panelEl);
+  const w = Math.max(1, Math.round(width));
+  const h = Math.max(1, Math.round(height));
+
+  // GPUDrawElementImageSource + GPUDrawElementImageDestination
+  device.queue.drawElementImageToTexture(
+    { source: panelEl },
+    { texture, size: { width: w, height: h, depthOrArrayLayers: 1 } }
+  );
+
+  canvas.updateElementGeometry(panelEl, { canvasTransform: quadMatrix });
+}</code></pre>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.idl" target="_blank" rel="noopener">Blink <code>webgl_rendering_context_base.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webgpu/gpu_queue.idl" target="_blank" rel="noopener">Blink <code>gpu_queue.idl</code></a>; <a href="https://github.com/WICG/html-in-canvas/blob/main/README.md" target="_blank" rel="noopener">WICG explainer</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Browser support for HTML-in-canvas from BCD (<code>api/HTMLCanvasElement.json</code>, <code>api/OffscreenCanvas.json</code>, <code>api/CanvasRenderingContext2D.json</code>, <code>api/OffscreenCanvasRenderingContext2D.json</code>, <code>api/WebGLRenderingContext.json</code>, <code>api/WebGL2RenderingContext.json</code>, <code>api/GPUQueue.json</code>, <code>api/CanvasPaintEvent.json</code>, <code>api/ElementGeometryUpdateEvent.json</code>, <code>api/ElementImage.json</code>), webstatus.dev (<code>canvas-html</code>), and ChromeStatus 5172548013916160 (checked 2026-11-27).</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col">Shipped surface (Chrome 157 API)</th><th scope="col">Evidence / notes</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Chrome (desktop, Android, WebView)</th><td>157</td><td>Enabled by default on 2026-11-03 (<code>CanvasDrawElement</code> <code>status: "stable"</code>); replaces Chrome 148&ndash;150 origin trial (<code>HTMLInCanvas</code>, <a href="/v148/html-in-canvas/">v148 record</a>). Confirmed in BCD and <a href="https://api.webstatus.dev/v1/features/canvas-html" target="_blank" rel="noopener">webstatus.dev</a>.</td></tr>
+        <tr><th scope="row">Edge</th><td>157</td><td>Shipped 2026-11-05 (mirrors Chrome 157 in BCD and <a href="https://api.webstatus.dev/v1/features/canvas-html" target="_blank" rel="noopener">webstatus.dev</a>).</td></tr>
+        <tr><th scope="row">Firefox (desktop &amp; Android)</th><td>Not supported</td><td>No signal on <a href="https://github.com/mozilla/standards-positions/issues/1076" target="_blank" rel="noopener">mozilla/standards-positions#1076</a> (<code>false</code> in BCD).</td></tr>
+        <tr><th scope="row">Safari (macOS &amp; iOS)</th><td>Not supported</td><td>Positive signal on <a href="https://github.com/WebKit/standards-positions/issues/630" target="_blank" rel="noopener">WebKit/standards-positions#630</a> with early implementation work in <a href="https://github.com/WebKit/WebKit/pull/70542" target="_blank" rel="noopener">WebKit PR #70542</a> (<code>false</code> in BCD).</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/api/HTMLCanvasElement.json" target="_blank" rel="noopener">BCD <code>api/HTMLCanvasElement.json</code></a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/CanvasRenderingContext2D.json" target="_blank" rel="noopener"><code>api/CanvasRenderingContext2D.json</code></a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebGLRenderingContext.json" target="_blank" rel="noopener"><code>api/WebGLRenderingContext.json</code></a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/GPUQueue.json" target="_blank" rel="noopener"><code>api/GPUQueue.json</code></a>; <a href="https://api.webstatus.dev/v1/features/canvas-html" target="_blank" rel="noopener">webstatus.dev <code>canvas-html</code></a>; <a href="https://chromestatus.com/api/v0/features/5172548013916160" target="_blank" rel="noopener">ChromeStatus 5172548013916160</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <p>Because WebGL and WebGPU textures (as well as 2D <code>getImageData()</code>) permit pixel read-back, HTML-in-canvas enforces <strong>read-back-allowed rendering</strong> across both snapshot painting and <code>paint</code>-event invalidation (verified by Blink&rsquo;s <code>has_read_back_disallowed_content()</code> check in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc" target="_blank" rel="noopener"><code>base_rendering_context_2d.cc</code></a>). Sensitive browser-private state is excluded from both the rendered snapshot and invalidation triggers:</p>
+    <ul>
+      <li><strong>Cross-origin content:</strong> Cross-origin embedded content (<code>&lt;iframe&gt;</code>, cross-origin <code>&lt;img&gt;</code>, cross-origin CSS <code>&lt;url&gt;</code> backgrounds/clip-paths, tainted <code>&lt;canvas&gt;</code>, and cross-origin SVG URI references) is not painted (same-origin iframes paint, excluding cross-origin content inside them).</li>
+      <li><strong>User &amp; OS secrets:</strong> <code>:visited</code> link styling, spellcheck/grammar markers, pending browser autofill values not exposed to JavaScript, system colors/themes not already observable via <code>forced-colors</code>, subpixel text anti-aliasing, native media captions/controls, and IME pop-ups/composition styling are excluded.</li>
+      <li><strong>Accessibility hygiene:</strong> Unused or hidden <code>drawable</code> descendants still exist in the accessibility tree unless removed or marked <code>aria-hidden="true"</code> / <code>inert</code>; elements without updated geometry are exposed to assistive technologies without bounding boxes so ATs can filter them.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/WICG/html-in-canvas/blob/main/README.md" target="_blank" rel="noopener">WICG HTML-in-Canvas explainer (Read-back-allowed rendering &amp; Accessibility)</a>; <a href="https://github.com/WICG/html-in-canvas/blob/main/security-privacy-questionnaire.md" target="_blank" rel="noopener">WICG Security &amp; Privacy Questionnaire</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc" target="_blank" rel="noopener">Blink <code>base_rendering_context_2d.cc</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Specifications">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Specification / document</th><th scope="col">Status</th></tr></thead>
+      <tbody>
+        <tr><td><a href="https://github.com/whatwg/html/pull/11588" target="_blank" rel="noopener">WHATWG HTML Standard PR #11588 &mdash; HTML-in-canvas</a></td><td>Working draft pull request</td></tr>
+        <tr><td><a href="https://github.com/WICG/html-in-canvas/blob/main/README.md" target="_blank" rel="noopener">WICG HTML-in-Canvas explainer &amp; WebIDL</a></td><td>Living community group explainer</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="/v148/html-in-canvas/">HTML-in-canvas (Chrome 148&ndash;150 origin trial historical record)</a> &mdash; preserves the retired <code>layoutsubtree</code> / <code>texElementImage2D()</code> trial API</li>
+      <li><a href="https://github.com/WICG/html-in-canvas#demos" target="_blank" rel="noopener">WICG HTML-in-Canvas live demos</a> (2D, WebGL, WebGPU, nested <code>drawable</code>)</li>
+      <li><a href="https://webstatus.dev/features/canvas-html" target="_blank" rel="noopener">webstatus.dev &mdash; <code>canvas-html</code></a></li>
+      <li><a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v148/html-in-canvas/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase &mdash; v148 origin-trial HTML-in-canvas demos</a> (historical <code>layoutsubtree</code> trial demos)</li>
+      <li><a href="https://chromestatus.com/feature/5172548013916160" target="_blank" rel="noopener">ChromeStatus &mdash; HTML-in-canvas (5172548013916160)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
