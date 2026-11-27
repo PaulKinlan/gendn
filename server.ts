@@ -494,8 +494,8 @@ export async function renderIndex(channels: Channels, origin?: string): Promise<
       <a class="hub-card-link" href="${escapeHTML(lens.href)}"${extAttrs}>
         <span class="hub-card-kicker">${escapeHTML(lens.kicker)}</span>
         <span class="hub-card-title">${
-      escapeHTML(lens.title)
-    } <span aria-hidden="true">${arrow}</span></span>
+          escapeHTML(lens.title)
+        } <span aria-hidden="true">${arrow}</span></span>
         <p class="hub-card-blurb">${escapeHTML(lens.blurb)}</p>
       </a>
     </li>`;
@@ -571,13 +571,13 @@ export async function renderIndex(channels: Channels, origin?: string): Promise<
     </section>
 
     ${
-    archivedReleases.length > 0
-      ? `<section aria-labelledby="archive-heading">
+      archivedReleases.length > 0
+        ? `<section aria-labelledby="archive-heading">
       <h2 id="archive-heading">All other milestones <span class="section-kicker">${archivedReleases.length} releases</span></h2>
       <ol class="archive-grid">${archiveCards}</ol>
     </section>`
-      : ""
-  }
+        : ""
+    }
 
     <section aria-labelledby="how-heading">
       <h2 id="how-heading">How it works <span class="section-kicker">Colophon</span></h2>
@@ -881,18 +881,18 @@ ${renderSiteHeader("releases")}
       <p class="crumbs"><a href="/">&larr; All releases</a> &middot; <a href="/features">All APIs</a></p>
     </nav>
     ${
-    pagerLinks
-      ? `<nav class="release-pager" aria-label="Adjacent Chrome milestones">${pagerLinks}</nav>`
-      : ""
-  }
+      pagerLinks
+        ? `<nav class="release-pager" aria-label="Adjacent Chrome milestones">${pagerLinks}</nav>`
+        : ""
+    }
   </div>
 
   <header class="lede-block">
     <div class="release-meta-strip">
       ${statusPill}
       <span>${features.total} feature${
-    features.total === 1 ? "" : "s"
-  } &middot; ${documentedCount} documented</span>
+        features.total === 1 ? "" : "s"
+      } &middot; ${documentedCount} documented</span>
       ${stableDateNote}
     </div>
     <h1>Chrome ${milestone} API reference</h1>

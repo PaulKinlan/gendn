@@ -147,8 +147,8 @@ const HEAD = (
   .meta{font-family:var(--font-mono);font-size-adjust:var(--adjust-mono);font-size:0.76rem;color:var(--text-muted);margin:0.5rem 0 1rem;}
   @media (max-width:640px){table{background:transparent;border:none;box-shadow:none;}table,thead,tbody,tr,td{display:block;width:100%;}thead{display:none;}tr{border:2px solid var(--border-black);background:var(--bg-paper);margin-bottom:0.75rem;padding:0.65rem;box-shadow:var(--thin-shadow);}tbody tr:hover{background:var(--bg-paper);}td{border:none;padding:0.2rem 0;}}
 </style>${extra}</head><body class="shell-page">${
-    renderSiteHeader("conformance")
-  }<main id="main-content" tabindex="-1">`;
+  renderSiteHeader("conformance")
+}<main id="main-content" tabindex="-1">`;
 };
 const FOOT = `${renderSiteFooter({ includeShowcaseLink: false })}</main></body></html>`;
 
