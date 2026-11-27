@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Private Verification Tokens — Chrome 154 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .scroll-table { min-width: 30rem; }
+    .example-embed { margin: 1.25rem 0; }
+    .example-embed iframe { display: block; inline-size: 100%; max-inline-size: 100%; border: 2px solid var(--border-black); background: var(--surface, #fff); }
+    .example-embed figcaption { margin-top: 0.5rem; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v154/">&larr; Chrome 154 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v154 &middot; security &middot; origin trial</p>
+    <h1>Private Verification Tokens</h1>
+
+    <p class="lede">An experimental, browser-managed HTTP protocol (<code>Sec-Private-Verification-Token</code>) built on <a href="https://www.ietf.org/archive/id/draft-yun-cfrg-athm-00.html" target="_blank" rel="noopener">Anonymous Tokens with Hidden Metadata (ATHM)</a> that lets registered top-level sites transfer a 1-bit, unlinkable trust signal established during regular browsing into cookie-free navigations (including Incognito mode) to reduce CAPTCHAs and anti-bot friction without exposing browsing identity or leaking state back out of private mode.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; Chrome Origin Trial (M154&ndash;M165, desktop &amp; Android); not yet enabled by default and not implemented in Firefox or Safari</p>
+      <ul class="baseline-browsers">
+        <li class="limited">Chrome &middot; Origin trial M154&ndash;M165 (desktop &amp; Android; behind <code>kEnablePrivateVerificationTokens</code>)</li>
+        <li class="limited">Edge &middot; No shipping release (disabled by default in Chromium)</li>
+        <li class="limited">Firefox &middot; No signal (authors expect negative feedback from W3C AFCG)</li>
+        <li class="limited">Safari &middot; No signal</li>
+      </ul>
+      <p>No <code>web-features</code> or BCD entry exists on <a href="https://api.webstatus.dev/v1/features?q=verification" target="_blank" rel="noopener">webstatus.dev</a> or MDN (checked 2026-11-27). Private Verification Tokens (PVT) is a pre-incubation proposal distinct from the shipping <a href="https://developer.mozilla.org/en-US/docs/Web/API/Private_State_Token_API" target="_blank" rel="noopener">Private State Token API</a>: PVT exposes no page-level JavaScript API and transfers a single bit one-way from regular browsing to cookie-free navigations on registered same-site (eTLD+1) origins.</p>
+    </div>
+  </header>
+
+  <div class="warn-block" role="note" aria-label="Experimental feature notice">
+    <strong>Origin trial &mdash; not yet enabled by default:</strong> Private Verification Tokens is scheduled for a Chrome Origin Trial from milestone <strong>154 to 165</strong> on desktop and Android (<a href="https://chromestatus.com/feature/6210457816924160" target="_blank" rel="noopener">ChromeStatus 6210457816924160</a>; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a7f7d73.57cdfc94.1bf3cb.00bc.GAE%40google.com" target="_blank" rel="noopener">Intent to Experiment</a>). In Chromium&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/net/base/features.cc" target="_blank" rel="noopener"><code>net/base/features.cc</code></a>, <code>kEnablePrivateVerificationTokens</code> is <code>FEATURE_DISABLED_BY_DEFAULT</code> and there is no dedicated <code>chrome://flags</code> UI toggle. Enable locally with <code>--enable-features=EnablePrivateVerificationTokens</code> (optionally with <code>PrivateVerificationTokensCustomIssuer</code> or proxy parameters in <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_features.cc" target="_blank" rel="noopener"><code>private_verification_tokens_features.cc</code></a>). Users can opt out at <code>chrome://settings/content/autoVerify</code>. The protocol, wire sizes, and registration process remain pre-incubation and may change before any shipping decision.
+  </div>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#at-a-glance">At a glance</a></li>
+      <li><a href="#why">Why it exists</a></li>
+      <li><a href="#syntax">Protocol surface</a></li>
+      <li><a href="#redemption-header">Redemption header</a></li>
+      <li><a href="#issuance-endpoint">Issuance endpoint</a></li>
+      <li><a href="#issuer-config-schema">Issuer config schema</a></li>
+      <li><a href="#proxy-cache-and-limits">Proxy cache &amp; limits</a></li>
+      <li><a href="#errors-and-validation">Errors &amp; validation</a></li>
+      <li><a href="#context">Context &amp; eligibility</a></li>
+      <li><a href="#lifecycle">Lifecycle &amp; storage</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#security-and-privacy">Security &amp; privacy</a></li>
+      <li><a href="#specifications">Specifications</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="glance-caption">
+    <table class="doc-table">
+      <caption id="glance-caption">Chrome 154 Origin Trial metadata and Chromium implementation references for Private Verification Tokens</caption>
+      <tr><th scope="row">Status &amp; milestones</th><td>Origin Trial planned for Chrome <strong>154&ndash;165</strong> (desktop and Android; WebView and iOS <code>null</code>; no shipped milestone yet) &mdash; filed under &ldquo;Origin trial&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=154" target="_blank" rel="noopener">milestone=154 listing</a> (<a href="https://chromestatus.com/api/v0/features/6210457816924160" target="_blank" rel="noopener">ChromeStatus API record 6210457816924160</a>)</td></tr>
+      <tr><th scope="row">Feature flags</th><td><code>net::features::kEnablePrivateVerificationTokens</code> (<code>FEATURE_DISABLED_BY_DEFAULT</code>) and <code>kPrivateVerificationTokensCustomIssuer</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/net/base/features.cc" target="_blank" rel="noopener"><code>net/base/features.cc</code></a>; proxy params <code>use_proxy</code>, <code>proxy_url</code>, <code>proxy_refresh_interval</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_features.cc" target="_blank" rel="noopener"><code>private_verification_tokens_features.cc</code></a></td></tr>
+      <tr><th scope="row">Cryptographic protocol</th><td><a href="https://www.ietf.org/archive/id/draft-yun-cfrg-athm-00.html" target="_blank" rel="noopener">IETF <code>draft-yun-cfrg-athm-00</code> (ATHM)</a> with token type <code>0xC07E</code> and <a href="https://www.rfc-editor.org/rfc/rfc9578.html#section-5.1" target="_blank" rel="noopener">RFC 9578 &sect;5.1 / &sect;5.3</a> Privacy Pass media types &amp; serialization</td></tr>
+      <tr><th scope="row">Explainer &amp; repo</th><td><a href="https://github.com/explainers-by-googlers/private-verification-tokens" target="_blank" rel="noopener">explainers-by-googlers/private-verification-tokens</a> (<a href="https://github.com/explainers-by-googlers/private-verification-tokens/blob/main/pvt-issuers.json" target="_blank" rel="noopener"><code>pvt-issuers.json</code></a>) &middot; related <a href="https://github.com/antifraudcg/proposals/issues/22" target="_blank" rel="noopener">W3C AFCG PACT proposal (#22)</a></td></tr>
+      <tr><th scope="row">Intents &amp; bug</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a7f7d73.57cdfc94.1bf3cb.00bc.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Experiment</a> &middot; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/69d805cc.050a0220.1c79a0.1052.GAE%40google.com" target="_blank" rel="noopener">Intent to Prototype</a> &middot; <a href="https://crbug.com/500396188" target="_blank" rel="noopener">crbug.com/500396188</a></td></tr>
+      <tr><th scope="row">Chromium source</th><td><a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_parameters.cc" target="_blank" rel="noopener"><code>private_verification_tokens_parameters.cc</code></a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_fetcher.cc" target="_blank" rel="noopener"><code>private_verification_tokens_fetcher.cc</code></a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_issuer_config.cc" target="_blank" rel="noopener"><code>private_verification_tokens_issuer_config.cc</code></a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/private_verification_tokens/private_verification_tokens_url_loader_throttle.cc" target="_blank" rel="noopener"><code>private_verification_tokens_url_loader_throttle.cc</code></a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/private_verification_tokens/private_verification_tokens_service.cc" target="_blank" rel="noopener"><code>private_verification_tokens_service.cc</code></a></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/6210457816924160" target="_blank" rel="noopener">6210457816924160 &mdash; Private Verification Tokens</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>As automated traffic and AI agents increasingly clear cookies and rotate fingerprints to mimic first-time visitors, websites have responded with heavier CAPTCHA and interstitial challenges. Users browsing in private/Incognito modes start with cleared state too, so anti-bot heuristics disproportionately challenge legitimate Incognito users. Private Verification Tokens (PVT) lets a registered top-level site issue cryptographically unlinkable, 1-bit (<a href="https://www.ietf.org/archive/id/draft-yun-cfrg-athm-00.html#section-5.1" target="_blank" rel="noopener"><code>nBuckets = 2</code></a>) ATHM tokens during regular browsing and redeem a single token on a subsequent cookie-free navigation in Incognito mode &mdash; transferring a minimal humanness/trust verdict strictly one way into private browsing without allowing cross-site tracking or exfiltration back to regular browsing.</p>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/private-verification-tokens#goals" target="_blank" rel="noopener">PVT explainer &mdash; Goals &amp; Overview</a>; <a href="https://chromestatus.com/feature/6210457816924160" target="_blank" rel="noopener">ChromeStatus 6210457816924160</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Protocol surface &amp; wire formats</h2>
+    <p>Private Verification Tokens exposes <strong>no DOM or JavaScript API</strong> to web pages. All browser-to-origin interactions occur over HTTP and Chrome&rsquo;s component-updated issuer configuration. The complete v1 developer/operator surface verified in Chromium&rsquo;s <code>components/private_verification_tokens/</code> and <code>chrome/browser/private_verification_tokens/</code> comprises four parts:</p>
+    <pre tabindex="0"><code data-doc-test="skip" data-doc-test-reason="Protocol wire format and configuration summary, not executable JavaScript.">// 1. Redemption HTTP request header (attached by browser on cookie-free top-level navigations):
+Sec-Private-Verification-Token: &lt;base64(132-byte marshaled AthmToken)&gt;
+//    AthmToken = uint16 token_type (0xC07E) || uint8 issuer_key_id[32] (SHA-256)
+//                || uint8 t_enc[32] || uint8 P_enc[33] || uint8 Q_enc[33]
+
+// 2. Issuance HTTP POST endpoint (regular profile; credentials_mode = include):
+POST &lt;issuerRequestUrl&gt; HTTP/1.1
+Accept: application/private-token-response
+Content-Type: application/private-token-request
+// Body: batchSize * 36-byte AthmTokenRequest || 4-byte big-endian version (1)
+// Response (200 OK, Content-Type: application/private-token-response, max 7168 bytes):
+// Body: batchSize * 355-byte TokenResponse (big_u[33] || big_v[33] || ts[32] || proof[257])
+
+// 3. Component-updated issuer configuration JSON (v1 top-level key "1"):
+//    issuers[]: { issuerRequestUrl, version: 1, publicKey, publicKeyProof,
+//                 batchSize (2..20), expiration (unix sec string),
+//                 redeemers (1..2 same-eTLD+1 HTTPS origins), deploymentId }
+
+// 4. Proxy prefetch &amp; Incognito session limits:
+//    use_proxy (default false), proxy_url ("https://pvtproxy.googleapis.com/v1:proxyRequest"),
+//    proxy_refresh_interval (5h), max_distinct_issuers_per_session = 2</code></pre>
+    <p>Jump directly to each contract below: <a href="#redemption-header"><code>Sec-Private-Verification-Token</code> header</a>, <a href="#issuance-endpoint">ATHM batch issuance HTTP endpoint</a>, <a href="#issuer-config-schema">issuer configuration JSON schema</a>, and <a href="#proxy-cache-and-limits">proxy cache initialization &amp; session limits</a>.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_parameters.h" target="_blank" rel="noopener"><code>private_verification_tokens_parameters.h</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/privacy_pass_athm_batch_request.h" target="_blank" rel="noopener"><code>privacy_pass_athm_batch_request.h</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_issuer_config.h" target="_blank" rel="noopener"><code>private_verification_tokens_issuer_config.h</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_features.cc" target="_blank" rel="noopener"><code>private_verification_tokens_features.cc</code></a>.</span>
+
+    <h3 id="redemption-header"><code>Sec-Private-Verification-Token</code> HTTP request header</h3>
+    <p><strong>Inputs &amp; attachment conditions.</strong> Defined as <code>net::HttpRequestHeaders::kSecPrivateVerificationToken</code> (<a href="https://chromium.googlesource.com/chromium/src/+/main/net/http/http_request_headers.h" target="_blank" rel="noopener"><code>http_request_headers.h</code></a>) and managed by <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/private_verification_tokens/private_verification_tokens_url_loader_throttle.cc" target="_blank" rel="noopener"><code>PrivateVerificationTokensURLLoaderThrottle::WillStartRequest()</code></a>, the browser first strips any pre-existing <code>Sec-Private-Verification-Token</code> header so page script cannot forge it, then attaches a fresh Base64-encoded token when <em>all</em> of the following hold:</p>
+    <ul>
+      <li>The request is browser-initiated (<code>!request-&gt;request_initiator.has_value()</code>) for an outermost main-frame navigation (<code>request-&gt;is_outermost_main_frame</code>).</li>
+      <li>The request URL&rsquo;s origin matches <code>isolation_info.top_frame_origin()</code> and is listed in a non-expired issuer&rsquo;s <code>redeemers</code> array.</li>
+      <li>The request carries no <code>Cookie</code> header (<code>!request-&gt;headers.HasHeader("Cookie")</code>) and does not omit credentials (<code>credentials_mode != kOmit</code>).</li>
+      <li>Anti-abuse Auto-verify is allowed for both issuer and redeemer, the parent profile&rsquo;s token store holds an unexpired token for the matching issuer, and (in Incognito) the issuer has not already redeemed a token in this session and fewer than <code>2</code> distinct issuers have redeemed so far.</li>
+    </ul>
+    <p><strong>Outputs &amp; server verification.</strong> The header value is standard Base64 encoding of a single <strong>132-byte</strong> marshaled ATHM token (<code>2</code>-byte token type <code>0xC07E</code> + <code>32</code>-byte SHA-256 issuer key ID + <code>98</code>-byte unblinded ATHM token: <code>t_enc[32]</code>, <code>P_enc[33]</code>, <code>Q_enc[33]</code> per <a href="https://www.ietf.org/archive/id/draft-yun-cfrg-athm-00.html#section-5.4.1" target="_blank" rel="noopener"><code>draft-yun-cfrg-athm-00</code> &sect;5.4.1</a> and <a href="https://www.rfc-editor.org/rfc/rfc9578.html#section-5.3" target="_blank" rel="noopener">RFC 9578 &sect;5.3</a>). The origin server Base64-decodes the header, locates its private key by the 32-byte key ID, verifies the ATHM token, extracts the 1-bit hidden metadata bucket (<code>0</code> or <code>1</code>), and sets a session cookie if it wants to prevent subsequent cookie-free navigations from burning additional tokens.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/private_verification_tokens/private_verification_tokens_url_loader_throttle.cc" target="_blank" rel="noopener"><code>private_verification_tokens_url_loader_throttle.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/privacy_pass_athm_batch_request.h" target="_blank" rel="noopener"><code>privacy_pass_athm_batch_request.h</code></a>; <a href="https://www.ietf.org/archive/id/draft-yun-cfrg-athm-00.html#section-5.4.1" target="_blank" rel="noopener"><code>draft-yun-cfrg-athm-00</code> &sect;5.4.1</a>.</span>
+
+    <h3 id="issuance-endpoint">ATHM batch token issuance HTTP endpoint</h3>
+    <p><strong>Inputs (browser request).</strong> Triggered in regular (non-Incognito) browsing by <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/private_verification_tokens/private_verification_tokens_service.cc" target="_blank" rel="noopener"><code>PrivateVerificationTokensService::MaybeFetchTokens()</code></a> whenever a browser-initiated navigation visits a registered issuer whose cached token count is at or below <code>floor(batchSize / 2)</code>. <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_fetcher.cc" target="_blank" rel="noopener"><code>PrivateVerificationTokensFetcher</code></a> sends an HTTP <code>POST</code> to <code>issuerRequestUrl</code> with <code>credentials_mode = kInclude</code> (sending user cookies so the issuer can compute its trust verdict), <code>Content-Type: application/private-token-request</code>, and <code>Accept: application/private-token-response</code> (<a href="https://www.rfc-editor.org/rfc/rfc9578.html#section-5.1" target="_blank" rel="noopener">RFC 9578 &sect;5.1</a>). The binary request body contains <code>batchSize</code> concatenated <strong>36-byte</strong> <code>AthmTokenRequest</code> structs (33-byte blinded request + 3-byte header) followed by a <strong>4-byte big-endian</strong> protocol version integer (<code>0x00000001</code>).</p>
+    <p><strong>Outputs (issuer response).</strong> The issuer selects a hidden metadata bucket in <code>{0, 1}</code> (<code>num_buckets = 2</code>), signs each blinded request with its ATHM private key, and returns HTTP <code>200 OK</code> with <code>Content-Type: application/private-token-response</code> and a binary body of <code>batchSize</code> concatenated <strong>355-byte</strong> <code>TokenResponse</code> structs (<code>big_u[33] || big_v[33] || ts[32] || issuance_proof[257]</code>; maximum body size <code>7168</code> bytes for <code>max_batch_size = 20</code>). The browser verifies every DLEQ issuance proof via <code>PrivacyPassAthmBatchRequest::Finalize()</code>, unblinds the tokens into 132-byte marshaled tokens, and persists them to disk.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_fetcher.cc" target="_blank" rel="noopener"><code>private_verification_tokens_fetcher.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_parameters.cc" target="_blank" rel="noopener"><code>private_verification_tokens_parameters.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/privacy_pass_athm_batch_request.cc" target="_blank" rel="noopener"><code>privacy_pass_athm_batch_request.cc</code></a>.</span>
+
+    <h3 id="issuer-config-schema">Registered issuer configuration JSON schema</h3>
+    <p><strong>Inputs &amp; fields.</strong> Registered issuers and their ATHM public keys are distributed to Chrome via component updater (or overridden locally via <code>--enable-features=EnablePrivateVerificationTokens</code> with <code>PrivateVerificationTokensCustomIssuer</code>) and parsed by <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_issuer_config.cc" target="_blank" rel="noopener"><code>PrivateVerificationTokensIssuerConfig</code></a> under top-level version key <code>"1"</code> &rarr; <code>"issuers"</code> array:</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="schema-caption">
+    <table class="doc-table scroll-table">
+      <caption id="schema-caption">Validated fields of each entry in <code>"1".issuers[]</code> (<code>private_verification_tokens_issuer_config.h</code> / <code>.cc</code>)</caption>
+      <thead><tr><th scope="col">JSON key</th><th scope="col">Type &amp; constraints (v1)</th><th scope="col">Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code>issuerRequestUrl</code></td><td>Valid HTTPS URL (or <code>localhost</code> for testing)</td><td>Target URL for issuance <code>POST</code> requests; its origin defines the issuer origin and eTLD+1</td></tr>
+        <tr><td><code>version</code></td><td>Integer (must equal <code>1</code>)</td><td>Selects v1 ATHM parameters (<code>0xC07E</code>, <code>num_buckets = 2</code>, <code>min_batch_size = 2</code>, <code>max_batch_size = 20</code>)</td></tr>
+        <tr><td><code>publicKey</code></td><td>Base64 string</td><td>Issuer&rsquo;s ATHM public key bytes; SHA-256 hash supplies the 32-byte key ID in redeemed tokens</td></tr>
+        <tr><td><code>publicKeyProof</code></td><td>Base64 string</td><td>Zero-knowledge proof validating the ATHM public key parameters</td></tr>
+        <tr><td><code>batchSize</code></td><td>Integer in <code>[2, 20]</code></td><td>Number of blinded tokens requested per issuance batch; triggers refill when cached count &le; <code>batchSize / 2</code></td></tr>
+        <tr><td><code>expiration</code></td><td>Decimal Unix-epoch seconds string (strictly in the future)</td><td>Key and token expiry timestamp; expired configs and tokens are never fetched or redeemed</td></tr>
+        <tr><td><code>redeemers</code></td><td>Array of 1&ndash;<code>2</code> HTTPS origin strings (or <code>localhost</code>) sharing the issuer&rsquo;s eTLD+1</td><td>Exact origins allowed to receive <code>Sec-Private-Verification-Token</code> for this issuer</td></tr>
+        <tr><td><code>deploymentId</code></td><td>Non-empty string</td><td>Domain-separation identifier bound into ATHM proof derivation</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p><strong>Outputs.</strong> Valid entries populate an immutable <code>PrivateVerificationTokensIssuerConfig</code> map keyed by issuer <code>url::Origin</code> (duplicate issuers keep the first valid entry) and a reverse <code>redeemer_to_issuer_</code> lookup map used during navigation redemption.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_issuer_config.h" target="_blank" rel="noopener"><code>private_verification_tokens_issuer_config.h</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_issuer_config.cc" target="_blank" rel="noopener"><code>private_verification_tokens_issuer_config.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_parameters.cc" target="_blank" rel="noopener"><code>private_verification_tokens_parameters.cc</code></a>.</span>
+
+    <h3 id="proxy-cache-and-limits">Proxy cache initialization &amp; Incognito session limits</h3>
+    <p><strong>Inputs &amp; feature parameters.</strong> To prevent a site from inferring Incognito mode simply by noticing the presence or absence of tokens on a user&rsquo;s first visit, the <a href="https://github.com/explainers-by-googlers/private-verification-tokens#initializing-pvt-cache" target="_blank" rel="noopener">PVT explainer</a> and <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_features.cc" target="_blank" rel="noopener"><code>private_verification_tokens_features.cc</code></a> define optional background prefetching through a browser-operated PVT proxy server controlled by three <code>base::FeatureParam</code> settings on <code>kEnablePrivateVerificationTokens</code>: <code>use_proxy</code> (boolean, default <code>false</code>), <code>proxy_url</code> (default <code>"https://pvtproxy.googleapis.com/v1:proxyRequest"</code>), and <code>proxy_refresh_interval</code> (default <code>5 hours</code>).</p>
+    <p><strong>Outputs &amp; session caps.</strong> When <code>use_proxy</code> is enabled and an issuer&rsquo;s local cache is empty, Chrome prefetches cookie-free default-bucket tokens via <code>pvtproxy.googleapis.com</code> and marks them <code>is_proxied = true</code> in storage (tracked separately via <code>UnproxiedTokenCountForIssuer</code>). During any single Incognito (Off-The-Record) session, <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/private_verification_tokens/private_verification_tokens_service.cc" target="_blank" rel="noopener"><code>OtrIssuerTracker</code></a> enforces two deterministic caps: (1) each issuer receives at most <strong>one</strong> redeemed token per Incognito session, and (2) at most <code>max_distinct_issuers_per_session = 2</code> distinct registered issuers may receive a token in that Incognito session.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_features.cc" target="_blank" rel="noopener"><code>private_verification_tokens_features.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/private_verification_tokens/private_verification_tokens_service.cc" target="_blank" rel="noopener"><code>private_verification_tokens_service.cc</code></a>; <a href="https://github.com/explainers-by-googlers/private-verification-tokens#initializing-pvt-cache" target="_blank" rel="noopener">PVT explainer &mdash; Initializing PVT Cache</a>.</span>
+
+    <h3 id="errors-and-validation">Errors, rejection paths, and fail-open recovery</h3>
+    <ul>
+      <li><strong>Forged or redirected <code>Sec-Private-Verification-Token</code> headers:</strong> <code>WillStartRequest()</code> unconditionally removes any caller-supplied <code>Sec-Private-Verification-Token</code> header before evaluating redemption, and <code>WillRedirectRequest()</code> adds <code>Sec-Private-Verification-Token</code> to <code>removed_headers</code> so a redeemed token is never forwarded across HTTP redirects.</li>
+      <li><strong>Issuance network &amp; proof failures (<code>application/private-token-request</code> / <code>application/private-token-response</code>):</strong> <code>PrivateVerificationTokensFetcher</code> enforces a <code>1 minute</code> timeout, retries up to 2 times on network change / DNS resolution failures, and caps responses at <code>7168</code> bytes. Non-OK network errors (<code>kNetNotOk</code>), empty responses (<code>kNullResponse</code>), wrong body lengths (<code>kInvalidResponseBodyLength</code>), or invalid ATHM DLEQ proofs (<code>kClientFinalizeFailed</code>) abort storage silently without interrupting page navigation.</li>
+      <li><strong>Malformed issuer configuration:</strong> Any issuer entry missing or failing validation for <code>issuerRequestUrl</code>, <code>version != 1</code>, Base64 <code>publicKey</code>/<code>publicKeyProof</code>, <code>batchSize</code> outside <code>[2, 20]</code>, non-future <code>expiration</code>, <code>redeemers</code> exceeding 2 origins or mismatching eTLD+1, or missing <code>deploymentId</code> is silently dropped during <code>ParseEntry()</code>.</li>
+      <li><strong>Proxy &amp; session-cap exhaustion:</strong> If <code>use_proxy</code> prefetch against <code>pvtproxy.googleapis.com</code> fails, or an Incognito session has already reached <code>max_distinct_issuers_per_session</code> (<code>2</code>) or already redeemed for that issuer, Chrome simply omits the header and proceeds with the normal navigation (fail-open; origins must fall back to their normal challenge/verification path).</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/private_verification_tokens/private_verification_tokens_url_loader_throttle.cc" target="_blank" rel="noopener"><code>private_verification_tokens_url_loader_throttle.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_fetcher.cc" target="_blank" rel="noopener"><code>private_verification_tokens_fetcher.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_issuer_config.cc" target="_blank" rel="noopener"><code>private_verification_tokens_issuer_config.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/private_verification_tokens/private_verification_tokens_service.cc" target="_blank" rel="noopener"><code>private_verification_tokens_service.cc</code></a>.</span>
+
+    <h3 id="context">Context, eligibility, and current Chromium constraints</h3>
+    <p>PVT operates only on <code>https:</code> origins (with <code>localhost</code> exempted for development) on browser-initiated outermost main-frame navigations. Subframes, subresources, script-initiated <code>fetch()</code> / <code>XMLHttpRequest</code> calls, and requests with <code>credentials: "omit"</code> never trigger issuance or redemption. Two Chromium browser-level policies also gate eligibility in <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/private_verification_tokens/private_verification_tokens_service.cc" target="_blank" rel="noopener"><code>PrivateVerificationTokensService::IsIssuerAllowed()</code></a>:</p>
+    <ul>
+      <li><strong>Auto-verify content setting:</strong> Blocked whenever the user disables <code>ContentSettingsType::ANTI_ABUSE</code> (<code>chrome://settings/content/autoVerify</code>) for the issuer or redeemer origin.</li>
+      <li><strong>Origin-trial scope in Chromium <code>main</code>:</strong> In the current Chromium implementation checked on 2026-11-27, <code>IsIssuerAllowed()</code> checks both <code>IsAntiAbuseEnabled(issuer)</code> and <code>IsSearchEngineSameOrigin(issuer)</code> (matching the profile&rsquo;s default search provider origin in <code>TemplateURLService</code>), reflecting the initial scoped Origin Trial rollout; general registration beyond the initial trial is marked TBD in the <a href="https://github.com/explainers-by-googlers/private-verification-tokens#registration-process" target="_blank" rel="noopener">explainer&rsquo;s Registration Process section</a>.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/private_verification_tokens/private_verification_tokens_service.cc" target="_blank" rel="noopener"><code>private_verification_tokens_service.cc</code></a>; <a href="https://github.com/explainers-by-googlers/private-verification-tokens#registration-process" target="_blank" rel="noopener">PVT explainer &mdash; Registration Process</a>.</span>
+
+    <h3 id="lifecycle">Lifecycle, persistence, and single-use consumption</h3>
+    <ol>
+      <li><strong>Configuration load:</strong> Chrome loads registered issuer configs (including ATHM public keys, proofs, <code>batchSize</code>, <code>expiration</code>, and <code>redeemers</code>) via component updater and opens the profile&rsquo;s SQLite database (<code>PrivateVerificationTokens</code>).</li>
+      <li><strong>Issuance (regular profile only):</strong> On a browser-initiated navigation to a registered issuer in a regular profile, if unexpired stored tokens are &le; <code>batchSize / 2</code> and no fetch is already in flight for that issuer, Chrome generates a blinded ATHM batch request, <code>POST</code>s it with cookies, verifies the DLEQ proofs, and stores the unblinded tokens on disk.</li>
+      <li><strong>Redemption (regular cookie-free or Incognito):</strong> On a cookie-free, browser-initiated top-level navigation to a registered redeemer, Chrome attaches one token from the parent profile&rsquo;s store in <code>Sec-Private-Verification-Token</code>.</li>
+      <li><strong>Deferred deletion &amp; cookie race safety:</strong> Chrome does <em>not</em> delete the token before sending the request. Only in <code>WillRedirectRequest()</code> or <code>WillProcessResponse()</code> &mdash; and only if the network stack did not strip the header because cookies were attached later (<code>!response_head.pvt_token_removed_due_to_cookies</code>) &mdash; does Chrome record the issuer in <code>OtrIssuerTracker</code> and delete the spent token from SQLite.</li>
+      <li><strong>Clearing site data:</strong> Clearing browsing/site data calls <code>DeleteTokensByFilter()</code> with matching first-party <code>StorageKey</code>s to wipe stored PVTs.</li>
+    </ol>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/private_verification_tokens/private_verification_tokens_url_loader_throttle.cc" target="_blank" rel="noopener"><code>private_verification_tokens_url_loader_throttle.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/private_verification_tokens/private_verification_tokens_service.cc" target="_blank" rel="noopener"><code>private_verification_tokens_service.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_store.h" target="_blank" rel="noopener"><code>private_verification_tokens_store.h</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+
+    <h3 id="example-redemption-and-demo">Motivation demo &amp; server-side <code>Sec-Private-Verification-Token</code> inspection</h3>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/private-verification-tokens/friction-you-can-measure/"
+        title="Live example — Challenge friction vs token check timing (Private Verification Tokens)" loading="lazy" width="100%" height="540"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Interactive latency comparison of a CAPTCHA-style challenge versus a token check from the <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/private-verification-tokens/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase &mdash; Private Verification Tokens</a> (note: because PVT has no page-level JS API, the showcase&rsquo;s live browser probes exercise the related shipping Private State Token API while framing PVT&rsquo;s motivation; sibling demos: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/private-verification-tokens/tokens-that-exist-today/" target="_blank" rel="noopener">tokens that exist today</a>, <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/private-verification-tokens/the-request-option/" target="_blank" rel="noopener">the request option</a>). <span class="citation">Source: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/private-verification-tokens/friction-you-can-measure/" target="_blank" rel="noopener">chrome-platform-showcase</a>.</span></figcaption>
+    </figure>
+
+    <pre tabindex="0"><code data-doc-test="js">// Server-side handler (Node / Fetch-style Request) parsing Sec-Private-Verification-Token.
+// Expected v1 marshaled AthmToken layout (132 bytes):
+//   [0..1]   uint16 big-endian token_type (0xC07E)
+//   [2..33]  32-byte SHA-256 issuer key ID
+//   [34..131] 98-byte ATHM Token (t_enc[32] || P_enc[33] || Q_enc[33])
+function parsePvtHeader(request) {
+  const header = request.headers.get("Sec-Private-Verification-Token");
+  if (!header) return { present: false };
+
+  const bytes = Uint8Array.from(atob(header), (c) =&gt; c.charCodeAt(0));
+  if (bytes.length !== 132) {
+    return { present: true, valid: false, reason: "unexpected-length" };
+  }
+  const tokenType = (bytes[0] &lt;&lt; 8) | bytes[1];
+  if (tokenType !== 0xc07e) {
+    return { present: true, valid: false, reason: "unexpected-token-type" };
+  }
+  return {
+    present: true,
+    valid: true,
+    tokenType,
+    issuerKeyId: bytes.slice(2, 34),
+    athmToken: bytes.slice(34, 132),
+  };
+}</code></pre>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/privacy_pass_athm_batch_request.h" target="_blank" rel="noopener"><code>privacy_pass_athm_batch_request.h</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_parameters.h" target="_blank" rel="noopener"><code>private_verification_tokens_parameters.h</code></a>.</span>
+
+    <h3 id="example-issuance">HTTP token issuance request and response exchange</h3>
+    <pre tabindex="0"><code data-doc-test="http">POST /pvt/issue HTTP/1.1
+Host: issuer.example
+Cookie: session=...
+Accept: application/private-token-response
+Content-Type: application/private-token-request
+Content-Length: 364
+
+&lt;10 * 36-byte AthmTokenRequest structs + 4-byte big-endian version 0x00000001&gt;
+
+---
+
+HTTP/1.1 200 OK
+Content-Type: application/private-token-response
+Content-Length: 3550
+
+&lt;10 * 355-byte ATHM TokenResponse structs (big_u[33] || big_v[33] || ts[32] || proof[257])&gt;</code></pre>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/private-verification-tokens#token-issuance-1" target="_blank" rel="noopener">PVT explainer &mdash; Request/Response Details</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_fetcher.cc" target="_blank" rel="noopener"><code>private_verification_tokens_fetcher.cc</code></a>.</span>
+
+    <h3 id="example-issuer-config">Component-updater / custom issuer configuration JSON (v1)</h3>
+    <pre tabindex="0"><code data-doc-test="json">{
+  "1": {
+    "issuers": [
+      {
+        "issuerRequestUrl": "https://issuer.example/pvt/issue",
+        "version": 1,
+        "publicKey": "&lt;base64-encoded-athm-public-key&gt;",
+        "publicKeyProof": "&lt;base64-encoded-athm-public-key-proof&gt;",
+        "batchSize": 10,
+        "expiration": "1796860800",
+        "redeemers": [
+          "https://issuer.example",
+          "https://www.issuer.example"
+        ],
+        "deploymentId": "issuer-example-v1"
+      }
+    ]
+  }
+}</code></pre>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_issuer_config.h" target="_blank" rel="noopener"><code>private_verification_tokens_issuer_config.h</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_issuer_config.cc" target="_blank" rel="noopener"><code>private_verification_tokens_issuer_config.cc</code></a>.</span>
+
+    <h3 id="example-proxy-testing">Enabling PVT and proxy cache prefetch locally in Chromium</h3>
+    <pre tabindex="0"><code data-doc-test="shell"># Enable Private Verification Tokens with optional proxy cache prefetching
+# (default proxy_url is https://pvtproxy.googleapis.com/v1:proxyRequest;
+#  Incognito redemption stays capped at max_distinct_issuers_per_session = 2)
+google-chrome \
+  --enable-features="EnablePrivateVerificationTokens:use_proxy/true/proxy_url/https%3A%2F%2Fpvtproxy.googleapis.com%2Fv1%3AproxyRequest"</code></pre>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/net/base/features.cc" target="_blank" rel="noopener"><code>net/base/features.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_features.cc" target="_blank" rel="noopener"><code>private_verification_tokens_features.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_parameters.cc" target="_blank" rel="noopener"><code>private_verification_tokens_parameters.cc</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Interim compatibility from ChromeStatus 6210457816924160 and Chromium source (checked 2026-11-27; no BCD or webstatus.dev entry exists yet).</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col">Private Verification Tokens (<code>Sec-Private-Verification-Token</code>)</th><th scope="col">Evidence / notes</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Chrome (desktop &amp; Android)</th><td>Origin trial 154&ndash;165 (behind flag)</td><td>Not enabled by default: <code>kEnablePrivateVerificationTokens</code> is <code>FEATURE_DISABLED_BY_DEFAULT</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/net/base/features.cc" target="_blank" rel="noopener"><code>net/base/features.cc</code></a>; WebView and iOS are <code>null</code> on <a href="https://chromestatus.com/api/v0/features/6210457816924160" target="_blank" rel="noopener">ChromeStatus 6210457816924160</a></td></tr>
+        <tr><th scope="row">Edge</th><td>No release</td><td>Disabled by default in upstream Chromium; no separate Edge shipping announcement</td></tr>
+        <tr><th scope="row">Firefox</th><td>No release (no formal signal)</td><td>ChromeStatus notes no official signal requested yet and anticipates negative feedback based on <a href="https://github.com/antifraudcg/proposals/issues/22" target="_blank" rel="noopener">W3C Anti-Fraud Community Group</a> discussions</td></tr>
+        <tr><th scope="row">Safari</th><td>No release (no signal)</td><td>No signal recorded on <a href="https://chromestatus.com/api/v0/features/6210457816924160" target="_blank" rel="noopener">ChromeStatus 6210457816924160</a></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/6210457816924160" target="_blank" rel="noopener">ChromeStatus API record (6210457816924160)</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/net/base/features.cc" target="_blank" rel="noopener">Chromium <code>net/base/features.cc</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <p>PVT is designed specifically around strict privacy boundaries across regular and Incognito browsing:</p>
+    <ul>
+      <li><strong>1-bit unlinkable entropy:</strong> ATHM tokens carry only 1 bit of hidden metadata (<code>nBuckets = 2</code>), and tokens with the same metadata are cryptographically unlinkable to their issuance context.</li>
+      <li><strong>Strictly one-way, same-site transfer:</strong> Tokens flow only from regular browsing into cookie-free navigations on registered origins sharing the same eTLD+1, never from Incognito back into regular browsing and never in third-party/subframe contexts.</li>
+      <li><strong>Anti-collusion &amp; anti-Incognito-detection guards:</strong> Each Incognito session caps redemptions to 1 token per issuer and at most <code>2</code> distinct registered issuers total (preventing multi-domain bit exfiltration). Attaching PVTs on <em>any</em> cookie-free navigation (plus optional proxy cache prefetching of default-bucket tokens) mitigates sites detecting private mode from token presence alone.</li>
+      <li><strong>User control &amp; transparency:</strong> Users can disable PVT via <code>chrome://settings/content/autoVerify</code> and clear stored tokens via standard site-data deletion; registered issuers must appear in a publicly inspectable list and commit to trust/rate-limiting/IVT-only use.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/private-verification-tokens#privacy-considerations" target="_blank" rel="noopener">PVT explainer &mdash; Privacy Considerations</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/private_verification_tokens/private_verification_tokens_service.cc" target="_blank" rel="noopener"><code>private_verification_tokens_service.cc</code></a>; <a href="https://www.ietf.org/archive/id/draft-yun-cfrg-athm-00.html#section-5.1" target="_blank" rel="noopener"><code>draft-yun-cfrg-athm-00</code> &sect;5.1</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="specs-caption">
+    <table class="doc-table">
+      <caption id="specs-caption">Proposals and cryptographic drafts referenced by Private Verification Tokens</caption>
+      <thead><tr><th scope="col">Document</th><th scope="col">Status &amp; scope</th></tr></thead>
+      <tbody>
+        <tr><td><a href="https://github.com/explainers-by-googlers/private-verification-tokens" target="_blank" rel="noopener">Private Verification Tokens Explainer</a></td><td>Pre-incubation proposal (no finalized W3C specification yet)</td></tr>
+        <tr><td><a href="https://www.ietf.org/archive/id/draft-yun-cfrg-athm-00.html" target="_blank" rel="noopener">IETF CFRG: Anonymous Tokens with Hidden Metadata (ATHM)</a></td><td>Internet-Draft &mdash; blind token issuance, hidden metadata buckets, and token serialization (&sect;5.1, &sect;5.4.1)</td></tr>
+        <tr><td><a href="https://www.rfc-editor.org/rfc/rfc9578.html" target="_blank" rel="noopener">RFC 9578: Privacy Pass Issuance Protocols</a></td><td>IETF RFC &mdash; HTTP media types (&sect;5.1) and token serialization conventions (&sect;5.3)</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/private-verification-tokens/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase &mdash; Private Verification Tokens demos</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Private_State_Token_API" target="_blank" rel="noopener">MDN &mdash; Private State Token API (distinct shipping cross-site mechanism)</a></li>
+      <li><a href="https://github.com/antifraudcg/proposals/issues/22" target="_blank" rel="noopener">W3C Anti-Fraud Community Group &mdash; PACT proposal (#22)</a></li>
+      <li><a href="https://github.com/explainers-by-googlers/private-verification-tokens/blob/main/pvt-issuers.json" target="_blank" rel="noopener">PVT Demo Issuer Commitment JSON (<code>pvt-issuers.json</code>)</a></li>
+      <li><a href="https://chromestatus.com/feature/6210457816924160" target="_blank" rel="noopener">ChromeStatus &mdash; Private Verification Tokens (6210457816924160)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

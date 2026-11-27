@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Iterator Join — Chrome 153 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .mdn-card a { font-weight: 600; }
+    .mdn-card ul { margin: 0.5rem 0 0; }
+    .example-embed iframe { display: block; inline-size: 100%; max-inline-size: 100%; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v153/">&larr; Chrome 153 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v153 &middot; javascript &middot; covered on mdn</p>
+    <h1>Iterator Join</h1>
+
+    <p class="lede">Adds <code>Iterator.prototype.join(separator)</code>, concatenating every value yielded by an iterator into a single string separated by commas or an explicit separator string &mdash; mirroring <code>Array.prototype.join()</code> without allocating an intermediate array.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability on webstatus.dev &mdash; shipped in Chrome 153, Edge 153, Firefox 154, and Safari 27.3 (per BCD)</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 153 (desktop, Android, WebView)</li>
+        <li>Edge &middot; 153 (mirrors Chromium)</li>
+        <li>Firefox &middot; 154 (desktop &amp; Android)</li>
+        <li>Safari &middot; 27.3 (per BCD; pending webstatus.dev sync)</li>
+      </ul>
+      <p>The <a href="https://webstatus.dev/features/iterator-join" target="_blank" rel="noopener"><code>iterator-join</code> web-feature</a> is currently recorded as <strong>Limited availability</strong> on <a href="https://api.webstatus.dev/v1/features?q=iterator-join" target="_blank" rel="noopener">webstatus.dev</a> (listing Chrome 153, Edge 153, and Firefox 154 as of 2026-11-27), while <a href="https://github.com/mdn/browser-compat-data/blob/main/javascript/builtins/Iterator.json" target="_blank" rel="noopener">BCD <code>javascript/builtins/Iterator.json</code></a> already records Chrome <strong>153</strong>, Edge <strong>153</strong>, Firefox <strong>154</strong>, Safari <strong>27.3</strong>, and Bun <strong>1.4.0</strong> (with Node.js and Deno still <code>false</code>).</p>
+    </div>
+  </header>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#mdn-coverage">Documented on MDN</a></li>
+      <li><a href="#chrome-behavior">What Chrome 153 does</a></li>
+      <li><a href="#live-example">Live example</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#quick-reference">Quick reference</a></li>
+      <li><a href="#references">References</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="mdn-coverage">this feature is documented on MDN</h2>
+    <div class="mdn-card">
+      <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Iterator/join" target="_blank" rel="noopener">MDN: <code>Iterator.prototype.join()</code></a>
+      <ul>
+        <li><a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Iterator" target="_blank" rel="noopener">MDN: <code>Iterator</code> built-in reference</a> &mdash; full overview of iterator helper methods alongside <code>join()</code>, <code>map()</code>, <code>filter()</code>, and <code>includes()</code></li>
+      </ul>
+      <p style="margin: 0.5rem 0 0">MDN publishes a complete reference page for <code>Iterator.prototype.join()</code> (verified HTTP 200 on 2026-11-27 with Syntax, Parameters, Return value, Description, Examples, Specifications, and Browser compatibility). gendn does not duplicate MDN&rsquo;s reference prose here.</p>
+    </div>
+    <p>Why gendn doesn&rsquo;t duplicate MDN: this site exists for Chrome features without a canonical MDN page yet. When MDN already documents a JavaScript built-in completely, gendn publishes an honest pointer alongside the Chrome 153 / ECMA-262 nuances and live showcase embed.</p>
+  </section>
+
+  <section>
+    <h2 id="chrome-behavior">what Chrome 153 actually does</h2>
+    <p>Verified against <a href="https://tc39.es/ecma262/multipage/control-abstraction-objects.html#sec-iterator.prototype.join" target="_blank" rel="noopener">ECMA-262 <code>Iterator.prototype.join</code></a>, the <a href="https://tc39.es/proposal-iterator-join/#sec-iterator.prototype.join" target="_blank" rel="noopener">TC39 Iterator Join proposal draft</a>, and <a href="https://chromestatus.com/api/v0/features/5095183554314240" target="_blank" rel="noopener">ChromeStatus 5095183554314240</a>:</p>
+    <ul>
+      <li><strong>Default separator &amp; abrupt close:</strong> When <code>separator</code> is omitted or <code>undefined</code>, <code>","</code> is used. Otherwise <code>ToString(separator)</code> runs before advancing the iterator; if coercion throws (for example, passing a <code>Symbol</code> or an object whose <code>toString()</code> throws), the engine invokes <code>IteratorClose</code> on <code>this</code> before rethrowing.</li>
+      <li><strong><code>undefined</code> and <code>null</code> stringify to empty strings:</strong> Just like <code>Array.prototype.join()</code>, yielded <code>undefined</code> and <code>null</code> elements contribute <code>""</code> (preserving the surrounding separator), while all other values are converted via <code>ToString(value)</code> with <code>IteratorClose</code> called on any conversion error.</li>
+      <li><strong>Single-pass consumption:</strong> Consumes the iterator lazily to completion in one pass without creating an intermediate array (calling <code>join()</code> on an infinite iterator will not terminate).</li>
+      <li><strong>Feature detection &amp; fallback:</strong> Check <code>typeof Iterator !== "undefined" &amp;&amp; typeof Iterator.prototype.join === "function"</code>; fall back to <code>Array.from(iter).join(separator)</code> or an explicit loop on older runtimes.</li>
+    </ul>
+    <pre tabindex="0"><code data-doc-test="js">function iteratorJoin(iter, separator = ",") {
+  if (typeof iter.join === "function") {
+    return iter.join(separator);
+  }
+  const sep = String(separator);
+  let out = "";
+  let first = true;
+  for (const value of iter) {
+    if (!first) out += sep;
+    first = false;
+    if (value !== undefined &amp;&amp; value !== null) {
+      out += String(value);
+    }
+  }
+  return out;
+}
+
+const tags = new Set(["chrome", null, "v153", undefined, "iterators"]).values();
+console.log(iteratorJoin(tags, " | "));</code></pre>
+    <span class="citation">Source: <a href="https://tc39.es/ecma262/multipage/control-abstraction-objects.html#sec-iterator.prototype.join" target="_blank" rel="noopener">ECMA-262 <code>Iterator.prototype.join</code></a>; <a href="https://tc39.es/proposal-iterator-join/#sec-iterator.prototype.join" target="_blank" rel="noopener">TC39 Iterator Join proposal</a>; <a href="https://chromestatus.com/api/v0/features/5095183554314240" target="_blank" rel="noopener">ChromeStatus API record (5095183554314240)</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="live-example">live example</h2>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.kinlan-test.workers.dev/v153/iterator-join/join-basics/"
+        title="Live example — Iterator.prototype.join() pipeline demo" loading="lazy" width="100%" height="540"
+        style="border:2px solid var(--border-black)"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live interactive example from the <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v153/iterator-join/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase &mdash; Iterator Join</a> (sibling demos: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v153/iterator-join/separator-semantics/" target="_blank" rel="noopener">separator semantics</a>, <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v153/iterator-join/log-formatter/" target="_blank" rel="noopener">log formatter</a>, <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v153/iterator-join/array-vs-accumulate/" target="_blank" rel="noopener">array vs accumulate</a>). <span class="citation">Source: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v153/iterator-join/join-basics/" target="_blank" rel="noopener">chrome-platform-showcase</a>.</span></figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Support from BCD <code>javascript/builtins/Iterator.json</code> (<code>join</code>), webstatus.dev, and ChromeStatus 5095183554314240 (checked 2026-11-27).</caption>
+      <thead><tr><th scope="col">Browser / runtime</th><th scope="col"><code>Iterator.prototype.join()</code></th><th scope="col">Evidence / notes</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Chrome (desktop, Android, WebView)</th><td>153</td><td>Enabled by default in Chrome 153 per <a href="https://chromestatus.com/api/v0/features/5095183554314240" target="_blank" rel="noopener">ChromeStatus 5095183554314240</a>, BCD, and webstatus.dev (Finch/V8 flag <code>V8Flag_js_iterator_join</code>)</td></tr>
+        <tr><th scope="row">Edge</th><td>153</td><td>Mirrors Chromium 153 (confirmed in BCD and webstatus.dev)</td></tr>
+        <tr><th scope="row">Firefox (desktop &amp; Android)</th><td>154</td><td>Confirmed in BCD, webstatus.dev, and <a href="https://bugzilla.mozilla.org/show_bug.cgi?id=2047995" target="_blank" rel="noopener">Mozilla Bug 2047995</a></td></tr>
+        <tr><th scope="row">Safari (macOS &amp; iOS)</th><td>27.3</td><td>Confirmed in BCD (<a href="https://bugs.webkit.org/show_bug.cgi?id=304586" target="_blank" rel="noopener">WebKit Bug 304586</a>); webstatus.dev has not yet synced Safari 27.3 as of 2026-11-27</td></tr>
+        <tr><th scope="row">Bun / Node.js / Deno</th><td>Bun 1.4.0; Node.js &amp; Deno: No</td><td>Recorded in <a href="https://github.com/mdn/browser-compat-data/blob/main/javascript/builtins/Iterator.json" target="_blank" rel="noopener">BCD <code>javascript/builtins/Iterator.json</code></a></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/javascript/builtins/Iterator.json" target="_blank" rel="noopener">BCD <code>javascript/builtins/Iterator.json</code></a>; <a href="https://webstatus.dev/features/iterator-join" target="_blank" rel="noopener">webstatus.dev <code>iterator-join</code></a>; <a href="https://chromestatus.com/api/v0/features/5095183554314240" target="_blank" rel="noopener">ChromeStatus API record (5095183554314240)</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="quick-reference">quick reference</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="quick-ref-caption">
+    <table class="doc-table">
+      <caption id="quick-ref-caption">Chrome 153 shipping metadata and specification summary for Iterator Join</caption>
+      <tr><th scope="row">JavaScript signature</th><td><code>Iterator.prototype.join(separator)</code> &rarr; <code>string</code> (<a href="https://tc39.es/ecma262/multipage/control-abstraction-objects.html#sec-iterator.prototype.join" target="_blank" rel="noopener">ECMA-262 <code>Iterator.prototype.join</code></a>)</td></tr>
+      <tr><th scope="row">Shipped in</th><td>Chrome 153 (desktop, Android, Android WebView; iOS <code>null</code>), enabled by default &mdash; filed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">milestone=153 listing</a></td></tr>
+      <tr><th scope="row">V8 / Finch flag</th><td><code>V8Flag_js_iterator_join</code> (recorded on <a href="https://chromestatus.com/api/v0/features/5095183554314240" target="_blank" rel="noopener">ChromeStatus 5095183554314240</a>)</td></tr>
+      <tr><th scope="row">Intent &amp; bug</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a7c1531.f5684636.88ead.0523.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a> &middot; <a href="https://issues.chromium.org/issues/465715798" target="_blank" rel="noopener">issues.chromium.org/465715798</a></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5095183554314240" target="_blank" rel="noopener">5095183554314240 &mdash; Iterator Join</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="references">references</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Iterator/join" target="_blank" rel="noopener">MDN &mdash; <code>Iterator.prototype.join()</code> (canonical reference)</a></li>
+      <li><a href="https://tc39.es/ecma262/multipage/control-abstraction-objects.html#sec-iterator.prototype.join" target="_blank" rel="noopener">ECMA-262 &mdash; <code>Iterator.prototype.join</code></a> (<a href="https://tc39.es/proposal-iterator-join/#sec-iterator.prototype.join" target="_blank" rel="noopener">TC39 proposal draft</a> &middot; <a href="https://github.com/tc39/proposal-iterator-join" target="_blank" rel="noopener">GitHub repository</a>)</li>
+      <li><a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v153/iterator-join/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase &mdash; Iterator Join demos</a></li>
+      <li><a href="https://webstatus.dev/features/iterator-join" target="_blank" rel="noopener">webstatus.dev &mdash; <code>iterator-join</code></a></li>
+      <li><a href="https://chromestatus.com/feature/5095183554314240" target="_blank" rel="noopener">ChromeStatus &mdash; Iterator Join (5095183554314240)</a> (<a href="https://chromestatus.com/api/v0/features/5095183554314240" target="_blank" rel="noopener">API record</a>)</li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

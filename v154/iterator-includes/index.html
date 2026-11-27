@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Iterator Includes — Chrome 154 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .mdn-card a { font-weight: 600; }
+    .mdn-card ul { margin: 0.5rem 0 0; }
+    .example-embed iframe { display: block; inline-size: 100%; max-inline-size: 100%; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v154/">&larr; Chrome 154 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v154 &middot; javascript &middot; covered on mdn</p>
+    <h1>Iterator Includes</h1>
+
+    <p class="lede">Adds <code>Iterator.prototype.includes(searchElement, skippedElements)</code>, letting JavaScript code test whether an iterator yields a given value using <code>SameValueZero</code> equality without materializing an intermediate array, short-circuiting and closing the iterator as soon as a match is found.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability on webstatus.dev &mdash; shipped in Chrome 154, Edge 154, Firefox 154, and Safari 27.3 (per BCD)</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 154 (desktop, Android, WebView)</li>
+        <li>Edge &middot; 154 (mirrors Chromium)</li>
+        <li>Firefox &middot; 154 (desktop &amp; Android)</li>
+        <li>Safari &middot; 27.3 (per BCD; pending webstatus.dev sync)</li>
+      </ul>
+      <p>The <a href="https://webstatus.dev/features/iterator-includes" target="_blank" rel="noopener"><code>iterator-includes</code> web-feature</a> is currently recorded as <strong>Limited availability</strong> on <a href="https://api.webstatus.dev/v1/features?q=iterator-includes" target="_blank" rel="noopener">webstatus.dev</a> (listing Chrome 154, Edge 154, and Firefox 154 as of 2026-11-27), while <a href="https://github.com/mdn/browser-compat-data/blob/main/javascript/builtins/Iterator.json" target="_blank" rel="noopener">BCD <code>javascript/builtins/Iterator.json</code></a> already records Chrome <strong>154</strong>, Edge <strong>154</strong>, Firefox <strong>154</strong>, Safari <strong>27.3</strong>, and Bun <strong>1.4.0</strong> (with Node.js and Deno still <code>false</code>).</p>
+    </div>
+  </header>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#mdn-coverage">Documented on MDN</a></li>
+      <li><a href="#chrome-behavior">What Chrome 154 does</a></li>
+      <li><a href="#live-example">Live example</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#quick-reference">Quick reference</a></li>
+      <li><a href="#references">References</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="mdn-coverage">this feature is documented on MDN</h2>
+    <div class="mdn-card">
+      <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Iterator/includes" target="_blank" rel="noopener">MDN: <code>Iterator.prototype.includes()</code></a>
+      <ul>
+        <li><a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Iterator" target="_blank" rel="noopener">MDN: <code>Iterator</code> built-in reference</a> &mdash; full overview of iterator helper methods alongside <code>includes()</code>, <code>some()</code>, <code>find()</code>, and <code>join()</code></li>
+      </ul>
+      <p style="margin: 0.5rem 0 0">MDN publishes a complete reference page for <code>Iterator.prototype.includes()</code> (verified HTTP 200 on 2026-11-27 with Syntax, Parameters, Return value, Exceptions, Description, Examples, Specifications, and Browser compatibility). gendn does not duplicate MDN&rsquo;s reference prose here.</p>
+    </div>
+    <p>Why gendn doesn&rsquo;t duplicate MDN: this site exists for Chrome features without a canonical MDN page yet. When MDN already documents a JavaScript built-in completely, gendn publishes an honest pointer alongside the Chrome 154 / V8 spec nuances and live showcase embed.</p>
+  </section>
+
+  <section>
+    <h2 id="chrome-behavior">what Chrome 154 actually does</h2>
+    <p>Verified against the <a href="https://tc39.es/proposal-iterator-includes/#sec-iterator.prototype.includes" target="_blank" rel="noopener">TC39 Iterator Includes specification</a> and <a href="https://chromestatus.com/api/v0/features/5205192866922496" target="_blank" rel="noopener">ChromeStatus 5205192866922496</a>:</p>
+    <ul>
+      <li><strong><code>SameValueZero</code> matching with early close:</strong> Consumes elements lazily via <code>IteratorStepValue</code> and compares each yielded value against <code>searchElement</code> using <code>SameValueZero</code> (so <code>NaN</code> matches <code>NaN</code>, and <code>-0</code> matches <code>+0</code>). On the first match, it immediately invokes <code>IteratorClose</code> and returns <code>true</code>, allowing finite matches inside infinite generators.</li>
+      <li><strong>Strict <code>skippedElements</code> validation:</strong> The optional second argument (<code>skippedElements</code>, defaulting to <code>0</code>) accepts only <code>undefined</code>, <code>+Infinity</code>, or an integral <code>Number</code> in <code>[0, Number.MAX_SAFE_INTEGER]</code>. Passing a non-number or non-integer throws a <code>TypeError</code>; passing a negative value (including <code>-Infinity</code>) or a finite integer above <code>2^53 - 1</code> throws a <code>RangeError</code>. In all validation failure paths, the engine calls <code>IteratorClose</code> on <code>this</code> before throwing.</li>
+      <li><strong><code>+Infinity</code> skips every element:</strong> Passing <code>Infinity</code> as <code>skippedElements</code> consumes a finite iterator to completion and returns <code>false</code> (and never terminates on an infinite iterator).</li>
+      <li><strong>Feature detection &amp; fallback:</strong> Check <code>typeof Iterator !== "undefined" &amp;&amp; typeof Iterator.prototype.includes === "function"</code>; fall back to a <code>for...of</code> loop with <code>Object.is(x, target) || x === target</code> when supporting older engines or Node.js/Deno releases without it.</li>
+    </ul>
+    <pre tabindex="0"><code data-doc-test="js">function* naturals() {
+  let n = 0;
+  while (true) yield n++;
+}
+
+function iteratorIncludes(iter, target, skip = 0) {
+  if (typeof iter.includes === "function") {
+    return iter.includes(target, skip);
+  }
+  let seen = 0;
+  for (const value of iter) {
+    if (seen++ &lt; skip) continue;
+    if (value === target || (Number.isNaN(value) &amp;&amp; Number.isNaN(target))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+const found = iteratorIncludes(naturals(), 42, 10);
+console.log({ found });</code></pre>
+    <span class="citation">Source: <a href="https://tc39.es/proposal-iterator-includes/#sec-iterator.prototype.includes" target="_blank" rel="noopener">TC39 Iterator Includes &sect;1 <code>Iterator.prototype.includes</code></a>; <a href="https://github.com/tc39/proposal-iterator-includes" target="_blank" rel="noopener">tc39/proposal-iterator-includes explainer</a>; <a href="https://chromestatus.com/api/v0/features/5205192866922496" target="_blank" rel="noopener">ChromeStatus API record (5205192866922496)</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="live-example">live example</h2>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/iterator-includes/short-circuit/"
+        title="Live example — Iterator.prototype.includes() short-circuiting demo" loading="lazy" width="100%" height="540"
+        style="border:2px solid var(--border-black)"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live interactive example from the <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/iterator-includes/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase &mdash; Iterator Includes</a> (sibling demos: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/iterator-includes/infinite-sequences/" target="_blank" rel="noopener">infinite sequences</a>, <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/iterator-includes/log-search/" target="_blank" rel="noopener">searching a log</a>). <span class="citation">Source: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/iterator-includes/short-circuit/" target="_blank" rel="noopener">chrome-platform-showcase</a>.</span></figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Support from BCD <code>javascript/builtins/Iterator.json</code> (<code>includes</code>), webstatus.dev, and ChromeStatus 5205192866922496 (checked 2026-11-27).</caption>
+      <thead><tr><th scope="col">Browser / runtime</th><th scope="col"><code>Iterator.prototype.includes()</code></th><th scope="col">Evidence / notes</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Chrome (desktop, Android, WebView)</th><td>154</td><td>Enabled by default in Chrome 154 per <a href="https://chromestatus.com/api/v0/features/5205192866922496" target="_blank" rel="noopener">ChromeStatus 5205192866922496</a>, BCD, and webstatus.dev (Finch/V8 flag <code>V8Flag_js_iterator_includes</code>)</td></tr>
+        <tr><th scope="row">Edge</th><td>154</td><td>Mirrors Chromium 154 (confirmed in BCD and webstatus.dev)</td></tr>
+        <tr><th scope="row">Firefox (desktop &amp; Android)</th><td>154</td><td>Confirmed in BCD, webstatus.dev, and <a href="https://bugzilla.mozilla.org/show_bug.cgi?id=2025773" target="_blank" rel="noopener">Mozilla Bug 2025773</a></td></tr>
+        <tr><th scope="row">Safari (macOS &amp; iOS)</th><td>27.3</td><td>Confirmed in BCD (<a href="https://bugs.webkit.org/show_bug.cgi?id=310698" target="_blank" rel="noopener">WebKit Bug 310698</a>); webstatus.dev has not yet synced Safari 27.3 as of 2026-11-27</td></tr>
+        <tr><th scope="row">Bun / Node.js / Deno</th><td>Bun 1.4.0; Node.js &amp; Deno: No</td><td>Recorded in <a href="https://github.com/mdn/browser-compat-data/blob/main/javascript/builtins/Iterator.json" target="_blank" rel="noopener">BCD <code>javascript/builtins/Iterator.json</code></a></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/mdn/browser-compat-data/blob/main/javascript/builtins/Iterator.json" target="_blank" rel="noopener">BCD <code>javascript/builtins/Iterator.json</code></a>; <a href="https://webstatus.dev/features/iterator-includes" target="_blank" rel="noopener">webstatus.dev <code>iterator-includes</code></a>; <a href="https://chromestatus.com/api/v0/features/5205192866922496" target="_blank" rel="noopener">ChromeStatus API record (5205192866922496)</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="quick-reference">quick reference</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="quick-ref-caption">
+    <table class="doc-table">
+      <caption id="quick-ref-caption">Chrome 154 shipping metadata and specification summary for Iterator Includes</caption>
+      <tr><th scope="row">JavaScript signature</th><td><code>Iterator.prototype.includes(searchElement, skippedElements)</code> &rarr; <code>boolean</code> (<a href="https://tc39.es/proposal-iterator-includes/#sec-iterator.prototype.includes" target="_blank" rel="noopener">TC39 specification &sect;1</a>)</td></tr>
+      <tr><th scope="row">Shipped in</th><td>Chrome 154 (desktop, Android, Android WebView; iOS <code>null</code>), enabled by default &mdash; filed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=154" target="_blank" rel="noopener">milestone=154 listing</a></td></tr>
+      <tr><th scope="row">V8 / Finch flag</th><td><code>V8Flag_js_iterator_includes</code> (recorded on <a href="https://chromestatus.com/api/v0/features/5205192866922496" target="_blank" rel="noopener">ChromeStatus 5205192866922496</a>)</td></tr>
+      <tr><th scope="row">Intent &amp; bug</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a8c49ea.f0bac957.7b6f1.0987.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a> &middot; <a href="https://issues.chromium.org/issues/504886973" target="_blank" rel="noopener">issues.chromium.org/504886973</a></td></tr>
+      <tr><th scope="row">Test coverage</th><td>Covered by <a href="https://github.com/tc39/test262" target="_blank" rel="noopener">Test262</a> (noted on <a href="https://chromestatus.com/api/v0/features/5205192866922496" target="_blank" rel="noopener">ChromeStatus 5205192866922496</a>)</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5205192866922496" target="_blank" rel="noopener">5205192866922496 &mdash; Iterator Includes</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="references">references</h2>
+    <ul>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Iterator/includes" target="_blank" rel="noopener">MDN &mdash; <code>Iterator.prototype.includes()</code> (canonical reference)</a></li>
+      <li><a href="https://tc39.es/proposal-iterator-includes/#sec-iterator.prototype.includes" target="_blank" rel="noopener">TC39 &mdash; Iterator Includes specification</a> (<a href="https://github.com/tc39/proposal-iterator-includes" target="_blank" rel="noopener">GitHub proposal repository</a>)</li>
+      <li><a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/iterator-includes/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase &mdash; Iterator Includes demos</a></li>
+      <li><a href="https://webstatus.dev/features/iterator-includes" target="_blank" rel="noopener">webstatus.dev &mdash; <code>iterator-includes</code></a></li>
+      <li><a href="https://chromestatus.com/feature/5205192866922496" target="_blank" rel="noopener">ChromeStatus &mdash; Iterator Includes (5205192866922496)</a> (<a href="https://chromestatus.com/api/v0/features/5205192866922496" target="_blank" rel="noopener">API record</a>)</li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

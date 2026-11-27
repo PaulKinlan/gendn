@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Optional browser optimization for Service Workers — Chrome 154 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .scroll-table { min-width: 30rem; }
+    .example-embed { margin: 1.25rem 0; }
+    .example-embed iframe { display: block; inline-size: 100%; max-inline-size: 100%; border: 2px solid var(--border-black); background: var(--surface, #fff); }
+    .example-embed figcaption { margin-top: 0.5rem; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v154/">&larr; Chrome 154 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v154 &middot; service worker &middot; stepped rollout</p>
+    <h1>Optional browser optimization for Service Workers</h1>
+
+    <p class="lede">Specifies and ships <code>ServiceWorkerAutoPreload</code>, an optional browser loading optimization that dispatches a <code>GET</code> navigation network request in parallel with cold Service Worker startup. When the <code>fetch</code> event handler calls <code>fetch(event.request)</code> &mdash; or falls back without calling <code>event.respondWith()</code> &mdash; Chrome reuses the already-in-flight network response instead of paying Service Worker bootstrap latency twice. Chrome 154 is the stepped-rollout milestone removing the temporary <code>ServiceWorkerAutoPreloadEnabled</code> enterprise policy introduced in Chrome 140.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; Chromium-only optimization (initial rollout Chrome 140, enterprise policy removed in Chrome 154); Firefox Positive, Safari supportive on spec PR</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 140+ (<code>kServiceWorkerAutoPreload</code> enabled by default; policy removed in 154)</li>
+        <li>Edge &middot; Mirrors Chromium (140+)</li>
+        <li class="limited">Firefox &middot; Not yet implemented (Positive position)</li>
+        <li class="limited">Safari &middot; Not yet implemented (WebKit reviewer approved spec PR)</li>
+      </ul>
+      <p>No dedicated <code>web-features</code> entry exists on <a href="https://api.webstatus.dev/v1/features?q=service+worker" target="_blank" rel="noopener">webstatus.dev</a> or MDN for <code>ServiceWorkerAutoPreload</code> (checked 2026-11-27), because it is an optional user-agent optimization in <a href="https://w3c.github.io/ServiceWorker/#handle-fetch" target="_blank" rel="noopener">W3C Service Workers <code>Handle Fetch</code></a> with no new JavaScript API surface. Base <a href="https://webstatus.dev/features/service-workers" target="_blank" rel="noopener"><code>service-workers</code></a> is <strong>Baseline Widely available</strong>, and <a href="https://webstatus.dev/features/service-workers-static-routes" target="_blank" rel="noopener"><code>service-workers-static-routes</code></a> (used for opting out via <code>InstallEvent.addRoutes()</code>) is <strong>Limited availability</strong> (Chrome/Edge 123+).</p>
+    </div>
+  </header>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#at-a-glance">At a glance</a></li>
+      <li><a href="#why">Why it exists</a></li>
+      <li><a href="#syntax">Syntax &amp; surface</a></li>
+      <li><a href="#auto-preload-behavior">Auto-preload dispatch</a></li>
+      <li><a href="#opt-out-static-routing">Static routing opt-out</a></li>
+      <li><a href="#enterprise-policy-migration">Enterprise policy &amp; M154</a></li>
+      <li><a href="#errors-and-edge-cases">Errors &amp; edge cases</a></li>
+      <li><a href="#context">Context &amp; eligibility</a></li>
+      <li><a href="#lifecycle">Lifecycle &amp; priority</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#security-and-privacy">Security &amp; privacy</a></li>
+      <li><a href="#specifications">Specifications</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="glance-caption">
+    <table class="doc-table">
+      <caption id="glance-caption">Chrome 154 stepped-rollout metadata and Chromium implementation links for ServiceWorkerAutoPreload</caption>
+      <tr><th scope="row">Rollout milestones</th><td>Initial rollout in Chrome 140 (desktop, Android, WebView; iOS <code>null</code>) alongside the temporary <code>ServiceWorkerAutoPreloadEnabled</code> enterprise policy; filed under &ldquo;Stepped rollout&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=154" target="_blank" rel="noopener">milestone=154 listing</a> for removal of <code>ServiceWorkerAutoPreloadEnabled</code> per <a href="https://chromestatus.com/api/v0/features/5194817700364288" target="_blank" rel="noopener">ChromeStatus API record 5194817700364288</a></td></tr>
+      <tr><th scope="row">Chromium feature flag</th><td><code>BASE_FEATURE(kServiceWorkerAutoPreload, base::FEATURE_ENABLED_BY_DEFAULT)</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/content/public/common/content_features.cc" target="_blank" rel="noopener"><code>content_features.cc</code></a> (disable locally via <code>--disable-features=ServiceWorkerAutoPreload</code>); companion proxy-detection experiment <code>kOptimizeWebRequestProxyForServiceWorkerAutoPreload</code></td></tr>
+      <tr><th scope="row">Enterprise policy</th><td><a href="https://chromeenterprise.google/policies/#ServiceWorkerAutoPreloadEnabled" target="_blank" rel="noopener"><code>ServiceWorkerAutoPreloadEnabled</code></a> (<a href="https://chromium.googlesource.com/chromium/src/+/main/components/policy/resources/templates/policy_definitions/Miscellaneous/ServiceWorkerAutoPreloadEnabled.yaml" target="_blank" rel="noopener"><code>ServiceWorkerAutoPreloadEnabled.yaml</code></a>): boolean, default <code>true</code>, supported M140&ndash;M153, scheduled for removal in M154</td></tr>
+      <tr><th scope="row">Specification &amp; explainer</th><td>Merged into <a href="https://w3c.github.io/ServiceWorker/#handle-fetch" target="_blank" rel="noopener">W3C Service Workers &mdash; Handle Fetch</a> via <a href="https://github.com/w3c/ServiceWorker/pull/1756" target="_blank" rel="noopener">w3c/ServiceWorker#1756</a> (merged 2025-07-28); <a href="https://github.com/WICG/service-worker-auto-preload" target="_blank" rel="noopener">WICG ServiceWorkerAutoPreload explainer</a>; <a href="https://github.com/WICG/proposals/issues/155" target="_blank" rel="noopener">WICG/proposals#155</a></td></tr>
+      <tr><th scope="row">Intents &amp; bug</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/CAGMyg-YGDFiHciHb701OhxBf3QUQbs-11o%2BjY03AAxvrrYmxow%40mail.gmail.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a> &middot; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/CAGMyg-YF1qRNkBUPGxN-GgDGG3yvqCijZ56QEQYgNA4a9YrfMg%40mail.gmail.com" target="_blank" rel="noopener">Intent to Experiment</a> &middot; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/CAGMyg-btkw3n_k0Vr9GgW%2B_c%2BT5K%3D_1_BPFstqAVi0y%3DxxT-pg%40mail.gmail.com" target="_blank" rel="noopener">Intent to Prototype</a> &middot; <a href="https://crbug.com/40278676" target="_blank" rel="noopener">crbug.com/40278676</a></td></tr>
+      <tr><th scope="row">Standards positions &amp; TAG</th><td><a href="https://github.com/mozilla/standards-positions/issues/1036" target="_blank" rel="noopener">Mozilla standards-positions#1036</a> (Positive) &middot; <a href="https://github.com/WebKit/standards-positions/issues/359" target="_blank" rel="noopener">WebKit standards-positions#359</a> (No signal; WebKit reviewer approved PR #1756) &middot; <a href="https://github.com/w3ctag/design-reviews/issues/1108" target="_blank" rel="noopener">w3ctag/design-reviews#1108</a> &middot; <a href="https://github.com/w3ctag/design-reviews/issues/963" target="_blank" rel="noopener">w3ctag/design-reviews#963</a></td></tr>
+      <tr><th scope="row">Chromium source</th><td><a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/service_worker/service_worker_main_resource_loader.cc" target="_blank" rel="noopener"><code>service_worker_main_resource_loader.cc</code></a> (<code>MaybeDispatchPreload</code>, <code>MaybeStartAutoPreload</code>, <code>StartRaceNetworkRequest</code>)</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5194817700364288" target="_blank" rel="noopener">5194817700364288 &mdash; Optional browser optimization for Service Workers</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>Service Workers intercept roughly 15% of Chrome page loads, but starting a stopped Service Worker on a cold navigation can add tens to hundreds of milliseconds before the <code>fetch</code> handler even executes. Many Service Workers act as pass-through handlers (calling <code>event.respondWith(fetch(event.request))</code>) or fall back to the network without calling <code>respondWith()</code> &mdash; meaning the browser sits idle waiting for worker startup before issuing the navigation HTTP request. Although the <a href="https://w3c.github.io/ServiceWorker/#navigationpreloadmanager" target="_blank" rel="noopener">Navigation Preload API</a> solves the same latency problem, adoption remained low because it requires explicit worker code changes (<code>registration.navigationPreload.enable()</code> and reading <code>event.preloadResponse</code>). <code>ServiceWorkerAutoPreload</code> applies parallel navigation preloading automatically with zero script changes while still letting the <code>fetch</code> handler control the final response.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/service-worker-auto-preload" target="_blank" rel="noopener">WICG ServiceWorkerAutoPreload explainer</a>; <a href="https://chromestatus.com/feature/5194817700364288" target="_blank" rel="noopener">ChromeStatus 5194817700364288</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax &amp; developer-facing surface</h2>
+    <p><code>ServiceWorkerAutoPreload</code> adds <strong>no new JavaScript interfaces or WebIDL members</strong>. Its developer- and admin-facing surface consists of three concrete contracts: (1) the optional <code>responseForAutoPreload</code> branch in <a href="https://w3c.github.io/ServiceWorker/#handle-fetch" target="_blank" rel="noopener">W3C Service Workers <code>Handle Fetch</code></a> (consumed transparently by <code>fetch(event.request)</code> or fetch-handler fallback), (2) the declarative opt-out using <a href="https://developer.mozilla.org/en-US/docs/Web/API/InstallEvent/addRoutes" target="_blank" rel="noopener"><code>InstallEvent.addRoutes()</code></a> with <code>source: "fetch-event"</code>, and (3) the temporary <a href="https://chromeenterprise.google/policies/#ServiceWorkerAutoPreloadEnabled" target="_blank" rel="noopener"><code>ServiceWorkerAutoPreloadEnabled</code></a> Chrome enterprise policy removed in Chrome 154:</p>
+    <pre tabindex="0"><code data-doc-test="skip" data-doc-test-reason="Algorithm and policy surface summary rather than executable JavaScript.">// 1. Handle Fetch optional optimization (W3C Service Workers PR #1756):
+//    If navigation GET &amp;&amp; active worker has non-empty fetch handler
+//       &amp;&amp; !navigationPreloadEnabled
+//       &amp;&amp; timingInfo.workerMatchedRouterSource !== "fetch-event":
+//         browser MAY speculatively fetch(request) into responseForAutoPreload
+//         in parallel with Service Worker startup; consumed by fetch(event.request)
+//         or by browser fallback when event.respondWith() is not called.
+
+// 2. Developer opt-out via Service Worker Static Routing API (InstallEvent.addRoutes):
+installEvent.addRoutes({
+  condition: { urlPattern: new URLPattern({}) }, // or narrower RouterCondition
+  source: "fetch-event",
+});
+
+// 3. Enterprise policy (Chrome M140-M153; removed in Chrome 154):
+//    Policy name: ServiceWorkerAutoPreloadEnabled
+//    Schema: boolean (default: true; dynamic_refresh: true; per_profile: true)</code></pre>
+    <p>Jump directly to each contract below: <a href="#auto-preload-behavior"><code>ServiceWorkerAutoPreload</code> auto-preload dispatch</a>, <a href="#opt-out-static-routing"><code>InstallEvent.addRoutes()</code> <code>"fetch-event"</code> opt-out</a>, and <a href="#enterprise-policy-migration"><code>ServiceWorkerAutoPreloadEnabled</code> policy migration</a>.</p>
+    <span class="citation">Source: <a href="https://github.com/w3c/ServiceWorker/pull/1756" target="_blank" rel="noopener">w3c/ServiceWorker#1756</a>; <a href="https://w3c.github.io/ServiceWorker/#handle-fetch" target="_blank" rel="noopener">W3C Service Workers <code>Handle Fetch</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/policy/resources/templates/policy_definitions/Miscellaneous/ServiceWorkerAutoPreloadEnabled.yaml" target="_blank" rel="noopener"><code>ServiceWorkerAutoPreloadEnabled.yaml</code></a>.</span>
+
+    <h3 id="auto-preload-behavior"><code>ServiceWorkerAutoPreload</code> parallel navigation dispatch</h3>
+    <p><strong>Inputs &amp; triggering conditions.</strong> In <a href="https://w3c.github.io/ServiceWorker/#handle-fetch" target="_blank" rel="noopener">W3C Service Workers <code>Handle Fetch</code></a> and Chromium&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/service_worker/service_worker_main_resource_loader.cc" target="_blank" rel="noopener"><code>ServiceWorkerMainResourceLoader::MaybeStartAutoPreload()</code></a>, <code>ServiceWorkerAutoPreload</code> operates on a navigation <code>Request</code> when all of the following hold: the request URL uses <code>http:</code> or <code>https:</code>, the HTTP method is <code>GET</code>, the request targets an outermost main frame (not a subframe or subresource), the controlling active Service Worker has at least one non-empty <code>fetch</code> listener, the Service Worker is <em>not</em> currently running (<code>running_status() != kRunning</code>), <code>NavigationPreload</code> is disabled, and no static routing rule matched with <code>source: "fetch-event"</code> (or another terminating source).</p>
+    <p><strong>Outputs &amp; consumption rules.</strong> When dispatched, the browser starts a speculative network request (<code>responseForAutoPreload</code>) in parallel with Service Worker bootstrap and attaches no special identification header (unlike <code>Service-Worker-Navigation-Preload</code>), so the request hits the regular HTTP cache and matches a normal navigation request identically:</p>
+    <ul>
+      <li><strong>Consumed inside the fetch handler:</strong> When the handler calls <code>fetch(event.request)</code> with the unmodified navigation <code>Request</code>, the call resolves directly from <code>responseForAutoPreload</code> without issuing a second network request. Other <code>fetch()</code> calls (such as <code>fetch("/analytics")</code>, <code>fetch(event.request.clone())</code>, or <code>fetch(new Request(event.request, { ... }))</code>) dispatch normal network requests and do not consume <code>responseForAutoPreload</code>.</li>
+      <li><strong>Consumed on fallback:</strong> If the <code>fetch</code> handler returns without calling <code>event.respondWith()</code>, the browser commits <code>responseForAutoPreload</code> directly as the fallback navigation response instead of starting a fresh network fetch after handler completion.</li>
+      <li><strong>Discarded when unused:</strong> If the <code>fetch</code> handler answers from <code>CacheStorage</code> or constructs a synthetic <code>new Response(...)</code> without calling <code>fetch(event.request)</code>, the browser discards (and may cancel) <code>responseForAutoPreload</code>. Commit responsibility remains <code>FetchResponseFrom::kServiceWorker</code> &mdash; the browser never bypasses the fetch handler&rsquo;s chosen response.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/w3c/ServiceWorker/pull/1756" target="_blank" rel="noopener">w3c/ServiceWorker#1756</a>; <a href="https://github.com/WICG/service-worker-auto-preload" target="_blank" rel="noopener">WICG explainer</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/service_worker/service_worker_main_resource_loader.cc" target="_blank" rel="noopener">Chromium <code>service_worker_main_resource_loader.cc</code></a>.</span>
+
+    <h3 id="opt-out-static-routing">Developer opt-out via <code>InstallEvent.addRoutes()</code> (<code>"fetch-event"</code>)</h3>
+    <p><strong>Inputs.</strong> During the Service Worker <code>install</code> event, call <a href="https://developer.mozilla.org/en-US/docs/Web/API/InstallEvent/addRoutes" target="_blank" rel="noopener"><code>event.addRoutes(rules)</code></a> with a <code>RouterRule</code> (or array of rules) whose <code>condition</code> matches the navigation URLs that must not be speculatively preloaded (for example, <code>{ urlPattern: new URLPattern({}) }</code> for all requests, or a specific path pattern) and whose <code>source</code> is <code>"fetch-event"</code>.</p>
+    <p><strong>Outputs &amp; observable effect.</strong> Per <a href="https://github.com/w3c/ServiceWorker/pull/1756" target="_blank" rel="noopener">w3c/ServiceWorker#1756</a>, matching a rule with <code>source: "fetch-event"</code> sets <code>timingInfo</code>&rsquo;s <code>worker matched router source</code> to <code>"fetch-event"</code>. In Chromium&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/service_worker/service_worker_main_resource_loader.cc" target="_blank" rel="noopener"><code>service_worker_main_resource_loader.cc</code></a>, <code>ServiceWorkerRouterSourceType::kFetchEvent</code> sets <code>race_network_request_mode = RaceNetworkRequestMode::kSkipped</code>, which guarantees <code>MaybeStartAutoPreload()</code> is skipped while still executing the <code>fetch</code> handler normally (and still honoring explicit <code>NavigationPreload</code> if the site enabled it). Note that <code>event.addRoutes()</code> returns a <code>Promise&lt;undefined&gt;</code>; pass it to <code>event.waitUntil()</code> so the router rules are persisted before installation finishes.</p>
+    <span class="citation">Source: <a href="https://github.com/w3c/ServiceWorker/pull/1756" target="_blank" rel="noopener">w3c/ServiceWorker#1756</a>; <a href="https://github.com/WICG/service-worker-auto-preload#opt-out" target="_blank" rel="noopener">WICG explainer &mdash; Opt-out</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/service_worker/service_worker_main_resource_loader.cc" target="_blank" rel="noopener">Chromium <code>service_worker_main_resource_loader.cc</code></a>.</span>
+
+    <h3 id="enterprise-policy-migration"><code>ServiceWorkerAutoPreloadEnabled</code> enterprise policy &amp; Chrome 154 removal</h3>
+    <p><strong>Inputs &amp; schema.</strong> <a href="https://chromeenterprise.google/policies/#ServiceWorkerAutoPreloadEnabled" target="_blank" rel="noopener"><code>ServiceWorkerAutoPreloadEnabled</code></a> (defined in <a href="https://chromium.googlesource.com/chromium/src/+/main/components/policy/resources/templates/policy_definitions/Miscellaneous/ServiceWorkerAutoPreloadEnabled.yaml" target="_blank" rel="noopener"><code>ServiceWorkerAutoPreloadEnabled.yaml</code></a>) is a per-profile, dynamically refreshable boolean policy (<code>default: true</code>) introduced in Chrome 140 across desktop, ChromeOS, Android, and Fuchsia. Setting it to <code>false</code> sets <code>prefs::kServiceWorkerAutoPreloadEnabled = false</code>, causing <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/chrome_content_browser_client.cc" target="_blank" rel="noopener"><code>ChromeContentBrowserClient::IsServiceWorkerAutoPreloadAllowed()</code></a> to return <code>false</code> so navigation requests always wait for Service Worker startup.</p>
+    <p><strong>Outputs &amp; Chrome 154 migration.</strong> Per <a href="https://chromestatus.com/api/v0/features/5194817700364288" target="_blank" rel="noopener">ChromeStatus 5194817700364288</a> (stepped rollout stage for milestone 154) and the policy definition&rsquo;s own deprecation notice (&ldquo;This policy is a temporary measure to control the feature and will be removed in M154&rdquo;), enterprise administrators can no longer rely on <code>ServiceWorkerAutoPreloadEnabled</code> starting in Chrome 154. Internal applications that still require suppressing speculative network preloads must migrate to the web-standard <a href="#opt-out-static-routing"><code>InstallEvent.addRoutes({ ..., source: "fetch-event" })</code></a> opt-out inside their Service Worker script.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/components/policy/resources/templates/policy_definitions/Miscellaneous/ServiceWorkerAutoPreloadEnabled.yaml" target="_blank" rel="noopener"><code>ServiceWorkerAutoPreloadEnabled.yaml</code></a>; <a href="https://chromeenterprise.google/policies/#ServiceWorkerAutoPreloadEnabled" target="_blank" rel="noopener">Chrome Enterprise Policy <code>ServiceWorkerAutoPreloadEnabled</code></a>; <a href="https://chromestatus.com/api/v0/features/5194817700364288" target="_blank" rel="noopener">ChromeStatus API record (5194817700364288)</a>.</span>
+
+    <h3 id="errors-and-edge-cases">Errors, redirects, and edge cases</h3>
+    <ul>
+      <li><strong>Redirects in <code>ServiceWorkerAutoPreload</code>:</strong> When the auto-preloaded network request receives an HTTP 3xx redirect, the browser hands redirect processing back to the <code>fetch</code> handler so the handler&rsquo;s configured <code>redirect</code> mode (including <code>opaque-redirect</code> filtered responses) is respected identically to a non-preloaded <code>fetch(event.request)</code>.</li>
+      <li><strong>Aborted or terminated navigations:</strong> Per <a href="https://github.com/w3c/ServiceWorker/pull/1756" target="_blank" rel="noopener">w3c/ServiceWorker#1756</a>, if the parent fetch controller transitions to <code>"terminated"</code> or <code>"aborted"</code>, the browser aborts <code>autoPreloadFetchController</code> and sets <code>responseForAutoPreload</code>&rsquo;s value to <code>null</code>.</li>
+      <li><strong>Network errors &amp; offline mode:</strong> If the speculative preload fails due to a network error while the device is offline, <code>fetch(event.request)</code> rejects with the same <code>TypeError</code> it would have produced without <code>ServiceWorkerAutoPreload</code>, and a cache-first handler that never calls <code>fetch(event.request)</code> still serves its cached response normally.</li>
+      <li><strong>Invalid <code>addRoutes()</code> opt-out rules:</strong> Calling <code>event.addRoutes()</code> outside the <code>install</code> event handler throws an <code>InvalidStateError</code> <code>DOMException</code>, and malformed <code>condition</code> / <code>source: "fetch-event"</code> descriptors reject the returned promise with a <code>TypeError</code>. Guard calls with <code>if (event.addRoutes)</code> for browsers that do not implement the Static Routing API.</li>
+      <li><strong>Removed <code>ServiceWorkerAutoPreloadEnabled</code> policy:</strong> Once removed in Chrome 154, setting <code>ServiceWorkerAutoPreloadEnabled: false</code> in managed policies is ignored as an unknown/deprecated policy and will not suppress auto-preloading.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/w3c/ServiceWorker/pull/1756" target="_blank" rel="noopener">w3c/ServiceWorker#1756</a>; <a href="https://github.com/WICG/service-worker-auto-preload#redirect" target="_blank" rel="noopener">WICG explainer &mdash; Redirect</a>; <a href="https://developer.mozilla.org/en-US/docs/Web/API/InstallEvent/addRoutes" target="_blank" rel="noopener">MDN <code>InstallEvent.addRoutes()</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/policy/resources/templates/policy_definitions/Miscellaneous/ServiceWorkerAutoPreloadEnabled.yaml" target="_blank" rel="noopener"><code>ServiceWorkerAutoPreloadEnabled.yaml</code></a>.</span>
+
+    <h3 id="context">Context, eligibility, and extension interactions</h3>
+    <p><code>ServiceWorkerAutoPreload</code> runs only in secure contexts with an active Service Worker registration (<code>https:</code> or <code>http://localhost</code>) and applies exclusively to outermost main-frame <code>GET</code> navigations. Verified directly in <a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/service_worker/service_worker_main_resource_loader.cc" target="_blank" rel="noopener"><code>ServiceWorkerMainResourceLoader::MaybeStartAutoPreload()</code></a>, Chromium suppresses auto-preload in the following contexts:</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="elig-caption">
+    <table class="doc-table scroll-table">
+      <caption id="elig-caption">Chromium <code>MaybeStartAutoPreload()</code> bail-out conditions and UMA reasons</caption>
+      <thead><tr><th scope="col">Condition</th><th scope="col">Behavior</th><th scope="col">Reason</th></tr></thead>
+      <tbody>
+        <tr><td>Non-HTTP(S) URL or non-<code>GET</code> method</td><td>Not dispatched</td><td>Avoids preloading extension schemes or non-idempotent methods</td></tr>
+        <tr><td>Subframe (<code>&lt;iframe&gt;</code>) or subresource</td><td>Not dispatched (<code>kNotOutermostMainFrame</code>)</td><td>Scoped to outermost main-frame navigations to avoid OOM/bandwidth waste</td></tr>
+        <tr><td>Service Worker already running</td><td>Not dispatched</td><td>No cold-start bootstrap latency to hide</td></tr>
+        <tr><td><code>NavigationPreload</code> enabled</td><td>Skipped; <code>NavigationPreload</code> runs instead</td><td>Developer explicitly opted into <code>event.preloadResponse</code> and custom preload header</td></tr>
+        <tr><td>Static routing rule matched <code>source: "fetch-event"</code></td><td>Skipped (<code>RaceNetworkRequestMode::kSkipped</code>)</td><td>Explicit developer opt-out per W3C Service Workers spec</td></tr>
+        <tr><td>Installed extension with <code>webRequest</code> / <code>declarativeNetRequest</code> proxy (or <code>&lt;webview&gt;</code> guest)</td><td>Not dispatched (<code>kWebRequestAPIProxy</code> / <code>kGuestStoragePartition</code>)</td><td>Canceling an unused preload would trigger false <code>webRequest.onErrorOccurred</code> callbacks in extensions</td></tr>
+        <tr><td><code>ServiceWorkerAutoPreloadEnabled</code> set to <code>false</code> (M140&ndash;M153)</td><td>Not dispatched (<code>kNotAllowedByBrowser</code>)</td><td>Temporary enterprise kill-switch removed in M154</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/service_worker/service_worker_main_resource_loader.cc" target="_blank" rel="noopener">Chromium <code>service_worker_main_resource_loader.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/content/public/common/content_features.cc" target="_blank" rel="noopener">Chromium <code>content_features.cc</code></a>; <a href="https://chromeenterprise.google/policies/#ServiceWorkerAutoPreloadEnabled" target="_blank" rel="noopener"><code>ServiceWorkerAutoPreloadEnabled</code> policy</a>.</span>
+
+    <h3 id="lifecycle">Lifecycle, routing precedence, and timing</h3>
+    <p>On an outermost main-frame <code>GET</code> navigation controlled by a stopped Service Worker, Chromium evaluates loading strategies in strict order inside <a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/service_worker/service_worker_main_resource_loader.cc" target="_blank" rel="noopener"><code>ServiceWorkerMainResourceLoader</code></a>:</p>
+    <ol>
+      <li><strong>Static Router evaluation:</strong> Registered <code>InstallEvent.addRoutes()</code> rules run first. A matched <code>"network"</code> or <code>"cache"</code> rule bypasses the fetch handler entirely; <code>"race-network-and-fetch-handler"</code> forces a full race (<code>kForced</code>); <code>"fetch-event"</code> sets <code>kSkipped</code> to disable auto-preload.</li>
+      <li><strong><code>NavigationPreload</code> vs. <code>ServiceWorkerAutoPreload</code>:</strong> If <code>race_network_request_mode</code> is <code>kDefault</code>, Chromium checks <code>MaybeStartNavigationPreload()</code> first. Only when Navigation Preload is not enabled does Chromium call <code>MaybeStartAutoPreload()</code>.</li>
+      <li><strong>Parallel execution &amp; single-use handoff:</strong> The browser starts the navigation network fetch and kicks off Service Worker startup concurrently. Inside the <code>fetch</code> handler, the first matching <code>fetch(event.request)</code> takes ownership of the preloaded response stream; if the handler never calls <code>respondWith()</code>, the browser commits the preloaded stream directly on fallback. If the handler responds from another source, the preloaded request is canceled.</li>
+    </ol>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/service_worker/service_worker_main_resource_loader.cc" target="_blank" rel="noopener">Chromium <code>service_worker_main_resource_loader.cc</code></a>; <a href="https://w3c.github.io/ServiceWorker/#handle-fetch" target="_blank" rel="noopener">W3C Service Workers <code>Handle Fetch</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+
+    <h3 id="example-auto-preload">Live timeline demo &amp; Service Worker fetch handler benefiting from <code>ServiceWorkerAutoPreload</code></h3>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.kinlan-test.workers.dev/v140/serviceworkerautopreload-browser-mode/sw-autopreload/"
+        title="Live example — ServiceWorker AutoPreload navigation timeline comparison" loading="lazy" width="100%" height="540"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Interactive timeline comparing cold Service Worker navigation without preload, with <code>NavigationPreload</code>, and with <code>ServiceWorkerAutoPreload</code> browser mode, from the <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v140/serviceworkerautopreload-browser-mode/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase &mdash; ServiceWorkerAutoPreload browser mode</a> (filed under Chrome 140, its initial rollout milestone). <span class="citation">Source: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v140/serviceworkerautopreload-browser-mode/sw-autopreload/" target="_blank" rel="noopener">chrome-platform-showcase</a>.</span></figcaption>
+    </figure>
+
+    <pre tabindex="0"><code data-doc-test="js">// sw.js — Benefits automatically from ServiceWorkerAutoPreload with zero API changes.
+self.addEventListener("fetch", (event) =&gt; {
+  if (event.request.mode !== "navigate") return;
+
+  // Non-matching side-effect fetches still dispatch normally:
+  // fetch("/telemetry/nav-start");
+
+  // Passing the unmodified event.request consumes responseForAutoPreload
+  // instead of waiting for SW startup and issuing a second network request.
+  event.respondWith(
+    fetch(event.request).catch(() =&gt; caches.match("/offline.html")),
+  );
+});</code></pre>
+    <span class="citation">Source: <a href="https://github.com/WICG/service-worker-auto-preload#how-it-works" target="_blank" rel="noopener">WICG ServiceWorkerAutoPreload explainer &mdash; How it works</a>.</span>
+
+    <h3 id="example-opt-out">Opting out with <code>InstallEvent.addRoutes()</code> and <code>source: "fetch-event"</code></h3>
+    <pre tabindex="0"><code data-doc-test="js">// sw.js — Opt out of ServiceWorkerAutoPreload when your cache-first handler
+// must avoid speculative network requests reaching your origin server.
+self.addEventListener("install", (event) =&gt; {
+  if (typeof event.addRoutes === "function") {
+    event.waitUntil(
+      event.addRoutes([
+        {
+          condition: {
+            urlPattern: new URLPattern({ pathname: "/app/*" }),
+          },
+          source: "fetch-event",
+        },
+      ]),
+    );
+  }
+});</code></pre>
+    <span class="citation">Source: <a href="https://github.com/WICG/service-worker-auto-preload#opt-out" target="_blank" rel="noopener">WICG ServiceWorkerAutoPreload explainer &mdash; Opt-out</a>; <a href="https://github.com/w3c/ServiceWorker/pull/1756" target="_blank" rel="noopener">w3c/ServiceWorker#1756</a>.</span>
+
+    <h3 id="example-policy-migration">Migrating off the removed <code>ServiceWorkerAutoPreloadEnabled</code> enterprise policy</h3>
+    <pre tabindex="0"><code data-doc-test="json">{
+  "comment": "Deprecated in Chrome 154: ServiceWorkerAutoPreloadEnabled is removed in M154. Remove this policy key and opt out per-app via InstallEvent.addRoutes({ condition, source: 'fetch-event' }).",
+  "ServiceWorkerAutoPreloadEnabled": false
+}</code></pre>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/components/policy/resources/templates/policy_definitions/Miscellaneous/ServiceWorkerAutoPreloadEnabled.yaml" target="_blank" rel="noopener"><code>ServiceWorkerAutoPreloadEnabled.yaml</code></a>; <a href="https://chromeenterprise.google/policies/#ServiceWorkerAutoPreloadEnabled" target="_blank" rel="noopener">Chrome Enterprise Policy <code>ServiceWorkerAutoPreloadEnabled</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Interim compatibility from ChromeStatus 5194817700364288, Chromium source, and vendor standards positions (checked 2026-11-27; no BCD key exists because <code>ServiceWorkerAutoPreload</code> exposes no JS API).</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col"><code>ServiceWorkerAutoPreload</code></th><th scope="col"><code>addRoutes()</code> <code>"fetch-event"</code> opt-out</th><th scope="col">Evidence / notes</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Chrome (desktop, Android, WebView)</th><td>140+ (policy removed 154)</td><td>123</td><td><code>kServiceWorkerAutoPreload</code> is <code>FEATURE_ENABLED_BY_DEFAULT</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/content/public/common/content_features.cc" target="_blank" rel="noopener"><code>content_features.cc</code></a>; <a href="https://chromeenterprise.google/policies/#ServiceWorkerAutoPreloadEnabled" target="_blank" rel="noopener"><code>ServiceWorkerAutoPreloadEnabled</code></a> enterprise policy supported M140&ndash;M153 and removed in M154 per <a href="https://chromestatus.com/api/v0/features/5194817700364288" target="_blank" rel="noopener">ChromeStatus 5194817700364288</a></td></tr>
+        <tr><th scope="row">Edge</th><td>140+ (mirror)</td><td>123</td><td>Chromium-based; mirrors Chromium rollout and Static Routing API support</td></tr>
+        <tr><th scope="row">Firefox</th><td>No release</td><td>No release</td><td><a href="https://github.com/mozilla/standards-positions/issues/1036" target="_blank" rel="noopener">Mozilla standards-positions#1036</a> is Positive; no shipping release recorded yet</td></tr>
+        <tr><th scope="row">Safari</th><td>No release</td><td>No release</td><td><a href="https://github.com/WebKit/standards-positions/issues/359" target="_blank" rel="noopener">WebKit standards-positions#359</a> (No formal signal; a WebKit reviewer approved <a href="https://github.com/w3c/ServiceWorker/pull/1756" target="_blank" rel="noopener">w3c/ServiceWorker#1756</a>)</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5194817700364288" target="_blank" rel="noopener">ChromeStatus API record (5194817700364288)</a>; <a href="https://webstatus.dev/features/service-workers-static-routes" target="_blank" rel="noopener">webstatus.dev <code>service-workers-static-routes</code></a>; <a href="https://github.com/mozilla/standards-positions/issues/1036" target="_blank" rel="noopener">Mozilla standards-positions#1036</a>; <a href="https://github.com/WebKit/standards-positions/issues/359" target="_blank" rel="noopener">WebKit standards-positions#359</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <p><code>ServiceWorkerAutoPreload</code> issues only standard <code>GET</code> navigation requests to the same URL the user is already navigating to, respecting existing HTTP cache partitioning, credentials, TLS, and navigation restrictions (such as Connection Allowlists on <code>NavigationRequest</code>). Because no distinguishing request header is attached, servers cannot use auto-preload to fingerprint browser startup timing beyond standard navigation traffic, and unlike <code>BestEffortServiceWorker</code>, the browser never bypasses the Service Worker&rsquo;s <code>fetch</code> handler security or response-filtering logic. The primary operational tradeoff is that a cache-first Service Worker whose <code>fetch</code> handler never calls <code>fetch(event.request)</code> can trigger an extra speculative <code>GET</code> request to the origin server while the worker boots; origins that rely on side-effecting <code>GET</code> navigations or want zero speculative traffic should register a static routing rule with <code>source: "fetch-event"</code>.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/service-worker-auto-preload#how-is-it-different-from-the-navigation-preload-api" target="_blank" rel="noopener">WICG explainer &mdash; Tradeoffs &amp; NavigationPreload FAQ</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/service_worker/service_worker_main_resource_loader.cc" target="_blank" rel="noopener">Chromium <code>service_worker_main_resource_loader.cc</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="specs-caption">
+    <table class="doc-table">
+      <caption id="specs-caption">Specifications and proposals governing ServiceWorkerAutoPreload</caption>
+      <thead><tr><th scope="col">Specification</th><th scope="col">Section / PR</th></tr></thead>
+      <tbody>
+        <tr><td><a href="https://w3c.github.io/ServiceWorker/" target="_blank" rel="noopener">W3C Service Workers</a></td><td><a href="https://w3c.github.io/ServiceWorker/#handle-fetch" target="_blank" rel="noopener">Handle Fetch (<code>responseForAutoPreload</code>)</a> &middot; merged via <a href="https://github.com/w3c/ServiceWorker/pull/1756" target="_blank" rel="noopener">w3c/ServiceWorker#1756</a></td></tr>
+        <tr><td><a href="https://github.com/WICG/service-worker-auto-preload" target="_blank" rel="noopener">WICG ServiceWorkerAutoPreload Explainer</a></td><td><a href="https://github.com/WICG/service-worker-auto-preload#how-it-works" target="_blank" rel="noopener">How it works</a> &middot; <a href="https://github.com/WICG/service-worker-auto-preload#opt-out" target="_blank" rel="noopener">Opt-out</a></td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v140/serviceworkerautopreload-browser-mode/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase &mdash; ServiceWorkerAutoPreload browser mode</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/InstallEvent/addRoutes" target="_blank" rel="noopener">MDN &mdash; <code>InstallEvent.addRoutes()</code></a></li>
+      <li><a href="https://w3c.github.io/ServiceWorker/#navigationpreloadmanager" target="_blank" rel="noopener">W3C Service Workers &mdash; <code>NavigationPreloadManager</code></a></li>
+      <li><a href="https://chromeenterprise.google/policies/#ServiceWorkerAutoPreloadEnabled" target="_blank" rel="noopener">Chrome Enterprise Policy &mdash; <code>ServiceWorkerAutoPreloadEnabled</code></a></li>
+      <li><a href="https://chromestatus.com/feature/5194817700364288" target="_blank" rel="noopener">ChromeStatus &mdash; Optional browser optimization for Service Workers (5194817700364288)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
