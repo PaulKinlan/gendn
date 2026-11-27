@@ -687,6 +687,17 @@ export function nameTokens(value) {
   return String(value ?? "").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
 }
 
+function inventorySurfaceTokens(item) {
+  const out = new Set();
+  for (const field of [item?.name, item?.id]) {
+    for (const token of nameTokens(field)) out.add(token);
+    for (const ident of String(field ?? "").toLowerCase().match(/[a-z0-9_]+/g) ?? []) {
+      out.add(ident);
+    }
+  }
+  return out;
+}
+
 export function validateDeclaredSurface(contract, html) {
   const errors = [];
   const id = contract?.id ?? "(unknown)";
@@ -701,8 +712,7 @@ export function validateDeclaredSurface(contract, html) {
   const members = declaredSurfaceMembers(html);
   const covered = new Set();
   for (const item of contract?.inventory ?? []) {
-    for (const token of nameTokens(item?.name)) covered.add(token);
-    for (const token of nameTokens(item?.id)) covered.add(token);
+    for (const token of inventorySurfaceTokens(item)) covered.add(token);
   }
   const excluded = new Map();
   for (const entry of contract?.outOfScope ?? []) {
@@ -742,8 +752,7 @@ export function declaredSurfaceSummary(contract, html) {
   const members = declaredSurfaceMembers(html);
   const covered = new Set();
   for (const item of contract?.inventory ?? []) {
-    for (const token of nameTokens(item?.name)) covered.add(token);
-    for (const token of nameTokens(item?.id)) covered.add(token);
+    for (const token of inventorySurfaceTokens(item)) covered.add(token);
   }
   const excluded = new Set(
     (contract?.outOfScope ?? []).map((e) => String(e?.name ?? "").toLowerCase()),
