@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Web haptics JavaScript API — Chrome 156 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .scroll-table { min-width: 30rem; }
+    .example-embed { margin: 1.25rem 0; }
+    .example-embed iframe { display: block; inline-size: 100%; max-inline-size: 100%; border: 2px solid var(--border-black); background: var(--surface, #fff); }
+    .example-embed figcaption { margin-top: 0.5rem; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v156/">&larr; Chrome 156 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v156 &middot; capabilities &middot; developer trial</p>
+    <h1>Web haptics JavaScript API</h1>
+
+    <p class="lede">Adds <code>navigator.playHaptics(effect, intensity)</code> to trigger semantic, intent-driven tactile feedback (<code>"hint"</code>, <code>"edge"</code>, <code>"tick"</code>, <code>"align"</code>, <code>"success"</code>, <code>"error"</code>) on the user&rsquo;s most recent input device. Instead of hand-tuning raw millisecond vibration patterns like <code>navigator.vibrate()</code>, authors express interaction intent and an optional normalized intensity in <code>[0.0, 1.0]</code> while the browser translates each effect to native OS waveforms under a strict anti-fingerprinting fire-and-forget contract.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; Developer trial behind a flag in Chrome 156 (Windows 11 24H2+ backend first; not yet enabled by default); Firefox and Safari have no signal or implementation</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; Developer trial behind flag in Chrome 156+ (desktop prototype targeting Windows 11 24H2+; not yet shipped enabled by default)</li>
+        <li class="limited">Edge &middot; Mirrors Chromium experimental flag (Microsoft authored the explainer &amp; Chromium design doc)</li>
+        <li class="limited">Firefox &middot; No signal</li>
+        <li class="limited">Safari &middot; No signal</li>
+      </ul>
+      <p>No <code>web-features</code> entry, BCD record, or MDN page exists for <code>navigator.playHaptics()</code> yet (checked 2026-11-27 against <a href="https://api.webstatus.dev/v1/features?q=haptics" target="_blank" rel="noopener">webstatus.dev</a>, <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Navigator.json" target="_blank" rel="noopener">BCD <code>api/Navigator.json</code></a>, and <a href="https://developer.mozilla.org/en-US/docs/Web/API/Navigator/playHaptics" target="_blank" rel="noopener">MDN <code>Navigator.playHaptics()</code></a>, which returns HTTP 404). Status is tracked in <a href="https://chromestatus.com/feature/5167864517623808" target="_blank" rel="noopener">ChromeStatus 5167864517623808</a>.</p>
+    </div>
+  </header>
+
+  <div class="warn-block" role="note" aria-label="Experimental feature notice">
+    <strong>Developer trial behind a flag in Chrome 156+ (not enabled by default):</strong> Enable <code>chrome://flags/#enable-experimental-web-platform-features</code> or launch Chromium with <code>--enable-blink-features=WebHaptics</code> (defined with <code>status: "experimental"</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener"><code>runtime_enabled_features.json5</code></a>; Finch feature name <code>WebHaptics</code>). The initial native implementation targets Windows 11 24H2+ (<code>Windows.Devices.Haptics.InputHapticsManager</code>); Android testing additionally tracks <code>chrome://flags/#web-haptics-on-android</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/flag-metadata.json" target="_blank" rel="noopener"><code>flag-metadata.json</code></a>.
+  </div>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#at-a-glance">At a glance</a></li>
+      <li><a href="#why">Why it exists</a></li>
+      <li><a href="#syntax">Syntax</a></li>
+      <li><a href="#navigator-playhaptics">navigator.playHaptics()</a></li>
+      <li><a href="#hapticeffect-enum">HapticEffect enum</a></li>
+      <li><a href="#haptics-policy-and-gating">Permissions Policy &amp; gating</a></li>
+      <li><a href="#errors">Errors &amp; silent no-ops</a></li>
+      <li><a href="#context">Context &amp; device targeting</a></li>
+      <li><a href="#lifecycle">Lifecycle &amp; architecture</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#security-and-privacy">Security &amp; privacy</a></li>
+      <li><a href="#specifications">Specifications</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="At a glance">
+    <table class="doc-table">
+      <tr><th scope="row">Status</th><td>In developer trial (Behind a flag) in Chrome 156 (desktop prototype targeting Windows 11 24H2+; no stable ship milestone yet) &mdash; filed under &ldquo;In developer trial (Behind a flag)&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=156" target="_blank" rel="noopener">milestone=156 listing</a></td></tr>
+      <tr><th scope="row">Runtime flag</th><td><code>--enable-blink-features=WebHaptics</code> or <code>chrome://flags/#enable-experimental-web-platform-features</code> (Finch name <code>WebHaptics</code>; Android flag <code>chrome://flags/#web-haptics-on-android</code>)</td></tr>
+      <tr><th scope="row">Permissions Policy</th><td><code>"haptics"</code> (default allowlist <code>"self"</code>; cross-origin iframes require <code>allow="haptics"</code>)</td></tr>
+      <tr><th scope="row">Explainer &amp; design doc</th><td><a href="https://github.com/WICG/web-haptics/blob/main/readme.md" target="_blank" rel="noopener">WICG Web Haptics explainer</a> &middot; <a href="https://github.com/kyerebo/chromium-design-docs/blob/main/web-haptics/web-haptics-design-doc.md" target="_blank" rel="noopener">Chromium Web Haptics design doc</a> &middot; <a href="https://github.com/WICG/proposals/issues/262" target="_blank" rel="noopener">WICG proposal #262</a></td></tr>
+      <tr><th scope="row">Intent &amp; bug</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/62ad388e-e8bc-4665-90fc-41af04adc961n%40chromium.org" target="_blank" rel="noopener">blink-dev Intent to Prototype</a> &middot; <a href="https://issues.chromium.org/issues/531787872" target="_blank" rel="noopener">Chromium issue 531787872</a></td></tr>
+      <tr><th scope="row">Chromium source</th><td><a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/haptics/navigator_haptics.idl" target="_blank" rel="noopener"><code>navigator_haptics.idl</code></a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/haptics/haptics_controller.cc" target="_blank" rel="noopener"><code>haptics_controller.cc</code></a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/services/network/public/cpp/permissions_policy/permissions_policy_features.json5" target="_blank" rel="noopener"><code>permissions_policy_features.json5</code></a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener"><code>runtime_enabled_features.json5</code></a></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5167864517623808" target="_blank" rel="noopener">5167864517623808 &mdash; Web haptics JavaScript API</a> (<a href="https://chromestatus.com/api/v0/features/5167864517623808" target="_blank" rel="noopener">API record</a>)</td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>The legacy <a href="https://developer.mozilla.org/en-US/docs/Web/API/Navigator/vibrate" target="_blank" rel="noopener"><code>navigator.vibrate()</code></a> API requires authors to author raw millisecond on/off duration arrays designed around mobile vibration motors, has no Safari support, and cannot express OS-native tactile intent on modern haptic touchpads, styluses, mice, or mobile actuators. The Web Haptics JavaScript API introduces a small semantic vocabulary so developers declare <em>what</em> happened (a subtle hover hint, a snap alignment, a discrete tick, a boundary edge, or a success/error confirmation) while the user agent selects the platform-appropriate waveform and respects user system intensity preferences.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/web-haptics/blob/main/readme.md" target="_blank" rel="noopener">WICG Web Haptics explainer</a>; <a href="https://chromestatus.com/feature/5167864517623808" target="_blank" rel="noopener">ChromeStatus 5167864517623808</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>The live WebIDL implemented in Chromium&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/haptics/navigator_haptics.idl" target="_blank" rel="noopener"><code>navigator_haptics.idl</code></a>:</p>
+    <pre tabindex="0"><code data-doc-test="idl">enum HapticEffect {
+  "hint",
+  "edge",
+  "tick",
+  "align",
+  "success",
+  "error"
+};
+
+[
+  ImplementedAs=HapticsController,
+  RuntimeEnabled=WebHaptics,
+  MeasureAs="WebDXFeature::kDRAFT_Haptics"
+] partial interface Navigator {
+  undefined playHaptics(HapticEffect effect, optional double intensity = 1);
+};</code></pre>
+    <p>This reference covers all three parts of the JavaScript contract: <a href="#navigator-playhaptics"><code>Navigator.prototype.playHaptics()</code></a>, the <a href="#hapticeffect-enum"><code>HapticEffect</code> enum vocabulary</a>, and the <a href="#haptics-policy-and-gating"><code>"haptics"</code> Permissions Policy, sticky user activation, and fenced-frame gating rules</a>. (A companion declarative CSS <code>haptic</code> property built on CSS Animation Triggers is proposed in the <a href="https://github.com/WICG/web-haptics/blob/main/readme.md#declarative-api-css" target="_blank" rel="noopener">WICG explainer</a> but is outside this JavaScript API entry.)</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/haptics/navigator_haptics.idl" target="_blank" rel="noopener">Blink <code>navigator_haptics.idl</code></a>; <a href="https://github.com/WICG/web-haptics/blob/main/readme.md" target="_blank" rel="noopener">WICG Web Haptics explainer</a>.</span>
+
+    <h3 id="navigator-playhaptics"><code>Navigator.prototype.playHaptics(effect, intensity)</code></h3>
+    <p><strong>Inputs.</strong> Accepts a required <code>effect</code> string belonging to <code>HapticEffect</code> and an optional finite <code>double intensity</code> defaulting to <code>1</code> (normalized range <code>0.0</code> to <code>1.0</code>). Out-of-range finite values are clamped to <code>[0.0, 1.0]</code> in both Blink (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/haptics/haptics_controller.cc" target="_blank" rel="noopener"><code>HapticsController::PlayHaptics()</code></a>) and the browser process (<code>content::HapticsService</code>). Where the OS exposes a system-level haptic intensity setting, effective strength is <code>system intensity &times; developer intensity</code>.</p>
+    <p><strong>Outputs.</strong> Always returns <code>undefined</code> immediately (one-way fire-and-forget Mojo call). By design, the method returns no boolean or Promise so pages cannot probe whether haptic hardware is attached or whether an effect played.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/haptics/navigator_haptics.idl" target="_blank" rel="noopener">Blink <code>navigator_haptics.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/haptics/haptics_controller.cc" target="_blank" rel="noopener"><code>haptics_controller.cc</code></a>; <a href="https://github.com/WICG/web-haptics/blob/main/readme.md#imperative-api-js" target="_blank" rel="noopener">WICG explainer</a>.</span>
+
+    <h3 id="hapticeffect-enum"><code>HapticEffect</code> enum</h3>
+    <p><strong>Inputs &amp; semantic mapping.</strong> Six predefined semantic strings are accepted; passing any other string fails WebIDL enum conversion with a <code>TypeError</code>:</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="effects-caption">
+    <table class="doc-table scroll-table">
+      <caption id="effects-caption">HapticEffect enum values, intended UX moments, and illustrative platform mappings (WICG Web Haptics explainer &amp; Blink navigator_haptics.idl)</caption>
+      <thead><tr><th scope="col"><code>HapticEffect</code></th><th scope="col">Intent &amp; typical triggers</th><th scope="col">Illustrative OS mappings (Win / macOS / iOS / Android)</th></tr></thead>
+      <tbody>
+        <tr><td><code>"hint"</code></td><td>Light, subtle cue that an element is interactive or an action may follow (focusing an input, entering a drop target).</td><td>Hover / generic / light impact / <code>GESTURE_THRESHOLD_DEACTIVATE</code></td></tr>
+        <tr><td><code>"edge"</code></td><td>Heavy boundary signal for hitting the end of a range or scroll/pull-to-refresh limit.</td><td>Collide / generic / soft impact / <code>LONG_PRESS</code></td></tr>
+        <tr><td><code>"tick"</code></td><td>Firm discrete pulse for stepping through list items, picker values, scroll-snap landings, or switch toggles.</td><td>Step / generic / selection / <code>SEGMENT_FREQUENT_TICK</code></td></tr>
+        <tr><td><code>"align"</code></td><td>Crisp pulse when an object locks onto a guide, divider snap point, or 100% zoom detent.</td><td>Align / alignment / rigid impact / <code>SEGMENT_TICK</code></td></tr>
+        <tr><td><code>"success"</code></td><td>Confirmation of a completed action (form submitted, file saved, transaction succeeded).</td><td>Success / generic / success / <code>CONFIRM</code></td></tr>
+        <tr><td><code>"error"</code></td><td>Confirmation that an action failed or was rejected (validation error, failed save).</td><td>Error / generic / error / <code>REJECT</code></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p><strong>Outputs &amp; device fallback.</strong> On Windows 11 24H2+, if the active input device does not advertise the preferred semantic waveform in <code>SimpleHapticsController.SupportedFeedback</code>, Chromium passes the OS device-type default waveform (<strong>Hover</strong> for mouse/touchpad, <strong>Click</strong> for pen) as the fallback argument to <code>TrySendHapticWaveformWithIntensity</code>. If neither is supported, the request is silently dropped.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/haptics/navigator_haptics.idl" target="_blank" rel="noopener">Blink <code>navigator_haptics.idl</code></a>; <a href="https://github.com/WICG/web-haptics/blob/main/readme.md#effect-vocabulary" target="_blank" rel="noopener">WICG explainer (Effect Vocabulary)</a>; <a href="https://github.com/kyerebo/chromium-design-docs/blob/main/web-haptics/web-haptics-design-doc.md#d64-waveform-detection-semantic-mapping-and-fallback" target="_blank" rel="noopener">Chromium design doc (D6.4&ndash;D6.5)</a>.</span>
+
+    <h3 id="haptics-policy-and-gating"><code>"haptics"</code> Permissions Policy &amp; gating rules</h3>
+    <p><strong>Inputs &amp; required gates.</strong> Both Blink (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/haptics/haptics_controller.cc" target="_blank" rel="noopener"><code>HapticsController</code></a>) and the browser-process <code>content::HapticsService</code> enforce four gates before forwarding to hardware:</p>
+    <ol>
+      <li><strong>Not in a fenced frame:</strong> Calls inside a fenced frame tree are silently suppressed (matching <code>navigator.vibrate()</code>).</li>
+      <li><strong>Active document:</strong> Browser-side <code>RenderFrameHost::IsActive()</code> drops calls from BFCache-frozen or pending-deletion documents.</li>
+      <li><strong><code>"haptics"</code> Permissions Policy:</strong> Default allowlist is <code>"self"</code> (<a href="https://chromium.googlesource.com/chromium/src/+/main/services/network/public/cpp/permissions_policy/permissions_policy_features.json5" target="_blank" rel="noopener"><code>permissions_policy_features.json5</code></a>). Same-origin iframes inherit access; cross-origin iframes require explicit delegation via <code>&lt;iframe allow="haptics"&gt;</code> and HTTP <code>Permissions-Policy: haptics=(self "https://widget.example")</code>. Blocking logs a Permissions Policy violation report (<em>&ldquo;Haptics is disabled by permissions policy.&rdquo;</em>).</li>
+      <li><strong>Sticky user activation:</strong> Requires <a href="https://developer.mozilla.org/en-US/docs/Web/Security/User_activation" target="_blank" rel="noopener">sticky user activation</a> (<code>HasStickyUserActivation()</code>); no browser permission prompt is shown.</li>
+    </ol>
+    <p><strong>Outputs.</strong> When any gate fails, <code>playHaptics()</code> returns <code>undefined</code> silently without throwing (so policy/hardware differences remain unobservable to scripts).</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/haptics/haptics_controller.cc" target="_blank" rel="noopener">Blink <code>haptics_controller.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/services/network/public/cpp/permissions_policy/permissions_policy_features.json5" target="_blank" rel="noopener"><code>permissions_policy_features.json5</code></a>; <a href="https://github.com/kyerebo/chromium-design-docs/blob/main/web-haptics/web-haptics-design-doc.md#d4-process-routing-and-the-contenthapticsservice-intermediary" target="_blank" rel="noopener">Chromium design doc (D4, D7)</a>.</span>
+
+    <h3 id="errors">Errors, invalid arguments, and silent no-ops</h3>
+    <ul>
+      <li><strong><code>TypeError</code> (WebIDL binding):</strong> Thrown synchronously by <code>navigator.playHaptics()</code> if <code>effect</code> is missing or not one of the six <code>HapticEffect</code> values (<code>"hint"</code>, <code>"edge"</code>, <code>"tick"</code>, <code>"align"</code>, <code>"success"</code>, <code>"error"</code>), or if <code>intensity</code> is non-finite (<code>NaN</code>, <code>Infinity</code>, <code>-Infinity</code>, rejected by WebIDL <code>double</code>).</li>
+      <li><strong>Clamped intensity (no error):</strong> Finite numbers below <code>0.0</code> or above <code>1.0</code> are silently clamped to <code>[0.0, 1.0]</code>.</li>
+      <li><strong>Silent no-ops (returns <code>undefined</code>):</strong> Lack of sticky user activation, blocked <code>"haptics"</code> Permissions Policy (logs console/policy report on first bind), fenced-frame context, detached/BFCached document, non-haptic most-recent input device, unsupported OS version (&lt;Windows 11 24H2), or user-disabled OS haptics all silently no-op.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/haptics/navigator_haptics.idl" target="_blank" rel="noopener">Blink <code>navigator_haptics.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/haptics/haptics_controller.cc" target="_blank" rel="noopener"><code>haptics_controller.cc</code></a>; <a href="https://github.com/kyerebo/chromium-design-docs/blob/main/web-haptics/web-haptics-design-doc.md#d4-process-routing-and-the-contenthapticsservice-intermediary" target="_blank" rel="noopener">Chromium design doc</a>.</span>
+
+    <h3 id="context">Context, exposure, and most-recent input device targeting</h3>
+    <p><code>navigator.playHaptics()</code> is exposed on <code>Window</code>&rsquo;s <code>Navigator</code> when <code>WebHaptics</code> is enabled (not on <code>WorkerNavigator</code>). Target selection always routes to the <strong>most recent input device</strong>: if the user last interacted with a non-haptic mouse or keyboard, nothing plays and the user agent never reroutes to another connected haptic device. Authors can optionally filter by <a href="https://www.w3.org/TR/pointerevents/#dom-pointerevent-pointertype" target="_blank" rel="noopener"><code>PointerEvent.pointerType</code></a> (<code>"mouse"</code>, <code>"pen"</code>, <code>"touch"</code>) in event handlers, noting that mice and touchpads both report <code>"mouse"</code>. Feature-detect with <code>typeof navigator.playHaptics === "function"</code> (or optional chaining <code>navigator.playHaptics?.("align", 0.8)</code>).</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/web-haptics/blob/main/readme.md#filtering-by-input-device-type" target="_blank" rel="noopener">WICG Web Haptics explainer</a>; <a href="https://github.com/kyerebo/chromium-design-docs/blob/main/web-haptics/web-haptics-design-doc.md#d66-multiple-input-device-handling" target="_blank" rel="noopener">Chromium design doc (D6.6)</a>.</span>
+
+    <h3 id="lifecycle">Lifecycle and browser-process architecture</h3>
+    <ol>
+      <li><strong>Lazy supplement &amp; bind-time policy check:</strong> On the first call to <code>navigator.playHaptics()</code>, Blink creates a <code>HapticsController</code> supplement on <code>Navigator</code>, checks fenced-frame status and the <code>"haptics"</code> Permissions Policy once (fixed for the document lifetime), and lazily binds a one-way Mojo remote to <code>content::HapticsService</code>.</li>
+      <li><strong>Per-call fast path &amp; IPC:</strong> Each call verifies <code>HasStickyUserActivation()</code>, clamps <code>intensity</code> to <code>[0.0, 1.0]</code>, maps <code>HapticEffect</code> to its Mojo enum, and dispatches a one-way <code>PlayHaptics()</code> message.</li>
+      <li><strong>Authoritative browser re-checks:</strong> <code>content::HapticsService</code> (a <code>DocumentService</code> tied to the document lifetime) re-verifies fenced-frame status, <code>IsActive()</code>, <code>"haptics"</code> Permissions Policy, sticky user activation, and finite/clamped intensity before invoking the platform backend (on Windows, <code>HapticsManagerImplWin</code> on the UI thread via WinRT <code>InputHapticsManager</code>, primed at creation so the first click fires reliably).</li>
+      <li><strong>Navigation cleanup:</strong> Destroying or navigating away from the document drops the <code>DocumentService</code> and stops further haptics.</li>
+    </ol>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/haptics/haptics_controller.cc" target="_blank" rel="noopener">Blink <code>haptics_controller.cc</code></a>; <a href="https://github.com/kyerebo/chromium-design-docs/blob/main/web-haptics/web-haptics-design-doc.md#d0-background-and-end-to-end-data-flow" target="_blank" rel="noopener">Chromium design doc (D0&ndash;D6)</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+
+    <h3 id="example-playhaptics">Interactive effect design tool &amp; progressive-enhancement usage</h3>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/web-haptics-javascript-api/effect-design-tool/"
+        title="Live example — Web Haptics effect design tool" loading="lazy" width="100%" height="560"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live interactive effect design tool exercising <code>navigator.playHaptics()</code> and intensity controls. Sibling demos on the <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/web-haptics-javascript-api/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase feature index</a>: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/web-haptics-javascript-api/semantic-vs-vibrate/" target="_blank" rel="noopener">semantic haptics vs vibrate</a>, <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/web-haptics-javascript-api/activation-and-policy-gates/" target="_blank" rel="noopener">activation &amp; policy gates</a>, and <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/web-haptics-javascript-api/snap-divider/" target="_blank" rel="noopener">drag-to-snap divider</a>. <span class="citation">Source: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/web-haptics-javascript-api/effect-design-tool/" target="_blank" rel="noopener">chrome-platform-showcase</a>.</span></figcaption>
+    </figure>
+
+    <pre tabindex="0"><code data-doc-test="js">// Feature-detected semantic haptics with pointerType filtering and snap-point tracking
+const VALID_EFFECTS = new Set(["hint", "edge", "tick", "align", "success", "error"]);
+
+function triggerSemanticHaptic(effect, intensity = 1.0, pointerType = "mouse") {
+  if (!VALID_EFFECTS.has(effect)) {
+    throw new TypeError(`Unsupported HapticEffect: ${effect}`);
+  }
+  if (typeof navigator === "undefined" || typeof navigator.playHaptics !== "function") {
+    return;
+  }
+  // Optional authoring filter (does not detect hardware capability)
+  if (pointerType === "mouse" || pointerType === "pen" || pointerType === "touch") {
+    const clamped = Math.min(1, Math.max(0, intensity));
+    navigator.playHaptics(effect, clamped);
+  }
+}
+
+function attachSnapDividerHaptics(dividerEl, snapX, tolerancePx = 4) {
+  let snapped = false;
+  dividerEl.addEventListener("pointermove", (event) => {
+    const nearSnap = Math.abs(event.clientX - snapX) &lt; tolerancePx;
+    if (!snapped &amp;&amp; nearSnap) {
+      snapped = true;
+      // Sticky activation was established by pointerdown; returns undefined
+      triggerSemanticHaptic("align", 0.8, event.pointerType);
+    } else if (snapped &amp;&amp; !nearSnap) {
+      snapped = false;
+    }
+  });
+}</code></pre>
+
+    <pre tabindex="0"><code data-doc-test="html">&lt;!-- Delegate "haptics" Permissions Policy explicitly to a trusted cross-origin widget --&gt;
+&lt;iframe
+  src="https://widget.example/picker"
+  allow="haptics"
+  title="Interactive picker widget"&gt;
+&lt;/iframe&gt;</code></pre>
+    <span class="citation">Source: <a href="https://github.com/WICG/web-haptics/blob/main/readme.md#real-world-scenarios" target="_blank" rel="noopener">WICG Web Haptics explainer</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/haptics/navigator_haptics.idl" target="_blank" rel="noopener">Blink <code>navigator_haptics.idl</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Support for Web haptics JavaScript API (<code>Navigator.playHaptics()</code>, <code>HapticEffect</code>, <code>"haptics"</code> Permissions Policy). BCD has no entry yet (checked 2026-11-27); interim data comes from ChromeStatus 5167864517623808, Chromium source, and BCD <code>Navigator.vibrate</code> for contrast.</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col"><code>navigator.playHaptics()</code></th><th scope="col">Notes &amp; evidence</th><th scope="col">Legacy <code>navigator.vibrate()</code> (BCD)</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Chrome (desktop)</th><td>Flag 156+</td><td>Developer trial behind <code>--enable-blink-features=WebHaptics</code> or <code>chrome://flags/#enable-experimental-web-platform-features</code> (initial backend Windows 11 24H2+; macOS/Linux planned) per <a href="https://chromestatus.com/api/v0/features/5167864517623808" target="_blank" rel="noopener">ChromeStatus 5167864517623808</a></td><td>32</td></tr>
+        <tr><th scope="row">Chrome (Android)</th><td>Experimental flag</td><td><code>chrome://flags/#web-haptics-on-android</code> registered in <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/flag-metadata.json" target="_blank" rel="noopener"><code>flag-metadata.json</code></a>; no stable ship milestone yet</td><td>32</td></tr>
+        <tr><th scope="row">Edge</th><td>Flag 156+ (mirror)</td><td>Chromium-based; Microsoft Edge engineers authored the WICG explainer &amp; Chromium design doc; not enabled by default</td><td>79</td></tr>
+        <tr><th scope="row">Firefox</th><td>No signal / No release</td><td>No Mozilla standards position yet (<a href="https://chromestatus.com/feature/5167864517623808" target="_blank" rel="noopener">ChromeStatus 5167864517623808</a>)</td><td>16</td></tr>
+        <tr><th scope="row">Safari</th><td>No signal / No release</td><td>No WebKit standards position yet (<a href="https://chromestatus.com/feature/5167864517623808" target="_blank" rel="noopener">ChromeStatus 5167864517623808</a>)</td><td>No support</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5167864517623808" target="_blank" rel="noopener">ChromeStatus API record (5167864517623808)</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Navigator.json" target="_blank" rel="noopener">BCD <code>api/Navigator.json</code></a>; <a href="https://api.webstatus.dev/v1/features?q=haptics" target="_blank" rel="noopener">webstatus.dev query</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <ul>
+      <li><strong>Anti-fingerprinting fire-and-forget contract:</strong> <code>playHaptics()</code> returns <code>undefined</code>, exposes no hardware-capability query or device enumeration, and never reports whether an effect played&mdash;preventing sites from fingerprinting attached mice, pens, touchpads, or OS haptics settings.</li>
+      <li><strong>Browser-process trust boundary:</strong> <code>content::HapticsService</code> re-verifies fenced frames, active-document state, <code>"haptics"</code> Permissions Policy, sticky user activation, and finite/clamped intensity in the browser process so a compromised renderer cannot bypass gating.</li>
+      <li><strong>Abuse resistance &amp; accessibility:</strong> Haptics are transient, stop immediately on navigation, respect system intensity/disable settings, and may be throttled or suppressed per origin. Because tactile cues may not fire on all devices, authors MUST treat haptics as supplementary feedback&mdash;never the sole indicator of state, <code>success</code>, or <code>error</code>.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/WICG/web-haptics/blob/main/readme.md#accessibility-privacy-and-security-considerations" target="_blank" rel="noopener">WICG Web Haptics explainer (Accessibility, Privacy &amp; Security)</a>; <a href="https://github.com/kyerebo/chromium-design-docs/blob/main/web-haptics/web-haptics-design-doc.md#privacy-considerations" target="_blank" rel="noopener">Chromium design doc (Security &amp; Privacy)</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Specifications">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Document</th><th scope="col">Status &amp; scope</th></tr></thead>
+      <tbody>
+        <tr><td><a href="https://github.com/WICG/web-haptics/blob/main/readme.md" target="_blank" rel="noopener">WICG Web Haptics API Explainer</a></td><td>Community Group incubation (<a href="https://github.com/WICG/proposals/issues/262" target="_blank" rel="noopener">WICG/proposals#262</a>); no formal W3C TR specification yet</td></tr>
+        <tr><td><a href="https://github.com/kyerebo/chromium-design-docs/blob/main/web-haptics/web-haptics-design-doc.md" target="_blank" rel="noopener">Chromium Web Haptics Design Doc</a></td><td>Browser-process <code>HapticsService</code>, Windows 11 24H2+ backend, Permissions Policy, and fallback design</td></tr>
+        <tr><td><a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/haptics/navigator_haptics.idl" target="_blank" rel="noopener">Chromium Blink <code>navigator_haptics.idl</code></a></td><td>Live DevTrial WebIDL (<code>HapticEffect</code> 6-value enum and <code>Navigator.playHaptics()</code>)</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/web-haptics-javascript-api/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase &mdash; Web haptics JavaScript API demos</a></li>
+      <li><a href="https://github.com/WICG/web-haptics/blob/main/readme.md" target="_blank" rel="noopener">WICG Web Haptics explainer</a></li>
+      <li><a href="https://github.com/kyerebo/chromium-design-docs/blob/main/web-haptics/web-haptics-design-doc.md" target="_blank" rel="noopener">Chromium Web Haptics design doc</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Navigator/vibrate" target="_blank" rel="noopener">MDN &mdash; <code>Navigator.vibrate()</code></a></li>
+      <li><a href="https://issues.chromium.org/issues/531787872" target="_blank" rel="noopener">Chromium tracking issue 531787872</a></li>
+      <li><a href="https://chromestatus.com/feature/5167864517623808" target="_blank" rel="noopener">ChromeStatus &mdash; Web haptics JavaScript API (5167864517623808)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

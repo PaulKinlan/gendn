@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Decisions API — Chrome 157 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .scroll-table { min-width: 30rem; }
+    .example-embed { margin: 1.25rem 0; }
+    .example-embed iframe { display: block; inline-size: 100%; max-inline-size: 100%; border: 2px solid var(--border-black); background: var(--surface, #fff); }
+    .example-embed figcaption { margin-top: 0.5rem; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v157/">&larr; Chrome 157 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v157 &middot; built-in ai &middot; developer trial</p>
+    <h1>Decisions API</h1>
+
+    <p class="lede">Exposes <code>window.DecisionModel</code>, a Built-in AI primitive for fast, single-pass, on-device semantic decision-making (&ldquo;Semantic If&rdquo;). Instead of autoregressively decoding tokens like generative language models, <code>DecisionModel</code> scores natural-language text against a developer-defined schema of <code>boolean</code>, <code>choice</code>, and <code>score</code> questions in one forward pass, returning strict-schema labels, calibrated per-option <code>probabilities</code>, a normalized <code>confidence</code> score, and continuous ordinal <code>score</code> values.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; Developer trial behind a flag in Chrome 157 (desktop only; not yet enabled by default); Firefox and Safari have no signal or implementation</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; Developer trial behind flag in Chrome 157+ (Windows, macOS, Linux, ChromeOS; not yet shipped enabled by default; Android/iOS disabled)</li>
+        <li class="limited">Edge &middot; No release (not enabled by default)</li>
+        <li class="limited">Firefox &middot; No signal</li>
+        <li class="limited">Safari &middot; No signal</li>
+      </ul>
+      <p>No <code>web-features</code> entry, BCD record, or MDN reference page exists for <code>DecisionModel</code> yet (checked 2026-11-27 against <a href="https://api.webstatus.dev/v1/features?q=decisions" target="_blank" rel="noopener">webstatus.dev</a>, <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Window.json" target="_blank" rel="noopener">BCD <code>api/Window.json</code></a>, and <a href="https://developer.mozilla.org/en-US/docs/Web/API/DecisionModel" target="_blank" rel="noopener">MDN <code>DecisionModel</code></a>, which returns HTTP 404). Status is tracked in <a href="https://chromestatus.com/feature/5155080092385280" target="_blank" rel="noopener">ChromeStatus 5155080092385280</a>.</p>
+    </div>
+  </header>
+
+  <div class="warn-block" role="note" aria-label="Experimental feature notice">
+    <strong>Developer trial behind a flag in Chrome 157+ (desktop only; not enabled by default):</strong> Enable <code>chrome://flags/#decisions-api</code> (registered in <a href="https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/flag-metadata.json" target="_blank" rel="noopener"><code>flag-metadata.json</code></a> through M170), enable <code>chrome://flags/#enable-experimental-web-platform-features</code>, or launch Chromium on Windows, macOS, Linux, or ChromeOS with <code>--enable-blink-features=AIDecisionModelAPI</code> (defined in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener"><code>runtime_enabled_features.json5</code></a> with desktop-only <code>status: "experimental"</code>; Worker exposure additionally requires <code>--enable-blink-features=AIDecisionModelAPIForWorkers</code>, which has <code>status: "test"</code>). The <code>devTrialBackend</code> option is DevTrial-only and slated for removal before shipping.
+  </div>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#at-a-glance">At a glance</a></li>
+      <li><a href="#why">Why it exists</a></li>
+      <li><a href="#syntax">Syntax</a></li>
+      <li><a href="#schema-types">Schema &amp; option types</a></li>
+      <li><a href="#decisionmodel-availability">availability()</a></li>
+      <li><a href="#decisionmodel-create">create()</a></li>
+      <li><a href="#decisionmodel-decide">decide()</a></li>
+      <li><a href="#decisionmodel-destroy">destroy()</a></li>
+      <li><a href="#decisionmodel-preference">preference</a></li>
+      <li><a href="#result-types">Result types</a></li>
+      <li><a href="#errors">Errors &amp; validation</a></li>
+      <li><a href="#context">Context &amp; permissions</a></li>
+      <li><a href="#lifecycle">Lifecycle</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#security-and-privacy">Security &amp; privacy</a></li>
+      <li><a href="#specifications">Specifications</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="At a glance">
+    <table class="doc-table">
+      <tr><th scope="row">Status</th><td>In developer trial (Behind a flag) in Chrome 157 (desktop: Windows, macOS, Linux, ChromeOS; Android/WebView/iOS <code>null</code>; no stable ship milestone yet) &mdash; filed under &ldquo;In developer trial (Behind a flag)&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=157" target="_blank" rel="noopener">milestone=157 listing</a></td></tr>
+      <tr><th scope="row">Runtime flag</th><td><code>chrome://flags/#decisions-api</code> (or <code>chrome://flags/#enable-experimental-web-platform-features</code> / <code>--enable-blink-features=AIDecisionModelAPI</code>); Workers also require <code>--enable-blink-features=AIDecisionModelAPIForWorkers</code></td></tr>
+      <tr><th scope="row">Entry point</th><td><code>window.DecisionModel</code> (<code>[SecureContext]</code>; desktop <code>Window</code> via <code>AIDecisionModelAPI</code>, <code>Worker</code> via <code>AIDecisionModelAPIForWorkers</code>)</td></tr>
+      <tr><th scope="row">Permissions Policy</th><td>Reuses <code>"language-model"</code> (<code>PermissionsPolicyFeature::kLanguageModel</code>) during DevTrial</td></tr>
+      <tr><th scope="row">Explainer &amp; proposal</th><td><a href="https://github.com/explainers-by-googlers/decisions-api" target="_blank" rel="noopener">Decisions API explainer</a> &middot; <a href="https://github.com/webmachinelearning/proposals/issues/20" target="_blank" rel="noopener">W3C WebML CG proposal #20</a></td></tr>
+      <tr><th scope="row">Intent &amp; bug</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/CAEsbcpXXn_B5zCUpLgAtg8wRZpLJhfXtdVH%2Bc80uOcGjt1s%3Dpg%40mail.gmail.com" target="_blank" rel="noopener">blink-dev Intent to Prototype</a> &middot; <a href="https://issues.chromium.org/issues/568193538" target="_blank" rel="noopener">Chromium issue 568193538</a></td></tr>
+      <tr><th scope="row">Chromium source</th><td><a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/decision_model.idl" target="_blank" rel="noopener"><code>decision_model.idl</code></a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/decision_model.h" target="_blank" rel="noopener"><code>decision_model.h</code></a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/decision_model.cc" target="_blank" rel="noopener"><code>decision_model.cc</code></a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener"><code>runtime_enabled_features.json5</code></a></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5155080092385280" target="_blank" rel="noopener">5155080092385280 &mdash; Decisions API</a> (<a href="https://chromestatus.com/api/v0/features/5155080092385280" target="_blank" rel="noopener">API record</a>)</td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>Web apps and agentic UIs frequently need fast, deterministic semantic branching over unstructured text&mdash;turning a search query into filter toggles, routing a command palette entry to a tool, checking a draft for missing details or accidental PII before submission, or classifying non-standard form fields. Keyword rules break on paraphrasing and typos; cloud endpoints add network round trips, recurring costs, and off-device data exposure; and running a generative LLM (such as <code>LanguageModel</code>) to decode JSON token-by-token is 10&ndash;50&times; heavier than needed and lacks calibrated option probabilities. <code>DecisionModel</code> brings compact, non-autoregressive &ldquo;System 1&rdquo; decision models (such as Laya/Jev-style encoders) into the browser, evaluating an entire schema of questions in a single forward pass in tens or low hundreds of milliseconds.</p>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/decisions-api" target="_blank" rel="noopener">Decisions API explainer</a>; <a href="https://chromestatus.com/feature/5155080092385280" target="_blank" rel="noopener">ChromeStatus 5155080092385280</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>The complete WebIDL implemented in Chromium&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/decision_model.idl" target="_blank" rel="noopener"><code>decision_model.idl</code></a>:</p>
+    <pre tabindex="0"><code data-doc-test="idl">enum DecisionModelQuestionType {
+  "boolean",
+  "choice",
+  "score"
+};
+
+dictionary DecisionModelOption {
+  required DOMString label;
+  DOMString description;
+};
+
+dictionary DecisionModelQuestion {
+  required DOMString id;
+  required DOMString prompt;
+  required DecisionModelQuestionType type;
+  sequence&lt;DecisionModelOption&gt; options;
+};
+
+// DevTrial-only backend selector (crbug.com/565849508)
+enum DecisionModelBackend {
+  "embedding-gemma-v1",
+  "language-model",
+  "laya-en-wint8",
+  "laya-ml-wint8"
+};
+
+dictionary DecisionModelCreateCoreOptions {
+  DecisionModelBackend devTrialBackend;
+  sequence&lt;LanguageModelExpected&gt; expectedInputs;
+  sequence&lt;DecisionModelQuestion&gt; questions;
+  PerformancePreference preference = "auto";
+};
+
+dictionary DecisionModelCreateOptions : DecisionModelCreateCoreOptions {
+  AbortSignal signal;
+  CreateMonitorCallback monitor;
+};
+
+dictionary DecisionModelDecideOptions {
+  AbortSignal signal;
+};
+
+dictionary DecisionModelDecision {
+  DOMString id;
+  DOMString label;
+  float score;
+  float confidence;
+  record&lt;DOMString, float&gt; probabilities;
+};
+
+typedef record&lt;DOMString, DecisionModelDecision&gt; DecisionModelResult;
+
+[
+  Exposed(Window AIDecisionModelAPI, Worker AIDecisionModelAPIForWorkers),
+  RuntimeEnabled=AIDecisionModelAPI,
+  SecureContext
+]
+interface DecisionModel {
+  static Promise&lt;Availability&gt; availability(
+    optional DecisionModelCreateCoreOptions options = {}
+  );
+  static Promise&lt;DecisionModel&gt; create(
+    optional DecisionModelCreateOptions options = {}
+  );
+  Promise&lt;DecisionModelResult&gt; decide(
+    DOMString input,
+    optional DecisionModelDecideOptions options = {}
+  );
+  undefined destroy();
+  readonly attribute PerformancePreference preference;
+};</code></pre>
+    <p>This reference covers every declared surface: <a href="#schema-types">schema &amp; option types</a> (<code>DecisionModelQuestionType</code>, <code>DecisionModelOption</code>, <code>DecisionModelQuestion</code>, <code>DecisionModelBackend</code>, <code>DecisionModelCreateCoreOptions</code>, <code>DecisionModelCreateOptions</code>), <a href="#decisionmodel-availability"><code>DecisionModel.availability()</code></a>, <a href="#decisionmodel-create"><code>DecisionModel.create()</code></a>, <a href="#decisionmodel-decide"><code>DecisionModel.prototype.decide()</code></a>, <a href="#decisionmodel-destroy"><code>DecisionModel.prototype.destroy()</code></a>, <a href="#decisionmodel-preference"><code>DecisionModel.prototype.preference</code></a>, and <a href="#result-types">evaluation options &amp; result types</a> (<code>DecisionModelDecideOptions</code>, <code>DecisionModelDecision</code>, <code>DecisionModelResult</code>).</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/decision_model.idl" target="_blank" rel="noopener">Blink <code>decision_model.idl</code></a>; <a href="https://github.com/explainers-by-googlers/decisions-api" target="_blank" rel="noopener">Decisions API explainer</a>.</span>
+
+    <h3 id="schema-types">Schema &amp; creation option types</h3>
+    <p><strong>Inputs &amp; schema grammar.</strong> A decision schema is passed via <code>DecisionModelCreateCoreOptions</code> (and its subclass <code>DecisionModelCreateOptions</code>):</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="schema-types-caption">
+    <table class="doc-table scroll-table">
+      <caption id="schema-types-caption">Dictionaries and enums configuring a DecisionModel session (Blink decision_model.idl &amp; decision_model.h)</caption>
+      <thead><tr><th scope="col">Type / member</th><th scope="col">Accepted values &amp; constraints</th><th scope="col">Behavior</th></tr></thead>
+      <tbody>
+        <tr><td><code>DecisionModelQuestionType</code></td><td><code>"boolean"</code>, <code>"choice"</code>, <code>"score"</code></td><td>Selects binary verification (<code>"true"</code>/<code>"false"</code>), categorical classification, or ordered ordinal scoring.</td></tr>
+        <tr><td><code>DecisionModelOption</code></td><td><code>required label</code> (non-empty, non-whitespace, unique per question), optional <code>description</code></td><td>Defines a candidate answer label and optional semantic description scored by the model.</td></tr>
+        <tr><td><code>DecisionModelQuestion</code></td><td><code>required id</code> (unique, non-empty), <code>required prompt</code> (non-empty), <code>required type</code>, optional <code>options</code></td><td><code>boolean</code> MUST omit <code>options</code> (or pass none); <code>choice</code> requires <strong>2&ndash;26</strong> options (<code>kMinChoiceOptions</code>&ndash;<code>kMaxChoiceOptions</code>); <code>score</code> requires <strong>2&ndash;11</strong> levels (<code>kMinScoreOptions</code>&ndash;<code>kMaxScoreOptions</code>). Up to <strong>16</strong> questions per schema (<code>kMaxQuestions</code>).</td></tr>
+        <tr><td><code>DecisionModelCreateCoreOptions</code></td><td><code>questions</code>, <code>expectedInputs</code> (<code>sequence&lt;LanguageModelExpected&gt;</code>; only <code>type: "text"</code> currently supported, BCP-47 languages validated &amp; canonicalized), <code>preference</code> (<code>PerformancePreference</code>, default <code>"auto"</code>), <code>devTrialBackend</code></td><td>Shared configuration for <code>availability()</code> and <code>create()</code>. <code>questions</code> is optional in <code>availability()</code> and required non-empty in <code>create()</code>.</td></tr>
+        <tr><td><code>DecisionModelBackend</code> (DevTrial only)</td><td><code>"embedding-gemma-v1"</code>, <code>"language-model"</code>, <code>"laya-en-wint8"</code>, <code>"laya-ml-wint8"</code></td><td>Temporary DevTrial option (<code>devTrialBackend</code>) for comparing backends side by side; slated for removal after evaluation.</td></tr>
+        <tr><td><code>DecisionModelCreateOptions</code></td><td>Inherits <code>DecisionModelCreateCoreOptions</code>; adds optional <code>signal</code> (<code>AbortSignal</code>) and <code>monitor</code> (<code>CreateMonitorCallback</code>)</td><td>Allows aborting session creation/model download and observing download progress events via <code>monitor</code>.</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p><strong>Outputs.</strong> Validated dictionaries are serialized to <code>blink.mojom.AIDecisionModelCreateOptions</code>; BCP-47 language tags in <code>expectedInputs</code> are canonicalized atomically before IPC so validation failure never mutates caller options.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/decision_model.idl" target="_blank" rel="noopener">Blink <code>decision_model.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/decision_model.h" target="_blank" rel="noopener"><code>decision_model.h</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/decision_model.cc" target="_blank" rel="noopener"><code>decision_model.cc</code></a>.</span>
+
+    <h3 id="decisionmodel-availability"><code>DecisionModel.availability(options)</code></h3>
+    <p><strong>Inputs.</strong> Accepts an optional <code>DecisionModelCreateCoreOptions</code> dictionary (default <code>{}</code>). Unlike <code>create()</code>, <code>questions</code> may be omitted for a generic readiness check; if <code>questions</code> is supplied, it still undergoes full schema validation (non-empty, &le;16 questions, valid option counts, unique IDs/labels).</p>
+    <p><strong>Outputs.</strong> Returns a <code>Promise&lt;Availability&gt;</code> resolving to one of the standard Built-in AI <code>Availability</code> strings: <code>"available"</code>, <code>"downloadable"</code>, <code>"downloading"</code>, or <code>"unavailable"</code>. Resolves immediately to <code>"unavailable"</code> (rather than rejecting) when the <code>"language-model"</code> Permissions Policy is blocked or when <code>expectedInputs</code> specifies any non-<code>"text"</code> modality.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/decision_model.cc" target="_blank" rel="noopener">Blink <code>DecisionModel::availability()</code></a>; <a href="https://github.com/explainers-by-googlers/decisions-api" target="_blank" rel="noopener">Decisions API explainer</a>.</span>
+
+    <h3 id="decisionmodel-create"><code>DecisionModel.create(options)</code></h3>
+    <p><strong>Inputs.</strong> Accepts <code>DecisionModelCreateOptions</code> with a required non-empty <code>questions</code> array (1&ndash;16 questions), optional <code>expectedInputs</code>, <code>preference</code> (default <code>"auto"</code>), DevTrial-only <code>devTrialBackend</code>, optional <code>signal</code> (<code>AbortSignal</code>), and optional <code>monitor</code> (<code>CreateMonitorCallback</code>) invoked with a monitor exposing <code>downloadprogress</code> events.</p>
+    <p><strong>Outputs.</strong> Returns a <code>Promise&lt;DecisionModel&gt;</code> resolving to a live <code>DecisionModel</code> session bound to the browser&rsquo;s <code>AIDecisionModel</code> Mojo remote once availability is verified and any required model download completes. When model availability is <code>"downloadable"</code> or <code>"downloading"</code> in a <code>Window</code> context, transient user activation is required before initiating download.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/decision_model.cc" target="_blank" rel="noopener">Blink <code>DecisionModel::create()</code> &amp; <code>CreateDecisionModelClient</code></a>; <a href="https://github.com/explainers-by-googlers/decisions-api" target="_blank" rel="noopener">Decisions API explainer</a>.</span>
+
+    <h3 id="decisionmodel-decide"><code>DecisionModel.prototype.decide(input, options)</code></h3>
+    <p><strong>Inputs.</strong> Accepts a required <code>DOMString input</code> (must contain non-whitespace characters) and an optional <code>DecisionModelDecideOptions</code> dictionary containing an optional per-call <code>signal</code> (<code>AbortSignal</code>), which is combined with the session&rsquo;s creation <code>signal</code>.</p>
+    <p><strong>Outputs.</strong> Evaluates <code>input</code> against every question in the session&rsquo;s schema in a single pass and returns a <code>Promise&lt;DecisionModelResult&gt;</code> (a plain JS record keyed by each question&rsquo;s <code>id</code>, mapping to a <code>DecisionModelDecision</code> dictionary).</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/decision_model.cc" target="_blank" rel="noopener">Blink <code>DecisionModel::decide()</code></a>; <a href="https://github.com/explainers-by-googlers/decisions-api" target="_blank" rel="noopener">Decisions API explainer</a>.</span>
+
+    <h3 id="decisionmodel-destroy"><code>DecisionModel.prototype.destroy()</code></h3>
+    <p><strong>Inputs.</strong> Takes no arguments.</p>
+    <p><strong>Outputs.</strong> Returns <code>undefined</code> synchronously. Signals the session&rsquo;s internal abort manager (aborting any in-flight <code>decide()</code> promises) and resets the underlying <code>decision_model_remote_</code> Mojo pipe, releasing model session resources. Subsequent <code>decide()</code> calls reject/throw a session-destroyed error; calling <code>destroy()</code> again is safe.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/decision_model.cc" target="_blank" rel="noopener">Blink <code>DecisionModel::destroy()</code></a>; <a href="https://github.com/explainers-by-googlers/decisions-api" target="_blank" rel="noopener">Decisions API explainer</a>.</span>
+
+    <h3 id="decisionmodel-preference"><code>DecisionModel.prototype.preference</code></h3>
+    <p><strong>Inputs.</strong> Read-only attribute (no setter).</p>
+    <p><strong>Outputs.</strong> Returns the <code>PerformancePreference</code> enum value (for example <code>"auto"</code>, <code>"speed"</code>, or <code>"capability"</code>; default <code>"auto"</code>) captured from <code>DecisionModelCreateCoreOptions.preference</code> when the session was created.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/decision_model.idl" target="_blank" rel="noopener">Blink <code>decision_model.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/decision_model.cc" target="_blank" rel="noopener"><code>decision_model.cc</code></a>.</span>
+
+    <h3 id="result-types">Evaluation options &amp; result types (<code>DecisionModelDecideOptions</code>, <code>DecisionModelDecision</code>, <code>DecisionModelResult</code>)</h3>
+    <p><strong>Inputs &amp; outputs.</strong> <code>DecisionModelDecideOptions</code> carries an optional <code>AbortSignal signal</code> for cancelling a single <code>decide()</code> call. <code>DecisionModelResult</code> is a WebIDL <code>record&lt;DOMString, DecisionModelDecision&gt;</code> keyed by each question&rsquo;s <code>id</code>. Each <code>DecisionModelDecision</code> contains:</p>
+    <ul>
+      <li><code>id</code> (<code>DOMString</code>): matches the question&rsquo;s <code>id</code>.</li>
+      <li><code>label</code> (<code>DOMString</code>): winning option label (strictly guaranteed to be one of the schema&rsquo;s option labels, or <code>"true"</code> / <code>"false"</code> for <code>boolean</code> questions).</li>
+      <li><code>confidence</code> (<code>float</code>): normalized certainty from <code>0</code> (uniform chance across options) to <code>1</code> (full certainty), letting apps choose thresholds to act automatically or prompt the user.</li>
+      <li><code>probabilities</code> (<code>record&lt;DOMString, float&gt;</code>): calibrated per-option probabilities in <code>[0.0, 1.0]</code> keyed by option <code>label</code>.</li>
+      <li><code>score</code> (<code>float</code>, present for <code>score</code> questions): continuous expected ordinal value from <code>0</code> to <code>options.length - 1</code>.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/decision_model.idl" target="_blank" rel="noopener">Blink <code>decision_model.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/decision_model.cc" target="_blank" rel="noopener"><code>decision_model.cc</code></a>; <a href="https://github.com/explainers-by-googlers/decisions-api" target="_blank" rel="noopener">Decisions API explainer</a>.</span>
+
+    <h3 id="errors">Errors, validation, and rejection paths</h3>
+    <ul>
+      <li><strong><code>TypeError</code> (schema &amp; input validation):</strong> Thrown/rejected by <code>DecisionModel.availability()</code> and <code>DecisionModel.create()</code> for missing/empty <code>questions</code> (in <code>create()</code>), &gt;16 questions, blank or duplicate <code>DecisionModelQuestion.id</code>, blank <code>prompt</code>, <code>options</code> provided on a <code>boolean</code> question, <code>choice</code> option count outside 2&ndash;26, <code>score</code> level count outside 2&ndash;11, or blank/duplicate <code>DecisionModelOption.label</code>. Also thrown by <code>decide()</code> when <code>input</code> is empty or whitespace-only, or when an invalid BCP-47 language tag is passed in <code>expectedInputs</code>.</li>
+      <li><strong><code>NotAllowedError</code> (<code>DOMException</code>):</strong> Rejected by <code>DecisionModel.create()</code> when the <code>"language-model"</code> Permissions Policy is disabled in the document, or when model download is required (<code>"downloadable"</code> / <code>"downloading"</code>) without transient user activation.</li>
+      <li><strong><code>NotSupportedError</code> (<code>DOMException</code>):</strong> Rejected by <code>DecisionModel.create()</code> when <code>expectedInputs</code> requests a non-<code>"text"</code> modality (such as image or audio), or when model availability resolves to <code>"unavailable"</code> on the current device/backend (including unsupported <code>devTrialBackend</code> or <code>preference</code> combinations).</li>
+      <li><strong><code>InvalidStateError</code> (<code>DOMException</code>):</strong> Rejected by <code>create()</code> if the browser cannot create the session or calculate token size, and by <code>decide()</code> after <code>destroy()</code> has been called or the Mojo session disconnects.</li>
+      <li><strong><code>QuotaExceededError</code>:</strong> Rejected when the schema or <code>decide()</code> input exceeds the on-device model&rsquo;s context window (carrying <code>quota</code> and <code>requested</code> counts).</li>
+      <li><strong><code>AbortError</code> (or custom <code>signal.reason</code>):</strong> Rejected by <code>create()</code> or <code>decide()</code> if the creation <code>DecisionModelCreateOptions.signal</code> or per-call <code>DecisionModelDecideOptions.signal</code> aborts.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/decision_model.cc" target="_blank" rel="noopener">Blink <code>decision_model.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/decision_model.h" target="_blank" rel="noopener"><code>decision_model.h</code></a>.</span>
+
+    <h3 id="context">Context, exposure, and Permissions Policy</h3>
+    <p><code>DecisionModel</code> requires a <strong>secure context</strong> (<code>[SecureContext]</code>). In Chromium&rsquo;s DevTrial, it is exposed on <code>Window</code> when <code>AIDecisionModelAPI</code> is enabled (desktop Windows, macOS, Linux, ChromeOS; not Android or iOS) and on <code>Worker</code> only when <code>AIDecisionModelAPIForWorkers</code> (<code>status: "test"</code>) is additionally enabled. Both <code>availability()</code> and <code>create()</code> check the <code>"language-model"</code> <a href="https://chromium.googlesource.com/chromium/src/+/main/services/network/public/cpp/permissions_policy/permissions_policy_features.json5" target="_blank" rel="noopener">Permissions Policy feature</a> during the DevTrial phase, so cross-origin iframes require explicit delegation via <code>allow="language-model"</code>. Feature-detect with <code>"DecisionModel" in self</code>.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/decision_model.idl" target="_blank" rel="noopener">Blink <code>decision_model.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener"><code>runtime_enabled_features.json5</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/decision_model.cc" target="_blank" rel="noopener"><code>decision_model.cc</code></a>.</span>
+
+    <h3 id="lifecycle">Lifecycle and state transitions</h3>
+    <ol>
+      <li><strong>Availability check:</strong> Call <code>DecisionModel.availability(schema)</code> to inspect whether weights are <code>"available"</code>, <code>"downloadable"</code>, <code>"downloading"</code>, or <code>"unavailable"</code> without triggering a download.</li>
+      <li><strong>Session creation &amp; download monitoring:</strong> Call <code>DecisionModel.create({ ...schema, monitor, signal })</code> (inside a user gesture if a download is needed). The browser validates the schema, downloads weights if necessary (emitting <code>downloadprogress</code> events on the <code>monitor</code>), and binds an <code>AIDecisionModel</code> session.</li>
+      <li><strong>Repeated stateless evaluations:</strong> Call <code>await model.decide(input, { signal })</code> as many times as needed. Each evaluation is stateless&mdash;prior calls do not accumulate conversation history&mdash;and can be cancelled independently via per-call <code>AbortSignal</code>.</li>
+      <li><strong>Explicit cleanup:</strong> Call <code>model.destroy()</code> (or abort the creation <code>signal</code>) when the schema is no longer needed to cancel pending requests and release native model session memory immediately rather than waiting for garbage collection.</li>
+    </ol>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/decision_model.cc" target="_blank" rel="noopener">Blink <code>decision_model.cc</code></a>; <a href="https://github.com/explainers-by-googlers/decisions-api" target="_blank" rel="noopener">Decisions API explainer</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+
+    <h3 id="example-decisions-workflow">Interactive Semantic-If router &amp; complete <code>DecisionModel</code> workflow</h3>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.kinlan-test.workers.dev/v157/decisions-api/semantic-if-router/"
+        title="Live example — Decisions API Semantic-If router" loading="lazy" width="100%" height="560"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live interactive Semantic-If router exercising <code>DecisionModel</code> schemas and confidence thresholds. Sibling demos on the <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v157/decisions-api/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase feature index</a>: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v157/decisions-api/schema-playground/" target="_blank" rel="noopener">schema playground</a>, <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v157/decisions-api/guardrail-precheck/" target="_blank" rel="noopener">guardrail precheck</a>, and <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v157/decisions-api/surface-probe/" target="_blank" rel="noopener">surface probe</a>. <span class="citation">Source: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v157/decisions-api/semantic-if-router/" target="_blank" rel="noopener">chrome-platform-showcase</a>.</span></figcaption>
+    </figure>
+
+    <pre tabindex="0"><code data-doc-test="js">async function evaluateSearchQuery(queryText, abortSignal) {
+  if (!("DecisionModel" in self)) {
+    return { supported: false, reason: "DecisionModel unavailable" };
+  }
+
+  // DecisionModelCreateCoreOptions with boolean, choice, and score questions
+  const schema = {
+    expectedInputs: [{ type: "text", languages: ["en"] }],
+    preference: "auto",
+    questions: [
+      {
+        id: "pet_friendly",
+        type: "boolean",
+        prompt: "Does the traveler require pet-friendly accommodations?"
+      },
+      {
+        id: "property_type",
+        type: "choice",
+        prompt: "Which property type best matches the request?",
+        options: [
+          { label: "hotel", description: "Standard hotel, resort, or inn" },
+          { label: "rental", description: "Entire apartment, house, or cabin" },
+          { label: "any", description: "No specific property type mentioned" }
+        ]
+      },
+      {
+        id: "price_tier",
+        type: "score",
+        prompt: "Rate target price tier from 0 (budget) to 3 (luxury).",
+        options: [
+          { label: "0", description: "Budget or inexpensive stay" },
+          { label: "1", description: "Moderate mid-range stay" },
+          { label: "2", description: "Upscale or premium property" },
+          { label: "3", description: "Luxury five-star resort" }
+        ]
+      }
+    ]
+  };
+
+  const status = await DecisionModel.availability(schema);
+  if (status === "unavailable") {
+    return { supported: false, reason: "Model unavailable for schema" };
+  }
+
+  // DecisionModelCreateOptions: optional devTrialBackend, monitor, and signal
+  const model = await DecisionModel.create({
+    ...schema,
+    signal: abortSignal,
+    monitor(m) {
+      m.addEventListener("downloadprogress", (e) => {
+        console.debug(`Model download: ${Math.round(e.loaded * 100)}%`);
+      });
+    }
+  });
+
+  try {
+    // Inspect readonly preference and run single-pass decide() with DecisionModelDecideOptions
+    const activePreference = model.preference;
+    const result = await model.decide(queryText, { signal: abortSignal });
+    // result is DecisionModelResult: record&lt;id, DecisionModelDecision&gt;
+    return {
+      supported: true,
+      preference: activePreference,
+      petFriendly: result.pet_friendly.confidence &gt; 0.85
+        ? result.pet_friendly.label === "true"
+        : null,
+      propertyType: result.property_type.label,
+      propertyProbabilities: result.property_type.probabilities,
+      priceScore: result.price_tier.score
+    };
+  } finally {
+    model.destroy();
+  }
+}</code></pre>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/decisions-api" target="_blank" rel="noopener">Decisions API explainer</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/decision_model.idl" target="_blank" rel="noopener">Blink <code>decision_model.idl</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Support for Decisions API (<code>DecisionModel</code>, <code>availability()</code>, <code>create()</code>, <code>decide()</code>, <code>destroy()</code>, <code>preference</code>). BCD has no entry yet (checked 2026-11-27); interim data comes from ChromeStatus 5155080092385280 and Chromium Blink source.</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col">Support</th><th scope="col">Notes &amp; evidence</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Chrome (desktop)</th><td>Flag 157+</td><td>Developer trial behind <code>chrome://flags/#decisions-api</code> or <code>--enable-blink-features=AIDecisionModelAPI</code> (Windows, macOS, Linux, ChromeOS; not yet enabled by default) per <a href="https://chromestatus.com/api/v0/features/5155080092385280" target="_blank" rel="noopener">ChromeStatus 5155080092385280</a> and <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener"><code>runtime_enabled_features.json5</code></a></td></tr>
+        <tr><th scope="row">Chrome (Android / WebView / iOS)</th><td>No release</td><td><code>AIDecisionModelAPI</code> default status is disabled (<code>""</code>) outside desktop platforms; no Android/iOS milestone scheduled yet</td></tr>
+        <tr><th scope="row">Edge</th><td>No release</td><td>Not enabled by default</td></tr>
+        <tr><th scope="row">Firefox</th><td>No signal / No release</td><td>No Mozilla standards position filed yet (<a href="https://chromestatus.com/feature/5155080092385280" target="_blank" rel="noopener">ChromeStatus 5155080092385280</a>)</td></tr>
+        <tr><th scope="row">Safari</th><td>No signal / No release</td><td>No WebKit standards position filed yet (<a href="https://chromestatus.com/feature/5155080092385280" target="_blank" rel="noopener">ChromeStatus 5155080092385280</a>)</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5155080092385280" target="_blank" rel="noopener">ChromeStatus API record (5155080092385280)</a>; <a href="https://api.webstatus.dev/v1/features?q=decisions" target="_blank" rel="noopener">webstatus.dev query</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Window.json" target="_blank" rel="noopener">BCD <code>api/Window.json</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <ul>
+      <li><strong>On-device, stateless inference:</strong> Inputs passed to <code>decide()</code> are evaluated locally and are not sent over the network, persisted to disk, or used to train models. The API has no access to cross-origin browsing history or user profile state.</li>
+      <li><strong>Schema/input separation:</strong> Untrusted user text passed to <code>decide(input)</code> is kept distinct from developer-defined <code>questions</code> and <code>options</code>, so prompt injection cannot synthesize out-of-schema labels.</li>
+      <li><strong>User agency &amp; confirmation:</strong> High <code>confidence</code> is a probabilistic signal, not authorization. Applications MUST still require explicit user confirmation before executing state-changing or sensitive actions.</li>
+      <li><strong>Download gating &amp; fingerprinting posture:</strong> Initiating a model download via <code>create()</code> requires transient user activation, and cross-origin iframes are blocked unless delegated the <code>"language-model"</code> Permissions Policy. The explainer notes that timing and probability precision should remain bounded to limit device fingerprinting.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/decisions-api#security-and-privacy-considerations" target="_blank" rel="noopener">Decisions API explainer (Security &amp; Privacy)</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/decision_model.cc" target="_blank" rel="noopener">Blink <code>decision_model.cc</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Specifications">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Document</th><th scope="col">Status &amp; scope</th></tr></thead>
+      <tbody>
+        <tr><td><a href="https://github.com/explainers-by-googlers/decisions-api" target="_blank" rel="noopener">Decisions API Explainer</a></td><td>Pre-incubation design proposal (no formal W3C specification yet; incubating toward <a href="https://github.com/webmachinelearning/proposals/issues/20" target="_blank" rel="noopener">W3C WebML CG #20</a>)</td></tr>
+        <tr><td><a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/ai/decision_model.idl" target="_blank" rel="noopener">Chromium Blink <code>decision_model.idl</code></a></td><td>Live DevTrial WebIDL contract implemented behind <code>AIDecisionModelAPI</code></td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v157/decisions-api/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase &mdash; Decisions API demos</a></li>
+      <li><a href="https://web-ai.studio/playgrounds/decisions" target="_blank" rel="noopener">Web AI Studio &mdash; Decisions API playground</a></li>
+      <li><a href="https://github.com/explainers-by-googlers/decisions-api" target="_blank" rel="noopener">Decisions API explainer (GitHub)</a></li>
+      <li><a href="https://github.com/webmachinelearning/proposals/issues/20" target="_blank" rel="noopener">W3C WebML CG proposal issue #20</a></li>
+      <li><a href="https://issues.chromium.org/issues/568193538" target="_blank" rel="noopener">Chromium tracking issue 568193538</a></li>
+      <li><a href="https://chromestatus.com/feature/5155080092385280" target="_blank" rel="noopener">ChromeStatus &mdash; Decisions API (5155080092385280)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
