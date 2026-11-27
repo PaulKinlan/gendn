@@ -44,8 +44,8 @@ assert(
   "detectLanguage auto-detects JS, IDL, HTML, CSS, HTTP, JSON, WGSL, Shell, and Plain",
   detectLanguage('const x = await fetch("/a");') === "js" &&
     detectLanguage(
-        "[Exposed=Window]\ninterface Foo : Event {\n  readonly attribute DOMString name;\n};",
-      ) ===
+      "[Exposed=Window]\ninterface Foo : Event {\n  readonly attribute DOMString name;\n};",
+    ) ===
       "idl" &&
     detectLanguage('<form autocomplete="on"><input name="x"></form>') === "html" &&
     detectLanguage(".box {\n  display: grid;\n  color: #123456;\n}") === "css" &&
