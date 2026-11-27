@@ -334,3 +334,44 @@ Every gate run goes through one of two entry points, and each one PRINTS WHAT IT
   that as a `NOT-RUN` line so a reader is never left to assume it ran.
 - CI is the backstop: it runs the CSS real-browser suite unconditionally, so a fast-tier skip can
   never be the only thing that ever looked.
+
+## Page template conventions & doc-testing / drift tooling
+
+New and updated reference pages follow gendn's editorial HTML template (see modern examples
+`v159/accentcolor-accentcolortext-follows-accent-color-value/index.html`,
+`v159/webtransporterror-api-alignment-and-serialization/index.html`, and MDN stub
+`v160/svg-path-data-api/index.html`):
+
+- **`<head>` metadata:** include `<link rel="icon" type="image/svg+xml" href="/public/favicon.svg">`
+  and `<link rel="stylesheet" href="/public/styles.css">` on every page (both full references and
+  MDN stubs).
+- **Editorial structure & `public/styles.css` classes:** single `<main>`, top `<p class="crumbs">`
+  linking to `/v<N>/` and `/features`, `<header class="lede-block">` containing `.eyebrow`, `<h1>`
+  (the milestone listing name), `.lede`, and `.baseline-banner.baseline-banner--paper-standard`
+  (with `.baseline-status` and `.baseline-browsers` / `li.limited`), optional `.warn-block`
+  immediately after the header for experimental/trial/deprecation notices (carrying
+  `data-shipped-in="<N>"` once an experimental page is updated after shipping in Chrome `N`),
+  `<nav class="local-nav" aria-label="On this page">` with `<p class="local-nav-label">On this page</p>`
+  linking to section `h2[id]` anchors, focusable `.table-wrap` wrappers around `.doc-table` /
+  `.compat-table`, `.mdn-card` on stubs, `.example-embed` for sandboxed showcase iframes,
+  `.spec-quote`, `.citation` with directly linked primary sources, and `<footer class="byline">`.
+- **Live origins only:** link and frame only `https://gendn.kinlan-test.workers.dev` and
+  `https://chrome-platform-showcase.kinlan-test.workers.dev`. Zero links or references to the
+  retired Deno Deploy hosts anywhere in HTML, JSON, or docs (`scripts/no-legacy-host.test.mjs`).
+- **Tier 1 doc tests (`npm run doc-tests` / `scripts/doc-tests.mjs`):** parses JS `<pre><code>`
+  blocks offline with `node:vm` (never executing untrusted code), validates CSS delimiter balance,
+  checks that every `reference-contract.json` `surfaceMarkers` entry appears in the page tree, and
+  supports opt-in headless Chrome probes (`--runtime`) for `data-doc-test="runtime"` and `"css"`
+  blocks. Explicit `data-doc-test` values are `"js"`, `"js-module"`, `"css"`, `"runtime"`,
+  `"idl"`/`"html"`/`"http"`/`"shell"`/`"json"`, and `"skip"`. Use `data-doc-test="skip"` only for
+  pseudocode or intentionally malformed illustrations, always paired with a clear reason (HTML
+  comment or surrounding prose/code comment) — never to hide a real syntax bug.
+- **Tier 2 staleness & drift guard (`npm run doc-drift` / `scripts/doc-drift.mjs`):** compares
+  published pages against `_data/features-*.json` and `_data/channels.json` for
+  `shipped-after-trial`, `stale-experimental`, `milestone-moved`, and
+  `missing-chromestatus-record`, plus opt-in `--live-mdn` MDN graduation probes via `mdnHas()`.
+  Respects `data-shipped-in="<N>"` on `.warn-block` so updated trial pages do not false-flag.
+- **CI report & authoring guide:** `.github/workflows/doc-drift.yml` runs both tiers weekly
+  (Sundays `06:30 UTC` + `workflow_dispatch`) to `$GITHUB_STEP_SUMMARY` in report-only mode. Full
+  details and fixture usage (`node scripts/doc-tests.test.mjs`) live in
+  [`docs/doc-tests.md`](docs/doc-tests.md).

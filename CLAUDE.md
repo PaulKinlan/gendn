@@ -30,6 +30,8 @@ scripts/build-worker-assets.mjs  Copies v<N>/, public/, reports/conformance/ int
 package.json          Every task (`npm run <task>`) + pinned dev tools (wrangler, typescript, dprint).
 tsconfig.json         `npm run typecheck` (tsc). dprint.json: `npm run fmt` / `fmt:check`.
 scripts/              Gates, generators and fixtures, all plain Node (`node scripts/<x>.mjs`).
+  doc-tests.mjs       Tier 1 offline doc-snippet syntax, CSS balance, contract-symbol & `--runtime` verifier (`npm run doc-tests`).
+  doc-drift.mjs       Tier 2 staleness, ChromeStatus status-drift & opt-in `--live-mdn` graduation guard (`npm run doc-drift`).
   lib/sys.mjs         File/process/subprocess helpers the scripts share (see its header).
 lib/
   chromestatus.ts     Wrapper around chromestatus.com/api/v0. Strips the )]}' XSSI prefix. In-memory cache.
@@ -37,6 +39,8 @@ lib/
                       helper library tested by scripts/mdn-has.test.mjs, not called on the hot request path).
   site-fs.ts          Read-only file access: node:fs locally/in tests, ASSETS binding + index on Workers.
 public/styles.css     Shared editorial design system. Same one as chrome-platform-showcase.
+public/favicon.svg    Shared SVG favicon (light/dark) linked on every page.
+docs/doc-tests.md     Authoring & usage guide for `npm run doc-tests`, `npm run doc-drift`, and `data-doc-test`.
 v<N>/                 One folder per Chrome milestone. Each contains <api-slug>/index.html.
 .claude/
   routine-prompt.md   Source of truth for the routine prompt. Update this AND the live routine when changing rules.
@@ -115,6 +119,10 @@ is still open when the next run starts, the run branches from it and writes `Sup
 `fetch-data.yml` refreshes `_data/` every Sunday at 05:13 UTC (and on manual dispatch), for
 milestones stable-1 through dev read from the channels payload.
 
+`.github/workflows/doc-drift.yml` runs every Sunday at 06:30 UTC (and on manual `workflow_dispatch`)
+in report-only mode, publishing Tier 1 (`scripts/doc-tests.mjs --all`) and Tier 2
+(`scripts/doc-drift.mjs --markdown --live-mdn`) summaries to `$GITHUB_STEP_SUMMARY`.
+
 ### Triggering a manual run
 
 Manual runs do NOT use the remote routine — they run in Claude's local session against Paul's
@@ -173,9 +181,13 @@ We'd rather have two pages on the same API than send the reader to a half-baked 
 
 ### 7. The warn-block on experimental features is mandatory
 
-Origin-trial and dev-trial features get a `.warn-block` immediately after the lede saying the API
-surface may move. This is non-negotiable — without it readers may copy code from a moving API into
-production.
+Origin-trial and dev-trial features get a `.warn-block` immediately after `<header class="lede-block">`
+saying the API surface may move and giving exact enable steps (`chrome://flags/#...` or
+`--enable-blink-features=...`). This is non-negotiable — without it readers may copy code from a
+moving API into production. When an existing experimental/trial page is later updated after the
+feature ships enabled by default in Chrome milestone `N`, add `data-shipped-in="<N>"` to `.warn-block`
+alongside the updated shipping notice so `scripts/doc-drift.mjs` records the graduation and stops
+flagging `shipped-after-trial`.
 
 ### 8. Routine never edits top-level files
 
@@ -479,6 +491,8 @@ npm run build-goals          # roll critique followUpGoals into goals.json
 npm run validate-artifacts   # schemas + suiteHash + implementation-sufficiency mappings
 npm run test-reference-contract # fail-closed validator regression tests
 npm run check-conformance    # coverage + immutability + touched-page sufficiency gate
+npm run doc-tests -- --page v<N>/<slug>  # Tier 1 offline JS/CSS snippet + reference-contract surfaceMarkers check (`--all`, `--strict`, `--json`, `--runtime`)
+npm run doc-drift            # Tier 2 staleness, ChromeStatus status-drift & opt-in `--live-mdn` graduation report (`--markdown`, `--json`, `--max-age-days N`)
 npm run check-verdict-emission -- <log> [--phase run-all|responsive|behavioural]  # LANDING GATE: assert the emitted verdict block of a REAL gate log (`--phase behavioural` is required for the kill probe, and requires the kill evidence below)
 sh scripts/kill-probe.sh <log> [--after <seconds>] -- <command>  # LANDING GATE (behavioural phase): run the kill probe itself; the wrapper appends the kill-evidence line the checker requires
 npm run test-verdict-emission # validate the CHECKER against synthetic logs — the landing gate is where it meets the runner's real output, so this alone cannot detect a runner that stopped printing `verdict:`
@@ -504,6 +518,47 @@ will fail the landing gate.
 `npm run test-reference-contract`, and `npm run check-conformance` must pass. `blocked` in a run is explicit (manual-evidenced or
 genuinely unavailable) and is NEVER counted as a pass. Coverage denominators are honest and burned
 down wave by wave — never claim complete/all.
+
+## Page template conventions & doc-testing / drift tooling
+
+New and updated reference pages follow gendn's editorial HTML template (see modern examples
+`v159/accentcolor-accentcolortext-follows-accent-color-value/index.html`,
+`v159/webtransporterror-api-alignment-and-serialization/index.html`, and MDN stub
+`v160/svg-path-data-api/index.html`):
+
+- **`<head>` metadata:** include `<link rel="icon" type="image/svg+xml" href="/public/favicon.svg">`
+  and `<link rel="stylesheet" href="/public/styles.css">` on every page (both full references and
+  MDN stubs).
+- **Editorial structure & `public/styles.css` classes:** single `<main>`, top `<p class="crumbs">`
+  linking to `/v<N>/` and `/features`, `<header class="lede-block">` containing `.eyebrow`, `<h1>`
+  (the milestone listing name), `.lede`, and `.baseline-banner.baseline-banner--paper-standard`
+  (with `.baseline-status` and `.baseline-browsers` / `li.limited`), optional `.warn-block`
+  immediately after the header for experimental/trial/deprecation notices (carrying
+  `data-shipped-in="<N>"` once an experimental page is updated after shipping in Chrome `N`),
+  `<nav class="local-nav" aria-label="On this page">` with `<p class="local-nav-label">On this page</p>`
+  linking to section `h2[id]` anchors, focusable `.table-wrap` wrappers around `.doc-table` /
+  `.compat-table`, `.mdn-card` on stubs, `.example-embed` for sandboxed showcase iframes,
+  `.spec-quote`, `.citation` with directly linked primary sources, and `<footer class="byline">`.
+- **Live origins only:** link and frame only `https://gendn.kinlan-test.workers.dev` and
+  `https://chrome-platform-showcase.kinlan-test.workers.dev`. Zero links or references to the
+  retired Deno Deploy hosts anywhere in HTML, JSON, or docs (`scripts/no-legacy-host.test.mjs`).
+- **Tier 1 doc tests (`npm run doc-tests` / `scripts/doc-tests.mjs`):** parses JS `<pre><code>`
+  blocks offline with `node:vm` (never executing untrusted code), validates CSS delimiter balance,
+  checks that every `reference-contract.json` `surfaceMarkers` entry appears in the page tree, and
+  supports opt-in headless Chrome probes (`--runtime`) for `data-doc-test="runtime"` and `"css"`
+  blocks. Explicit `data-doc-test` values are `"js"`, `"js-module"`, `"css"`, `"runtime"`,
+  `"idl"`/`"html"`/`"http"`/`"shell"`/`"json"`, and `"skip"`. Use `data-doc-test="skip"` only for
+  pseudocode or intentionally malformed illustrations, always paired with a clear reason (HTML
+  comment or surrounding prose/code comment) — never to hide a real syntax bug.
+- **Tier 2 staleness & drift guard (`npm run doc-drift` / `scripts/doc-drift.mjs`):** compares
+  published pages against `_data/features-*.json` and `_data/channels.json` for
+  `shipped-after-trial`, `stale-experimental`, `milestone-moved`, and
+  `missing-chromestatus-record`, plus opt-in `--live-mdn` MDN graduation probes via `mdnHas()`.
+  Respects `data-shipped-in="<N>"` on `.warn-block` so updated trial pages do not false-flag.
+- **CI report & authoring guide:** `.github/workflows/doc-drift.yml` runs both tiers weekly
+  (Sundays `06:30 UTC` + `workflow_dispatch`) to `$GITHUB_STEP_SUMMARY` in report-only mode. Full
+  details and fixture usage (`node scripts/doc-tests.test.mjs`) live in
+  [`docs/doc-tests.md`](docs/doc-tests.md).
 
 ## Landing preflight (one shared block — `scripts/landing-preflight.sh`)
 

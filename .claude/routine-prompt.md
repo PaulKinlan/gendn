@@ -19,8 +19,13 @@ live examples, specifications, and see-also. See Step 6.
 chromestatus source and slug function, so they target the same feature set from the same milestone
 listings. Every gendn page embeds the matching **live showcase demo as an iframe** (the sample MDN
 wants; Rachel Andrew's point — every Chrome feature reaching MDN should ship with an example, and
-the showcase produces those). The showcase is live at
-`https://chrome-platform-showcase.kinlan-test.workers.dev/`.
+the showcase produces those). Both live origins are on Cloudflare Workers:
+
+- gendn: `https://gendn.kinlan-test.workers.dev/`
+- chrome-platform-showcase: `https://chrome-platform-showcase.kinlan-test.workers.dev/`
+
+Never link, frame, or copy URLs from the retired Deno Deploy hosts (enforced repo-wide by
+`scripts/no-legacy-host.test.mjs`).
 
 **This routine must run correctly STANDALONE — every rule below is load-bearing.** It runs
 unattended. Research each feature deeply (Step 4), generate an MDN-shaped page (Step 6), and verify
@@ -94,29 +99,32 @@ controls, its use-case intent, and all inbound links.** Routine and agent waves 
 
 **Gate before every push:** run the route regression gate (`npm run check-routes`). It compares
 the previously published manifest against the working tree and fails on any missing published ID,
-deleted route, renamed/repurposed slug, changed published identity, or unexplained concept-count
-reduction — while allowing additive entries, honest `blocked` records, and in-place fixes.
-Exceptional removals/moves must be listed in the migration record with reason + evidence.
+deleted route, renamed/repurposed slug, changed published identity, changed/removed selected
+showcase demo URL, or unexplained concept-count reduction — while allowing additive entries, honest
+`blocked` records, and in-place fixes. Exceptional removals/moves/demo changes require a reviewed
+migration record with reason + evidence.
 
 ### How the contract maps to gendn
 
 The **catalogue is the filesystem convention** `v<N>/<slug>/index.html`. A page's durable identity =
 its **id/route** (`v<N>/<slug>` → `/v<N>/<slug>/`, append-only), its **identity** (the
-`chromestatus.com/feature/<id>` link it carries — never repoint a slug to a different feature id),
-its **status** (`built` full reference or `stub` "covered on MDN" redirect — both published; a stub
-is the `blocked` analogue and must never be silently deleted), and its **selected demo URL**
-(the full chrome-platform-showcase URL in the manifest, including the concept path). The extractor
-selects the first own-feature showcase link in document order (else the first showcase link); this
-is NOT proof the primary iframe stayed unchanged. Changing or removing the selected URL — even for
-another concept of the SAME feature — requires a reviewed `demo-change` migration; sibling links
-are additive only when the selected URL stays stable. The gate matches migration `id` + `action`,
-not `from`/`to`: green proves a record exists for this route, NOT that this exact repoint was
-authorized. Review old/new URLs, reason and evidence against the edit.
-A feature with no folder yet is `pending` — not published, not under contract. Emit the manifest
-with `npm run manifest`; gate with `npm run check-routes`; record exceptional moves/demo changes
-in `migrations.json`. A legitimate slug/milestone correction that keeps a still-listed feature id live
-under the corrected route is a fix, not a break — record it as an `alias`/`move` migration so the
-old route stays honest and the gate stays green.
+`chromestatus.com/feature/<id>` link it carries — declared ChromeStatus quick-reference row wins
+over an earlier incidental link; never repoint a slug to a different feature id), its **status**
+(`built` full reference or `stub` "covered on MDN" redirect — both published; a stub is the
+`blocked` analogue and must never be silently deleted), and its **selected demo URL** (the full
+chrome-platform-showcase URL in the manifest, including the concept path). The extractor selects the
+first own-feature showcase link in document order (else the first showcase link); this is NOT proof
+the primary iframe stayed unchanged. Mark purely related/sibling showcase links without an own demo
+using `data-demo-rel="related"` (or `rel="related"`). Changing or removing the selected URL — even
+for another concept of the SAME feature — requires a reviewed `demo-change` migration; sibling links
+are additive only when the selected URL stays stable. Committed route bindings live in
+`route-bindings.json` (updated explicitly via `npm run refresh-bindings`; for existing routes, any
+binding diff demands a new, exact `from`/`to` migration record). A feature with no folder yet is
+`pending` — not published, not under contract. Emit the manifest with `npm run manifest`; gate with
+`npm run check-routes`; record exceptional moves/demo changes in `migrations.json`. A legitimate
+slug/milestone correction that keeps a still-listed feature id live under the corrected route is a
+fix, not a break — record it as an `alias`/`move` migration so the old route stays honest and the
+gate stays green.
 
 ## Direct primary-source links are mandatory
 
@@ -277,6 +285,14 @@ After you write/verify a page (Step 6b), before you commit (Step 7):
 4. Write a `_questions.json` critique (reference-site rubric) with a NON-EMPTY `guidanceConsulted`
    (the modern-web-guidance you consulted for the page's UI). Then `npm run build-goals` to roll
    its `followUpGoals` into `goals.json`.
+5. `npm run doc-tests -- --page v<N>/<slug>` — Tier 1 offline doc-snippet verifier
+   (`scripts/doc-tests.mjs`): checks JS `<pre><code>` blocks with `node:vm`, checks CSS delimiter
+   balance, and verifies every `reference-contract.json` `surfaceMarkers` entry appears in the page
+   tree (add `--runtime` to run explicitly annotated `data-doc-test="runtime"` / `"css"` probes in
+   headless Chrome). Use `npm run doc-drift` (`scripts/doc-drift.mjs`) to check for
+   `shipped-after-trial`, `stale-experimental`, milestone movement, or `--live-mdn` graduations (see
+   [`docs/doc-tests.md`](../docs/doc-tests.md); weekly report runs via
+   `.github/workflows/doc-drift.yml`).
 
 ## Step 1: Setup
 
@@ -390,38 +406,78 @@ unclear or unknown, prefer to generate a gendn page (never mis-redirect on ambig
 
 ### Case A: MDN already covers it
 
-Short stub at `v<N>/<slug>/index.html`:
+Short stub at `v<N>/<slug>/index.html` (modern template example: `v160/svg-path-data-api/index.html`):
 
-- Links to /public/styles.css
-- Lede block: listing name + summary, eyebrow `v<N> · covered on mdn`
-- Section "this API is documented on MDN" with a card linking to the MDN URL
-- Short "why gendn doesn't duplicate MDN" sentence
-- Standard chromestatus + spec links as a `<ul>`
-- Byline footer
+- `<head>` includes `<link rel="icon" type="image/svg+xml" href="/public/favicon.svg">` and
+  `<link rel="stylesheet" href="/public/styles.css">`.
+- Single `<main>` with top `<p class="crumbs">` linking to `/v<N>/` and `/features`.
+- Editorial header `<header class="lede-block">`: eyebrow `v<N> · <category short> · covered on mdn`,
+  `<h1>` (LISTING name), `<p class="lede">` summary, and optional
+  `<div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">`.
+- `<nav class="local-nav" aria-label="On this page">` with `<p class="local-nav-label">On this page</p>`
+  linking to the section `h2[id]` anchors when the stub has multiple sections.
+- Section "this API is documented on MDN" with a `.mdn-card` linking to the MDN URL(s) and a short
+  "why gendn doesn't duplicate MDN" sentence.
+- Standard `chromestatus.com/feature/<id>` + spec links (plus a live showcase embed when a 200
+  concept route exists on `https://chrome-platform-showcase.kinlan-test.workers.dev/`).
+- Byline footer (`<footer class="byline">`).
 
 ### Case B: MDN does NOT cover it
 
-Full reference page, shaped like an **MDN reference article**. Templates:
-`v149/css-gap-decorations/index.html` (CSS) or `v149/webmcp/index.html` (Web API) for the house
-style — but upgrade to the MDN structure below. Order and sections matter; this is the whole point
-of the "look like MDN" goal:
+Full reference page, shaped like an **MDN reference article** using gendn's current editorial
+template. Modern template examples:
+- CSS full reference: `v159/accentcolor-accentcolortext-follows-accent-color-value/index.html`
+- Web API experimental reference (with `.warn-block` + showcase iframe):
+  `v159/webtransporterror-api-alignment-and-serialization/index.html`
+(Earlier seed pages `v149/css-gap-decorations/index.html` and `v149/webmcp/index.html` are legacy
+seeds — follow the modern editorial structure below for all new pages.)
 
-1. `<link rel="stylesheet" href="/public/styles.css">`; crumbs to `/v<N>/`.
-2. **Baseline status banner** (MDN's defining top element) — right under the H1, before the summary.
-   Compute from webstatus.dev/web-features (Step 4b): "Baseline Widely available" / "Baseline Newly
-   available (since <date>)" / "Limited availability", with the per-browser support icons/labels
-   (Chrome, Edge, Firefox, Safari). Cite the source. If it's not Baseline yet (Chrome-only /
-   experimental), say "Limited availability" honestly — do NOT imply cross-browser support.
-3. Lede block: eyebrow (`v<N> · <category short>`), H1 (LISTING name), summary paragraph.
-4. **`.warn-block`** immediately after the lede for any experimental / origin-trial / behind-a-flag
-   feature, giving the EXACT enable steps (chrome://flags/#id or --enable-blink-features=<Name> from
-   Step 4b) — not just "experimental".
-5. `<h2>Syntax</h2>` — a formal syntax block: for CSS the value-definition grammar (verbatim from
-   the spec); for a Web API the IDL / method signatures. The overview links every inventoried item.
-   Give each substantial member or protocol element a stable child route with syntax, inputs,
-   outputs, errors, context/exposure, lifecycle/state transitions, complete examples,
-   compatibility, security/privacy, and direct citations. Do not compress multiple complex
-   contracts into a summary table and call the reference complete.
+Order and sections matter; this is the whole point of the "look like MDN" goal:
+
+1. `<head>` carries `<link rel="icon" type="image/svg+xml" href="/public/favicon.svg">` and
+   `<link rel="stylesheet" href="/public/styles.css">`. Single `<main>` with top `<p class="crumbs">`
+   linking to `/v<N>/` and `/features`.
+2. **Editorial header (`<header class="lede-block">`)**:
+   - `<p class="eyebrow">v<N> &middot; <category short> &middot; <status></p>`
+   - `<h1>` (LISTING name)
+   - `<p class="lede">` summary paragraph
+   - **Baseline status banner** (`<div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">`,
+     with `<p class="baseline-status">` and `<ul class="baseline-browsers">` where unsupported or
+     partial engines carry `class="limited"`). Compute from webstatus.dev/web-features (Step 4b):
+     "Baseline Widely available" / "Baseline Newly available (since <date>)" / "Limited availability",
+     with per-browser status (Chrome, Edge, Firefox, Safari) and direct source links. If it's not
+     Baseline yet (Chrome-only / experimental), say "Limited availability" honestly — do NOT imply
+     cross-browser support.
+3. **`.warn-block`** (`<div class="warn-block" role="note" aria-label="Experimental feature notice">`)
+   immediately after `<header class="lede-block">` for any experimental / origin-trial /
+   behind-a-flag feature, giving the EXACT enable steps (`chrome://flags/#id` or
+   `--enable-blink-features=<Name>` from Step 4b) — not just "experimental". When updating an
+   existing trial/experimental page after the feature has shipped enabled by default in Chrome
+   milestone `N`, add `data-shipped-in="<N>"` on `.warn-block` alongside the updated shipping notice
+   so `scripts/doc-drift.mjs` records the graduation and does not flag `shipped-after-trial`.
+4. **On-this-page navigation (`<nav class="local-nav" aria-label="On this page">`)** right after the
+   editorial header (and `.warn-block`, if present):
+   ```html
+   <nav class="local-nav" aria-label="On this page">
+     <p class="local-nav-label">On this page</p>
+     <ul>
+       <li><a href="#at-a-glance">At a glance</a></li>
+       <li><a href="#syntax">Syntax</a></li>
+       <li><a href="#examples">Examples</a></li>
+       <li><a href="#browser-compatibility">Compatibility</a></li>
+       <li><a href="#specifications">Specifications</a></li>
+     </ul>
+   </nav>
+   ```
+   Every link target matches a section `h2[id]`.
+5. `<h2>Syntax</h2>` (preceded by an optional `at a glance` / `why it exists` section with a
+   `.table-wrap` > `.doc-table` carrying the structured `ChromeStatus` row) — a formal syntax block:
+   for CSS the value-definition grammar (verbatim from the spec); for a Web API the IDL / method
+   signatures. The overview links every inventoried item. Give each substantial member or protocol
+   element a stable child route with syntax, inputs, outputs, errors, context/exposure,
+   lifecycle/state transitions, complete examples, compatibility, security/privacy, and direct
+   citations. Do not compress multiple complex contracts into a summary table and call the reference
+   complete.
 6. `<h2>Examples</h2>` — **embed the live showcase demo as an iframe** plus a `<pre><code>` snippet.
    HEAD-check the showcase concept route first and embed only if it returns 200:
    ```bash
@@ -436,7 +492,7 @@ of the "look like MDN" goal:
        title="Live example — <concept name>" loading="lazy" width="100%" height="520"
        style="border:2px solid var(--border-black)"
        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
-     <figcaption>Live example from the Chrome Platform Showcase.<span class="citation">Source: chrome-platform-showcase</span></figcaption>
+     <figcaption>Live example from the Chrome Platform Showcase.<span class="citation">Source: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v<N>/<slug>/<concept>/" target="_blank" rel="noopener">chrome-platform-showcase</a></span></figcaption>
    </figure>
    ```
    EVERY iframe embed carries exactly that `sandbox` + `referrerpolicy` pair (gendn-kjq) — the
@@ -451,32 +507,49 @@ of the "look like MDN" goal:
    aggregate on any published iframe missing the pair.
    If the showcase route is NOT 200 yet (demo not built), fall back to a text link to the showcase
    feature and a code snippet — do not embed a broken iframe.
-7. `<h2>Browser compatibility</h2>` — a **real per-version compat table** built from the BCD data
-   you fetched in Step 4b (Chrome / Edge / Firefox / Safari, with version numbers and
-   flag/no-support notes), NOT a prose "public support" sentence. Cite BCD. If BCD has no entry yet,
-   say so and show the chromestatus ship data as an interim, labelled as such.
+7. `<h2>Browser compatibility</h2>` — a **real per-version compat table** inside a focusable
+   `<div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">` >
+   `<table class="doc-table compat-table">` built from the BCD data you fetched in Step 4b
+   (Chrome / Edge / Firefox / Safari, with version numbers and flag/no-support notes), NOT a prose
+   "public support" sentence. Cite BCD. If BCD has no entry yet, say so and show the chromestatus
+   ship data as an interim, labelled as such.
 8. `<h2>Specifications</h2>` — the spec link(s), formatted like MDN's specifications table.
-9. `<h2>See also</h2>` — related links, the explainer, and the chrome-platform-showcase feature URL.
-10. Byline footer.
+9. `<h2>See also</h2>` — related links, the explainer, and the
+   `https://chrome-platform-showcase.kinlan-test.workers.dev/` feature URL (mark any purely related
+   sibling showcase URL with `data-demo-rel="related"` if this page has no own demo).
+10. Byline footer (`<footer class="byline">`).
 
-Inline `<style>` may use `.doc-table`, `.citation`, `.warn-block`; add `.example-embed` /
-`.baseline-banner` / `.compat-table` styles as needed with CSS variables (WCAG AA). Don't reinvent
-the existing classes.
+Shared `public/styles.css` classes (use CSS variables only, WCAG AA, light/dark support — don't
+reinvent existing classes): `.crumbs`, `.lede-block`, `.eyebrow`, `.lede`,
+`.baseline-banner` / `.baseline-banner--paper-standard` / `.baseline-banner--paper-compact`,
+`.warn-block`, `.local-nav` / `.local-nav-label`, `.table-wrap`, `.doc-table`, `.compat-table`,
+`.mdn-card`, `.citation`, `.example-embed`, `.spec-quote`, `.byline`.
 
-Content rules:
+Content & doc-testing rules:
 
-- Cite sources inline after each section: `<span class="citation">Source: ...</span>`.
+- Cite sources inline after each section: `<span class="citation">Source: ...</span>` with every
+  named source directly linked (`target="_blank" rel="noopener"`).
 - Never invent method names. Paraphrase + link to spec if unsure.
 - IDL: include verbatim if you can fetch it; describe in prose otherwise.
 - HTTP features: show header name + example request/response.
+- **Doc-test annotations (`docs/doc-tests.md`):** `npm run doc-tests` checks `<pre><code>` blocks
+  offline (JS via `node:vm`, CSS delimiter balance, and `reference-contract.json` `surfaceMarkers`).
+  Annotate blocks with `data-doc-test="js"`, `"js-module"`, `"css"`, `"runtime"`, or non-JS
+  classifications (`"idl"`, `"html"`, `"http"`, `"shell"`, `"json"`) when helpful. Use
+  `data-doc-test="skip"` ONLY for genuine pseudocode or intentionally malformed illustrations, and
+  always document the reason (inline HTML comment or surrounding prose/code comment) — never use
+  `skip` to mask a broken example.
 - No arbitrary length target. Keep the overview scannable, but add as many stable member/protocol
   pages as the source-derived inventory requires. Completeness outranks a two-minute reading goal.
 - Write `reference-contract.json` and claim `implementation-sufficient` only when its exact
   inventory-to-documentation mapping and all nine dimensions pass validation. Otherwise record
   `partial` and do not present the work as complete.
+- Never include URLs to the retired Deno Deploy hosts anywhere in HTML or JSON artifacts (guarded by
+  `scripts/no-legacy-host.test.mjs`).
 
-Every page (Case A or B) MUST include the `chromestatus.com/feature/<id>` link in references. This
-is how we recover from glitches.
+Every page (Case A or B) MUST include the `chromestatus.com/feature/<id>` link in references (and in
+the `ChromeStatus` row of the quick-reference `.doc-table` when present). This is how we recover
+from glitches.
 
 ## Step 6b: Verify the page in a real browser before you push
 
@@ -509,7 +582,8 @@ npm run validate-artifacts  # schemas, suiteHash, and implementation-sufficiency
 npm run test-reference-contract # fail-closed validator regression tests
 npm run check-conformance   # coverage + immutability gate: missing suite / orphan / weakened
                               # assertion / touched page left untested. Must pass.
-git add v<N>/<slug>/          # includes conformance.json + _questions.json for the page
+npm run doc-tests -- --page v<N>/<slug>  # Tier 1 snippet syntax + surfaceMarkers check
+git add v<N>/<slug>/          # includes conformance.json + _questions.json + reference-contract.json
 git commit -m "v<N>: reference for <listing name>
 
 <note: 'generated from spec' or 'MDN stub'>
