@@ -4,134 +4,177 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Renewed HTML insertion &amp; streaming methods — Chrome 148 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
   <link rel="stylesheet" href="/public/styles.css">
   <style>
-    .doc-table { margin: 1rem 0; font-size: 0.85rem; }
-    .doc-table th { background: var(--bg-stone); font-weight: 600; }
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
     .doc-table tr:last-child td { border-bottom: none; }
     .doc-table code { background: transparent; border: none; padding: 0; }
-    .warn-block strong { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; color: var(--text-charcoal); display: block; margin-bottom: 0.4rem; }
-      /* B2 house table pattern (gendn-efu, per v152/reference-target-for-cross-root-aria +
-       goals.json:784): scroll wrapper instead of body{overflow-x:hidden} clipping */
   </style>
 </head>
 <body>
 <main>
-  <p class="crumbs"><a href="/v148/">&larr; Chrome 148 reference</a></p>
+  <p class="crumbs"><a href="/v148/">&larr; Chrome 148 reference</a> &middot; <a href="/features">All APIs</a></p>
 
   <header class="lede-block">
-    <p class="eyebrow">v148 · html / dom · developer trial (shipped in Chrome 157)</p>
+    <p class="eyebrow">v148 &middot; html / dom &middot; developer trial (shipped in Chrome 157)</p>
     <h1>Renewed HTML insertion &amp; streaming methods</h1>
     <p class="lede">A coherent set of new DOM methods for inserting HTML into an existing document, introduced in developer trial in Chrome 148 and enabled by default in Chrome 157 (with a revised method surface). Adds <em>positional</em> HTML insertion methods replacing <code>insertAdjacentHTML</code>, plus <em>streaming</em> HTML methods for progressive server-sent markup.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; graduated and shipped enabled by default in Chrome 157 and Edge 157 with a revised API surface; Firefox and Safari have not shipped</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 148 trial; 157 shipped (2026-11-03)</li>
+        <li>Edge &middot; 157 shipped (2026-11-05)</li>
+        <li class="limited">Firefox &middot; Not supported (<a href="https://github.com/mozilla/standards-positions/issues/1370" target="_blank" rel="noopener">Positive #1370</a>)</li>
+        <li class="limited">Safari &middot; Not supported (<a href="https://github.com/WebKit/standards-positions/issues/629" target="_blank" rel="noopener">No signal #629</a>)</li>
+      </ul>
+      <p>The <a href="https://webstatus.dev/features/html-streaming-setters" target="_blank" rel="noopener"><code>html-streaming-setters</code> web-feature</a> is <strong>Limited availability</strong> on <a href="https://api.webstatus.dev/v1/features/html-streaming-setters" target="_blank" rel="noopener">webstatus.dev</a> (Chrome 157, Chrome Android 157, Edge 157; <a href="https://chromestatus.com/api/v0/features/5054329641893888" target="_blank" rel="noopener">ChromeStatus API 5054329641893888</a>, Finch: <code>NewHTMLSettingMethods</code>; checked 2026-11-27). Live MDN check (2026-11-27): MDN has no dedicated reference pages for <code>appendHTML()</code>, <code>streamAppendHTML()</code>, <code>setHTMLBefore()</code>, <code>streamHTML()</code>, or <code>TrustedHTMLParserOptions</code> yet (all return HTTP 404). For the settled Chrome 157 shipping reference, see <a href="/v157/renewed-html-insertion-streaming-methods/"><code>/v157/renewed-html-insertion-streaming-methods/</code></a>.</p>
+    </div>
   </header>
 
-  <div class="warn-block warn-block--common" data-shipped-in="157">
+  <div class="warn-block warn-block--common" data-shipped-in="157" role="note">
     <strong>Shipped in Chrome 157 (formerly developer trial in Chrome 148)</strong>
-    This API was in developer trial behind a flag in Chrome 148 and shipped enabled by default in Chrome 157 on desktop, Android, and WebView (<a href="https://chromestatus.com/feature/5054329641893888" target="_blank" rel="noopener">ChromeStatus 5054329641893888</a>; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a58fb78.ad00fef9.6eea1.0188.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a>). Enabling <code>chrome://flags/#enable-experimental-web-platform-features</code> is only needed before Chrome 157. Note: the shipped Chrome 157 API surface changed from the Chrome 148 trial method names documented below — positional methods shipped as <code>appendHTML</code>, <code>prependHTML</code>, <code>beforeHTML</code>, <code>afterHTML</code>, and <code>replaceWithHTML</code> (plus <code>*Unsafe</code> variants), and streaming methods shipped as <code>streamHTML</code>, <code>streamAppendHTML</code>, <code>streamPrependHTML</code>, <code>streamBeforeHTML</code>, <code>streamAfterHTML</code>, and <code>streamReplaceWithHTML</code> (plus <code>*Unsafe</code> variants) returning a <code>WritableStream</code> rather than taking a <code>ReadableStream</code> argument, alongside <code>runScripts</code> in <code>SetHTMLUnsafeOptions</code> and Trusted Types <code>createParserOptions</code> (<a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md#resulting-api" target="_blank" rel="noopener">WICG explainer §Resulting API</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/dom/element.idl" target="_blank" rel="noopener">Chromium element.idl</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Element.json" target="_blank" rel="noopener">MDN BCD api/Element.json</a>).
+    <p>This API was in developer trial behind a flag in Chrome 148 and shipped enabled by default in Chrome 157 on desktop, Android, and WebView (<a href="https://chromestatus.com/feature/5054329641893888" target="_blank" rel="noopener">ChromeStatus 5054329641893888</a>; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a58fb78.ad00fef9.6eea1.0188.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a>). Enabling <code>chrome://flags/#enable-experimental-web-platform-features</code> is only needed before Chrome 157. Note: the shipped Chrome 157 API surface changed from the Chrome 148 trial method names documented below &mdash; positional methods shipped as <code>appendHTML</code>, <code>prependHTML</code>, <code>beforeHTML</code>, <code>afterHTML</code>, and <code>replaceWithHTML</code> (plus <code>*Unsafe</code> variants), and streaming methods shipped as <code>streamHTML</code>, <code>streamAppendHTML</code>, <code>streamPrependHTML</code>, <code>streamBeforeHTML</code>, <code>streamAfterHTML</code>, and <code>streamReplaceWithHTML</code> (plus <code>*Unsafe</code> variants) returning a <code>WritableStream</code> rather than taking a <code>ReadableStream</code> argument, alongside <code>runScripts</code> in <code>SetHTMLUnsafeOptions</code> and Trusted Types <code>createParserOptions</code> (<a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md#resulting-api" target="_blank" rel="noopener">WICG explainer &sect;Resulting API</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/dom/element.idl" target="_blank" rel="noopener">Chromium element.idl</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Element.json" target="_blank" rel="noopener">MDN BCD api/Element.json</a>). Read the full shipped Chrome 157 reference at <a href="/v157/renewed-html-insertion-streaming-methods/">Chrome 157: Renewed HTML insertion&amp;streaming methods</a>.</p>
   </div>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#at-a-glance">At a glance</a></li>
+      <li><a href="#why">Why it exists</a></li>
+      <li><a href="#syntax">Positional methods</a></li>
+      <li><a href="#streaming-methods">Streaming methods</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#browser-compatibility">Browser support</a></li>
+      <li><a href="#see-also">See also</a></li>
+    </ul>
+  </nav>
 
   <section>
     <h2 id="at-a-glance">at a glance</h2>
-    <div class="table-wrap">
-<table class="doc-table">
-      <tr><th>Status in 148</th><td>In developer trial (behind a flag)</td></tr>
-      <tr><th>Shipped by default</th><td>Chrome 157 (desktop, Android, WebView)</td></tr>
-      <tr><th>Flag</th><td><code>chrome://flags/#enable-experimental-web-platform-features</code> (only needed before Chrome 157)</td></tr>
-      <tr><th>Standards position</th><td>Firefox: <a href="https://github.com/mozilla/standards-positions/issues/1370" target="_blank" rel="noopener">Positive</a> &nbsp;·&nbsp; Safari: <a href="https://github.com/WebKit/standards-positions/issues/629" target="_blank" rel="noopener">No signal</a></td></tr>
-      <tr><th>Spec / explainer</th><td><a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md#resulting-api" target="_blank" rel="noopener">WICG declarative-partial-updates explainer</a></td></tr>
-      <tr><th>Blink component</th><td>Blink&gt;HTML</td></tr>
-      <tr><th>ChromeStatus</th><td><a href="https://chromestatus.com/feature/5054329641893888" target="_blank" rel="noopener">5054329641893888 — Renewed HTML insertion &amp; streaming methods</a></td></tr>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="glance-caption">
+    <table class="doc-table">
+      <caption id="glance-caption">Chrome 148 developer-trial and Chrome 157 shipping metadata for Renewed HTML insertion &amp; streaming methods</caption>
+      <tbody>
+        <tr><th scope="row">Status in 148</th><td>In developer trial (behind a flag; <a href="https://chromestatus.com/api/v0/features?milestone=148" target="_blank" rel="noopener">milestone 148 listing</a>)</td></tr>
+        <tr><th scope="row">Shipped by default</th><td>Chrome 157 (desktop, Android, WebView; Finch: <code>NewHTMLSettingMethods</code> &mdash; see <a href="/v157/renewed-html-insertion-streaming-methods/">full shipped Chrome 157 reference</a>)</td></tr>
+        <tr><th scope="row">Flag</th><td><code>chrome://flags/#enable-experimental-web-platform-features</code> (only needed before Chrome 157)</td></tr>
+        <tr><th scope="row">Standards position</th><td>Firefox: <a href="https://github.com/mozilla/standards-positions/issues/1370" target="_blank" rel="noopener">Positive (#1370)</a> &middot; Safari: <a href="https://github.com/WebKit/standards-positions/issues/629" target="_blank" rel="noopener">No signal (#629)</a></td></tr>
+        <tr><th scope="row">Spec / explainer</th><td><a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md#resulting-api" target="_blank" rel="noopener">WICG declarative-partial-updates explainer</a></td></tr>
+        <tr><th scope="row">Blink component</th><td>Blink&gt;HTML&gt;Parser</td></tr>
+        <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5054329641893888" target="_blank" rel="noopener">5054329641893888 &mdash; Renewed HTML insertion &amp; streaming methods</a> (<a href="https://chromestatus.com/api/v0/features/5054329641893888" target="_blank" rel="noopener">API record</a>)</td></tr>
+      </tbody>
     </table>
-</div>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5054329641893888" target="_blank" rel="noopener">ChromeStatus 5054329641893888</a> (<a href="https://chromestatus.com/api/v0/features/5054329641893888" target="_blank" rel="noopener">API record</a>) and <a href="https://issues.chromium.org/issues/491743369" target="_blank" rel="noopener">Chromium Issue 491743369</a>.</span>
   </section>
 
   <section>
     <h2 id="why">why it exists</h2>
-    <p><code>insertAdjacentHTML</code> was designed in the IE era and has a string-enum position argument (<code>"beforebegin"</code>, <code>"afterend"</code>, etc.) that is error-prone and verbose. <code>innerHTML</code> replaces content but doesn't provide relative insertion. Neither accepts streams. This feature replaces both with ergonomic methods that follow the naming of the existing <code>Element</code> manipulation API and adds streaming variants for progressive server-rendered HTML.</p>
+    <p><code>insertAdjacentHTML</code> was designed in the IE era and has a string-enum position argument (<code>"beforebegin"</code>, <code>"afterend"</code>, etc.) that is error-prone and verbose. <code>innerHTML</code> replaces content but doesn&rsquo;t provide relative insertion. Neither accepts streams. This feature replaces both with ergonomic methods that follow the naming of the existing <code>Element</code> manipulation API and adds streaming variants for progressive server-rendered HTML.</p>
     <span class="citation">Source: <a href="https://chromestatus.com/feature/5054329641893888" target="_blank" rel="noopener">chromestatus summary</a>; <a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md" target="_blank" rel="noopener">WICG explainer</a>.</span>
   </section>
 
   <section>
     <h2 id="syntax">positional insertion methods</h2>
-    <p>These methods mirror the existing <code>Node</code> manipulation API but accept HTML strings instead of <code>Node</code> objects. Each parses the string in the context of the element's owner document.</p>
-    <div class="table-wrap">
-<table class="doc-table">
-      <tr><th>el.setHTMLBefore(html)</th><td>Inserts parsed HTML immediately before <code>el</code> in its parent. Replaces <code>insertAdjacentHTML("beforebegin", html)</code>.</td></tr>
-      <tr><th>el.setHTMLAfter(html)</th><td>Inserts parsed HTML immediately after <code>el</code>. Replaces <code>insertAdjacentHTML("afterend", html)</code>.</td></tr>
-      <tr><th>el.setHTMLFirst(html)</th><td>Inserts parsed HTML as the first child. Replaces <code>insertAdjacentHTML("afterbegin", html)</code>.</td></tr>
-      <tr><th>el.setHTMLLast(html)</th><td>Inserts parsed HTML as the last child. Replaces <code>insertAdjacentHTML("beforeend", html)</code>.</td></tr>
-      <tr><th>el.setHTMLReplacing(html)</th><td>Replaces <code>el</code> itself with parsed HTML nodes. Replaces <code>outerHTML = html</code>.</td></tr>
+    <p>These Chrome 148 trial methods mirror the existing <code>Node</code> manipulation API but accept HTML strings instead of <code>Node</code> objects. Each parses the string in the context of the element&rsquo;s owner document (for the settled Chrome 157 names <code>appendHTML</code>/<code>prependHTML</code>/<code>beforeHTML</code>/<code>afterHTML</code>/<code>replaceWithHTML</code> and <code>*Unsafe</code> variants, see <a href="/v157/renewed-html-insertion-streaming-methods/"><code>/v157/renewed-html-insertion-streaming-methods/</code></a>).</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="positional-caption">
+    <table class="doc-table">
+      <caption id="positional-caption">Historical Chrome 148 trial positional HTML insertion method names and legacy equivalents</caption>
+      <thead><tr><th scope="col">Method (v148 trial)</th><th scope="col">Behavior and legacy equivalent</th></tr></thead>
+      <tbody>
+        <tr><th scope="row"><code>el.setHTMLBefore(html)</code></th><td>Inserts parsed HTML immediately before <code>el</code> in its parent. Replaces <code>insertAdjacentHTML("beforebegin", html)</code>.</td></tr>
+        <tr><th scope="row"><code>el.setHTMLAfter(html)</code></th><td>Inserts parsed HTML immediately after <code>el</code>. Replaces <code>insertAdjacentHTML("afterend", html)</code>.</td></tr>
+        <tr><th scope="row"><code>el.setHTMLFirst(html)</code></th><td>Inserts parsed HTML as the first child. Replaces <code>insertAdjacentHTML("afterbegin", html)</code>.</td></tr>
+        <tr><th scope="row"><code>el.setHTMLLast(html)</code></th><td>Inserts parsed HTML as the last child. Replaces <code>insertAdjacentHTML("beforeend", html)</code>.</td></tr>
+        <tr><th scope="row"><code>el.setHTMLReplacing(html)</code></th><td>Replaces <code>el</code> itself with parsed HTML nodes. Replaces <code>outerHTML = html</code>.</td></tr>
+      </tbody>
     </table>
-</div>
-    <span class="citation">Source: <a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md#resulting-api" target="_blank" rel="noopener">WICG explainer §Resulting API</a>; <a href="https://github.com/whatwg/html/issues/11669" target="_blank" rel="noopener">WHATWG HTML issue #11669</a>. Names paraphrased; verify in the spec before shipping.</span>
+    </div>
+    <span class="citation">Source: <a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md#resulting-api" target="_blank" rel="noopener">WICG explainer &sect;Resulting API</a>; <a href="https://github.com/whatwg/html/issues/11669" target="_blank" rel="noopener">WHATWG HTML issue #11669</a>. Names paraphrased for the v148 trial; see the shipped Chrome 157 API at <a href="/v157/renewed-html-insertion-streaming-methods/"><code>/v157/renewed-html-insertion-streaming-methods/</code></a>.</span>
+  </section>
 
-    <h2>streaming methods</h2>
-    <p>Streaming variants accept a <code>ReadableStream</code> of HTML chunks and parse them progressively into the document, enabling low-latency rendering of server-streamed responses without JavaScript orchestration beyond kicking off the stream.</p>
-    <div class="table-wrap">
-<table class="doc-table">
-      <tr><th>el.streamHTMLBefore(stream)</th><td>Streams HTML before <code>el</code>. The return contract is unsettled in the explainer (promise vs <code>WritableStream</code>) &mdash; verify in your build.</td></tr>
-      <tr><th>el.streamHTMLAfter(stream)</th><td>Streams HTML after <code>el</code>.</td></tr>
-      <tr><th>el.streamHTMLFirst(stream)</th><td>Streams HTML as first children.</td></tr>
-      <tr><th>el.streamHTMLLast(stream)</th><td>Streams HTML as last children.</td></tr>
-      <tr><th>el.streamHTMLReplacing(stream)</th><td>Streams HTML to replace <code>el</code> itself.</td></tr>
+  <section>
+    <h2 id="streaming-methods">streaming methods</h2>
+    <p>Streaming variants in the Chrome 148 trial accepted a <code>ReadableStream</code> of HTML chunks and parsed them progressively into the document, enabling low-latency rendering of server-streamed responses without JavaScript orchestration beyond kicking off the stream. In Chrome 157, the shipped streaming API settled on returning a <code>WritableStream</code> (<code>streamHTML</code>, <code>streamAppendHTML</code>, <code>streamPrependHTML</code>, <code>streamBeforeHTML</code>, <code>streamAfterHTML</code>, <code>streamReplaceWithHTML</code> and <code>*Unsafe</code> variants; see <a href="/v157/renewed-html-insertion-streaming-methods/"><code>/v157/renewed-html-insertion-streaming-methods/</code></a>).</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="streaming-caption">
+    <table class="doc-table">
+      <caption id="streaming-caption">Historical Chrome 148 trial streaming HTML insertion method names (superseded by Chrome 157 WritableStream API)</caption>
+      <thead><tr><th scope="col">Method (v148 trial)</th><th scope="col">Behavior and contract note</th></tr></thead>
+      <tbody>
+        <tr><th scope="row"><code>el.streamHTMLBefore(stream)</code></th><td>Streams HTML before <code>el</code>. The return contract was unsettled in the explainer (promise vs <code>WritableStream</code>) &mdash; Chrome 157 settled on returning a <code>WritableStream</code>.</td></tr>
+        <tr><th scope="row"><code>el.streamHTMLAfter(stream)</code></th><td>Streams HTML after <code>el</code>.</td></tr>
+        <tr><th scope="row"><code>el.streamHTMLFirst(stream)</code></th><td>Streams HTML as first children.</td></tr>
+        <tr><th scope="row"><code>el.streamHTMLLast(stream)</code></th><td>Streams HTML as last children.</td></tr>
+        <tr><th scope="row"><code>el.streamHTMLReplacing(stream)</code></th><td>Streams HTML to replace <code>el</code> itself.</td></tr>
+      </tbody>
     </table>
-</div>
-    <p>Error paths: the explainer does not yet define when or how these methods raise errors &mdash; its security-and-privacy questionnaire answers &ldquo;It will.&rdquo; One open question is whether positional insertion on an element with no parent should throw a hierarchy exception or fail silently the way <code>before()</code>/<code>after()</code> do. Until error behaviour is specified, verify it in the browser before shipping.</p>
+    </div>
+    <p>Error paths: the explainer does not yet define when or how these methods raise errors &mdash; its security-and-privacy questionnaire answers &ldquo;It will.&rdquo; One open question is whether positional insertion on an element with no parent should throw a hierarchy exception or fail silently the way <code>before()</code>/<code>after()</code> do. Until error behaviour is specified, verify it in the browser before shipping (or consult the shipped <a href="/v157/renewed-html-insertion-streaming-methods/#errors">Chrome 157 error contract</a>).</p>
     <span class="citation">Source: <a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md#resulting-api" target="_blank" rel="noopener">WICG explainer &sect;Resulting API</a>; <a href="https://github.com/whatwg/html/issues/11669" target="_blank" rel="noopener">WHATWG HTML issue #11669</a>, May 2026.</span>
   </section>
 
   <section>
     <h2 id="examples">example</h2>
-    <p>Perform positional HTML insertion or stream server-sent HTML chunks directly into an element:</p>
-<pre><code>// Old
+    <p>Historical Chrome 148 trial examples for positional HTML insertion and streaming server-sent HTML chunks into an element (for runnable Chrome 157 shipping examples using <code>appendHTML()</code> and <code>streamAppendHTML()</code>, see <a href="/v157/renewed-html-insertion-streaming-methods/#examples"><code>/v157/renewed-html-insertion-streaming-methods/#examples</code></a>):</p>
+    <pre tabindex="0"><code data-doc-test="js">// Old
 container.insertAdjacentHTML("beforeend", "&lt;li&gt;New item&lt;/li&gt;");
 
-// New
+// New (v148 trial naming)
 container.setHTMLLast("&lt;li&gt;New item&lt;/li&gt;");</code></pre>
 
     <h3>Stream a fetch response into the page</h3>
-<pre><code>const res = await fetch("/partial/comments");
+    <pre tabindex="0"><code data-doc-test="js-module">const res = await fetch("/partial/comments");
 const stream = res.body.pipeThrough(new TextDecoderStream());
 
 // Stream comment HTML into #comments-container without JS parsing.
-// Bare call: the return contract is unsettled (promise vs WritableStream) - do not
-// rely on awaiting it until the API contract is established (see the syntax section).
+// Bare call: the return contract was unsettled (promise vs WritableStream) in the v148
+// trial - do not rely on awaiting it; see /v157/renewed-html-insertion-streaming-methods/
+// for the shipped Chrome 157 WritableStream contract.
 document.getElementById("comments-container").streamHTMLLast(stream);</code></pre>
 
     <h3>The full positional and streaming set</h3>
-    <pre><code>// Positional variants (string HTML)
+    <pre tabindex="0"><code>// Positional variants (string HTML, v148 trial naming)
 item.setHTMLBefore('&lt;li&gt;before&lt;/li&gt;');
 item.setHTMLAfter('&lt;li&gt;after&lt;/li&gt;');
 list.setHTMLFirst('&lt;li&gt;first&lt;/li&gt;');
 item.setHTMLReplacing('&lt;section&gt;replaced&lt;/section&gt;');
 
-// Streaming variants accept a ReadableStream of HTML chunks. Their return contract is
-// unsettled in the explainer (promise vs WritableStream), so the calls are shown bare -
-// do not rely on awaiting them until the API contract is established.
+// Streaming variants accepted a ReadableStream of HTML chunks in the v148 trial.
+// Their return contract was unsettled in the explainer (promise vs WritableStream),
+// so the calls are shown bare - see Chrome 157 for the shipped WritableStream API.
 item.streamHTMLBefore(beforeStream);
 item.streamHTMLAfter(afterStream);
 list.streamHTMLFirst(firstStream);
 item.streamHTMLReplacing(replaceStream);</code></pre>
+    <span class="citation">Source: <a href="https://github.com/WICG/declarative-partial-updates/blob/main/dynamic-markup-revamped-explainer.md#resulting-api" target="_blank" rel="noopener">WICG explainer &sect;Resulting API</a>; <a href="https://github.com/GoogleChromeLabs/html-setters-polyfill" target="_blank" rel="noopener">GoogleChromeLabs/html-setters-polyfill</a>.</span>
   </section>
 
   <section>
     <h2 id="browser-compatibility">browser support</h2>
-    <div class="table-wrap">
-<table class="doc-table">
-      <tr><th>Chrome</th><td>148 — developer trial (flag required); 157 — enabled by default on desktop, Android, and WebView (revised shipped method names)</td></tr>
-      <tr><th>Edge</th><td>157 (<a href="https://github.com/mdn/browser-compat-data/blob/main/api/Element.json" target="_blank" rel="noopener">MDN BCD</a>; <a href="https://webstatus.dev/features/html-streaming-setters" target="_blank" rel="noopener">webstatus.dev</a>)</td></tr>
-      <tr><th>Firefox</th><td>Not supported (Positive standards position)</td></tr>
-      <tr><th>Safari</th><td>Not supported (No signal)</td></tr>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table">
+      <caption id="compat-caption">Cross-browser support and standards positions for Renewed HTML insertion &amp; streaming methods (verified 2026-11-27)</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col">Support</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Chrome</th><td>148 &mdash; developer trial (flag required); 157 &mdash; enabled by default on desktop, Android, and WebView with revised shipped method names (<a href="/v157/renewed-html-insertion-streaming-methods/">Chrome 157 reference</a>)</td></tr>
+        <tr><th scope="row">Edge</th><td>157 (<a href="https://github.com/mdn/browser-compat-data/blob/main/api/Element.json" target="_blank" rel="noopener">MDN BCD</a>; <a href="https://webstatus.dev/features/html-streaming-setters" target="_blank" rel="noopener">webstatus.dev</a>)</td></tr>
+        <tr><th scope="row">Firefox</th><td>Not supported (<a href="https://github.com/mozilla/standards-positions/issues/1370" target="_blank" rel="noopener">Positive standards position #1370</a>)</td></tr>
+        <tr><th scope="row">Safari</th><td>Not supported (<a href="https://github.com/WebKit/standards-positions/issues/629" target="_blank" rel="noopener">No signal #629</a>; active design participation)</td></tr>
+      </tbody>
     </table>
-</div>
-    <span class="citation">Source: <a href="https://chromestatus.com/feature/5054329641893888" target="_blank" rel="noopener">chromestatus browser views</a>; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a58fb78.ad00fef9.6eea1.0188.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a>; <a href="https://webstatus.dev/features/html-streaming-setters" target="_blank" rel="noopener">webstatus.dev html-streaming-setters</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Element.json" target="_blank" rel="noopener">MDN BCD api/Element.json</a>; <a href="https://github.com/mozilla/standards-positions/issues/1370" target="_blank" rel="noopener">Mozilla standards-positions #1370</a>; <a href="https://github.com/WebKit/standards-positions/issues/629" target="_blank" rel="noopener">WebKit standards-positions #629</a>; <a href="https://github.com/whatwg/html/issues/2142" target="_blank" rel="noopener">WHATWG HTML issue #2142</a>.</span>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5054329641893888" target="_blank" rel="noopener">ChromeStatus 5054329641893888</a>; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a58fb78.ad00fef9.6eea1.0188.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a>; <a href="https://webstatus.dev/features/html-streaming-setters" target="_blank" rel="noopener">webstatus.dev <code>html-streaming-setters</code></a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/Element.json" target="_blank" rel="noopener">MDN BCD api/Element.json</a>; <a href="https://github.com/mozilla/standards-positions/issues/1370" target="_blank" rel="noopener">Mozilla standards-positions #1370</a>; <a href="https://github.com/WebKit/standards-positions/issues/629" target="_blank" rel="noopener">WebKit standards-positions #629</a>; <a href="https://github.com/whatwg/html/issues/2142" target="_blank" rel="noopener">WHATWG HTML issue #2142</a> (re-verified 2026-11-27).</span>
   </section>
 
   <section>
-    <h2>see also</h2>
+    <h2 id="see-also">see also</h2>
     <ul>
-      <li><a href="https://github.com/WICG/declarative-partial-updates" target="_blank" rel="noopener">WICG/declarative-partial-updates</a> — spec repository</li>
-      <li><a href="/v148/out-of-order-streaming/">Out of order streaming</a> — declarative (no-JS) streaming companion</li>
+      <li><a href="/v157/renewed-html-insertion-streaming-methods/">Chrome 157 reference (shipped enabled by default with final API surface)</a></li>
+      <li><a href="https://github.com/WICG/declarative-partial-updates" target="_blank" rel="noopener">WICG/declarative-partial-updates</a> &mdash; spec repository</li>
+      <li><a href="/v148/out-of-order-streaming/">Out of order streaming</a> &mdash; declarative (no-JS) streaming companion</li>
       <li><a href="https://chromestatus.com/feature/5054329641893888" target="_blank" rel="noopener">chromestatus: Renewed HTML insertion &amp; streaming methods</a></li>
       <li><a href="https://chromestatus.com/api/v0/features/5054329641893888" target="_blank" rel="noopener">chromestatus: API record 5054329641893888</a></li>
       <li><a href="https://chromestatus.com/api/v0/features?milestone=148" target="_blank" rel="noopener">chromestatus: milestone=148 listing</a></li>
