@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Local Network Access restrictions for Background Fetch — Chrome 154 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .scroll-table { min-width: 30rem; }
+    .example-embed { margin: 1.25rem 0; }
+    .example-embed iframe { display: block; inline-size: 100%; max-inline-size: 100%; border: 2px solid var(--border-black); background: var(--surface, #fff); }
+    .example-embed figcaption { margin-top: 0.5rem; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v154/">&larr; Chrome 154 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v154 &middot; security &middot; enabled by default</p>
+    <h1>Local Network Access restrictions for Background Fetch</h1>
+
+    <p class="lede">Requires Background Fetch requests targeting local or loopback network endpoints to hold the service worker origin&rsquo;s Local Network Access (LNA) permission. Closes a security bypass where Background Fetch skipped LNA checks applied to regular Fetch requests, bringing Chromium into alignment with the Background Fetch and Local Network Access specifications.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; Chromium-only API enforcement (Background Fetch itself ships only in Chromium; Firefox ships LNA without Background Fetch; Safari ships neither)</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 154 (desktop, Android &mdash; <code>kBackgroundFetchLocalNetworkAccess</code> enabled by default)</li>
+        <li>Edge &middot; 154 (Chromium-based mirror)</li>
+        <li class="limited">Firefox &middot; N/A (ships LNA, does not support Background Fetch)</li>
+        <li class="limited">Safari &middot; no signal (does not support Background Fetch)</li>
+      </ul>
+      <p>Both <a href="https://webstatus.dev/features/local-network-access" target="_blank" rel="noopener"><code>local-network-access</code></a> (Chrome/Edge 145+) and <a href="https://api.webstatus.dev/v1/features/background-fetch" target="_blank" rel="noopener"><code>background-fetch</code></a> (Chrome 74+, Edge 79+) are <strong>Limited availability</strong> on <a href="https://api.webstatus.dev/v1/features/local-network-access" target="_blank" rel="noopener">webstatus.dev</a> (checked 2026-11-27). <a href="https://github.com/mdn/browser-compat-data/blob/main/api/BackgroundFetchManager.json" target="_blank" rel="noopener">BCD <code>api/BackgroundFetchManager.json</code></a> and <a href="https://developer.mozilla.org/en-US/docs/Web/API/BackgroundFetchManager/fetch" target="_blank" rel="noopener">MDN&rsquo;s <code>BackgroundFetchManager.fetch()</code> page</a> do not yet document Local Network Access restrictions or LNA permission prerequisites, so gendn provides the full implementation reference here.</p>
+    </div>
+  </header>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#at-a-glance">At a glance</a></li>
+      <li><a href="#why">Why it exists</a></li>
+      <li><a href="#syntax">Syntax &amp; surface</a></li>
+      <li><a href="#background-fetch-lna-enforcement">LNA check enforcement</a></li>
+      <li><a href="#lna-permission-pregrant">Permission prerequisites</a></li>
+      <li><a href="#lna-enterprise-policies">Enterprise policies</a></li>
+      <li><a href="#errors">Errors &amp; failure reasons</a></li>
+      <li><a href="#context">Context &amp; scope</a></li>
+      <li><a href="#lifecycle">Lifecycle &amp; background execution</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#security-and-privacy">Security &amp; privacy</a></li>
+      <li><a href="#specifications">Specifications</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="At a glance">
+    <table class="doc-table">
+      <tr><th scope="row">Shipped in</th><td>Chrome 154 (desktop, Android; WebView &amp; iOS <code>null</code>) &mdash; listed under &ldquo;Enabled by default&rdquo; in <a href="https://chromestatus.com/api/v0/features?milestone=154" target="_blank" rel="noopener">milestone=154</a> (<a href="https://chromestatus.com/api/v0/features/6225598451154944" target="_blank" rel="noopener">ChromeStatus API record 6225598451154944</a>)</td></tr>
+      <tr><th scope="row">Chromium feature flag</th><td><code>kBackgroundFetchLocalNetworkAccess</code> is <code>base::FEATURE_ENABLED_BY_DEFAULT</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/content/public/common/content_features.cc" target="_blank" rel="noopener"><code>content/public/common/content_features.cc</code></a></td></tr>
+      <tr><th scope="row">Specifications</th><td><a href="https://wicg.github.io/background-fetch/" target="_blank" rel="noopener">Background Fetch (WICG)</a> &middot; <a href="https://wicg.github.io/local-network-access/" target="_blank" rel="noopener">Local Network Access (WICG)</a> &middot; <a href="https://fetch.spec.whatwg.org/" target="_blank" rel="noopener">Fetch Living Standard</a></td></tr>
+      <tr><th scope="row">Tracking bug</th><td><a href="https://crbug.com/455486148" target="_blank" rel="noopener">crbug.com/455486148</a> (component <code>Blink&gt;BackgroundFetch</code>)</td></tr>
+      <tr><th scope="row">Chromium source</th><td><a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/background_fetch/background_fetch_job_controller.cc" target="_blank" rel="noopener"><code>background_fetch_job_controller.cc</code></a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/background_fetch/background_fetch_delegate_proxy.cc" target="_blank" rel="noopener"><code>background_fetch_delegate_proxy.cc</code></a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/background_fetch/background_fetch_registration.idl" target="_blank" rel="noopener"><code>background_fetch_registration.idl</code></a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/permissions/permission_descriptor.idl" target="_blank" rel="noopener"><code>permission_descriptor.idl</code></a></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/6225598451154944" target="_blank" rel="noopener">6225598451154944 &mdash; Local Network Access restrictions for Background Fetch</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>The <a href="https://wicg.github.io/background-fetch/" target="_blank" rel="noopener">Background Fetch specification</a> routes every queued request through the <a href="https://fetch.spec.whatwg.org/" target="_blank" rel="noopener">Fetch standard</a>, which enforces <a href="https://wicg.github.io/local-network-access/" target="_blank" rel="noopener">Local Network Access (LNA)</a> checks when a public origin contacts a local or loopback IP address. Previously, Chromium&rsquo;s Background Fetch download pipeline created network requests without attaching the service worker&rsquo;s <code>ClientSecurityState</code> or LNA network service observer, allowing sites to bypass LNA restrictions by scheduling downloads through <code>registration.backgroundFetch.fetch()</code> instead of <code>fetch()</code>. Chrome 154 closes this gap so Background Fetch obeys the exact same LNA permission and enterprise policy rules as regular service worker fetches.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6225598451154944" target="_blank" rel="noopener">ChromeStatus 6225598451154944</a>; <a href="https://wicg.github.io/background-fetch/" target="_blank" rel="noopener">Background Fetch spec</a>; <a href="https://wicg.github.io/local-network-access/" target="_blank" rel="noopener">Local Network Access spec</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax and affected API surface</h2>
+    <p>This change introduces no new WebIDL methods or options; it changes the runtime security gate applied to existing <code>BackgroundFetchManager.fetch()</code> calls, checked via existing Permissions API descriptors and governed by existing LNA enterprise policies:</p>
+    <pre tabindex="0"><code data-doc-test="skip" data-doc-test-reason="Call-shape summary of existing BackgroundFetchManager.fetch() and Permissions API query signatures; no new WebIDL is introduced by this security policy enforcement.">// 1. Existing Background Fetch call (now subject to LNA checks per request)
+const bgFetch = await serviceWorkerRegistration.backgroundFetch.fetch(
+  id,          // DOMString
+  requests,    // RequestInfo | sequence&lt;RequestInfo&gt;
+  options      // optional BackgroundFetchOptions
+);
+
+// 2. Existing Permissions API queries to check LNA grants beforehand
+const localPerm = await navigator.permissions.query({ name: "local-network" });
+const loopbackPerm = await navigator.permissions.query({ name: "loopback-network" });
+
+// 3. Observable failure state on BackgroundFetchRegistration when LNA blocks a request
+// bgFetch.result === "failure"
+// bgFetch.failureReason === "fetch-error"</code></pre>
+    <p>This reference documents all three parts of the Chrome 154 contract: <a href="#background-fetch-lna-enforcement">LNA enforcement on Background Fetch requests</a>, <a href="#lna-permission-pregrant"><code>"local-network"</code> / <code>"loopback-network"</code> permission prerequisites</a>, and <a href="#lna-enterprise-policies">enterprise policy controls</a>.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/background_fetch/background_fetch_manager.idl" target="_blank" rel="noopener">Blink <code>background_fetch_manager.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/background_fetch/background_fetch_registration.idl" target="_blank" rel="noopener">Blink <code>background_fetch_registration.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/permissions/permission_descriptor.idl" target="_blank" rel="noopener">Blink <code>permission_descriptor.idl</code></a>.</span>
+
+    <h3 id="background-fetch-lna-enforcement"><code>BackgroundFetchManager.fetch()</code> Local Network Access enforcement</h3>
+    <p><strong>Inputs &amp; mechanism.</strong> Every request URL supplied to <code>registration.backgroundFetch.fetch(id, requests, options)</code> (including redirects) is now dispatched through a dedicated <code>URLLoaderFactory</code> created in <a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/background_fetch/background_fetch_job_controller.cc" target="_blank" rel="noopener"><code>BackgroundFetchJobController::InitializeUrlLoaderFactory()</code></a> when <code>features::kBackgroundFetchLocalNetworkAccess</code> is enabled. Chromium populates <code>factory_params-&gt;client_security_state</code> from <code>registration-&gt;active_version()-&gt;BuildClientSecurityState()</code> and attaches a <code>URLLoaderNetworkServiceObserver</code> created via <code>CreateURLLoaderNetworkObserverForServiceOrSharedWorker()</code> for the service worker&rsquo;s origin.</p>
+    <p><strong>Outputs &amp; target classification.</strong> Requests from a public origin to a public endpoint proceed unchanged. Requests from a less-private origin (such as a public <code>https://</code> site) to a <strong>local</strong> address (RFC 1918 private ranges, link-local) or <strong>loopback</strong> address (<code>127.0.0.0/8</code>, <code>::1</code>) trigger the Network Service&rsquo;s Local Network Access check against the service worker origin&rsquo;s granted permissions and enterprise policies. If permitted, downloads continue normally; if denied, the request fails.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/background_fetch/background_fetch_job_controller.cc" target="_blank" rel="noopener">Chromium <code>background_fetch_job_controller.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/content/public/common/content_features.cc" target="_blank" rel="noopener">Chromium <code>content_features.cc</code></a>; <a href="https://wicg.github.io/local-network-access/" target="_blank" rel="noopener">Local Network Access spec</a>.</span>
+
+    <h3 id="lna-permission-pregrant"><code>"local-network"</code> and <code>"loopback-network"</code> permission prerequisites</h3>
+    <p><strong>Inputs &amp; permission names.</strong> Per <a href="https://wicg.github.io/local-network-access/" target="_blank" rel="noopener">Local Network Access</a> and Blink&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/permissions/permission_descriptor.idl" target="_blank" rel="noopener"><code>permission_descriptor.idl</code></a>, local-network requests require the <code>"local-network"</code> permission and loopback requests require the <code>"loopback-network"</code> permission (with <code>"local-network-access"</code> as the combined umbrella descriptor where applicable).</p>
+    <p><strong>Outputs &amp; why pre-granting is mandatory.</strong> A Background Fetch executes under the origin&rsquo;s service worker and can outlive the page that started it; a service worker has no visible document UI to display an interactive permission prompt. Therefore, if the service worker&rsquo;s origin does <em>not</em> already hold a <code>"granted"</code> permission state (established earlier from a foreground secure-context page or via enterprise policy), the LNA check fails without prompting. Applications targeting local servers should inspect <code>navigator.permissions.query({ name: "local-network" })</code> (or <code>"loopback-network"</code>) in the page first and trigger an interactive foreground request/prompt while the user is present before calling <code>backgroundFetch.fetch()</code>.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/local-network-access/" target="_blank" rel="noopener">Local Network Access spec</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/permissions/permission_descriptor.idl" target="_blank" rel="noopener">Blink <code>permission_descriptor.idl</code></a>; <a href="https://chromestatus.com/feature/6225598451154944" target="_blank" rel="noopener">ChromeStatus 6225598451154944</a>.</span>
+
+    <h3 id="lna-enterprise-policies">Enterprise policy controls for Background Fetch LNA</h3>
+    <p><strong>Inputs &amp; outputs.</strong> Managed Chrome deployments can control Background Fetch LNA checks using the exact same five enterprise policies that govern regular Fetch API requests from service workers:</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="policies-caption">
+    <table class="doc-table scroll-table">
+      <caption id="policies-caption">Chrome Enterprise policies applying to Background Fetch Local Network Access checks</caption>
+      <thead><tr><th scope="col">Enterprise policy</th><th scope="col">Effect on Background Fetch</th></tr></thead>
+      <tbody>
+        <tr><td><a href="https://chromeenterprise.google/policies/#LocalNetworkAccessRestrictionsTemporaryOptOut" target="_blank" rel="noopener"><code>LocalNetworkAccessRestrictionsTemporaryOptOut</code></a></td><td>Temporarily opts managed browsers out of LNA enforcement while migrating internal apps</td></tr>
+        <tr><td><a href="https://chromeenterprise.google/policies/#LocalNetworkAccessAllowedForUrls" target="_blank" rel="noopener"><code>LocalNetworkAccessAllowedForUrls</code></a></td><td>Pre-grants <code>"local-network"</code> permission for listed service worker origins without prompting</td></tr>
+        <tr><td><a href="https://chromeenterprise.google/policies/#LoopbackNetworkAllowedForUrls" target="_blank" rel="noopener"><code>LoopbackNetworkAllowedForUrls</code></a></td><td>Pre-grants <code>"loopback-network"</code> permission for listed origins targeting loopback servers</td></tr>
+        <tr><td><a href="https://chromeenterprise.google/policies/#LocalNetworkAccessPermissionsPolicyDefaultEnabled" target="_blank" rel="noopener"><code>LocalNetworkAccessPermissionsPolicyDefaultEnabled</code></a></td><td>Controls default Permissions Policy enablement for LNA in managed environments</td></tr>
+        <tr><td><a href="https://chromeenterprise.google/policies/#LocalNetworkAccessIpAddressSpaceOverrides" target="_blank" rel="noopener"><code>LocalNetworkAccessIpAddressSpaceOverrides</code></a></td><td>Overrides address-space classification for specified IP ranges or endpoints (useful for private cloud/VPN topologies)</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6225598451154944" target="_blank" rel="noopener">ChromeStatus 6225598451154944</a>; Chrome Enterprise policies linked per row.</span>
+
+    <h3 id="errors">Errors and observable failure states</h3>
+    <ul>
+      <li><strong>Blocked Background Fetch request (<code>failureReason: "fetch-error"</code>):</strong> Because DNS resolution and LNA verification happen asynchronously when the Background Fetch download runs, <code>backgroundFetch.fetch()</code> itself may resolve with a <code>BackgroundFetchRegistration</code> even when the target URL will be blocked. When LNA rejects the request, the background fetch aborts with <code>registration.result === "failure"</code> and <code>registration.failureReason === "fetch-error"</code> (defined in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/background_fetch/background_fetch_registration.idl" target="_blank" rel="noopener"><code>background_fetch_registration.idl</code></a>), firing the <code>backgroundfetchfail</code> event in the service worker.</li>
+      <li><strong>No separate LNA failure reason enum value:</strong> Background Fetch does not distinguish LNA denial from CORS, Mixed Content, or network errors in <code>failureReason</code>; all report <code>"fetch-error"</code> to avoid leaking local network topology.</li>
+      <li><strong>Service worker unavailable:</strong> If the active service worker registration disappears before <code>InitializeUrlLoaderFactory()</code> can build its <code>ClientSecurityState</code>, <a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/background_fetch/background_fetch_job_controller.cc" target="_blank" rel="noopener"><code>background_fetch_job_controller.cc</code></a> aborts the job with <code>SERVICE_WORKER_UNAVAILABLE</code>.</li>
+      <li><strong>Permissions query fallback (<code>TypeError</code>):</strong> Calling <code>navigator.permissions.query({ name: "local-network" })</code> on browsers that do not recognize that permission descriptor rejects with a <code>TypeError</code>; always wrap the query in <code>try/catch</code>.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/background_fetch/background_fetch_job_controller.cc" target="_blank" rel="noopener">Chromium <code>background_fetch_job_controller.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/background_fetch/background_fetch_registration.idl" target="_blank" rel="noopener">Blink <code>background_fetch_registration.idl</code></a>; <a href="https://wicg.github.io/background-fetch/" target="_blank" rel="noopener">Background Fetch spec</a>.</span>
+
+    <h3 id="context">Context, exposure, and prerequisites</h3>
+    <p><code>BackgroundFetchManager</code> is exposed in <code>Window</code> and <code>Worker</code> contexts on a <code>ServiceWorkerRegistration</code> (requiring a <strong>secure context</strong> and an active service worker). Starting a background fetch requires user activation or the <code>background-fetch</code> permission; additionally, reaching a local or loopback destination now requires the service worker&rsquo;s origin to hold the matching LNA permission (<code>"local-network"</code> or <code>"loopback-network"</code>) and not be restricted by Permissions Policy.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/background_fetch/background_fetch_manager.idl" target="_blank" rel="noopener">Blink <code>background_fetch_manager.idl</code></a>; <a href="https://wicg.github.io/local-network-access/" target="_blank" rel="noopener">Local Network Access spec</a>; <a href="https://chromestatus.com/feature/6225598451154944" target="_blank" rel="noopener">ChromeStatus 6225598451154944</a>.</span>
+
+    <h3 id="lifecycle">Lifecycle and background execution ordering</h3>
+    <ol>
+      <li><strong>Foreground check &amp; permission grant:</strong> Before registering a local-network Background Fetch, the foreground page queries <code>navigator.permissions.query({ name: "local-network" })</code> (or <code>"loopback-network"</code>) and, if <code>state === "prompt"</code>, issues a small foreground <code>fetch()</code> to trigger the user permission prompt.</li>
+      <li><strong>Registration &amp; factory setup:</strong> When <code>registration.backgroundFetch.fetch()</code> starts processing requests, <code>BackgroundFetchJobController::DidGetRegistrationForRequest()</code> verifies the active service worker and calls <code>InitializeUrlLoaderFactory()</code> to bind the service worker&rsquo;s <code>ClientSecurityState</code> and network observer to each <code>BackgroundFetchRequestInfo</code>.</li>
+      <li><strong>Download &amp; LNA check:</strong> <a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/background_fetch/background_fetch_delegate_proxy.cc" target="_blank" rel="noopener"><code>BackgroundFetchDelegateProxy::StartRequest()</code></a> passes the configured <code>URLLoaderFactory</code> to the download manager, which runs LNA checks on the resolved target IP (and any redirect hops).</li>
+      <li><strong>Completion or failure event:</strong> If all requests pass LNA and complete with OK responses, the service worker receives <code>backgroundfetchsuccess</code>. If any request is blocked by LNA, the job fails with <code>failureReason === "fetch-error"</code> and dispatches <code>backgroundfetchfail</code>.</li>
+    </ol>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/background_fetch/background_fetch_job_controller.cc" target="_blank" rel="noopener">Chromium <code>background_fetch_job_controller.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/background_fetch/background_fetch_delegate_proxy.cc" target="_blank" rel="noopener">Chromium <code>background_fetch_delegate_proxy.cc</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+
+    <h3 id="example-bgfetch-lna">Live demo, permission pre-check, and service worker failure handling</h3>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/local-network-access-restrictions-for-background-fetch/permission-state/"
+        title="Live example — Querying local-network permission before Background Fetch" loading="lazy" width="100%" height="540"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live interactive demo inspecting the origin&rsquo;s Local Network Access permission state before starting a Background Fetch. Sibling demos on the <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/local-network-access-restrictions-for-background-fetch/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase feature index</a>: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/local-network-access-restrictions-for-background-fetch/target-audit/" target="_blank" rel="noopener">target URL address-space audit</a> and <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/local-network-access-restrictions-for-background-fetch/attempt-a-fetch/" target="_blank" rel="noopener">attempting a loopback background fetch</a>. <span class="citation">Source: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/local-network-access-restrictions-for-background-fetch/permission-state/" target="_blank" rel="noopener">chrome-platform-showcase</a>.</span></figcaption>
+    </figure>
+
+    <pre tabindex="0"><code data-doc-test="js">// Foreground page: verify LNA permission before scheduling a local Background Fetch
+async function startLocalFirmwareDownload(firmwareUrl, sizeBytes) {
+  if (!("BackgroundFetchManager" in self)) {
+    throw new Error("Background Fetch is not supported in this browser.");
+  }
+
+  // 1. Check whether the origin already has "local-network" permission
+  let permissionState = "unknown";
+  try {
+    const status = await navigator.permissions.query({ name: "local-network" });
+    permissionState = status.state;
+  } catch {
+    // Older browsers may not recognize the "local-network" permission descriptor
+  }
+
+  if (permissionState === "denied") {
+    throw new Error("Local network access is denied; Background Fetch will fail with fetch-error.");
+  }
+
+  // 2. If "prompt", trigger a lightweight foreground request so the user can grant LNA
+  if (permissionState === "prompt") {
+    await fetch(firmwareUrl, { method: "HEAD", targetAddressSpace: "local" });
+  }
+
+  // 3. Schedule the Background Fetch; the service worker inherits the origin's LNA grant
+  const swReg = await navigator.serviceWorker.ready;
+  return swReg.backgroundFetch.fetch("firmware-update", [firmwareUrl], {
+    title: "Downloading local device firmware",
+    downloadTotal: sizeBytes,
+  });
+}
+
+// Service worker: handle LNA-blocked or network-failed background fetches
+function handleBackgroundFetchFail(event) {
+  const { id, result, failureReason } = event.registration;
+  if (result === "failure" && failureReason === "fetch-error") {
+    console.warn(`Background fetch "${id}" failed (LNA permission, CORS, or network error).`);
+  }
+}</code></pre>
+    <span class="citation">Source: <a href="https://wicg.github.io/background-fetch/" target="_blank" rel="noopener">Background Fetch spec</a>; <a href="https://wicg.github.io/local-network-access/" target="_blank" rel="noopener">Local Network Access spec</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/background_fetch/background_fetch_registration.idl" target="_blank" rel="noopener">Blink <code>background_fetch_registration.idl</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Browser support for Background Fetch Local Network Access restrictions alongside host <code>BackgroundFetchManager</code> support (checked 2026-11-27).</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col">LNA for Background Fetch</th><th scope="col">Evidence / notes</th><th scope="col"><code>BackgroundFetchManager</code> (BCD)</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Chrome (desktop &amp; Android)</th><td>154</td><td>Enabled by default via <code>kBackgroundFetchLocalNetworkAccess</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/content/public/common/content_features.cc" target="_blank" rel="noopener"><code>content_features.cc</code></a> (<a href="https://chromestatus.com/feature/6225598451154944" target="_blank" rel="noopener">ChromeStatus 6225598451154944</a>); WebView does not ship Background Fetch</td><td>74</td></tr>
+        <tr><th scope="row">Edge</th><td>154 (mirror)</td><td>Chromium-based; follows Chrome 154</td><td>79</td></tr>
+        <tr><th scope="row">Firefox</th><td>N/A</td><td>Firefox is shipping LNA (<a href="https://github.com/mozilla/standards-positions/issues/1260" target="_blank" rel="noopener">mozilla/standards-positions#1260</a>) but does not implement Background Fetch</td><td>No</td></tr>
+        <tr><th scope="row">Safari</th><td>No signal</td><td>Safari does not implement Background Fetch (<a href="https://github.com/WebKit/standards-positions/issues/520" target="_blank" rel="noopener">WebKit/standards-positions#520</a>)</td><td>No</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/6225598451154944" target="_blank" rel="noopener">ChromeStatus 6225598451154944</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/BackgroundFetchManager.json" target="_blank" rel="noopener">BCD <code>api/BackgroundFetchManager.json</code></a>; <a href="https://api.webstatus.dev/v1/features/local-network-access" target="_blank" rel="noopener">webstatus.dev <code>local-network-access</code></a>; <a href="https://api.webstatus.dev/v1/features/background-fetch" target="_blank" rel="noopener">webstatus.dev <code>background-fetch</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <p>This feature is a direct security hardening fix closing an LNA policy bypass (<a href="https://crbug.com/455486148" target="_blank" rel="noopener">crbug.com/455486148</a>). Without it, a malicious public page could register a service worker and queue Background Fetch requests to private routers, printers, or loopback services that persist after the tab closes without ever prompting the user for Local Network Access permission. Binding the service worker&rsquo;s <code>ClientSecurityState</code> and network observer to Background Fetch downloads ensures LNA checks, Permissions Policy restrictions, and enterprise opt-ins/overrides apply uniformly across Fetch and Background Fetch, while keeping blocked failures opaque as generic <code>"fetch-error"</code> outcomes.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/6225598451154944" target="_blank" rel="noopener">ChromeStatus 6225598451154944</a>; <a href="https://crbug.com/455486148" target="_blank" rel="noopener">crbug.com/455486148</a>; <a href="https://wicg.github.io/local-network-access/" target="_blank" rel="noopener">Local Network Access spec</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Specifications">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Specification</th><th scope="col">Relationship</th></tr></thead>
+      <tbody>
+        <tr><td><a href="https://wicg.github.io/background-fetch/" target="_blank" rel="noopener">Background Fetch (WICG)</a></td><td>Routes queued requests through Fetch, inheriting Fetch security policies</td></tr>
+        <tr><td><a href="https://wicg.github.io/local-network-access/" target="_blank" rel="noopener">Local Network Access (WICG)</a></td><td>Defines the Local Network Access check, address spaces, and <code>"local-network"</code> / <code>"loopback-network"</code> permissions</td></tr>
+        <tr><td><a href="https://fetch.spec.whatwg.org/" target="_blank" rel="noopener">Fetch Living Standard</a></td><td>Underlying fetch pipeline where LNA checks execute</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="/v154/support-targetaddressspace-option-for-websockets/">gendn &mdash; Support targetAddressSpace option for WebSockets (v154 sibling LNA feature)</a></li>
+      <li><a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/local-network-access-restrictions-for-background-fetch/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase &mdash; Local Network Access restrictions for Background Fetch demos</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/BackgroundFetchManager/fetch" target="_blank" rel="noopener">MDN &mdash; <code>BackgroundFetchManager.fetch()</code></a></li>
+      <li><a href="https://webstatus.dev/features/local-network-access" target="_blank" rel="noopener">webstatus.dev &mdash; <code>local-network-access</code></a></li>
+      <li><a href="https://chromestatus.com/feature/6225598451154944" target="_blank" rel="noopener">ChromeStatus &mdash; Local Network Access restrictions for Background Fetch (6225598451154944)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

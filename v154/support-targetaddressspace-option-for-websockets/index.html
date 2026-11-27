@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Support targetAddressSpace option for WebSockets — Chrome 154 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .scroll-table { min-width: 30rem; }
+    .example-embed { margin: 1.25rem 0; }
+    .example-embed iframe { display: block; inline-size: 100%; max-inline-size: 100%; border: 2px solid var(--border-black); background: var(--surface, #fff); }
+    .example-embed figcaption { margin-top: 0.5rem; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v154/">&larr; Chrome 154 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v154 &middot; network &middot; enabled by default</p>
+    <h1>Support targetAddressSpace option for WebSockets</h1>
+
+    <p class="lede">Adds the <code>targetAddressSpace</code> member to the <a href="/v154/add-options-bag-to-websocket-constructor/"><code>WebSocketInit</code> options dictionary</a>, allowing secure-context pages to declare that a <code>ws://</code> WebSocket connection to a hostname targets a <code>"local"</code> or <code>"loopback"</code> destination. Matching <code>fetch()</code>&rsquo;s existing <code>targetAddressSpace</code> option, this provides a permission-gated carve-out from Mixed Content blocking for local network devices that cannot easily obtain public TLS certificates.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; Chromium-only Local Network Access extension riding on the <code>WebSocketInit</code> options bag; Firefox and Safari have no signal</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; targeted at 154 (desktop, Android; trunk flag <code>LocalNetworkAccessWebSocketsTargetAddressSpace</code>)</li>
+        <li>Edge &middot; Chromium-based (mirrors Chrome)</li>
+        <li class="limited">Firefox &middot; no signal</li>
+        <li class="limited">Safari &middot; no signal</li>
+      </ul>
+      <p>The parent <a href="https://webstatus.dev/features/local-network-access" target="_blank" rel="noopener"><code>local-network-access</code> web-feature</a> is <strong>Limited availability</strong> on <a href="https://api.webstatus.dev/v1/features/local-network-access" target="_blank" rel="noopener">webstatus.dev</a> (Chrome/Edge 145+; checked 2026-11-27), while base <a href="https://api.webstatus.dev/v1/features/websockets" target="_blank" rel="noopener"><code>websockets</code></a> is Baseline Widely available. <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebSocket.json" target="_blank" rel="noopener">BCD <code>api/WebSocket.json</code></a> has no key for <code>WebSocketInit</code> or <code>targetAddressSpace</code>, and <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebSocket/WebSocket" target="_blank" rel="noopener">MDN&rsquo;s <code>WebSocket()</code> reference</a> covers only the classic protocol-string and array constructor forms.</p>
+    </div>
+  </header>
+
+  <div class="warn-block" role="note" aria-label="Runtime flag status notice" data-shipped-in="154">
+    <strong>Milestone listing vs. trunk flag status:</strong> Although the <a href="https://chromestatus.com/api/v0/features?milestone=154" target="_blank" rel="noopener">Chrome 154 milestone listing</a> files this feature under &ldquo;Enabled by default&rdquo;, Blink&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener"><code>runtime_enabled_features.json5</code></a> (checked 2026-11-27) still marks <code>LocalNetworkAccessWebSocketsTargetAddressSpace</code> as <code>status: "experimental"</code> with <code>depends_on: ["WebSocketOptionBag"]</code> (also <code>experimental</code>), and <a href="https://chromestatus.com/api/v0/features/4779920606756864" target="_blank" rel="noopener">ChromeStatus 4779920606756864</a> reports implementation status &ldquo;Proposed&rdquo;. To test locally when not enabled by default, launch Chromium with <code>--enable-blink-features=WebSocketOptionBag,LocalNetworkAccessWebSocketsTargetAddressSpace</code> or enable <code>chrome://flags/#enable-experimental-web-platform-features</code>.
+  </div>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#at-a-glance">At a glance</a></li>
+      <li><a href="#why">Why it exists</a></li>
+      <li><a href="#syntax">Syntax</a></li>
+      <li><a href="#websocketinit-targetaddressspace">WebSocketInit.targetAddressSpace</a></li>
+      <li><a href="#ipaddressspace-enum">IPAddressSpace values</a></li>
+      <li><a href="#mixed-content-lna">Mixed-content &amp; LNA enforcement</a></li>
+      <li><a href="#errors">Errors &amp; validation</a></li>
+      <li><a href="#context">Context &amp; permissions</a></li>
+      <li><a href="#lifecycle">Connection lifecycle</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#security-and-privacy">Security &amp; privacy</a></li>
+      <li><a href="#specifications">Specifications</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="At a glance">
+    <table class="doc-table">
+      <tr><th scope="row">Milestone listing</th><td>Chrome 154 (desktop, Android; WebView &amp; iOS <code>null</code>) &mdash; listed under &ldquo;Enabled by default&rdquo; in <a href="https://chromestatus.com/api/v0/features?milestone=154" target="_blank" rel="noopener">milestone=154</a> (<a href="https://chromestatus.com/api/v0/features/4779920606756864" target="_blank" rel="noopener">ChromeStatus API record 4779920606756864</a>)</td></tr>
+      <tr><th scope="row">Runtime flags</th><td><code>LocalNetworkAccessWebSocketsTargetAddressSpace</code> (<code>status: "experimental"</code>, <code>depends_on: ["WebSocketOptionBag"]</code>) in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener"><code>runtime_enabled_features.json5</code></a></td></tr>
+      <tr><th scope="row">Prerequisite feature</th><td><a href="/v154/add-options-bag-to-websocket-constructor/">Add options bag to WebSocket constructor</a> (<a href="https://chromestatus.com/feature/5080055102439424" target="_blank" rel="noopener">ChromeStatus 5080055102439424</a>; <a href="https://github.com/whatwg/websockets/pull/76" target="_blank" rel="noopener">whatwg/websockets PR #76</a>)</td></tr>
+      <tr><th scope="row">Specification &amp; proposal</th><td><a href="https://github.com/WICG/local-network-access/pull/125" target="_blank" rel="noopener">WICG/local-network-access PR #125</a> (open) &middot; <a href="https://github.com/WICG/local-network-access/issues/126" target="_blank" rel="noopener">issue #126</a> &middot; <a href="https://wicg.github.io/local-network-access/" target="_blank" rel="noopener">Local Network Access spec</a></td></tr>
+      <tr><th scope="row">Tracking bug</th><td><a href="https://crbug.com/517413738" target="_blank" rel="noopener">crbug.com/517413738</a> (component <code>Blink&gt;Network&gt;WebSockets</code>)</td></tr>
+      <tr><th scope="row">Chromium source</th><td><a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/websockets/websocket_init.idl" target="_blank" rel="noopener"><code>websocket_init.idl</code></a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/websockets/dom_websocket.cc" target="_blank" rel="noopener"><code>dom_websocket.cc</code></a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/websockets/websocket_channel_impl.cc" target="_blank" rel="noopener"><code>websocket_channel_impl.cc</code></a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/fetch/request.idl" target="_blank" rel="noopener"><code>request.idl</code></a></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/4779920606756864" target="_blank" rel="noopener">4779920606756864 &mdash; Support targetAddressSpace option for WebSockets</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>Local Network Access (LNA) requires a secure context (<code>https://</code>) to prompt for permission to reach devices on a user&rsquo;s local network, yet Mixed Content rules normally block <code>ws://</code> connections from <code>https://</code> pages. Local hardware &mdash; printers, IoT bridges, 3D printers, and local developer tools &mdash; rarely holds publicly trusted TLS certificates for <code>wss://</code>. Previously, developers had to force users to type literal private IP addresses to qualify for mixed-content exemptions (see <a href="https://github.com/WICG/local-network-access/issues/16#issuecomment-4459071272" target="_blank" rel="noopener">WICG/local-network-access#16</a>). Bringing <code>targetAddressSpace</code> to the <code>WebSocket</code> options bag mirrors <a href="https://wicg.github.io/local-network-access/#fetch-api" target="_blank" rel="noopener"><code>fetch(url, { targetAddressSpace })</code></a> so secure web apps can connect to local hostnames such as <code>ws://local-server.example</code> under explicit user permission.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/4779920606756864" target="_blank" rel="noopener">ChromeStatus 4779920606756864</a>; <a href="https://github.com/WICG/local-network-access/issues/126" target="_blank" rel="noopener">WICG/local-network-access#126</a>; <a href="https://github.com/WICG/local-network-access/issues/16#issuecomment-4459071272" target="_blank" rel="noopener">issue #16 comment</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>WebIDL extension to <code>WebSocketInit</code> and the shared <code>IPAddressSpace</code> enum (combining <a href="https://github.com/WICG/local-network-access/pull/125" target="_blank" rel="noopener">WICG/local-network-access PR #125</a>, Blink&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/websockets/websocket_init.idl" target="_blank" rel="noopener"><code>websocket_init.idl</code></a>, and <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/fetch/request.idl" target="_blank" rel="noopener"><code>request.idl</code></a>):</p>
+    <pre tabindex="0"><code data-doc-test="idl">enum IPAddressSpace {
+  "loopback",
+  "local",
+  "private",
+  "public",
+  "unknown"
+};
+
+partial dictionary WebSocketInit {
+  [RuntimeEnabled=LocalNetworkAccessWebSocketsTargetAddressSpace]
+  IPAddressSpace targetAddressSpace;
+};</code></pre>
+    <p>Pass <code>targetAddressSpace</code> inside the second argument (<code>protocolsOrOptions</code>) of <code>new WebSocket(url, options)</code>, optionally alongside <code>protocols</code> (see <a href="/v154/add-options-bag-to-websocket-constructor/">Add options bag to WebSocket constructor</a>). This reference documents <a href="#websocketinit-targetaddressspace"><code>WebSocketInit.targetAddressSpace</code></a>, the <a href="#ipaddressspace-enum"><code>IPAddressSpace</code> enum values</a>, and <a href="#mixed-content-lna">Mixed Content carve-out and LNA enforcement</a>.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/local-network-access/pull/125" target="_blank" rel="noopener">WICG/local-network-access PR #125</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/websockets/websocket_init.idl" target="_blank" rel="noopener">Blink <code>websocket_init.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/fetch/request.idl" target="_blank" rel="noopener">Blink <code>request.idl</code></a>.</span>
+
+    <h3 id="websocketinit-targetaddressspace"><code>WebSocketInit.targetAddressSpace</code></h3>
+    <p><strong>Inputs.</strong> An optional <code>IPAddressSpace</code> string member on the <code>WebSocketInit</code> dictionary passed as the second parameter of <code>new WebSocket(url, protocolsOrOptions)</code>. When omitted, Blink initializes the connection&rsquo;s internal target address space to <code>IPAddressSpace::kUnknown</code> (no declared target address space, so standard Mixed Content rules apply).</p>
+    <p><strong>Outputs.</strong> The parsed <code>targetAddressSpace</code> value is forwarded from <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/websockets/dom_websocket.cc" target="_blank" rel="noopener"><code>DOMWebSocket::Create()</code></a> into <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/websockets/websocket_channel_impl.cc" target="_blank" rel="noopener"><code>WebSocketChannelImpl::Connect()</code></a> and over Mojo to the Network Service&rsquo;s WebSocket connector. There is no <code>ws.targetAddressSpace</code> getter on the resulting <code>WebSocket</code> instance; the option affects only connection eligibility and LNA verification.</p>
+    <span class="citation">Source: <a href="https://github.com/WICG/local-network-access/pull/125" target="_blank" rel="noopener">WICG/local-network-access PR #125</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/websockets/dom_websocket.cc" target="_blank" rel="noopener">Blink <code>dom_websocket.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/websockets/websocket_channel_impl.cc" target="_blank" rel="noopener">Blink <code>websocket_channel_impl.cc</code></a>.</span>
+
+    <h3 id="ipaddressspace-enum"><code>IPAddressSpace</code> values for WebSockets</h3>
+    <p><strong>Inputs &amp; outputs per enum value.</strong> Blink reuses the <code>IPAddressSpace</code> enum from <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/fetch/request.idl" target="_blank" rel="noopener"><code>request.idl</code></a>, but <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/websockets/dom_websocket.cc" target="_blank" rel="noopener"><code>ParseOptionBag()</code> in <code>dom_websocket.cc</code></a> explicitly rejects the legacy <code>"private"</code> alias and <code>"unknown"</code>:</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="ip-space-caption">
+    <table class="doc-table scroll-table">
+      <caption id="ip-space-caption"><code>IPAddressSpace</code> values accepted or rejected by <code>WebSocketInit.targetAddressSpace</code> in Blink</caption>
+      <thead><tr><th scope="col">Value</th><th scope="col">Constructor result</th><th scope="col">Connection effect</th></tr></thead>
+      <tbody>
+        <tr><td><code>"local"</code></td><td>Accepted</td><td>Declares a local-network destination (e.g., RFC 1918 / link-local IP); qualifies <code>ws://</code> from a secure context for the Mixed Content carve-out and requires <code>"local-network"</code> permission plus matching resolved IP</td></tr>
+        <tr><td><code>"loopback"</code></td><td>Accepted</td><td>Declares a loopback destination (<code>127.0.0.0/8</code>, <code>::1</code>); qualifies <code>ws://</code> for the Mixed Content carve-out and requires <code>"loopback-network"</code> permission plus loopback resolved IP</td></tr>
+        <tr><td><code>"public"</code></td><td>Accepted</td><td>Treated as public (no Mixed Content carve-out; PR #125 specifies &ldquo;Do nothing&rdquo;, Blink passes <code>kPublic</code>)</td></tr>
+        <tr><td><code>"private"</code></td><td><strong>Throws <code>TypeError</code></strong></td><td>Rejected in <code>dom_websocket.cc</code>: <em>&ldquo;The targetAddressSpace option does not support the legacy &apos;private&apos; alias; use &apos;local&apos; instead.&rdquo;</em></td></tr>
+        <tr><td><code>"unknown"</code></td><td><strong>Throws <code>TypeError</code></strong></td><td>Rejected in <code>dom_websocket.cc</code>: <em>&ldquo;The targetAddressSpace option cannot be set to &apos;unknown&apos;.&rdquo;</em></td></tr>
+        <tr><td>Any other string</td><td><strong>Throws <code>TypeError</code></strong></td><td>Standard WebIDL enum conversion failure</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/websockets/dom_websocket.cc" target="_blank" rel="noopener">Blink <code>dom_websocket.cc</code> (<code>ParseOptionBag</code>)</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/fetch/request.idl" target="_blank" rel="noopener">Blink <code>request.idl</code></a>; <a href="https://github.com/WICG/local-network-access/pull/125" target="_blank" rel="noopener">WICG/local-network-access PR #125</a>.</span>
+
+    <h3 id="mixed-content-lna">Mixed-content carve-out and Local Network Access enforcement</h3>
+    <p><strong>Inputs &amp; algorithm.</strong> When <code>WebSocketChannelImpl::Connect()</code> runs on a secure origin (<code>https://</code>) with a <code>ws://</code> URL, Blink calls <code>ShouldBlockWebSocketByMixedContentCheck(url, target_address_space)</code>. Setting <code>targetAddressSpace</code> to <code>"local"</code> or <code>"loopback"</code> bypasses the Mixed Content block (matching <a href="https://wicg.github.io/local-network-access/#integration-with-mixed-content" target="_blank" rel="noopener">LNA &sect; Integration with Mixed Content</a>) and hands <code>target_address_space</code> to the Network Service&rsquo;s WebSocket handshake.</p>
+    <p><strong>Outputs &amp; verification.</strong> Passing <code>targetAddressSpace</code> is a <strong>declaration, not an unconditional bypass</strong>: the Network Service still runs the Local Network Access check after DNS resolution. Both conditions must hold for the handshake to succeed: (1) the user (or enterprise policy) has granted the corresponding LNA permission for the calling origin, and (2) the resolved remote IP actually falls in the declared address space (<code>"local"</code> or <code>"loopback"</code>). If a hostname resolves to a public IP despite <code>targetAddressSpace: "local"</code>, or if the user denies the permission prompt, the WebSocket handshake is blocked.</p>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/websockets/websocket_channel_impl.cc" target="_blank" rel="noopener">Blink <code>websocket_channel_impl.cc</code></a>; <a href="https://wicg.github.io/local-network-access/#integration-with-mixed-content" target="_blank" rel="noopener">Local Network Access &sect; Integration with Mixed Content</a>; <a href="https://chromestatus.com/feature/4779920606756864" target="_blank" rel="noopener">ChromeStatus 4779920606756864</a>.</span>
+
+    <h3 id="errors">Errors and failure modes</h3>
+    <ul>
+      <li><strong>Synchronous <code>TypeError</code> on invalid <code>IPAddressSpace</code>:</strong> Passing <code>"private"</code>, <code>"unknown"</code>, or any non-enum string for <code>targetAddressSpace</code> throws a <code>TypeError</code> synchronously during <code>new WebSocket(...)</code>.</li>
+      <li><strong>Synchronous <code>SyntaxError</code> when options bag is unsupported:</strong> On browsers without <code>WebSocketOptionBag</code> support, passing an options object as the second argument coerces it to <code>"[object Object]"</code> as a subprotocol name and synchronously throws a <code>SyntaxError</code> <code>DOMException</code>.</li>
+      <li><strong>Synchronous <code>SecurityError</code> on unexempted Mixed Content:</strong> Opening <code>ws://</code> from <code>https://</code> without a valid <code>"local"</code> or <code>"loopback"</code> <code>targetAddressSpace</code> (or when the feature flag is off) triggers Mixed Content blocking and throws a <code>SecurityError</code> <code>DOMException</code>.</li>
+      <li><strong>Asynchronous connection failure (<code>error</code> + <code>close</code> events):</strong> If the user denies the LNA permission prompt, the origin is blocked by Permissions Policy, or the resolved IP does not match the declared <code>targetAddressSpace</code>, the constructor returns a <code>WebSocket</code> in <code>CONNECTING</code> state and the connection fails asynchronously by firing <code>error</code> followed by <code>close</code> (typically abnormal closure code <code>1006</code>).</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/websockets/dom_websocket.cc" target="_blank" rel="noopener">Blink <code>dom_websocket.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/websockets/websocket_channel_impl.cc" target="_blank" rel="noopener">Blink <code>websocket_channel_impl.cc</code></a>; <a href="https://websockets.spec.whatwg.org/" target="_blank" rel="noopener">WebSockets Living Standard</a>.</span>
+
+    <h3 id="context">Context, permissions, and prerequisites</h3>
+    <p><code>WebSocket</code> is exposed in both <code>Window</code> and <code>Worker</code> contexts (<code>[Exposed=(Window,Worker)]</code>). However, Local Network Access permission grants require a <strong>secure context</strong> (<code>https://</code> or <code>localhost</code>) and appropriate Permissions Policy delegation for cross-origin iframes (<code>local-network</code> / <code>loopback-network</code> / <code>local-network-access</code>). In a <code>Window</code>, a first-time local WebSocket request can trigger the browser&rsquo;s LNA permission prompt; in a dedicated/shared/service worker without an active prompt UI, the origin should already hold the grant before opening the socket. Note also that Chrome logs a deprecation warning console message when opening a non-secure <code>ws://</code> socket from a secure origin even when allowed by the LNA carve-out.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/local-network-access/" target="_blank" rel="noopener">Local Network Access spec</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/websockets/websocket_channel_impl.cc" target="_blank" rel="noopener">Blink <code>websocket_channel_impl.cc</code></a>; <a href="https://chromestatus.com/feature/4779920606756864" target="_blank" rel="noopener">ChromeStatus 4779920606756864</a>.</span>
+
+    <h3 id="lifecycle">Connection lifecycle and ordering</h3>
+    <ol>
+      <li><strong>Option bag parsing (synchronous):</strong> <code>DOMWebSocket::Create()</code> reads <code>protocols</code> and <code>targetAddressSpace</code> from <code>WebSocketInit</code>, validating enum values and throwing <code>TypeError</code> on <code>"private"</code>, <code>"unknown"</code>, or unknown strings.</li>
+      <li><strong>Mixed-content gate (synchronous):</strong> <code>WebSocketChannelImpl::Connect()</code> checks <code>ShouldBlockWebSocketByMixedContentCheck(url, target_address_space)</code>; <code>"local"</code> and <code>"loopback"</code> pass the gate.</li>
+      <li><strong>Handshake &amp; DNS / LNA check (asynchronous):</strong> The Network Service resolves the hostname, compares the resolved IP&rsquo;s address space against <code>target_address_space</code>, verifies or prompts for the required LNA permission, and either completes the WebSocket upgrade (firing <code>open</code>) or aborts the connection (firing <code>error</code> then <code>close</code>).</li>
+      <li><strong>Cleanup &amp; BFCache:</strong> As with any active <code>WebSocket</code>, Blink registers a scheduling handle disabling Back/Forward Cache while the connection is open (unless disconnected on BFCache). Calling <code>socket.close()</code> tears down the channel normally.</li>
+    </ol>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/websockets/dom_websocket.cc" target="_blank" rel="noopener">Blink <code>dom_websocket.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/websockets/websocket_channel_impl.cc" target="_blank" rel="noopener">Blink <code>websocket_channel_impl.cc</code></a>; <a href="https://github.com/WICG/local-network-access/pull/125" target="_blank" rel="noopener">WICG/local-network-access PR #125</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+
+    <h3 id="example-targetaddressspace">Live demo, feature probe, and local WebSocket connection</h3>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/support-targetaddressspace-option-for-websockets/option-probe/"
+        title="Live example — Probing WebSocketInit.targetAddressSpace support" loading="lazy" width="100%" height="540"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live interactive probe checking whether the browser reads <code>targetAddressSpace</code> from <code>WebSocketInit</code> and testing accepted vs. rejected <code>IPAddressSpace</code> values. Sibling demos on the <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/support-targetaddressspace-option-for-websockets/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase feature index</a>: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/support-targetaddressspace-option-for-websockets/address-spaces/" target="_blank" rel="noopener">address space classifier</a> and <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/support-targetaddressspace-option-for-websockets/connect-locally/" target="_blank" rel="noopener">opening a local connection</a>. <span class="citation">Source: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/support-targetaddressspace-option-for-websockets/option-probe/" target="_blank" rel="noopener">chrome-platform-showcase</a>.</span></figcaption>
+    </figure>
+
+    <pre tabindex="0"><code data-doc-test="js">// 1. Feature-detect whether WebSocket reads targetAddressSpace from WebSocketInit
+function supportsWebSocketTargetAddressSpace() {
+  let read = false;
+  const options = {
+    get targetAddressSpace() {
+      read = true;
+      return "local";
+    },
+  };
+  try {
+    const ws = new WebSocket("wss://example.invalid/", options);
+    ws.close();
+  } catch {
+    // Throws SyntaxError on browsers without WebSocketInit support
+  }
+  return read;
+}
+
+// 2. Connect from an https:// page to a local device over ws:// using a hostname
+function connectLocalPrinter(hostname, subprotocols = ["escpos"]) {
+  const url = `ws://${hostname}:9100/stream`;
+  if (!supportsWebSocketTargetAddressSpace()) {
+    throw new Error("Browser does not support WebSocketInit.targetAddressSpace.");
+  }
+
+  // Use "local" for LAN devices or "loopback" for 127.0.0.1 / ::1.
+  // Never pass "private" or "unknown" — Blink throws a TypeError.
+  const socket = new WebSocket(url, {
+    protocols: subprotocols,
+    targetAddressSpace: "local",
+  });
+
+  socket.addEventListener("open", () => {
+    console.log("Connected with subprotocol:", socket.protocol);
+  });
+  socket.addEventListener("error", () => {
+    // Fires if LNA permission was denied or DNS resolved to a non-local IP
+    console.error("Local WebSocket connection blocked or unreachable.");
+  });
+  return socket;
+}</code></pre>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/4779920606756864" target="_blank" rel="noopener">ChromeStatus 4779920606756864</a>; <a href="https://github.com/WICG/local-network-access/pull/125" target="_blank" rel="noopener">WICG/local-network-access PR #125</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/websockets/dom_websocket.cc" target="_blank" rel="noopener">Blink <code>dom_websocket.cc</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Interim compatibility table for <code>WebSocketInit.targetAddressSpace</code> alongside host <code>WebSocket</code> support. BCD has no key for <code>WebSocketInit</code> or <code>targetAddressSpace</code> (checked 2026-11-27).</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col"><code>WebSocketInit.targetAddressSpace</code></th><th scope="col">Evidence / notes</th><th scope="col">Host <code>WebSocket()</code> (BCD)</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Chrome (desktop &amp; Android)</th><td>154 (listed; trunk flag experimental)</td><td>Listed under &ldquo;Enabled by default&rdquo; in <a href="https://chromestatus.com/api/v0/features?milestone=154" target="_blank" rel="noopener">milestone=154</a> (<a href="https://chromestatus.com/api/v0/features/4779920606756864" target="_blank" rel="noopener">ChromeStatus 4779920606756864</a>); trunk <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener"><code>LocalNetworkAccessWebSocketsTargetAddressSpace</code></a> is still <code>status: "experimental"</code> depending on <code>WebSocketOptionBag</code></td><td>5</td></tr>
+        <tr><th scope="row">Edge</th><td>154 (Chromium mirror)</td><td>Follows Chromium rollout; BCD has no subfeature key</td><td>12</td></tr>
+        <tr><th scope="row">Firefox</th><td>No signal</td><td><a href="https://chromestatus.com/api/v0/features/4779920606756864" target="_blank" rel="noopener">ChromeStatus 4779920606756864</a> reports No signal</td><td>11</td></tr>
+        <tr><th scope="row">Safari</th><td>No signal</td><td><a href="https://chromestatus.com/api/v0/features/4779920606756864" target="_blank" rel="noopener">ChromeStatus 4779920606756864</a> reports No signal</td><td>5</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/4779920606756864" target="_blank" rel="noopener">ChromeStatus 4779920606756864</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/WebSocket.json" target="_blank" rel="noopener">BCD <code>api/WebSocket.json</code></a>; <a href="https://api.webstatus.dev/v1/features/local-network-access" target="_blank" rel="noopener">webstatus.dev <code>local-network-access</code></a>; <a href="https://api.webstatus.dev/v1/features/websockets" target="_blank" rel="noopener">webstatus.dev <code>websockets</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <ul>
+      <li><strong>No Mixed Content bypass to public hosts:</strong> Setting <code>targetAddressSpace: "local"</code> or <code>"loopback"</code> permits an unencrypted <code>ws://</code> handshake from an <code>https://</code> page <em>only</em> if DNS resolves to an IP actually in that address space. Attempting to spoof <code>targetAddressSpace: "local"</code> for a public hostname fails the Network Service&rsquo;s address-space check rather than downgrading transport security on the public internet.</li>
+      <li><strong>User permission gate:</strong> Every cross-address-space WebSocket connection from a public origin to a local or loopback server requires an explicit Local Network Access permission grant (<code>"local-network"</code> or <code>"loopback-network"</code>), mitigating drive-by CSRF and port scanning against LAN routers and local services.</li>
+      <li><strong>DNS rebinding &amp; error opacity:</strong> If a connection is rejected due to a missing permission or an address-space mismatch, the WebSocket API exposes only a generic asynchronous <code>error</code> / <code>close</code> failure without revealing the resolved IP address to page script.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://wicg.github.io/local-network-access/" target="_blank" rel="noopener">Local Network Access spec</a>; <a href="https://github.com/WICG/local-network-access/pull/125" target="_blank" rel="noopener">WICG/local-network-access PR #125</a>; <a href="https://chromestatus.com/feature/4779920606756864" target="_blank" rel="noopener">ChromeStatus 4779920606756864</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Specifications">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Specification</th><th scope="col">Section / Status</th></tr></thead>
+      <tbody>
+        <tr><td><a href="https://github.com/WICG/local-network-access/pull/125" target="_blank" rel="noopener">WICG/local-network-access PR #125</a></td><td>Open PR adding <code>WebSocketInit.targetAddressSpace</code> integration to the Local Network Access specification</td></tr>
+        <tr><td><a href="https://wicg.github.io/local-network-access/" target="_blank" rel="noopener">Local Network Access (WICG)</a></td><td><a href="https://wicg.github.io/local-network-access/#fetch-api" target="_blank" rel="noopener">Fetch API <code>targetAddressSpace</code></a> &middot; <a href="https://wicg.github.io/local-network-access/#integration-with-mixed-content" target="_blank" rel="noopener">Integration with Mixed Content</a></td></tr>
+        <tr><td><a href="https://github.com/whatwg/websockets/pull/76" target="_blank" rel="noopener">whatwg/websockets PR #76</a></td><td>Prerequisite PR adding the <code>WebSocketInit</code> options bag to <a href="https://websockets.spec.whatwg.org/" target="_blank" rel="noopener">WebSockets Living Standard</a></td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="/v154/add-options-bag-to-websocket-constructor/">gendn &mdash; Add options bag to WebSocket constructor (v154 prerequisite)</a></li>
+      <li><a href="/v154/local-network-access-restrictions-for-background-fetch/">gendn &mdash; Local Network Access restrictions for Background Fetch (v154 sibling)</a></li>
+      <li><a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/support-targetaddressspace-option-for-websockets/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase &mdash; targetAddressSpace for WebSockets demos</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/WebSocket/WebSocket" target="_blank" rel="noopener">MDN &mdash; <code>WebSocket()</code> constructor</a></li>
+      <li><a href="https://github.com/WICG/local-network-access/issues/126" target="_blank" rel="noopener">WICG/local-network-access#126 &mdash; Explainer issue</a></li>
+      <li><a href="https://chromestatus.com/feature/4779920606756864" target="_blank" rel="noopener">ChromeStatus &mdash; Support targetAddressSpace option for WebSockets (4779920606756864)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

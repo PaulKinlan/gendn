@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Secure Payment Confirmation: Locale Validation — Chrome 154 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .scroll-table { min-width: 30rem; }
+    .example-embed { margin: 1.25rem 0; }
+    .example-embed iframe { display: block; inline-size: 100%; max-inline-size: 100%; border: 2px solid var(--border-black); background: var(--surface, #fff); }
+    .example-embed figcaption { margin-top: 0.5rem; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v154/">&larr; Chrome 154 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v154 &middot; payments &middot; enabled by default</p>
+    <h1>Secure Payment Confirmation: Locale Validation</h1>
+
+    <p class="lede">Updates Secure Payment Confirmation&rsquo;s <code>locale</code> field so Chrome validates the caller-supplied BCP 47 language tags against the browser&rsquo;s UI dialog locale and rejects with a <code>NotSupportedError</code> <code>DOMException</code> if none match. When <code>locale</code> is omitted or empty, validation is skipped; when a mismatch occurs, callers can retry with re-localized strings or a broader primary language tag so merchant-supplied text matches the browser dialog.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; Chromium-only (Secure Payment Confirmation ships in Chrome and Edge; Firefox and Safari do not implement SPC)</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 154 (desktop, Android &mdash; <code>kSPCLocaleValidation</code> enabled by default)</li>
+        <li>Edge &middot; 154 (Chromium-based mirror)</li>
+        <li class="limited">Firefox &middot; N/A (does not implement Secure Payment Confirmation)</li>
+        <li class="limited">Safari &middot; N/A (does not implement Secure Payment Confirmation)</li>
+      </ul>
+      <p>The host <a href="https://webstatus.dev/features/secure-payment-confirmation" target="_blank" rel="noopener"><code>secure-payment-confirmation</code> web-feature</a> is <strong>Limited availability</strong> on <a href="https://api.webstatus.dev/v1/features/secure-payment-confirmation" target="_blank" rel="noopener">webstatus.dev</a> (Chrome/Edge 139+; checked 2026-11-27). <a href="https://developer.mozilla.org/en-US/docs/Web/API/Payment_Request_API/Using_secure_payment_confirmation" target="_blank" rel="noopener">MDN&rsquo;s Secure Payment Confirmation guide</a> does not document <code>locale</code> validation or <code>NotSupportedError</code> mismatch handling, so gendn ships a complete spec- and source-verified reference here.</p>
+    </div>
+  </header>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#at-a-glance">At a glance</a></li>
+      <li><a href="#why">Why it exists</a></li>
+      <li><a href="#syntax">Syntax</a></li>
+      <li><a href="#spc-request-locale">SecurePaymentConfirmationRequest.locale</a></li>
+      <li><a href="#locale-matching-algorithm">BCP 47 matching rules</a></li>
+      <li><a href="#notsupported-error">NotSupportedError &amp; retry flow</a></li>
+      <li><a href="#context">Context &amp; prerequisites</a></li>
+      <li><a href="#lifecycle">Validation timing &amp; lifecycle</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#security-and-privacy">Security &amp; privacy</a></li>
+      <li><a href="#specifications">Specifications</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="At a glance">
+    <table class="doc-table">
+      <tr><th scope="row">Shipped in</th><td>Chrome 154 (desktop, Android; WebView &amp; iOS <code>null</code>) &mdash; listed under &ldquo;Enabled by default&rdquo; in <a href="https://chromestatus.com/api/v0/features?milestone=154" target="_blank" rel="noopener">milestone=154</a> (<a href="https://chromestatus.com/api/v0/features/5126146013396992" target="_blank" rel="noopener">ChromeStatus API record 5126146013396992</a>)</td></tr>
+      <tr><th scope="row">Chromium feature flag</th><td><code>kSPCLocaleValidation</code> is <code>base::FEATURE_ENABLED_BY_DEFAULT</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/components/payments/core/features.cc" target="_blank" rel="noopener"><code>components/payments/core/features.cc</code></a></td></tr>
+      <tr><th scope="row">Specification &amp; PR</th><td><a href="https://w3c.github.io/secure-payment-confirmation/#dom-securepaymentconfirmationrequest-locale" target="_blank" rel="noopener">W3C Secure Payment Confirmation &mdash; <code>locale</code></a>; updated by merged <a href="https://github.com/w3c/secure-payment-confirmation/pull/345" target="_blank" rel="noopener">w3c/secure-payment-confirmation PR #345</a> (originating issue <a href="https://github.com/w3c/secure-payment-confirmation/issues/343" target="_blank" rel="noopener">#343</a>; i18n review <a href="https://github.com/w3c/i18n-request/issues/324" target="_blank" rel="noopener">w3c/i18n-request#324</a>)</td></tr>
+      <tr><th scope="row">Tracking bug &amp; sample</th><td><a href="https://crbug.com/535278878" target="_blank" rel="noopener">crbug.com/535278878</a> (component <code>Blink&gt;Payments</code>) &middot; <a href="https://rsolomakhin.github.io/pr/spc-locales" target="_blank" rel="noopener">Upstream SPC locales sample</a></td></tr>
+      <tr><th scope="row">Chromium source</th><td><a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/payments/secure_payment_confirmation_request.idl" target="_blank" rel="noopener"><code>secure_payment_confirmation_request.idl</code></a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/payments/content/secure_payment_confirmation_validation.cc" target="_blank" rel="noopener"><code>secure_payment_confirmation_validation.cc</code></a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/payments/content/payment_request.cc" target="_blank" rel="noopener"><code>payment_request.cc</code></a></td></tr>
+      <tr><th scope="row">WPT status</th><td>In development (delayed by lack of WebDriver support to switch browser UI locale, per <a href="https://chromestatus.com/api/v0/features/5126146013396992" target="_blank" rel="noopener">ChromeStatus 5126146013396992</a>)</td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5126146013396992" target="_blank" rel="noopener">5126146013396992 &mdash; Secure Payment Confirmation: Locale Validation</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>A Secure Payment Confirmation (SPC) dialog mixes browser-owned chrome (such as &ldquo;Verify your identity&rdquo; and button labels) with merchant- or issuer-supplied strings (<code>instrument.displayName</code>, <code>payeeName</code>, and entity logo labels). Previously, callers could pass a <code>locale</code> list expecting the browser to translate the dialog, yet Chrome always renders the SPC dialog in the browser&rsquo;s own UI language and silently ignored <code>locale</code> &mdash; risking a confusing mixed-language payment confirmation dialog. Validating <code>locale</code> against the dialog language and rejecting mismatches with <code>NotSupportedError</code> lets payment callers detect a mismatch during <code>canMakePayment()</code> and retry with translated data elements or fall back gracefully.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5126146013396992" target="_blank" rel="noopener">ChromeStatus 5126146013396992</a>; <a href="https://github.com/w3c/secure-payment-confirmation/issues/343" target="_blank" rel="noopener">w3c/secure-payment-confirmation#343</a>; <a href="https://github.com/w3c/secure-payment-confirmation/pull/345" target="_blank" rel="noopener">PR #345</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>WebIDL member on <code>SecurePaymentConfirmationRequest</code> (from <a href="https://w3c.github.io/secure-payment-confirmation/#dom-securepaymentconfirmationrequest-locale" target="_blank" rel="noopener">W3C Secure Payment Confirmation</a> and Blink&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/payments/secure_payment_confirmation_request.idl" target="_blank" rel="noopener"><code>secure_payment_confirmation_request.idl</code></a>):</p>
+    <pre tabindex="0"><code data-doc-test="idl">partial dictionary SecurePaymentConfirmationRequest {
+  sequence&lt;USVString&gt; locale;
+};</code></pre>
+    <p>Pass <code>locale</code> inside the <code>data</code> object of a <code>PaymentMethodData</code> entry whose <code>supportedMethods</code> is <code>"secure-payment-confirmation"</code> when constructing a <code>new PaymentRequest([methodData], details)</code>. This reference covers <a href="#spc-request-locale"><code>SecurePaymentConfirmationRequest.locale</code></a>, the <a href="#locale-matching-algorithm">BCP 47 matching algorithm</a>, and <a href="#notsupported-error"><code>NotSupportedError</code> handling</a>.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/secure-payment-confirmation/#dom-securepaymentconfirmationrequest-locale" target="_blank" rel="noopener">W3C SPC <code>locale</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/payments/secure_payment_confirmation_request.idl" target="_blank" rel="noopener">Blink <code>secure_payment_confirmation_request.idl</code></a>.</span>
+
+    <h3 id="spc-request-locale"><code>SecurePaymentConfirmationRequest.locale</code></h3>
+    <p><strong>Inputs.</strong> An optional <code>sequence&lt;USVString&gt;</code> of <a href="https://www.rfc-editor.org/info/rfc5646" target="_blank" rel="noopener">BCP 47</a> language tags representing the locale(s) of the caller&rsquo;s supplied display strings (for example <code>["en-US", "en"]</code> or <code>["fr-CA", "fr"]</code>).</p>
+    <p><strong>Outputs &amp; opt-out behavior.</strong> If <code>locale</code> is omitted (<code>undefined</code>) or an empty array (<code>[]</code>), locale validation is completely skipped and the SPC request proceeds regardless of the browser&rsquo;s UI language. If <code>locale</code> contains one or more tags, at least one tag must match the browser&rsquo;s SPC dialog locale for the request to remain valid.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/secure-payment-confirmation/#dom-securepaymentconfirmationrequest-locale" target="_blank" rel="noopener">W3C SPC <code>locale</code></a>; <a href="https://github.com/w3c/secure-payment-confirmation/pull/345" target="_blank" rel="noopener">PR #345</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/payments/content/secure_payment_confirmation_validation.cc" target="_blank" rel="noopener">Chromium <code>secure_payment_confirmation_validation.cc</code></a>.</span>
+
+    <h3 id="locale-matching-algorithm">BCP 47 language tag matching algorithm</h3>
+    <p><strong>Inputs &amp; outputs.</strong> Per merged <a href="https://github.com/w3c/secure-payment-confirmation/pull/345" target="_blank" rel="noopener">W3C SPC PR #345</a> and Chromium&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/components/payments/content/secure_payment_confirmation_validation.cc" target="_blank" rel="noopener"><code>MatchLanguageTags()</code> in <code>secure_payment_confirmation_validation.cc</code></a>, each tag in <code>locale</code> is tested against the browser&rsquo;s application locale (<code>delegate_-&gt;GetApplicationLocale()</code>). Matching succeeds as soon as <em>any</em> tag satisfies the rules below (note: standard RFC 4647 language negotiation is intentionally <em>not</em> performed, because the browser does not change its dialog language):</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="locale-matrix-caption">
+    <table class="doc-table scroll-table">
+      <caption id="locale-matrix-caption">SPC <code>locale</code> matching outcomes against browser dialog locale</caption>
+      <thead><tr><th scope="col">Request <code>locale</code></th><th scope="col">Dialog locale</th><th scope="col">Result</th><th scope="col">Rule applied</th></tr></thead>
+      <tbody>
+        <tr><td>Omitted or <code>[]</code></td><td>Any (e.g., <code>"en-US"</code>)</td><td><strong>Pass</strong> (skipped)</td><td>Empty/absent <code>locale</code> skips validation</td></tr>
+        <tr><td><code>["en-US"]</code> or <code>["EN-us"]</code></td><td><code>"en-US"</code></td><td><strong>Match</strong></td><td>Both have multiple subtags (region); ASCII case-insensitive exact match</td></tr>
+        <tr><td><code>["en-GB"]</code></td><td><code>"en-US"</code></td><td><strong>No match</strong> (<code>NotSupportedError</code>)</td><td>Both include region subtags and differ &mdash; exact match required</td></tr>
+        <tr><td><code>["en"]</code></td><td><code>"en-US"</code></td><td><strong>Match</strong></td><td>Request tag has primary language subtag only; primary subtags match</td></tr>
+        <tr><td><code>["fr-CA"]</code></td><td><code>"fr"</code></td><td><strong>Match</strong></td><td>Dialog tag has primary language subtag only; primary subtags match</td></tr>
+        <tr><td><code>["fr-CA", "en"]</code></td><td><code>"en-GB"</code></td><td><strong>Match</strong></td><td>Any matching tag in the list succeeds (<code>"en"</code> matches <code>"en-GB"</code>)</td></tr>
+        <tr><td><code>["ja", "de"]</code></td><td><code>"en-US"</code></td><td><strong>No match</strong> (<code>NotSupportedError</code>)</td><td>No tag matches the dialog locale</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p><strong>Spec vs. Chromium detail on malformed tags:</strong> W3C SPC PR #345 specifies throwing a <code>TypeError</code> if a tag is not a well-formed BCP 47 language tag. In Chromium&rsquo;s current <a href="https://chromium.googlesource.com/chromium/src/+/main/components/payments/content/secure_payment_confirmation_validation.cc" target="_blank" rel="noopener"><code>MatchLanguageTags()</code></a>, an unparseable tag returns <code>std::nullopt</code> from <code>LanguageTagConverter::FromString()</code> and is skipped (failing with <code>NotSupportedError</code> if no other tag matches). Canonicalize tags with <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/getCanonicalLocales" target="_blank" rel="noopener"><code>Intl.getCanonicalLocales()</code></a> before constructing the request to stay portable across both behaviors.</p>
+    <span class="citation">Source: <a href="https://github.com/w3c/secure-payment-confirmation/pull/345" target="_blank" rel="noopener">W3C SPC PR #345</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/payments/content/secure_payment_confirmation_validation.cc" target="_blank" rel="noopener">Chromium <code>secure_payment_confirmation_validation.cc</code></a>; <a href="https://www.rfc-editor.org/info/rfc5646" target="_blank" rel="noopener">RFC 5646 (BCP 47)</a>.</span>
+
+    <h3 id="notsupported-error"><code>NotSupportedError</code> rejection and retry handling</h3>
+    <p><strong>Error path &amp; inputs/outputs.</strong> Because the renderer process does not know the browser&rsquo;s UI application locale, <a href="https://chromium.googlesource.com/chromium/src/+/main/components/payments/content/payment_request.cc" target="_blank" rel="noopener"><code>PaymentRequest::Init()</code></a> validates <code>locale</code> in the browser process. When <code>kSPCLocaleValidation</code> is enabled and <code>IsValidSecurePaymentConfirmationRequest()</code> returns <code>kLocaleDoesNotMatch</code>, the browser sends <code>client_-&gt;OnError(mojom::PaymentErrorReason::NOT_SUPPORTED, error_message)</code> and tears down the browser-side <code>PaymentRequest</code>. On the JavaScript side:</p>
+    <ul>
+      <li><code>new PaymentRequest([{ supportedMethods: "secure-payment-confirmation", data }], details)</code> <strong>does not throw synchronously</strong> on a locale mismatch.</li>
+      <li>Calling <code>await request.canMakePayment()</code> (recommended preflight check, requires no user activation) or <code>await request.show()</code> <strong>rejects with a <code>NotSupportedError</code> <code>DOMException</code></strong>.</li>
+      <li>Notice that <code>canMakePayment()</code> distinguishes a locale mismatch (<strong>rejects</strong> with <code>NotSupportedError</code>) from &ldquo;no matching credential available&rdquo; (<strong>resolves</strong> to <code>false</code>).</li>
+      <li><strong>Recovery / retry:</strong> Catch <code>NotSupportedError</code>, retry with a broader primary language subtag (e.g. <code>["en"]</code> instead of <code>["en-GB"]</code>) or alternative localized copy, or omit <code>locale</code> (or fall back to a non-SPC checkout flow) if no language match is possible.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/components/payments/content/payment_request.cc" target="_blank" rel="noopener">Chromium <code>payment_request.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/payments/content/secure_payment_confirmation_validation.cc" target="_blank" rel="noopener">Chromium <code>secure_payment_confirmation_validation.cc</code></a>; <a href="https://github.com/w3c/secure-payment-confirmation/pull/345" target="_blank" rel="noopener">W3C SPC PR #345</a>.</span>
+
+    <h3 id="context">Context and prerequisites</h3>
+    <p>Secure Payment Confirmation runs inside the <a href="https://www.w3.org/TR/payment-request/" target="_blank" rel="noopener">Payment Request API</a> in <code>Window</code> secure contexts (<code>https://</code> or <code>localhost</code>). Cross-origin iframes require the <code>payment</code> Permissions Policy (<code>allow="payment"</code>). <code>canMakePayment()</code> requires no user activation (and is the recommended place to detect <code>NotSupportedError</code> before showing UI); <code>show()</code> requires transient user activation. Note that <code>PaymentMethodData.data</code> is JSON-serialized by the Payment Request constructor, so plain data values (no throwing getters) must be passed.</p>
+    <span class="citation">Source: <a href="https://w3c.github.io/secure-payment-confirmation/#dom-securepaymentconfirmationrequest-locale" target="_blank" rel="noopener">W3C SPC spec</a>; <a href="https://www.w3.org/TR/payment-request/" target="_blank" rel="noopener">W3C Payment Request API</a>.</span>
+
+    <h3 id="lifecycle">Validation timing and request lifecycle</h3>
+    <ol>
+      <li><strong>Construction (renderer, synchronous):</strong> <code>new PaymentRequest(...)</code> serializes the SPC <code>data</code> payload and sends Mojo <code>PaymentRequest::Init</code> to the browser process.</li>
+      <li><strong>Browser-side validation (asynchronous):</strong> <code>PaymentRequest::Init()</code> runs <code>ValidateSecurePaymentConfirmationRequest()</code> with <code>delegate_-&gt;GetApplicationLocale()</code>. If <code>kLocaleDoesNotMatch</code> occurs, the browser invokes <code>client_-&gt;OnError(NOT_SUPPORTED, ...)</code> and deletes the browser-side request instance.</li>
+      <li><strong>Preflight via <code>canMakePayment()</code>:</strong> Rejects with <code>NotSupportedError</code> if locale validation failed, or resolves to <code>true</code> / <code>false</code> if locale matched (or was omitted/empty).</li>
+      <li><strong>Retry with new <code>PaymentRequest</code>:</strong> Because a failed <code>PaymentRequest</code> is torn down after <code>OnError</code>, each retry attempt with updated <code>locale</code> and localized display strings must construct a fresh <code>PaymentRequest</code> instance before calling <code>canMakePayment()</code> or <code>show()</code>.</li>
+    </ol>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/components/payments/content/payment_request.cc" target="_blank" rel="noopener">Chromium <code>payment_request.cc</code></a>; <a href="https://github.com/w3c/secure-payment-confirmation/pull/345" target="_blank" rel="noopener">W3C SPC PR #345</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+
+    <h3 id="example-spc-locale">Live demo and <code>canMakePayment()</code> locale-fallback pattern</h3>
+    <figure class="example-embed">
+      <iframe src="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/secure-payment-confirmation-locale-validation/locale-list/"
+        title="Live example — Testing BCP 47 locale tag matching for Secure Payment Confirmation" loading="lazy" width="100%" height="540"
+        sandbox="allow-scripts allow-same-origin" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <figcaption>Live interactive locale-list tester comparing BCP 47 language tags against browser locale data. Sibling demos on the <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/secure-payment-confirmation-locale-validation/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase feature index</a>: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/secure-payment-confirmation-locale-validation/request-shape/" target="_blank" rel="noopener">building the SPC request shape</a> and <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/secure-payment-confirmation-locale-validation/checkout-that-degrades/" target="_blank" rel="noopener">checkout that degrades cleanly</a>. <span class="citation">Source: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/secure-payment-confirmation-locale-validation/locale-list/" target="_blank" rel="noopener">chrome-platform-showcase</a>.</span></figcaption>
+    </figure>
+
+    <pre tabindex="0"><code data-doc-test="js">// Preflight SPC locale validation with canMakePayment() and fall back cleanly
+async function createLocalizedSpcRequest({
+  rpId,
+  credentialId,
+  challenge,
+  instrumentIcon,
+  amount,
+  localizedVariants, // e.g. [{ locale: ["fr-CA"], displayName: "Carte ····4242", payeeName: "Boutique" }, ...]
+}) {
+  const details = {
+    total: { label: "Total", amount },
+  };
+
+  for (const variant of localizedVariants) {
+    // Validate BCP 47 syntax up front for cross-engine portability
+    const canonicalLocales = Intl.getCanonicalLocales(variant.locale);
+
+    const request = new PaymentRequest(
+      [{
+        supportedMethods: "secure-payment-confirmation",
+        data: {
+          rpId,
+          credentialIds: [credentialId],
+          challenge,
+          instrument: {
+            displayName: variant.displayName,
+            icon: instrumentIcon,
+          },
+          payeeName: variant.payeeName,
+          locale: canonicalLocales,
+          timeout: 60000,
+        },
+      }],
+      details,
+    );
+
+    try {
+      const canPay = await request.canMakePayment();
+      return { request, canPay, matchedVariant: variant };
+    } catch (err) {
+      if (err && err.name === "NotSupportedError") {
+        // Dialog language did not match variant.locale; try next variant (e.g., primary subtag)
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  return null; // Fall back to non-SPC payment flow or retry without locale
+}</code></pre>
+    <span class="citation">Source: <a href="https://github.com/w3c/secure-payment-confirmation/pull/345" target="_blank" rel="noopener">W3C SPC PR #345</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/payments/content/payment_request.cc" target="_blank" rel="noopener">Chromium <code>payment_request.cc</code></a>; <a href="https://rsolomakhin.github.io/pr/spc-locales" target="_blank" rel="noopener">Upstream SPC locales sample</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Browser support for Secure Payment Confirmation <code>locale</code> validation alongside host SPC support (checked 2026-11-27).</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col">SPC <code>locale</code> validation</th><th scope="col">Evidence / notes</th><th scope="col">Host SPC (webstatus.dev)</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Chrome (desktop &amp; Android)</th><td>154</td><td>Enabled by default via <code>kSPCLocaleValidation</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/components/payments/core/features.cc" target="_blank" rel="noopener"><code>features.cc</code></a> (<a href="https://chromestatus.com/feature/5126146013396992" target="_blank" rel="noopener">ChromeStatus 5126146013396992</a>); not shipped on Android WebView or iOS</td><td>139</td></tr>
+        <tr><th scope="row">Edge</th><td>154 (mirror)</td><td>Chromium-based; mirrors Chrome 154</td><td>139</td></tr>
+        <tr><th scope="row">Firefox</th><td>N/A</td><td>Firefox has not implemented SPC (<a href="https://github.com/mozilla/standards-positions/issues/570" target="_blank" rel="noopener">mozilla/standards-positions#570</a>)</td><td>No</td></tr>
+        <tr><th scope="row">Safari</th><td>N/A</td><td>Safari has not implemented SPC (<a href="https://github.com/WebKit/standards-positions/issues/30" target="_blank" rel="noopener">WebKit/standards-positions#30</a>)</td><td>No</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5126146013396992" target="_blank" rel="noopener">ChromeStatus 5126146013396992</a>; <a href="https://api.webstatus.dev/v1/features/secure-payment-confirmation" target="_blank" rel="noopener">webstatus.dev <code>secure-payment-confirmation</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <ul>
+      <li><strong>Locale fingerprinting oracle:</strong> As documented in <a href="https://github.com/w3c/secure-payment-confirmation/pull/345" target="_blank" rel="noopener">W3C SPC PR #345 (&sect; Fingerprinting via locale)</a>, returning <code>NotSupportedError</code> from <code>canMakePayment()</code> lets a caller silently probe the browser&rsquo;s UI dialog locale by issuing successive requests with different <code>locale</code> tags until one does not reject. Rare browser UI locales can contribute to fingerprinting, though the spec notes this locale is often already observable through <code>navigator.language</code> / <code>navigator.languages</code> and <code>Intl</code> APIs.</li>
+      <li><strong>Anti-confusion payment integrity:</strong> Rejecting mismatched locales protects users against payment confirmation dialogs whose browser chrome and merchant-supplied strings disagree in language, reducing confusion during high-stakes payment authorization.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://github.com/w3c/secure-payment-confirmation/pull/345" target="_blank" rel="noopener">W3C SPC PR #345 (&sect; Fingerprinting via locale)</a>; <a href="https://github.com/w3c/secure-payment-confirmation/issues/343" target="_blank" rel="noopener">w3c/secure-payment-confirmation#343</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Specifications">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Specification</th><th scope="col">Section</th></tr></thead>
+      <tbody>
+        <tr><td><a href="https://w3c.github.io/secure-payment-confirmation/" target="_blank" rel="noopener">Secure Payment Confirmation (W3C)</a></td><td><a href="https://w3c.github.io/secure-payment-confirmation/#dom-securepaymentconfirmationrequest-locale" target="_blank" rel="noopener"><code>SecurePaymentConfirmationRequest.locale</code></a> &middot; <a href="https://github.com/w3c/secure-payment-confirmation/pull/345" target="_blank" rel="noopener">PR #345 (Locale Validation, merged)</a></td></tr>
+        <tr><td><a href="https://www.w3.org/TR/payment-request/" target="_blank" rel="noopener">Payment Request API (W3C)</a></td><td><code>PaymentRequest</code> constructor, <code>canMakePayment()</code>, and <code>show()</code></td></tr>
+        <tr><td><a href="https://www.rfc-editor.org/info/rfc5646" target="_blank" rel="noopener">RFC 5646 (BCP 47)</a></td><td>Tags for Identifying Languages (language subtag and region subtag syntax)</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/secure-payment-confirmation-locale-validation/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase &mdash; Secure Payment Confirmation locale validation demos</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Payment_Request_API/Using_secure_payment_confirmation" target="_blank" rel="noopener">MDN &mdash; Using Secure Payment Confirmation</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/getCanonicalLocales" target="_blank" rel="noopener">MDN &mdash; <code>Intl.getCanonicalLocales()</code></a></li>
+      <li><a href="https://rsolomakhin.github.io/pr/spc-locales" target="_blank" rel="noopener">Upstream SPC Locales live sample</a></li>
+      <li><a href="https://github.com/w3c/secure-payment-confirmation/issues/343" target="_blank" rel="noopener">w3c/secure-payment-confirmation#343 &mdash; Proposal &amp; WPWG discussion</a></li>
+      <li><a href="https://chromestatus.com/feature/5126146013396992" target="_blank" rel="noopener">ChromeStatus &mdash; Secure Payment Confirmation: Locale Validation (5126146013396992)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
