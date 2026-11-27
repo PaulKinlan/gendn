@@ -133,8 +133,8 @@ class IAConfigurationBox extends Box('iacb') {
     <p>The developer-facing string is the <code>codecs</code> parameter of the MSE MIME type, defined by <a href="https://aomediacodec.github.io/iamf/latest-approved.html#codecsparameter" target="_blank" rel="noopener">IAMF §6.4</a> on top of <a href="https://www.rfc-editor.org/rfc/rfc6381" target="_blank" rel="noopener">RFC 6381</a>:</p>
     <pre><code>iamf.&lt;primary_profile&gt;.&lt;additional_profile&gt;.&lt;sub-codec elements&gt;
 
-# e.g. IAMF (simple profile only) carrying an Opus substream:
-audio/mp4; codecs="iamf.000.000.opus"</code></pre>
+<span class="hl-cm"># e.g. IAMF (simple profile only) carrying an Opus substream:</span>
+audio/mp4; codecs=<span class="hl-str">"iamf.000.000.opus"</span></code></pre>
     <p>Profile fields are three digits each (0–255): <code>0</code> Simple, <code>1</code> Base, <code>2</code> Base-Enhanced, 3–255 reserved. The sub-codec element is the codecs string the stream would have outside IAMF: <code>opus</code>, <code>mp4a.40.2</code> (AAC-LC), <code>fLaC</code>, or <code>ipcm</code>. The full field-by-field grammar, Chromium's parser rules, and worked valid/invalid strings are on the child page: <a href="codecs-parameter/">the <code>iamf.*</code> codecs parameter</a>.</p>
     <span class="citation">Source: <a href="https://aomediacodec.github.io/iamf/latest-approved.html#codecsparameter" target="_blank" rel="noopener">IAMF §6.4 Codecs Parameter String</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/media/base/audio_codecs.cc" target="_blank" rel="noopener">audio_codecs.cc — ParseIamfCodecId</a>.</span>
   </section>
@@ -160,23 +160,23 @@ audio/mp4; codecs="iamf.000.000.opus"</code></pre>
   <section>
     <h2 id="examples">examples</h2>
     <p>Capability detection and MSE setup for an IAMF (simple profile, Opus substream) audio track:</p>
-    <pre><code>const mime = 'audio/mp4; codecs="iamf.000.000.opus"';
+    <pre><code><span class="hl-kw">const</span> mime = <span class="hl-str">'audio/mp4; codecs="iamf.000.000.opus"'</span>;
 
-if (!MediaSource.isTypeSupported(mime)) {
-  // No IAMF decoding in this browser/build — fall back to a flat mix.
-  throw new Error('IAMF playback not supported');
+<span class="hl-kw">if</span> (!<span class="hl-ty">MediaSource</span>.isTypeSupported(mime)) {
+  <span class="hl-cm">// No IAMF decoding in this browser/build — fall back to a flat mix.</span>
+  <span class="hl-kw">throw</span> <span class="hl-kw">new</span> <span class="hl-ty">Error</span>(<span class="hl-str">'IAMF playback not supported'</span>);
 }
 
-const mediaSource = new MediaSource();
-const audio = document.querySelector('audio');
-audio.src = URL.createObjectURL(mediaSource);
+<span class="hl-kw">const</span> mediaSource = <span class="hl-kw">new</span> <span class="hl-ty">MediaSource</span>();
+<span class="hl-kw">const</span> audio = document.querySelector(<span class="hl-str">'audio'</span>);
+audio.src = <span class="hl-ty">URL</span>.createObjectURL(mediaSource);
 
-mediaSource.addEventListener('sourceopen', async () => {
-  const sourceBuffer = mediaSource.addSourceBuffer(mime);
-  const segment = await fetch('/media/immersive-segment.mp4');
-  sourceBuffer.appendBuffer(await segment.arrayBuffer());
-  sourceBuffer.addEventListener('updateend', () => audio.play(), { once: true });
-}, { once: true });</code></pre>
+mediaSource.addEventListener(<span class="hl-str">'sourceopen'</span>, <span class="hl-kw">async</span> () =&gt; {
+  <span class="hl-kw">const</span> sourceBuffer = mediaSource.addSourceBuffer(mime);
+  <span class="hl-kw">const</span> segment = <span class="hl-kw">await</span> fetch(<span class="hl-str">'/media/immersive-segment.mp4'</span>);
+  sourceBuffer.appendBuffer(<span class="hl-kw">await</span> segment.arrayBuffer());
+  sourceBuffer.addEventListener(<span class="hl-str">'updateend'</span>, () =&gt; audio.play(), { once: <span class="hl-num">true</span> });
+}, { once: <span class="hl-num">true</span> });</code></pre>
     <p><strong>WebCodecs support query is separate from MSE playback.</strong> In a local Chrome 154.0.8037.97 headless build (2026-10-08), <code>AudioDecoder.isConfigSupported({codec: "iamf.000.000.opus", sampleRate: 48000, numberOfChannels: 2})</code> resolved with <code>supported: true</code>, including when Chrome was launched with <code>--disable-features=IAMFAudioDecoding</code>; malformed <code>iamf.256.000.opus</code> returned <code>supported: false</code>. This is an observed <em>configuration query</em>, not evidence that IAMF frames decode or that MSE playback works with the feature disabled. Use <code>MediaSource.isTypeSupported(mime)</code> and a real sample for the MSE path above. The <a href="https://chromium.googlesource.com/chromium/src/+/main/media/base/audio_codecs.cc" target="_blank" rel="noopener">Chromium codec classifier</a> recognizes the <code>iamf.</code> prefix, but support still depends on the API path and build.</p>
     <p>Try real bitstreams: Chromium's own test files include an <a href="https://crsrc.org/c/media/test/data/iamf_alternating_sine_waves_stereo.mp4" target="_blank" rel="noopener">IAMF stereo</a> and an <a href="https://crsrc.org/c/media/test/data/iamf_alternating_sine_waves_714.mp4" target="_blank" rel="noopener">IAMF 7.1.4</a> sample, and AOMedia hosts an <a href="https://aomediacodec.github.io/iamf-tools/web_demo/" target="_blank" rel="noopener">IAMF binaural web demo</a> (verified 200, 2026-07-29). The sister <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v153/immersive-audio-model-and-formats-iamf-decoding-support/" target="_blank" rel="noopener">Chrome Platform Showcase route</a> and its codec-support matrix now load (2026-10-08). The matrix checks IAMF strings alongside known codecs and a deliberately invalid codec: in a Chrome 154 browser run the supported controls and invalid string returned distinct results. These are capability queries, <em>not</em> proof that the linked IAMF bitstreams played; the AOMedia demo remains the real-audio option.</p>
     <figure class="example-embed">

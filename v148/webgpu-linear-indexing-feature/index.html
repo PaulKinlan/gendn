@@ -68,8 +68,8 @@
   <section>
     <h2 id="why-it-exists">why it exists</h2>
     <p>WebGPU compute shaders dispatch work in a 3D grid of workgroups, each containing a 3D grid of invocations. To process a flat buffer — the common case for data-parallel tasks — developers had to compute a linear index from three separate coordinates every time:</p>
-    <pre><code>// Old pattern — manual linear index calculation
-let linear = global_id.z * (workgroup_size.x * workgroup_size.y * num_workgroups.x * num_workgroups.y)
+    <pre><code><span class="hl-cm">// Old pattern — manual linear index calculation</span>
+<span class="hl-kw">let</span> linear = global_id.z * (workgroup_size.x * workgroup_size.y * num_workgroups.x * num_workgroups.y)
            + global_id.y * (workgroup_size.x * num_workgroups.x)
            + global_id.x;</code></pre>
     <p>This is boilerplate that must be repeated in every compute shader that processes linear data, and it's easy to get wrong. <code>linear_indexing</code> moves this calculation into the language itself.</p>
@@ -122,43 +122,43 @@ language_extension_list :
   <section>
     <h2 id="examples">example</h2>
     <p>WGSL shader compute invocation with linear indexing:</p>
-    <pre><code>fn main(@builtin(global_invocation_index) idx: u32) { /* ... */ }</code></pre>
+    <pre><code><span class="hl-kw">fn</span> main(<span class="hl-attr">@builtin</span>(global_invocation_index) idx: <span class="hl-ty">u32</span>) { <span class="hl-cm">/* ... */</span> }</code></pre>
 
     <h3>Feature detection and WGSL shader</h3>
-    <pre><code>// JavaScript: detect before using
-if (!navigator.gpu.wgslLanguageFeatures.has('linear_indexing')) {
-  throw new Error('linear_indexing WGSL extension not available');
+    <pre><code><span class="hl-cm">// JavaScript: detect before using</span>
+<span class="hl-kw">if</span> (!navigator.gpu.wgslLanguageFeatures.has('linear_indexing')) {
+  throw new <span class="hl-ty">Error</span>('linear_indexing WGSL extension not available');
 }
 
-const shaderCode = `
-  requires linear_indexing;
+<span class="hl-kw">const</span> shaderCode = `
+  <span class="hl-kw">requires</span> linear_indexing;
 
-  @group(0) @binding(0) var&lt;storage, read_write&gt; data: array&lt;f32&gt;;
+  <span class="hl-attr">@group</span>(<span class="hl-num">0</span>) <span class="hl-attr">@binding</span>(<span class="hl-num">0</span>) <span class="hl-kw">var</span>&lt;<span class="hl-kw">storage</span>, <span class="hl-kw">read_write</span>&gt; data: <span class="hl-ty">array</span>&lt;<span class="hl-ty">f32</span>&gt;;
 
-  @compute @workgroup_size(64)
-  fn main(@builtin(global_invocation_index) idx: u32) {
-    if (idx &lt; arrayLength(&data)) {
-      data[idx] = data[idx] * 2.0;
+  <span class="hl-attr">@compute</span> <span class="hl-attr">@workgroup_size</span>(<span class="hl-num">64</span>)
+  <span class="hl-kw">fn</span> main(<span class="hl-attr">@builtin</span>(global_invocation_index) idx: <span class="hl-ty">u32</span>) {
+    <span class="hl-kw">if</span> (idx &lt; arrayLength(&amp;data)) {
+      data[idx] = data[idx] * <span class="hl-num">2.0</span>;
     }
   }
 `;
 
-const shaderModule = device.createShaderModule({ code: shaderCode });
-// ... create pipeline and dispatch as usual</code></pre>
+<span class="hl-kw">const</span> shaderModule = device.createShaderModule({ code: shaderCode });
+<span class="hl-cm">// ... create pipeline and dispatch as usual</span></code></pre>
 
     <h3>workgroup_index example</h3>
-    <pre><code>requires linear_indexing;
+    <pre><code><span class="hl-kw">requires</span> linear_indexing;
 
-var&lt;workgroup&gt; workgroup_data: array&lt;f32, 64&gt;;
+<span class="hl-kw">var</span>&lt;<span class="hl-kw">workgroup</span>&gt; workgroup_data: <span class="hl-ty">array</span>&lt;<span class="hl-ty">f32</span>, <span class="hl-num">64</span>&gt;;
 
-@compute @workgroup_size(64)
-fn accumulate(
-  @builtin(workgroup_index) wg_idx: u32,
-  @builtin(local_invocation_index) local_idx: u32,
+<span class="hl-attr">@compute</span> <span class="hl-attr">@workgroup_size</span>(<span class="hl-num">64</span>)
+<span class="hl-kw">fn</span> accumulate(
+  <span class="hl-attr">@builtin</span>(workgroup_index) wg_idx: <span class="hl-ty">u32</span>,
+  <span class="hl-attr">@builtin</span>(local_invocation_index) local_idx: <span class="hl-ty">u32</span>,
 ) {
-  // wg_idx identifies which workgroup we're in (flat index)
-  // useful for indexing per-workgroup output buffers
-  workgroup_data[local_idx] = f32(wg_idx);
+  <span class="hl-cm">// wg_idx identifies which workgroup we're in (flat index)</span>
+  <span class="hl-cm">// useful for indexing per-workgroup output buffers</span>
+  workgroup_data[local_idx] = <span class="hl-ty">f32</span>(wg_idx);
 }</code></pre>
     <span class="citation">Source: <a href="https://www.w3.org/TR/WGSL/" target="_blank" rel="noopener">W3C WGSL spec</a>; <a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/XTP8EdUisMU/m/6dMWsLroDQAJ" target="_blank" rel="noopener">blink-dev Intent to Ship</a>; <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v148/webgpu-linear-indexing-feature/" target="_blank" rel="noopener">Chrome Platform Showcase demo</a>.</span>
 

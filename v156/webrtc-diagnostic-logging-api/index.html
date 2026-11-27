@@ -67,15 +67,15 @@
   <section>
     <h2 id="syntax">syntax</h2>
     <p>Spec IDL, quoted verbatim from <a href="https://w3c.github.io/webrtc-extensions/#diagnostic-logging-extensions-peer-connection" target="_blank" rel="noopener">webrtc-extensions &sect; Extensions to the RTCPeerConnection Interface</a> (fetched 2026-10-25):</p>
-    <pre><code>[Exposed=Window]
-partial interface RTCPeerConnection {
-  static DOMString startDiagnosticLogging(optional RTCDiagnosticLoggingOptions options = {});
-  static undefined stopDiagnosticLogging();
-  static undefined cancelDiagnosticLogging();
+    <pre><code><span class="hl-pun">[</span><span class="hl-attr">Exposed</span>=<span class="hl-ty">Window</span><span class="hl-pun">]</span>
+<span class="hl-kw">partial</span> <span class="hl-kw">interface</span> <span class="hl-ty">RTCPeerConnection</span> {
+  <span class="hl-kw">static</span> <span class="hl-ty">DOMString</span> startDiagnosticLogging(<span class="hl-kw">optional</span> <span class="hl-ty">RTCDiagnosticLoggingOptions</span> options = {});
+  <span class="hl-kw">static</span> <span class="hl-ty">undefined</span> stopDiagnosticLogging();
+  <span class="hl-kw">static</span> <span class="hl-ty">undefined</span> cancelDiagnosticLogging();
 };
 
-dictionary RTCDiagnosticLoggingOptions {
-  record&lt;DOMString, DOMString&gt; metadata;
+<span class="hl-kw">dictionary</span> <span class="hl-ty">RTCDiagnosticLoggingOptions</span> {
+  <span class="hl-ty">record</span>&lt;<span class="hl-ty">DOMString</span>, <span class="hl-ty">DOMString</span>&gt; metadata;
 };</code></pre>
     <p>All three methods are <strong>static</strong> &mdash; they are called on the <code>RTCPeerConnection</code> interface object itself (<code>RTCPeerConnection.startDiagnosticLogging()</code>), not on an instance, and the logging session spans all WebRTC activity in the user agent, not one connection. The session state lives in a per-global internal slot, <code>[[RTCDiagnosticLoggingSessionId]]</code>, initialized to null (<a href="https://w3c.github.io/webrtc-extensions/#diagnostic-logging-internal-slots" target="_blank" rel="noopener">spec &sect; Internal slots</a>).</p>
     <span class="citation">Source: <a href="https://w3c.github.io/webrtc-extensions/#diagnostic-logging-extensions-peer-connection" target="_blank" rel="noopener">webrtc-extensions IDL</a>; <a href="https://w3c.github.io/webrtc-extensions/#diagnostic-logging-internal-slots" target="_blank" rel="noopener">&sect; Internal slots</a></span>
@@ -121,32 +121,32 @@ dictionary RTCDiagnosticLoggingOptions {
   <section>
     <h2 id="examples">examples</h2>
     <p>A support-flow sketch: start logging when the user opts into &ldquo;report a call-quality problem&rdquo;, attach context the vendor will see inside the logs, and quote the returned UUID in the ticket. Derived from the spec&rsquo;s method contracts above (labelled gendn-derived; the API itself gives the page no feedback to display):</p>
-    <pre><code>let sessionId = null;
+    <pre><code><span class="hl-kw">let</span> sessionId = <span class="hl-num">null</span>;
 
-function beginCallDiagnostics(ticketId) {
-  try {
-    sessionId = RTCPeerConnection.startDiagnosticLogging({
-      metadata: {            // max 5 entries; keys/values ≤ 100 chars
-        app: "example-conf 4.2.1",
+<span class="hl-kw">function</span> beginCallDiagnostics(ticketId) {
+  <span class="hl-kw">try</span> {
+    sessionId = <span class="hl-ty">RTCPeerConnection</span>.startDiagnosticLogging({
+      metadata: {            <span class="hl-cm">// max 5 entries; keys/values ≤ 100 chars</span>
+        app: <span class="hl-str">"example-conf 4.2.1"</span>,
         ticket: ticketId,
       },
     });
-    // Quote sessionId in the bug report — it identifies the log session
-    // to whoever the USER chooses to share the logs with.
-  } catch (e) {
-    // InvalidStateError: a session is already running.
-    // TypeError: metadata too large. Nothing else is observable.
+    <span class="hl-cm">// Quote sessionId in the bug report — it identifies the log session</span>
+    <span class="hl-cm">// to whoever the USER chooses to share the logs with.</span>
+  } <span class="hl-kw">catch</span> (e) {
+    <span class="hl-cm">// InvalidStateError: a session is already running.</span>
+    <span class="hl-cm">// TypeError: metadata too large. Nothing else is observable.</span>
   }
 }
 
-function endCallDiagnostics(keepLogs) {
-  if (sessionId === null) return;
-  if (keepLogs) RTCPeerConnection.stopDiagnosticLogging();
-  else RTCPeerConnection.cancelDiagnosticLogging();   // deletes the data
-  sessionId = null;
+<span class="hl-kw">function</span> endCallDiagnostics(keepLogs) {
+  <span class="hl-kw">if</span> (sessionId === <span class="hl-num">null</span>) <span class="hl-kw">return</span>;
+  <span class="hl-kw">if</span> (keepLogs) <span class="hl-ty">RTCPeerConnection</span>.stopDiagnosticLogging();
+  <span class="hl-kw">else</span> <span class="hl-ty">RTCPeerConnection</span>.cancelDiagnosticLogging();   <span class="hl-cm">// deletes the data</span>
+  sessionId = <span class="hl-num">null</span>;
 }</code></pre>
     <p>Feature-detect before offering the UI &mdash; the methods are static, so the check needs no connection:</p>
-    <pre><code>const supported = "startDiagnosticLogging" in RTCPeerConnection;</code></pre>
+    <pre><code><span class="hl-kw">const</span> supported = <span class="hl-str">"startDiagnosticLogging"</span> <span class="hl-kw">in</span> <span class="hl-ty">RTCPeerConnection</span>;</code></pre>
     <p>No Chrome Platform Showcase demo is built for this feature yet (route <code>/v156/webrtc-diagnostic-logging-api/</code> HEAD-checked 404, 2026-10-25; a demo would appear under <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/" target="_blank" rel="noopener">the showcase&rsquo;s Chrome 156 index</a>). A demo could in any case show only the UUID &mdash; the logs themselves are invisible to pages by design.</p>
     <span class="citation">Source: method contracts per <a href="https://w3c.github.io/webrtc-extensions/#diagnostic-logging-methods" target="_blank" rel="noopener">webrtc-extensions &sect; Methods</a>; examples gendn-derived from those contracts (labelled accordingly)</span>
   </section>

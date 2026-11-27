@@ -89,12 +89,12 @@
   <section>
     <h2 id="syntax">Syntax</h2>
     <p>The explainer proposes adding <code>ClientPostMessageOptions</code> to <a href="https://w3c.github.io/ServiceWorker/#dom-client-postmessage" target="_blank" rel="noopener">W3C Service Workers</a> (Chromium implements <code>delegate</code> on Blink&rsquo;s shared <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/messaging/post_message_options.idl" target="_blank" rel="noopener"><code>PostMessageOptions</code></a> dictionary accepted by <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/service_worker/client.idl" target="_blank" rel="noopener"><code>Client.postMessage()</code></a>):</p>
-    <pre tabindex="0"><code data-doc-test="idl">dictionary ClientPostMessageOptions : StructuredSerializeOptions {
-  DOMString? delegate;
+    <pre tabindex="0"><code data-doc-test="idl"><span class="hl-kw">dictionary</span> <span class="hl-ty">ClientPostMessageOptions</span> : <span class="hl-ty">StructuredSerializeOptions</span> {
+  <span class="hl-ty">DOMString</span>? delegate;
 };
 
-partial interface Client {
-  undefined postMessage(any message, optional ClientPostMessageOptions options = {});
+<span class="hl-kw">partial</span> <span class="hl-kw">interface</span> <span class="hl-ty">Client</span> {
+  <span class="hl-ty">undefined</span> postMessage(<span class="hl-ty">any</span> message, <span class="hl-kw">optional</span> <span class="hl-ty">ClientPostMessageOptions</span> options = {});
 };</code></pre>
     <p>This reference covers all three parts of the contract: <a href="#client-postmessage-delegate"><code>Client.postMessage()</code> with <code>ClientPostMessageOptions.delegate</code></a>, the <a href="#notificationclick-token">Service Worker <code>notificationclick</code> transient <code>"popup"</code> token</a>, and <a href="#window-open-consumption">client <code>window.open()</code> consumption of <code>DELEGATED_CAPABILITY_TIMESTAMPS["popup"]</code></a>.</p>
     <span class="citation">Source: <a href="https://github.com/WICG/capability-delegation/blob/main/explainers/popup-delegation.md#web-idl-changes" target="_blank" rel="noopener">Popup Capability Delegation explainer (Web IDL)</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/service_worker/client.idl" target="_blank" rel="noopener">Blink <code>client.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/messaging/post_message_options.idl" target="_blank" rel="noopener"><code>post_message_options.idl</code></a>.</span>
@@ -154,49 +154,49 @@ partial interface Client {
       <figcaption>Live interactive notification delegation lab demonstrating <code>client.focus()</code> + <code>client.postMessage(..., { delegate: "popup" })</code>. Sibling demos on the <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v157/popup-capability-delegation/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase feature index</a>: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v157/popup-capability-delegation/activation-playground/" target="_blank" rel="noopener">activation playground</a> and <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v157/popup-capability-delegation/delegation-probe/" target="_blank" rel="noopener">delegation probe</a>. <span class="citation">Source: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v157/popup-capability-delegation/notification-delegation-lab/" target="_blank" rel="noopener">chrome-platform-showcase</a>.</span></figcaption>
     </figure>
 
-    <pre tabindex="0"><code data-doc-test="js">// Service Worker (sw.js): delegate "popup" from notificationclick to an existing WindowClient
-function registerNotificationClickHandler(swScope) {
-  swScope.addEventListener("notificationclick", (event) => {
+    <pre tabindex="0"><code data-doc-test="js"><span class="hl-cm">// Service Worker (sw.js): delegate "popup" from notificationclick to an existing WindowClient</span>
+<span class="hl-kw">function</span> registerNotificationClickHandler(swScope) {
+  swScope.addEventListener(<span class="hl-str">"notificationclick"</span>, (event) =&gt; {
     event.notification.close();
-    const emailId = event.notification.data?.emailId ?? "latest";
+    <span class="hl-kw">const</span> emailId = event.notification.data?.emailId ?? <span class="hl-str">"latest"</span>;
 
-    event.waitUntil((async () => {
-      const clients = await swScope.clients.matchAll({ type: "window", includeUncontrolled: true });
-      const client = clients.find((c) => c.visibilityState === "visible") || clients[0];
+    event.waitUntil((<span class="hl-kw">async</span> () =&gt; {
+      <span class="hl-kw">const</span> clients = <span class="hl-kw">await</span> swScope.clients.matchAll({ <span class="hl-kw">type</span>: <span class="hl-str">"window"</span>, includeUncontrolled: <span class="hl-num">true</span> });
+      <span class="hl-kw">const</span> client = clients.find((c) =&gt; c.visibilityState === <span class="hl-str">"visible"</span>) || clients[<span class="hl-num">0</span>];
 
-      if (!client) {
-        await swScope.clients.openWindow(`/inbox?open=${encodeURIComponent(emailId)}`);
-        return;
+      <span class="hl-kw">if</span> (!client) {
+        <span class="hl-kw">await</span> swScope.clients.openWindow(<span class="hl-str">`/inbox?open=</span><span class="hl-pun">${</span>encodeURIComponent(emailId)<span class="hl-pun">}</span><span class="hl-str">`</span>);
+        <span class="hl-kw">return</span>;
       }
 
-      // 1. Focus the client tab so window.open() passes foreground visibility checks.
-      await client.focus();
+      <span class="hl-cm">// 1. Focus the client tab so window.open() passes foreground visibility checks.</span>
+      <span class="hl-kw">await</span> client.focus();
 
-      // 2. Delegate the single-use "popup" capability (ClientPostMessageOptions).
-      try {
+      <span class="hl-cm">// 2. Delegate the single-use "popup" capability (ClientPostMessageOptions).</span>
+      <span class="hl-kw">try</span> {
         client.postMessage(
-          { action: "open_email_preview", emailId },
-          { delegate: "popup" }
+          { action: <span class="hl-str">"open_email_preview"</span>, emailId },
+          { delegate: <span class="hl-str">"popup"</span> }
         );
-      } catch (err) {
-        // Fallback when CapabilityDelegationPopup is unavailable (NotSupportedError)
-        // or the transient notificationclick capability expired (NotAllowedError).
-        await swScope.clients.openWindow(`/preview?id=${encodeURIComponent(emailId)}`);
+      } <span class="hl-kw">catch</span> (err) {
+        <span class="hl-cm">// Fallback when CapabilityDelegationPopup is unavailable (NotSupportedError)</span>
+        <span class="hl-cm">// or the transient notificationclick capability expired (NotAllowedError).</span>
+        <span class="hl-kw">await</span> swScope.clients.openWindow(<span class="hl-str">`/preview?id=</span><span class="hl-pun">${</span>encodeURIComponent(emailId)<span class="hl-pun">}</span><span class="hl-str">`</span>);
       }
     })());
   });
 }
 
-// Client Window (main.js): consume DELEGATED_CAPABILITY_TIMESTAMPS["popup"] via window.open()
-function registerClientMessageHandler(swContainer, win) {
-  swContainer.addEventListener("message", (event) => {
-    if (event.data?.action !== "open_email_preview") return;
+<span class="hl-cm">// Client Window (main.js): consume DELEGATED_CAPABILITY_TIMESTAMPS["popup"] via window.open()</span>
+<span class="hl-kw">function</span> registerClientMessageHandler(swContainer, win) {
+  swContainer.addEventListener(<span class="hl-str">"message"</span>, (event) =&gt; {
+    <span class="hl-kw">if</span> (event.data?.action !== <span class="hl-str">"open_email_preview"</span>) <span class="hl-kw">return</span>;
 
-    // Call window.open() synchronously inside the message handler before the 1s token expires.
-    const url = `/preview?id=${encodeURIComponent(event.data.emailId)}`;
-    const popup = win.open(url, "email_preview", "popup=yes,width=650,height=500");
-    if (!popup) {
-      // Blocked (expired token, sandbox without allow-popups, or browser popup setting)
+    <span class="hl-cm">// Call window.open() synchronously inside the message handler before the 1s token expires.</span>
+    <span class="hl-kw">const</span> url = <span class="hl-str">`/preview?id=</span><span class="hl-pun">${</span>encodeURIComponent(event.data.emailId)<span class="hl-pun">}</span><span class="hl-str">`</span>;
+    <span class="hl-kw">const</span> popup = win.open(url, <span class="hl-str">"email_preview"</span>, <span class="hl-str">"popup=yes,width=650,height=500"</span>);
+    <span class="hl-kw">if</span> (!popup) {
+      <span class="hl-cm">// Blocked (expired token, sandbox without allow-popups, or browser popup setting)</span>
       win.location.assign(url);
     }
   });

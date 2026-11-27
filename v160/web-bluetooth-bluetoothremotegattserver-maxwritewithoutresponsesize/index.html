@@ -76,10 +76,10 @@
   <section>
     <h2 id="syntax">Syntax</h2>
     <p>Chrome 160 extends <code>BluetoothRemoteGATTServer</code> (already an <code>EventTarget</code> in <a href="/v157/web-bluetooth-make-bluetoothremotegattserver-an-eventtarget/">ChromeStatus 5138797158334464</a>) with one read-only numeric attribute and one event handler attribute:</p>
-    <pre><code>[Exposed=Window, SecureContext]
-partial interface BluetoothRemoteGATTServer {
-  readonly attribute unsigned short maxWriteWithoutResponseSize;
-  attribute EventHandler onmaxwritewithoutresponsesizechanged;
+    <pre><code><span class="hl-pun">[</span><span class="hl-attr">Exposed</span>=<span class="hl-ty">Window</span>, <span class="hl-attr">SecureContext</span><span class="hl-pun">]</span>
+<span class="hl-kw">partial</span> <span class="hl-kw">interface</span> <span class="hl-ty">BluetoothRemoteGATTServer</span> {
+  <span class="hl-kw">readonly</span> <span class="hl-kw">attribute</span> <span class="hl-kw">unsigned</span> <span class="hl-ty">short</span> maxWriteWithoutResponseSize;
+  <span class="hl-kw">attribute</span> <span class="hl-ty">EventHandler</span> onmaxwritewithoutresponsesizechanged;
 };</code></pre>
     <p>This reference covers three parts of the contract: <a href="#prop-max-write-without-response-size"><code>maxWriteWithoutResponseSize</code></a>, <a href="#handler-onmaxwritewithoutresponsesizechanged"><code>onmaxwritewithoutresponsesizechanged</code></a>, and <a href="#event-maxwritewithoutresponsesizechanged">the <code>maxwritewithoutresponsesizechanged</code> event &amp; platform ATT_MTU updates</a>.</p>
     <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/bluetooth/bluetooth_remote_gatt_server.idl" target="_blank" rel="noopener">Chromium bluetooth_remote_gatt_server.idl</a>; <a href="https://pr-preview.s3.amazonaws.com/hjanuschka/web-bluetooth/pull/672.html#bluetoothremotegattserver" target="_blank" rel="noopener">Web Bluetooth PR #672 preview</a>.</span>
@@ -142,62 +142,62 @@ partial interface BluetoothRemoteGATTServer {
     <p>No live demo is published on the Chrome Platform Showcase for this feature yet (checked 2026-11-24). The feature author&rsquo;s standalone Web Bluetooth MTU sample is live at <a href="https://static.januschka.com/i-40265040" target="_blank" rel="noopener">static.januschka.com/i-40265040</a>.</p>
 
     <h3 id="example-chunked-transfer">Adaptive chunked transfer with <code>maxWriteWithoutResponseSize</code> and change events</h3>
-    <pre><code>async function streamPayload(serviceUuid, charUuid, payloadBytes) {
-  const device = await navigator.bluetooth.requestDevice({
+    <pre><code><span class="hl-kw">async</span> <span class="hl-kw">function</span> streamPayload(serviceUuid, charUuid, payloadBytes) {
+  <span class="hl-kw">const</span> device = <span class="hl-kw">await</span> navigator.bluetooth.requestDevice({
     filters: [{ services: [serviceUuid] }],
   });
-  const server = await device.gatt.connect();
+  <span class="hl-kw">const</span> server = <span class="hl-kw">await</span> device.gatt.connect();
 
-  // Feature-detect with a safe 20-byte fallback for older Chromium builds
-  const getChunkSize = () =&gt; {
-    const reported =
-      typeof server.maxWriteWithoutResponseSize === "number"
+  <span class="hl-cm">// Feature-detect with a safe 20-byte fallback for older Chromium builds</span>
+  <span class="hl-kw">const</span> getChunkSize = () =&gt; {
+    <span class="hl-kw">const</span> reported =
+      <span class="hl-kw">typeof</span> server.maxWriteWithoutResponseSize === <span class="hl-str">"number"</span>
         ? server.maxWriteWithoutResponseSize
-        : 20;
-    // Cap at 512 if targeting standard GATT attribute maximums
-    return Math.max(20, Math.min(reported, 512));
+        : <span class="hl-num">20</span>;
+    <span class="hl-cm">// Cap at 512 if targeting standard GATT attribute maximums</span>
+    <span class="hl-kw">return</span> <span class="hl-ty">Math</span>.max(<span class="hl-num">20</span>, <span class="hl-ty">Math</span>.min(reported, <span class="hl-num">512</span>));
   };
 
-  let chunkSize = getChunkSize();
+  <span class="hl-kw">let</span> chunkSize = getChunkSize();
 
-  // React if the OS stack observes a larger ATT_MTU later (e.g. after discovery)
-  const onSizeChanged = () =&gt; {
+  <span class="hl-cm">// React if the OS stack observes a larger ATT_MTU later (e.g. after discovery)</span>
+  <span class="hl-kw">const</span> onSizeChanged = () =&gt; {
     chunkSize = getChunkSize();
-    console.log("Updated maxWriteWithoutResponseSize:", server.maxWriteWithoutResponseSize);
+    console.log(<span class="hl-str">"Updated maxWriteWithoutResponseSize:"</span>, server.maxWriteWithoutResponseSize);
   };
-  if ("onmaxwritewithoutresponsesizechanged" in server) {
-    server.addEventListener("maxwritewithoutresponsesizechanged", onSizeChanged);
+  <span class="hl-kw">if</span> (<span class="hl-str">"onmaxwritewithoutresponsesizechanged"</span> <span class="hl-kw">in</span> server) {
+    server.addEventListener(<span class="hl-str">"maxwritewithoutresponsesizechanged"</span>, onSizeChanged);
   }
 
-  try {
-    const service = await server.getPrimaryService(serviceUuid);
-    const characteristic = await service.getCharacteristic(charUuid);
+  <span class="hl-kw">try</span> {
+    <span class="hl-kw">const</span> service = <span class="hl-kw">await</span> server.getPrimaryService(serviceUuid);
+    <span class="hl-kw">const</span> characteristic = <span class="hl-kw">await</span> service.getCharacteristic(charUuid);
 
-    // Re-read after service discovery (BlueZ may populate MTU at this point)
+    <span class="hl-cm">// Re-read after service discovery (BlueZ may populate MTU at this point)</span>
     chunkSize = getChunkSize();
 
-    for (let offset = 0; offset &lt; payloadBytes.byteLength; ) {
-      if (!server.connected) {
-        throw new Error("GATT server disconnected mid-transfer");
+    <span class="hl-kw">for</span> (<span class="hl-kw">let</span> offset = <span class="hl-num">0</span>; offset &lt; payloadBytes.byteLength; ) {
+      <span class="hl-kw">if</span> (!server.connected) {
+        <span class="hl-kw">throw</span> <span class="hl-kw">new</span> <span class="hl-ty">Error</span>(<span class="hl-str">"GATT server disconnected mid-transfer"</span>);
       }
-      const step = chunkSize;
-      const chunk = payloadBytes.subarray(offset, offset + step);
-      await characteristic.writeValueWithoutResponse(chunk);
+      <span class="hl-kw">const</span> step = chunkSize;
+      <span class="hl-kw">const</span> chunk = payloadBytes.subarray(offset, offset + step);
+      <span class="hl-kw">await</span> characteristic.writeValueWithoutResponse(chunk);
       offset += chunk.byteLength;
     }
-  } finally {
-    server.removeEventListener?.("maxwritewithoutresponsesizechanged", onSizeChanged);
+  } <span class="hl-kw">finally</span> {
+    server.removeEventListener?.(<span class="hl-str">"maxwritewithoutresponsesizechanged"</span>, onSizeChanged);
   }
 }</code></pre>
     <span class="citation">Source: <a href="https://pr-preview.s3.amazonaws.com/hjanuschka/web-bluetooth/pull/672.html#mtu-change-events" target="_blank" rel="noopener">Web Bluetooth PR #672 preview</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/bluetooth/bluetooth_remote_gatt_server.cc" target="_blank" rel="noopener">Chromium bluetooth_remote_gatt_server.cc</a>.</span>
 
     <h3 id="example-onhandler">Using the <code>onmaxwritewithoutresponsesizechanged</code> event handler property</h3>
-    <pre><code>const server = await device.gatt.connect();
+    <pre><code><span class="hl-kw">const</span> server = <span class="hl-kw">await</span> device.gatt.connect();
 
-if ("onmaxwritewithoutresponsesizechanged" in server) {
+<span class="hl-kw">if</span> (<span class="hl-str">"onmaxwritewithoutresponsesizechanged"</span> <span class="hl-kw">in</span> server) {
   server.onmaxwritewithoutresponsesizechanged = (event) =&gt; {
-    const gatt = event.target;
-    console.log("Negotiated write-without-response limit (octets):", gatt.maxWriteWithoutResponseSize);
+    <span class="hl-kw">const</span> gatt = event.target;
+    console.log(<span class="hl-str">"Negotiated write-without-response limit (octets):"</span>, gatt.maxWriteWithoutResponseSize);
   };
 }</code></pre>
     <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/bluetooth/bluetooth_remote_gatt_server.idl" target="_blank" rel="noopener">Chromium bluetooth_remote_gatt_server.idl</a>; <a href="https://pr-preview.s3.amazonaws.com/hjanuschka/web-bluetooth/pull/672.html#dom-bluetoothremotegattserver-onmaxwritewithoutresponsesizechanged" target="_blank" rel="noopener">Web Bluetooth PR #672 preview</a>.</span>

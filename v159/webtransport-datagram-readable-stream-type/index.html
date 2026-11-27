@@ -76,18 +76,18 @@
   <section>
     <h2 id="syntax">Syntax</h2>
     <p>The feature adds one optional dictionary member to <code>WebTransportOptions</code> using the WHATWG Streams <code>ReadableStreamType</code> enum, which controls how <code>WebTransportDatagramDuplexStream.readable</code> is set up during construction:</p>
-    <pre><code>// WebTransport constructor option (verbatim from W3C WebTransport &amp; Blink web_transport_options.idl)
-dictionary WebTransportOptions {
-  ReadableStreamType datagramsReadableType;
+    <pre><code><span class="hl-cm">// WebTransport constructor option (verbatim from W3C WebTransport &amp; Blink web_transport_options.idl)</span>
+<span class="hl-kw">dictionary</span> <span class="hl-ty">WebTransportOptions</span> {
+  <span class="hl-ty">ReadableStreamType</span> datagramsReadableType;
 };
 
-// From WHATWG Streams Standard (only defined value is "bytes")
-enum ReadableStreamType { "bytes" };
+<span class="hl-cm">// From WHATWG Streams Standard (only defined value is "bytes")</span>
+<span class="hl-kw">enum</span> <span class="hl-ty">ReadableStreamType</span> { <span class="hl-str">"bytes"</span> };
 
-// Stream affected on the constructed WebTransport instance
-[Exposed=(Window,Worker), SecureContext]
-interface WebTransportDatagramDuplexStream {
-  readonly attribute ReadableStream readable;
+<span class="hl-cm">// Stream affected on the constructed WebTransport instance</span>
+<span class="hl-pun">[</span><span class="hl-attr">Exposed</span>=(<span class="hl-ty">Window</span>,<span class="hl-attr">Worker</span>), <span class="hl-attr">SecureContext</span><span class="hl-pun">]</span>
+<span class="hl-kw">interface</span> <span class="hl-ty">WebTransportDatagramDuplexStream</span> {
+  <span class="hl-kw">readonly</span> <span class="hl-kw">attribute</span> <span class="hl-ty">ReadableStream</span> readable;
 };</code></pre>
     <p>This reference covers three parts of the Chrome 159 contract: the <a href="#option-datagrams-readable-type"><code>WebTransportOptions.datagramsReadableType</code> constructor option</a>, the resulting <a href="#datagrams-readable-modes"><code>datagrams.readable</code> stream mode behavior</a>, and the <a href="#pulldatagrams-byob"><code>pullDatagrams</code> BYOB view validation and empty-datagram rules</a>.</p>
     <span class="citation">Source: <a href="https://www.w3.org/TR/webtransport/#dictdef-webtransportoptions" target="_blank" rel="noopener">W3C WebTransport <code>WebTransportOptions</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webtransport/web_transport_options.idl" target="_blank" rel="noopener">Blink <code>web_transport_options.idl</code></a>; <a href="https://streams.spec.whatwg.org/#enumdef-readablestreamtype" target="_blank" rel="noopener">WHATWG Streams <code>ReadableStreamType</code></a>.</span>
@@ -151,58 +151,58 @@ interface WebTransportDatagramDuplexStream {
     <p>No interactive demo exists yet on the Chrome Platform Showcase for Chrome 159 (HEAD-checked 404 on 2026-11-24). The examples below work directly against any WebTransport HTTP/3 echo endpoint.</p>
 
     <h3 id="example-default-stream">Default readable stream &mdash; preserving datagram boundaries and empty datagrams</h3>
-    <pre><code>// Omit datagramsReadableType to get a default ReadableStream (Chrome 159+ standard).
-const transport = new WebTransport("https://example.com:4433/wt");
-await transport.ready;
+    <pre><code><span class="hl-cm">// Omit datagramsReadableType to get a default ReadableStream (Chrome 159+ standard).</span>
+<span class="hl-kw">const</span> transport = <span class="hl-kw">new</span> <span class="hl-ty">WebTransport</span>(<span class="hl-str">"https://example.com:4433/wt"</span>);
+<span class="hl-kw">await</span> transport.ready;
 
-const reader = transport.datagrams.readable.getReader();
-try {
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    // value is a Uint8Array representing exactly one datagram (including 0-byte datagrams).
-    console.log(`Received datagram (${value.byteLength} bytes)`);
+<span class="hl-kw">const</span> reader = transport.datagrams.readable.getReader();
+<span class="hl-kw">try</span> {
+  <span class="hl-kw">while</span> (<span class="hl-num">true</span>) {
+    <span class="hl-kw">const</span> { value, done } = <span class="hl-kw">await</span> reader.read();
+    <span class="hl-kw">if</span> (done) <span class="hl-kw">break</span>;
+    <span class="hl-cm">// value is a Uint8Array representing exactly one datagram (including 0-byte datagrams).</span>
+    console.log(<span class="hl-str">`Received datagram (</span><span class="hl-pun">${</span>value.byteLength<span class="hl-pun">}</span><span class="hl-str"> bytes)`</span>);
   }
-} finally {
+} <span class="hl-kw">finally</span> {
   reader.releaseLock();
 }</code></pre>
     <span class="citation">Source: <a href="https://github.com/web-platform-tests/wpt/blob/master/webtransport/datagrams.https.any.js" target="_blank" rel="noopener">WPT <code>datagrams.https.any.js</code></a>; <a href="https://w3c.github.io/webtransport/#dom-webtransportoptions-datagramsreadabletype" target="_blank" rel="noopener">W3C WebTransport spec</a>.</span>
 
     <h3 id="example-byob-stream">Opting into BYOB reads with <code>datagramsReadableType: "bytes"</code> and buffer reuse</h3>
-    <pre><code>// Opt into a readable byte stream for zero-allocation BYOB reads.
-const transport = new WebTransport("https://example.com:4433/wt", {
-  datagramsReadableType: "bytes",
+    <pre><code><span class="hl-cm">// Opt into a readable byte stream for zero-allocation BYOB reads.</span>
+<span class="hl-kw">const</span> transport = <span class="hl-kw">new</span> <span class="hl-ty">WebTransport</span>(<span class="hl-str">"https://example.com:4433/wt"</span>, {
+  datagramsReadableType: <span class="hl-str">"bytes"</span>,
 });
-await transport.ready;
+<span class="hl-kw">await</span> transport.ready;
 
-// Safe fallback if a browser (such as older Firefox) does not support "bytes" yet.
-let reader;
-try {
-  reader = transport.datagrams.readable.getReader({ mode: "byob" });
-} catch {
+<span class="hl-cm">// Safe fallback if a browser (such as older Firefox) does not support "bytes" yet.</span>
+<span class="hl-kw">let</span> reader;
+<span class="hl-kw">try</span> {
+  reader = transport.datagrams.readable.getReader({ mode: <span class="hl-str">"byob"</span> });
+} <span class="hl-kw">catch</span> {
   reader = transport.datagrams.readable.getReader();
 }
 
-// Allocate 64 KiB (RFC 9221 §3 recommended max) so pullDatagrams never errors with RangeError.
-let buffer = new ArrayBuffer(65536);
+<span class="hl-cm">// Allocate 64 KiB (RFC 9221 §3 recommended max) so pullDatagrams never errors with RangeError.</span>
+<span class="hl-kw">let</span> buffer = <span class="hl-kw">new</span> <span class="hl-ty">ArrayBuffer</span>(<span class="hl-num">65536</span>);
 
-try {
-  while (true) {
-    const isByob = reader instanceof ReadableStreamBYOBReader;
-    // Always pass a 1-byte-element TypedArray (Uint8Array); DataView/Uint16Array reject with TypeError.
-    const { value, done } = isByob
-      ? await reader.read(new Uint8Array(buffer))
-      : await reader.read();
-    if (done) break;
+<span class="hl-kw">try</span> {
+  <span class="hl-kw">while</span> (<span class="hl-num">true</span>) {
+    <span class="hl-kw">const</span> isByob = reader <span class="hl-kw">instanceof</span> <span class="hl-ty">ReadableStreamBYOBReader</span>;
+    <span class="hl-cm">// Always pass a 1-byte-element TypedArray (Uint8Array); DataView/Uint16Array reject with TypeError.</span>
+    <span class="hl-kw">const</span> { value, done } = isByob
+      ? <span class="hl-kw">await</span> reader.read(<span class="hl-kw">new</span> <span class="hl-ty">Uint8Array</span>(buffer))
+      : <span class="hl-kw">await</span> reader.read();
+    <span class="hl-kw">if</span> (done) <span class="hl-kw">break</span>;
 
     processDatagram(value);
 
-    // Reclaim the transferred buffer for the next BYOB read.
-    if (isByob) {
+    <span class="hl-cm">// Reclaim the transferred buffer for the next BYOB read.</span>
+    <span class="hl-kw">if</span> (isByob) {
       buffer = value.buffer;
     }
   }
-} finally {
+} <span class="hl-kw">finally</span> {
   reader.releaseLock();
 }</code></pre>
     <span class="citation">Source: <a href="https://github.com/web-platform-tests/wpt/blob/master/webtransport/datagrams.https.any.js" target="_blank" rel="noopener">WPT <code>datagrams.https.any.js</code></a>; <a href="https://www.rfc-editor.org/info/rfc9221/#section-3" target="_blank" rel="noopener">RFC 9221 &sect;3</a>; <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebTransport/WebTransport#datagramsreadabletype" target="_blank" rel="noopener">MDN <code>WebTransport()</code> constructor</a>.</span>

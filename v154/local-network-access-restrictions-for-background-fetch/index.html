@@ -83,20 +83,20 @@
   <section>
     <h2 id="syntax">Syntax and affected API surface</h2>
     <p>This change introduces no new WebIDL methods or options; it changes the runtime security gate applied to existing <code>BackgroundFetchManager.fetch()</code> calls, checked via existing Permissions API descriptors and governed by existing LNA enterprise policies:</p>
-    <pre tabindex="0"><code data-doc-test="skip" data-doc-test-reason="Call-shape summary of existing BackgroundFetchManager.fetch() and Permissions API query signatures; no new WebIDL is introduced by this security policy enforcement.">// 1. Existing Background Fetch call (now subject to LNA checks per request)
-const bgFetch = await serviceWorkerRegistration.backgroundFetch.fetch(
-  id,          // DOMString
-  requests,    // RequestInfo | sequence&lt;RequestInfo&gt;
-  options      // optional BackgroundFetchOptions
+    <pre tabindex="0"><code data-doc-test="skip" data-doc-test-reason="Call-shape summary of existing BackgroundFetchManager.fetch() and Permissions API query signatures; no new WebIDL is introduced by this security policy enforcement."><span class="hl-cm">// 1. Existing Background Fetch call (now subject to LNA checks per request)</span>
+<span class="hl-kw">const</span> bgFetch = <span class="hl-kw">await</span> serviceWorkerRegistration.backgroundFetch.fetch(
+  id,          <span class="hl-cm">// DOMString</span>
+  requests,    <span class="hl-cm">// RequestInfo | sequence&lt;RequestInfo&gt;</span>
+  options      <span class="hl-cm">// optional BackgroundFetchOptions</span>
 );
 
-// 2. Existing Permissions API queries to check LNA grants beforehand
-const localPerm = await navigator.permissions.query({ name: "local-network" });
-const loopbackPerm = await navigator.permissions.query({ name: "loopback-network" });
+<span class="hl-cm">// 2. Existing Permissions API queries to check LNA grants beforehand</span>
+<span class="hl-kw">const</span> localPerm = <span class="hl-kw">await</span> navigator.permissions.query({ name: <span class="hl-str">"local-network"</span> });
+<span class="hl-kw">const</span> loopbackPerm = <span class="hl-kw">await</span> navigator.permissions.query({ name: <span class="hl-str">"loopback-network"</span> });
 
-// 3. Observable failure state on BackgroundFetchRegistration when LNA blocks a request
-// bgFetch.result === "failure"
-// bgFetch.failureReason === "fetch-error"</code></pre>
+<span class="hl-cm">// 3. Observable failure state on BackgroundFetchRegistration when LNA blocks a request</span>
+<span class="hl-cm">// bgFetch.result === "failure"</span>
+<span class="hl-cm">// bgFetch.failureReason === "fetch-error"</span></code></pre>
     <p>This reference documents all three parts of the Chrome 154 contract: <a href="#background-fetch-lna-enforcement">LNA enforcement on Background Fetch requests</a>, <a href="#lna-permission-pregrant"><code>"local-network"</code> / <code>"loopback-network"</code> permission prerequisites</a>, and <a href="#lna-enterprise-policies">enterprise policy controls</a>.</p>
     <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/background_fetch/background_fetch_manager.idl" target="_blank" rel="noopener">Blink <code>background_fetch_manager.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/background_fetch/background_fetch_registration.idl" target="_blank" rel="noopener">Blink <code>background_fetch_registration.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/permissions/permission_descriptor.idl" target="_blank" rel="noopener">Blink <code>permission_descriptor.idl</code></a>.</span>
 
@@ -161,43 +161,43 @@ const loopbackPerm = await navigator.permissions.query({ name: "loopback-network
       <figcaption>Live interactive demo inspecting the origin&rsquo;s Local Network Access permission state before starting a Background Fetch. Sibling demos on the <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/local-network-access-restrictions-for-background-fetch/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase feature index</a>: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/local-network-access-restrictions-for-background-fetch/target-audit/" target="_blank" rel="noopener">target URL address-space audit</a> and <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/local-network-access-restrictions-for-background-fetch/attempt-a-fetch/" target="_blank" rel="noopener">attempting a loopback background fetch</a>. <span class="citation">Source: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/local-network-access-restrictions-for-background-fetch/permission-state/" target="_blank" rel="noopener">chrome-platform-showcase</a>.</span></figcaption>
     </figure>
 
-    <pre tabindex="0"><code data-doc-test="js">// Foreground page: verify LNA permission before scheduling a local Background Fetch
-async function startLocalFirmwareDownload(firmwareUrl, sizeBytes) {
-  if (!("BackgroundFetchManager" in self)) {
-    throw new Error("Background Fetch is not supported in this browser.");
+    <pre tabindex="0"><code data-doc-test="js"><span class="hl-cm">// Foreground page: verify LNA permission before scheduling a local Background Fetch</span>
+<span class="hl-kw">async</span> <span class="hl-kw">function</span> startLocalFirmwareDownload(firmwareUrl, sizeBytes) {
+  <span class="hl-kw">if</span> (!(<span class="hl-str">"BackgroundFetchManager"</span> <span class="hl-kw">in</span> self)) {
+    <span class="hl-kw">throw</span> <span class="hl-kw">new</span> <span class="hl-ty">Error</span>(<span class="hl-str">"Background Fetch is not supported in this browser."</span>);
   }
 
-  // 1. Check whether the origin already has "local-network" permission
-  let permissionState = "unknown";
-  try {
-    const status = await navigator.permissions.query({ name: "local-network" });
+  <span class="hl-cm">// 1. Check whether the origin already has "local-network" permission</span>
+  <span class="hl-kw">let</span> permissionState = <span class="hl-str">"unknown"</span>;
+  <span class="hl-kw">try</span> {
+    <span class="hl-kw">const</span> status = <span class="hl-kw">await</span> navigator.permissions.query({ name: <span class="hl-str">"local-network"</span> });
     permissionState = status.state;
-  } catch {
-    // Older browsers may not recognize the "local-network" permission descriptor
+  } <span class="hl-kw">catch</span> {
+    <span class="hl-cm">// Older browsers may not recognize the "local-network" permission descriptor</span>
   }
 
-  if (permissionState === "denied") {
-    throw new Error("Local network access is denied; Background Fetch will fail with fetch-error.");
+  <span class="hl-kw">if</span> (permissionState === <span class="hl-str">"denied"</span>) {
+    <span class="hl-kw">throw</span> <span class="hl-kw">new</span> <span class="hl-ty">Error</span>(<span class="hl-str">"Local network access is denied; Background Fetch will fail with fetch-error."</span>);
   }
 
-  // 2. If "prompt", trigger a lightweight foreground request so the user can grant LNA
-  if (permissionState === "prompt") {
-    await fetch(firmwareUrl, { method: "HEAD", targetAddressSpace: "local" });
+  <span class="hl-cm">// 2. If "prompt", trigger a lightweight foreground request so the user can grant LNA</span>
+  <span class="hl-kw">if</span> (permissionState === <span class="hl-str">"prompt"</span>) {
+    <span class="hl-kw">await</span> fetch(firmwareUrl, { method: <span class="hl-str">"HEAD"</span>, targetAddressSpace: <span class="hl-str">"local"</span> });
   }
 
-  // 3. Schedule the Background Fetch; the service worker inherits the origin's LNA grant
-  const swReg = await navigator.serviceWorker.ready;
-  return swReg.backgroundFetch.fetch("firmware-update", [firmwareUrl], {
-    title: "Downloading local device firmware",
+  <span class="hl-cm">// 3. Schedule the Background Fetch; the service worker inherits the origin's LNA grant</span>
+  <span class="hl-kw">const</span> swReg = <span class="hl-kw">await</span> navigator.serviceWorker.ready;
+  <span class="hl-kw">return</span> swReg.backgroundFetch.fetch(<span class="hl-str">"firmware-update"</span>, [firmwareUrl], {
+    title: <span class="hl-str">"Downloading local device firmware"</span>,
     downloadTotal: sizeBytes,
   });
 }
 
-// Service worker: handle LNA-blocked or network-failed background fetches
-function handleBackgroundFetchFail(event) {
-  const { id, result, failureReason } = event.registration;
-  if (result === "failure" && failureReason === "fetch-error") {
-    console.warn(`Background fetch "${id}" failed (LNA permission, CORS, or network error).`);
+<span class="hl-cm">// Service worker: handle LNA-blocked or network-failed background fetches</span>
+<span class="hl-kw">function</span> handleBackgroundFetchFail(event) {
+  <span class="hl-kw">const</span> { id, result, failureReason } = event.registration;
+  <span class="hl-kw">if</span> (result === <span class="hl-str">"failure"</span> &amp;&amp; failureReason === <span class="hl-str">"fetch-error"</span>) {
+    console.warn(<span class="hl-str">`Background fetch "</span><span class="hl-pun">${</span>id<span class="hl-pun">}</span><span class="hl-str">" failed (LNA permission, CORS, or network error).`</span>);
   }
 }</code></pre>
     <span class="citation">Source: <a href="https://wicg.github.io/background-fetch/" target="_blank" rel="noopener">Background Fetch spec</a>; <a href="https://wicg.github.io/local-network-access/" target="_blank" rel="noopener">Local Network Access spec</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/background_fetch/background_fetch_registration.idl" target="_blank" rel="noopener">Blink <code>background_fetch_registration.idl</code></a>.</span>

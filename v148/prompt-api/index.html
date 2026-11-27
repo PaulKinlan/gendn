@@ -96,86 +96,86 @@
   <section>
     <h2 id="examples">recipes</h2>
     <p>Check model availability and create an active session with <code>LanguageModel.create()</code>:</p>
-    <pre><code>const avail = await LanguageModel.availability();
-if (avail === 'unavailable') {
-  console.warn('Prompt API not supported on this device');
-} else {
-  // 'downloadable' → browser will fetch the model on create()
-  const session = await LanguageModel.create({
+    <pre><code><span class="hl-kw">const</span> avail = <span class="hl-kw">await</span> <span class="hl-ty">LanguageModel</span>.availability();
+<span class="hl-kw">if</span> (avail === <span class="hl-str">'unavailable'</span>) {
+  console.warn(<span class="hl-str">'Prompt API not supported on this device'</span>);
+} <span class="hl-kw">else</span> {
+  <span class="hl-cm">// 'downloadable' → browser will fetch the model on create()</span>
+  <span class="hl-kw">const</span> session = <span class="hl-kw">await</span> <span class="hl-ty">LanguageModel</span>.create({
     initialPrompts: [
-      { role: 'system', content: 'You are a concise technical writer.' }
+      { role: <span class="hl-str">'system'</span>, content: <span class="hl-str">'You are a concise technical writer.'</span> }
     ]
   });
-  const answer = await session.prompt('Explain CSS cascade in one sentence.');
+  <span class="hl-kw">const</span> answer = <span class="hl-kw">await</span> session.prompt(<span class="hl-str">'Explain CSS cascade in one sentence.'</span>);
   console.log(answer);
   session.destroy();
 }</code></pre>
 
     <h3>Streaming response</h3>
-    <pre><code>const session = await LanguageModel.create();
-const stream = session.promptStreaming('Write a haiku about the browser cache.');
-let text = '';
-for await (const chunk of stream) {
+    <pre><code><span class="hl-kw">const</span> session = <span class="hl-kw">await</span> <span class="hl-ty">LanguageModel</span>.create();
+<span class="hl-kw">const</span> stream = session.promptStreaming(<span class="hl-str">'Write a haiku about the browser cache.'</span>);
+<span class="hl-kw">let</span> text = <span class="hl-str">''</span>;
+<span class="hl-kw">for</span> <span class="hl-kw">await</span> (<span class="hl-kw">const</span> chunk <span class="hl-kw">of</span> stream) {
   text += chunk;
   outputEl.textContent = text;
 }
 session.destroy();</code></pre>
 
     <h3>Structured output (JSON schema constraint)</h3>
-    <pre><code>const session = await LanguageModel.create();
-const schema = {
-  type: 'object',
+    <pre><code><span class="hl-kw">const</span> session = <span class="hl-kw">await</span> <span class="hl-ty">LanguageModel</span>.create();
+<span class="hl-kw">const</span> schema = {
+  <span class="hl-kw">type</span>: <span class="hl-str">'object'</span>,
   properties: {
-    sentiment: { type: 'string', enum: ['positive', 'neutral', 'negative'] },
-    score: { type: 'number', minimum: 0, maximum: 1 }
+    sentiment: { <span class="hl-kw">type</span>: <span class="hl-str">'string'</span>, <span class="hl-kw">enum</span>: [<span class="hl-str">'positive'</span>, <span class="hl-str">'neutral'</span>, <span class="hl-str">'negative'</span>] },
+    score: { <span class="hl-kw">type</span>: <span class="hl-str">'number'</span>, minimum: <span class="hl-num">0</span>, maximum: <span class="hl-num">1</span> }
   },
-  required: ['sentiment', 'score']
+  required: [<span class="hl-str">'sentiment'</span>, <span class="hl-str">'score'</span>]
 };
-const raw = await session.prompt(
-  'Analyse: "The docs were clear and the API is elegant."',
+<span class="hl-kw">const</span> raw = <span class="hl-kw">await</span> session.prompt(
+  <span class="hl-str">'Analyse: "The docs were clear and the API is elegant."'</span>,
   { responseConstraint: schema }
 );
-const { sentiment, score } = JSON.parse(raw);
+<span class="hl-kw">const</span> { sentiment, score } = <span class="hl-ty">JSON</span>.parse(raw);
 session.destroy();</code></pre>
 
     <h3>Multimodal input (image)</h3>
-    <pre><code>const session = await LanguageModel.create({
-  expectedInputs: [{ type: 'image' }]
+    <pre><code><span class="hl-kw">const</span> session = <span class="hl-kw">await</span> <span class="hl-ty">LanguageModel</span>.create({
+  expectedInputs: [{ <span class="hl-kw">type</span>: <span class="hl-str">'image'</span> }]
 });
-const blob = await fetch('/screenshot.png').then(r => r.blob());
-const result = await session.prompt([
-  { type: 'text', value: 'Describe what is wrong in this UI screenshot.' },
-  { type: 'image', value: blob }
+<span class="hl-kw">const</span> blob = <span class="hl-kw">await</span> fetch(<span class="hl-str">'/screenshot.png'</span>).then(r =&gt; r.blob());
+<span class="hl-kw">const</span> result = <span class="hl-kw">await</span> session.prompt([
+  { <span class="hl-kw">type</span>: <span class="hl-str">'text'</span>, value: <span class="hl-str">'Describe what is wrong in this UI screenshot.'</span> },
+  { <span class="hl-kw">type</span>: <span class="hl-str">'image'</span>, value: blob }
 ]);
 session.destroy();</code></pre>
 
     <h3>Session lifecycle and context management</h3>
-    <pre><code>// Standard-web-page example. Note: the README marks the temperature/topK create
-// options deprecated for standard web contexts (extension contexts only); they are
-// shown because the syntax table above documents them as part of the shipped 148
-// surface. LanguageModel.params() is extension-only and is NOT called here (see below).
-const session = await LanguageModel.create({
-  temperature: 0.7,
-  topK: 3,
-  initialPrompts: [{ role: 'system', content: 'Answer concisely.' }]
+    <pre><code><span class="hl-cm">// Standard-web-page example. Note: the README marks the temperature/topK create</span>
+<span class="hl-cm">// options deprecated for standard web contexts (extension contexts only); they are</span>
+<span class="hl-cm">// shown because the syntax table above documents them as part of the shipped 148</span>
+<span class="hl-cm">// surface. LanguageModel.params() is extension-only and is NOT called here (see below).</span>
+<span class="hl-kw">const</span> session = <span class="hl-kw">await</span> <span class="hl-ty">LanguageModel</span>.create({
+  temperature: <span class="hl-num">0.7</span>,
+  topK: <span class="hl-num">3</span>,
+  initialPrompts: [{ role: <span class="hl-str">'system'</span>, content: <span class="hl-str">'Answer concisely.'</span> }]
 });
 
-// Seed few-shot context without generating a reply
-await session.append([{ role: 'user', content: [{ type: 'text', value: 'Example Q&amp;A pair for style.' }] }]);
+<span class="hl-cm">// Seed few-shot context without generating a reply</span>
+<span class="hl-kw">await</span> session.append([{ role: <span class="hl-str">'user'</span>, content: [{ <span class="hl-kw">type</span>: <span class="hl-str">'text'</span>, value: <span class="hl-str">'Example Q&amp;A pair for style.'</span> }] }]);
 
-// Budget check: tokens a hypothetical prompt would consume vs the session budget
-const projected = await session.measureContextUsage(largeDocument);
-console.log(projected, session.contextUsage, 'of', session.contextWindow);
+<span class="hl-cm">// Budget check: tokens a hypothetical prompt would consume vs the session budget</span>
+<span class="hl-kw">const</span> projected = <span class="hl-kw">await</span> session.measureContextUsage(largeDocument);
+console.log(projected, session.contextUsage, <span class="hl-str">'of'</span>, session.contextWindow);
 
-// clone() copies the session including conversation history
-const branch = await session.clone();
+<span class="hl-cm">// clone() copies the session including conversation history</span>
+<span class="hl-kw">const</span> branch = <span class="hl-kw">await</span> session.clone();
 branch.destroy();
 session.destroy();
 
-// Extension contexts only: LanguageModel.params() reports the model's sampling-parameter
-// defaults and maxima; per the README it is not functional in standard web pages.
-// const limits = await LanguageModel.params();
-// -> { defaultTemperature, maxTemperature, defaultTopK, maxTopK }</code></pre>
+<span class="hl-cm">// Extension contexts only: LanguageModel.params() reports the model's sampling-parameter</span>
+<span class="hl-cm">// defaults and maxima; per the README it is not functional in standard web pages.</span>
+<span class="hl-cm">// const limits = await LanguageModel.params();</span>
+<span class="hl-cm">// -&gt; { defaultTemperature, maxTemperature, defaultTopK, maxTopK }</span></code></pre>
     <span class="citation">Source: <a href="https://github.com/webmachinelearning/prompt-api/blob/main/README.md" target="_blank" rel="noopener">webmachinelearning/prompt-api README examples</a>, May 2026.</span>
   </section>
 

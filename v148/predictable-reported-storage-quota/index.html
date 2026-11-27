@@ -76,30 +76,30 @@
   <section>
     <h2 id="syntax">syntax</h2>
     <p>There is no new surface. The change affects the value returned by the existing <code>StorageManager.estimate()</code> method. Formal syntax, verbatim from the <a href="https://storage.spec.whatwg.org/#api" target="_blank" rel="noopener">Storage Standard &sect;API</a>:</p>
-<pre class="formal-syntax"><code>[SecureContext]
-interface mixin NavigatorStorage {
-  [SameObject] readonly attribute StorageManager storage;
+<pre class="formal-syntax"><code><span class="hl-pun">[</span><span class="hl-attr">SecureContext</span><span class="hl-pun">]</span>
+<span class="hl-kw">interface</span> <span class="hl-kw">mixin</span> <span class="hl-ty">NavigatorStorage</span> {
+  <span class="hl-pun">[</span><span class="hl-attr">SameObject</span><span class="hl-pun">]</span> <span class="hl-kw">readonly</span> <span class="hl-kw">attribute</span> <span class="hl-ty">StorageManager</span> storage;
 };
-Navigator includes NavigatorStorage;
-WorkerNavigator includes NavigatorStorage;
+<span class="hl-ty">Navigator</span> <span class="hl-kw">includes</span> <span class="hl-ty">NavigatorStorage</span>;
+<span class="hl-ty">WorkerNavigator</span> <span class="hl-kw">includes</span> <span class="hl-ty">NavigatorStorage</span>;
 
-[SecureContext,
- Exposed=(Window,Worker)]
-interface StorageManager {
-  Promise&lt;boolean&gt; persisted();
-  [Exposed=Window] Promise&lt;boolean&gt; persist();
+<span class="hl-pun">[</span><span class="hl-attr">SecureContext</span>,
+ <span class="hl-attr">Exposed</span>=(<span class="hl-ty">Window</span>,<span class="hl-attr">Worker</span>)<span class="hl-pun">]</span>
+<span class="hl-kw">interface</span> <span class="hl-ty">StorageManager</span> {
+  <span class="hl-ty">Promise</span>&lt;<span class="hl-ty">boolean</span>&gt; persisted();
+  <span class="hl-pun">[</span><span class="hl-attr">Exposed</span>=<span class="hl-ty">Window</span><span class="hl-pun">]</span> <span class="hl-ty">Promise</span>&lt;<span class="hl-ty">boolean</span>&gt; persist();
 
-  Promise&lt;StorageEstimate&gt; estimate();
+  <span class="hl-ty">Promise</span>&lt;<span class="hl-ty">StorageEstimate</span>&gt; estimate();
 };
 
-dictionary StorageEstimate {
-  unsigned long long usage;
-  unsigned long long quota;
+<span class="hl-kw">dictionary</span> <span class="hl-ty">StorageEstimate</span> {
+  <span class="hl-kw">unsigned</span> <span class="hl-ty">long</span> <span class="hl-ty">long</span> usage;
+  <span class="hl-kw">unsigned</span> <span class="hl-ty">long</span> <span class="hl-ty">long</span> quota;
 };</code></pre>
     <p><code>estimate()</code> rejects with a <code>TypeError</code> if no local storage shelf can be obtained (e.g. an opaque origin); otherwise it resolves with <code>{ usage, quota }</code>. The spec leaves <em>storage quota</em> implementation-defined but says it &ldquo;must not be a function of the available storage space on the device&rdquo;. Chrome 148&rsquo;s reported value, from <code>CalculateReportedQuota()</code> in <a href="https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7778/storage/browser/quota/quota_manager_impl.cc" target="_blank" rel="noopener">quota_manager_impl.cc</a>:</p>
 <pre class="formal-syntax"><code>reportedQuota = usage + (totalSpace &gt;= 10 GiB
                            ? 10 GiB
-                           : ceil(totalSpace / 1 GiB) &times; 1 GiB)</code></pre>
+                           : ceil(totalSpace / 1 GiB) × 1 GiB)</code></pre>
     <p>In that code a separate, default-off feature (<code>IncognitoStaticStorageQuota</code>) forces the 10&nbsp;GiB branch in Incognito. The enforced quota (when writes actually fail) is unchanged.</p>
     <div class="table-wrap">
 <table class="doc-table">
@@ -113,22 +113,22 @@ dictionary StorageEstimate {
 
   <section>
     <h2 id="examples">example</h2>
-<pre><code>const { usage, quota } = await navigator.storage.estimate();
+<pre><code><span class="hl-kw">const</span> { usage, quota } = <span class="hl-kw">await</span> navigator.storage.estimate();
 
-// Chrome 148+: both a normal window and an Incognito window see
-// the same quota for the same origin (for non-unlimited sites).
-console.log(`used: ${(usage / 1e6).toFixed(1)} MB`);
-console.log(`quota: ${(quota / 1e9).toFixed(1)} GB`);
+<span class="hl-cm">// Chrome 148+: both a normal window and an Incognito window see</span>
+<span class="hl-cm">// the same quota for the same origin (for non-unlimited sites).</span>
+console.log(<span class="hl-str">`used: </span><span class="hl-pun">${</span>(usage / <span class="hl-num">1e6</span>).toFixed(<span class="hl-num">1</span>)<span class="hl-pun">}</span><span class="hl-str"> MB`</span>);
+console.log(<span class="hl-str">`quota: </span><span class="hl-pun">${</span>(quota / <span class="hl-num">1e9</span>).toFixed(<span class="hl-num">1</span>)<span class="hl-pun">}</span><span class="hl-str"> GB`</span>);
 
-// Percentage-of-used calculations remain valid; the absolute
-// quota figure is now an artificial privacy-preserving value.
-const pct = (usage / quota) * 100;
-if (pct > 80) showStorageWarning();
+<span class="hl-cm">// Percentage-of-used calculations remain valid; the absolute</span>
+<span class="hl-cm">// quota figure is now an artificial privacy-preserving value.</span>
+<span class="hl-kw">const</span> pct = (usage / quota) * <span class="hl-num">100</span>;
+<span class="hl-kw">if</span> (pct &gt; <span class="hl-num">80</span>) showStorageWarning();
 
-// persisted() reports eviction protection; it is not the exemption.
-// Only origins the browser treats as unlimited-storage (for example
-// extensions with "unlimitedStorage") get the real quota value.
-const persisted = await navigator.storage.persisted();</code></pre>
+<span class="hl-cm">// persisted() reports eviction protection; it is not the exemption.</span>
+<span class="hl-cm">// Only origins the browser treats as unlimited-storage (for example</span>
+<span class="hl-cm">// extensions with "unlimitedStorage") get the real quota value.</span>
+<span class="hl-kw">const</span> persisted = <span class="hl-kw">await</span> navigator.storage.persisted();</code></pre>
     <span class="citation">Pattern from <a href="https://developer.chrome.com/blog/estimating-available-storage-space/" target="_blank" rel="noopener">developer.chrome.com — Estimating Available Storage Space</a></span>
 
     <h4>Live demo</h4>

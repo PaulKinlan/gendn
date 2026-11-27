@@ -30,18 +30,18 @@
 
   <section>
     <h2 id="syntax">Syntax</h2>
-<pre><code>// Shipping Chromium IDL (shared mixin — note "onstream", not the draft's "ontrack"):
-interface mixin HTMLMediaCaptureElementBase {
-  readonly attribute DOMException? error;
-  attribute EventHandler onstream;
-  attribute EventHandler oncancel;
-  attribute EventHandler onerror;
+<pre><code><span class="hl-cm">// Shipping Chromium IDL (shared mixin — note "onstream", not the draft's "ontrack"):</span>
+<span class="hl-kw">interface</span> <span class="hl-kw">mixin</span> <span class="hl-ty">HTMLMediaCaptureElementBase</span> {
+  <span class="hl-kw">readonly</span> <span class="hl-kw">attribute</span> <span class="hl-ty">DOMException</span>? error;
+  <span class="hl-kw">attribute</span> <span class="hl-ty">EventHandler</span> onstream;
+  <span class="hl-kw">attribute</span> <span class="hl-ty">EventHandler</span> oncancel;
+  <span class="hl-kw">attribute</span> <span class="hl-ty">EventHandler</span> onerror;
 };
 
-// Listener form (equivalent):
-el.addEventListener("stream", (event) => { /* el.stream is set */ });
-el.addEventListener("cancel", (event) => { /* el.error: NotAllowedError */ });
-el.addEventListener("error",  (event) => { /* el.error: failure DOMException */ });</code></pre>
+<span class="hl-cm">// Listener form (equivalent):</span>
+el.addEventListener(<span class="hl-str">"stream"</span>, (event) =&gt; { <span class="hl-cm">/* el.stream is set */</span> });
+el.addEventListener(<span class="hl-str">"cancel"</span>, (event) =&gt; { <span class="hl-cm">/* el.error: NotAllowedError */</span> });
+el.addEventListener(<span class="hl-str">"error"</span>,  (event) =&gt; { <span class="hl-cm">/* el.error: failure DOMException */</span> });</code></pre>
     <p>All three events are created with <code>Event::Create(...)</code> and queued on the element as DOM-manipulation tasks — they are not cancelable and carry no custom payload. The event-handler content attributes (<code>onstream</code>, <code>oncancel</code>, <code>onerror</code>) work as usual for HTMLElement event handlers. The draft specification names the success event <code>track</code>/<code>ontrack</code> — in the shipping implementation it is <code>stream</code>/<code>onstream</code> (see the overview's <a href="../#divergences">spec vs shipping</a> table).</p>
     <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_media_capture_element_base.idl" target="_blank" rel="noopener">Chromium html_media_capture_element_base.idl</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_media_capture_element_base.h" target="_blank" rel="noopener">Chromium html_media_capture_element_base.h — DEFINE_ATTRIBUTE_EVENT_LISTENER(stream/cancel/error)</a>; <a href="https://w3c.github.io/mediacapture-extensions/#media-capture-html-elements" target="_blank" rel="noopener">Specification — event handlers (draft)</a>.</span>
   </section>
@@ -91,28 +91,28 @@ el.addEventListener("error",  (event) => { /* el.error: failure DOMException */ 
 
   <section>
     <h2 id="examples">Examples</h2>
-<pre><code>const mic = document.querySelector("microphone");
+<pre><code><span class="hl-kw">const</span> mic = document.querySelector(<span class="hl-str">"microphone"</span>);
 
-mic.addEventListener("stream", () => {
-  // el.stream was assigned before this handler runs:
+mic.addEventListener(<span class="hl-str">"stream"</span>, () =&gt; {
+  <span class="hl-cm">// el.stream was assigned before this handler runs:</span>
   startRecording(mic.stream);
 });
-mic.addEventListener("cancel", () => {
-  // User declined — distinguish dismiss vs deny via the message:
-  console.log(mic.error.name, mic.error.message); // NotAllowedError "Permission dismissed" | "Permission denied"
+mic.addEventListener(<span class="hl-str">"cancel"</span>, () =&gt; {
+  <span class="hl-cm">// User declined — distinguish dismiss vs deny via the message:</span>
+  console.log(mic.error.name, mic.error.message); <span class="hl-cm">// NotAllowedError "Permission dismissed" | "Permission denied"</span>
   showInlineExplainer();
 });
-mic.addEventListener("error", () => {
-  switch (mic.error.name) {
-    case "InvalidStateError": break;         // untrusted/no-gesture activation
-    case "NotFoundError":    showNoMicUI(); break;
-    case "NotReadableError": showDeviceBusyUI(); break;
-    default:                 showGenericRetry(mic.error);
+mic.addEventListener(<span class="hl-str">"error"</span>, () =&gt; {
+  <span class="hl-kw">switch</span> (mic.error.name) {
+    <span class="hl-kw">case</span> <span class="hl-str">"InvalidStateError"</span>: <span class="hl-kw">break</span>;         <span class="hl-cm">// untrusted/no-gesture activation</span>
+    <span class="hl-kw">case</span> <span class="hl-str">"NotFoundError"</span>:    showNoMicUI(); <span class="hl-kw">break</span>;
+    <span class="hl-kw">case</span> <span class="hl-str">"NotReadableError"</span>: showDeviceBusyUI(); <span class="hl-kw">break</span>;
+    <span class="hl-kw">default</span>:                 showGenericRetry(mic.error);
   }
 });
 
-// Attribute form also works:
-// &lt;microphone onstream="onMic(this)" oncancel="onCancel(this)" onerror="onErr(this)"&gt;</code></pre>
+<span class="hl-cm">// Attribute form also works:</span>
+<span class="hl-cm">// &lt;microphone onstream="onMic(this)" oncancel="onCancel(this)" onerror="onErr(this)"&gt;</span></code></pre>
     <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/html_media_capture_element_base.cc" target="_blank" rel="noopener">Chromium html_media_capture_element_base.cc</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediastream/user_media_request_provider_impl.cc" target="_blank" rel="noopener">Chromium user_media_request_provider_impl.cc</a>.</span>
   </section>
 

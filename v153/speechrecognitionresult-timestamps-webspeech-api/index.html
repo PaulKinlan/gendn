@@ -50,9 +50,9 @@
   <div class="warn-block warn-block--common" id="dev-trial" data-shipped-in="159">
     <strong>Listed as Enabled by default in Chrome 159 on desktop (dev trial in Chrome 153) &mdash; API renamed before shipping</strong>
     <p>This feature was in developer trial behind a flag in Chrome 153 (<a href="https://chromestatus.com/api/v0/features?milestone=153" target="_blank" rel="noopener">milestone=153 listing</a>); it is now listed as Enabled by default in Chrome 159 (stable 2026-12-08 per <a href="https://chromestatus.com/api/v0/channels" target="_blank" rel="noopener">ChromeStatus channels</a>) on desktop (<a href="https://chromestatus.com/feature/5811907077472256" target="_blank" rel="noopener">ChromeStatus 5811907077472256</a>; ChromeStatus records no Android or WebView milestone, and Chromium enables <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener"><code>WebSpeechTimestamps</code></a> on Windows, Mac, and Linux via <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8836060" target="_blank" rel="noopener">CL&nbsp;8836060</a> while keeping ChromeOS, Android, and WebView off). The flag enable step below is only needed before Chrome 159:</p>
-    <pre><code>chrome --enable-blink-features=WebSpeechTimestamps</code></pre>
+    <pre><code><span class="hl-kw">chrome</span> <span class="hl-attr">--enable-blink-features</span><span class="hl-pun">=</span>WebSpeechTimestamps</code></pre>
     <p><strong>API rename and shape change before shipping:</strong> This overview page and its two child routes still document the pre-ship Chrome 153 developer-trial names (<code>audioStartTime</code> and <code>audioEndTime</code>, nullable <code>DOMHighResTimeStamp?</code> in milliseconds). For the shipped Chrome 159 API reference, see <a href="/v159/speechrecognitionresult-timestamps-webspeech-api/">SpeechRecognitionResult Timestamps (Chrome 159 shipped reference)</a>. The shipped names are <code>speechStartTime</code> and <code>speechEndTime</code> &mdash; non-nullable <code>double</code> values in seconds relative to the audio stream start (returning <code>0.0</code> when timing is absent, still quantized to 2&nbsp;ms multiples) &mdash; confirmed in merged <a href="https://github.com/WebAudio/web-speech-api/pull/192" target="_blank" rel="noopener">WebAudio/web-speech-api PR&nbsp;#192</a> (2026-10-21), the live <a href="https://webaudio.github.io/web-speech-api/#dom-speechrecognitionresult-speechstarttime" target="_blank" rel="noopener">Web Speech API spec (<code>speechStartTime</code>)</a> / <a href="https://webaudio.github.io/web-speech-api/#dom-speechrecognitionresult-speechendtime" target="_blank" rel="noopener"><code>speechEndTime</code></a>, and Chromium&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/speech/speech_recognition_result.idl" target="_blank" rel="noopener"><code>speech_recognition_result.idl</code></a> and <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/speech/speech_recognition_result.cc" target="_blank" rel="noopener"><code>speech_recognition_result.cc</code></a>. Chromium also gates rebasing <code>SpeechRecognitionEvent.timeStamp</code> onto the recognizer&rsquo;s audio end time on <code>WebSpeechTimestamps</code> (<a href="https://chromium-review.googlesource.com/c/chromium/src/+/8797156" target="_blank" rel="noopener">CL&nbsp;8797156</a>). Feature-detect the shipped surface with <code>'speechStartTime' in SpeechRecognitionResult.prototype</code> (the pre-ship dev-trial snippet below checked <code>audioStartTime</code>):</p>
-    <pre><code>const supported = 'audioStartTime' in SpeechRecognitionResult.prototype; // pre-ship dev-trial name; shipped name is 'speechStartTime'</code></pre>
+    <pre><code><span class="hl-kw">const</span> supported = <span class="hl-str">'audioStartTime'</span> <span class="hl-kw">in</span> <span class="hl-ty">SpeechRecognitionResult</span>.prototype; <span class="hl-cm">// pre-ship dev-trial name; shipped name is 'speechStartTime'</span></code></pre>
   </div>
 
   <section>
@@ -98,7 +98,7 @@
   <section>
     <h2 id="latency">measuring latency</h2>
     <p>The explainer's flagship pattern: because both the result timestamps and <a href="https://dom.spec.whatwg.org/#dom-event-timestamp" target="_blank" rel="noopener"><code>Event.timeStamp</code></a> are relative to the same time origin, subtracting <code>audioEndTime</code> from the event's <code>timeStamp</code> yields the processing lag between when the audio <em>ended</em> and when the result was <em>delivered</em>:</p>
-    <pre><code>const processingLatencyMs = event.timeStamp - result.audioEndTime;</code></pre>
+    <pre><code><span class="hl-kw">const</span> processingLatencyMs = event.timeStamp - result.audioEndTime;</code></pre>
     <p>An application can watch that value and fail over to a cloud backend when it breaches a threshold (the explainer uses 1500&nbsp;ms as an example). Two honest caveats: the measure includes binding/IPC delivery time, not pure engine time; and the 2&nbsp;ms quantization floors both attributes, so latencies below ~2&nbsp;ms are not resolvable — irrelevant in practice for a failover threshold measured in hundreds of milliseconds.</p>
     <span class="citation">Source: <a href="https://github.com/WICG/speech-api/blob/main/explainers/speech-recognition-result-timestamps.md" target="_blank" rel="noopener">explainer — Proposed Behavior &amp; Example Usage</a></span>
   </section>
@@ -106,19 +106,19 @@
   <section>
     <h2 id="syntax">syntax</h2>
     <p>Proposed spec IDL (<a href="https://github.com/WICG/speech-api/pull/192/files" target="_blank" rel="noopener">WICG/speech-api PR #192</a>, open — quoted verbatim):</p>
-    <pre><code>partial interface SpeechRecognitionResult {
-    readonly attribute DOMHighResTimeStamp? audioStartTime;
-    readonly attribute DOMHighResTimeStamp? audioEndTime;
+    <pre><code><span class="hl-kw">partial</span> <span class="hl-kw">interface</span> <span class="hl-ty">SpeechRecognitionResult</span> {
+    <span class="hl-kw">readonly</span> <span class="hl-kw">attribute</span> <span class="hl-ty">DOMHighResTimeStamp</span>? audioStartTime;
+    <span class="hl-kw">readonly</span> <span class="hl-kw">attribute</span> <span class="hl-ty">DOMHighResTimeStamp</span>? audioEndTime;
 };</code></pre>
     <p>Shipping Chromium IDL (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/speech/speech_recognition_result.idl" target="_blank" rel="noopener">speech_recognition_result.idl</a> at trunk, 2026-07-29 — quoted verbatim, including the runtime gate):</p>
-    <pre><code>[
-    LegacyNoInterfaceObject
-] interface SpeechRecognitionResult {
-    readonly attribute unsigned long length;
-    getter SpeechRecognitionAlternative item(unsigned long index);
-    readonly attribute boolean isFinal;
-    [RuntimeEnabled=WebSpeechTimestamps] readonly attribute DOMHighResTimeStamp? audioStartTime;
-    [RuntimeEnabled=WebSpeechTimestamps] readonly attribute DOMHighResTimeStamp? audioEndTime;
+    <pre><code><span class="hl-pun">[</span>
+    <span class="hl-attr">LegacyNoInterfaceObject</span>
+<span class="hl-pun">]</span> <span class="hl-kw">interface</span> <span class="hl-ty">SpeechRecognitionResult</span> {
+    <span class="hl-kw">readonly</span> <span class="hl-kw">attribute</span> <span class="hl-kw">unsigned</span> <span class="hl-ty">long</span> length;
+    <span class="hl-kw">getter</span> <span class="hl-ty">SpeechRecognitionAlternative</span> item(<span class="hl-kw">unsigned</span> <span class="hl-ty">long</span> index);
+    <span class="hl-kw">readonly</span> <span class="hl-kw">attribute</span> <span class="hl-ty">boolean</span> isFinal;
+    <span class="hl-pun">[</span><span class="hl-attr">RuntimeEnabled</span>=<span class="hl-ty">WebSpeechTimestamps</span><span class="hl-pun">]</span> <span class="hl-kw">readonly</span> <span class="hl-kw">attribute</span> <span class="hl-ty">DOMHighResTimeStamp</span>? audioStartTime;
+    <span class="hl-pun">[</span><span class="hl-attr">RuntimeEnabled</span>=<span class="hl-ty">WebSpeechTimestamps</span><span class="hl-pun">]</span> <span class="hl-kw">readonly</span> <span class="hl-kw">attribute</span> <span class="hl-ty">DOMHighResTimeStamp</span>? audioEndTime;
 };</code></pre>
     <p>The two attributes are the entire surface: no new methods, no options, no events. <code>SpeechRecognitionAlternative</code> (<code>transcript</code>, <code>confidence</code>) is unchanged — timestamps live on the <em>result</em>, not on each alternative hypothesis.</p>
     <span class="citation">Source: <a href="https://github.com/WICG/speech-api/pull/192/files" target="_blank" rel="noopener">PR #192 diff</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/speech/speech_recognition_result.idl" target="_blank" rel="noopener">speech_recognition_result.idl</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/speech/speech_recognition_alternative.idl" target="_blank" rel="noopener">speech_recognition_alternative.idl</a></span>
@@ -135,19 +135,19 @@
   <section>
     <h2 id="examples">examples</h2>
     <p>Live captioning with latency-based failover (adapted from the <a href="https://github.com/WICG/speech-api/blob/main/explainers/speech-recognition-result-timestamps.md" target="_blank" rel="noopener">explainer</a>):</p>
-    <pre><code>const recognition = new SpeechRecognition();
-recognition.continuous = true;
-recognition.interimResults = true;
+    <pre><code><span class="hl-kw">const</span> recognition = <span class="hl-kw">new</span> <span class="hl-ty">SpeechRecognition</span>();
+recognition.continuous = <span class="hl-num">true</span>;
+recognition.interimResults = <span class="hl-num">true</span>;
 
 recognition.onresult = (event) =&gt; {
-  const result = event.results[event.resultIndex];
+  <span class="hl-kw">const</span> result = event.results[event.resultIndex];
 
-  if (result.audioEndTime !== null) {
-    // How far behind the audio is the engine?
-    const processingLatencyMs = event.timeStamp - result.audioEndTime;
+  <span class="hl-kw">if</span> (result.audioEndTime !== <span class="hl-num">null</span>) {
+    <span class="hl-cm">// How far behind the audio is the engine?</span>
+    <span class="hl-kw">const</span> processingLatencyMs = event.timeStamp - result.audioEndTime;
 
-    if (processingLatencyMs &gt; 1500) {
-      console.warn(`ASR lag detected (${processingLatencyMs}ms) — failing over to cloud`);
+    <span class="hl-kw">if</span> (processingLatencyMs &gt; <span class="hl-num">1500</span>) {
+      console.warn(<span class="hl-str">`ASR lag detected (</span><span class="hl-pun">${</span>processingLatencyMs<span class="hl-pun">}</span><span class="hl-str">ms) — failing over to cloud`</span>);
       switchToCloudBackend();
     }
   }
@@ -156,13 +156,13 @@ recognition.onresult = (event) =&gt; {
 recognition.start();</code></pre>
     <p>Aligning a caption to a media timeline (the audio source is a <code>&lt;video&gt;</code> element routed into recognition):</p>
     <pre><code>recognition.onresult = (event) =&gt; {
-  for (let i = event.resultIndex; i &lt; event.results.length; i++) {
-    const result = event.results[i];
-    if (result.isFinal &amp;&amp; result.audioStartTime !== null) {
+  <span class="hl-kw">for</span> (<span class="hl-kw">let</span> i = event.resultIndex; i &lt; event.results.length; i++) {
+    <span class="hl-kw">const</span> result = event.results[i];
+    <span class="hl-kw">if</span> (result.isFinal &amp;&amp; result.audioStartTime !== <span class="hl-num">null</span>) {
       cues.push({
-        start: result.audioStartTime / 1000,  // ms → s for VTTCue
-        end:   result.audioEndTime   / 1000,
-        text:  result[0].transcript,
+        start: result.audioStartTime / <span class="hl-num">1000</span>,  <span class="hl-cm">// ms → s for VTTCue</span>
+        end:   result.audioEndTime   / <span class="hl-num">1000</span>,
+        text:  result[<span class="hl-num">0</span>].transcript,
       });
     }
   }
@@ -201,9 +201,9 @@ recognition.start();</code></pre>
       <li><strong>Null, not zero, for unsupported engines</strong> — an engine that cannot supply timestamps yields <code>null</code>, so the API does not leak a bogus &ldquo;zero latency&rdquo; signal that applications might misread as healthy.</li>
     </ul>
     <p>The quantization in concrete terms:</p>
-    <pre><code>// Engine reports:   audio_start_time = 1234.5678 ms
-// Attribute reads:  result.audioStartTime === 1234   (floored to a 2 ms multiple)
-// Engine absent:    result.audioStartTime === null   (no fuzzing applied)</code></pre>
+    <pre><code><span class="hl-cm">// Engine reports:   audio_start_time = 1234.5678 ms</span>
+<span class="hl-cm">// Attribute reads:  result.audioStartTime === 1234   (floored to a 2 ms multiple)</span>
+<span class="hl-cm">// Engine absent:    result.audioStartTime === null   (no fuzzing applied)</span></code></pre>
     <span class="citation">Source: <a href="https://github.com/WICG/speech-api/pull/192/files" target="_blank" rel="noopener">PR #192 privacy clause</a>; <a href="https://github.com/WICG/speech-api/blob/main/explainers/speech-recognition-result-timestamps.md" target="_blank" rel="noopener">explainer — Security and Privacy Considerations</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/speech/speech_recognition_result.cc" target="_blank" rel="noopener">speech_recognition_result.cc</a></span>
   </section>
 

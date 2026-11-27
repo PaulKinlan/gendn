@@ -152,9 +152,12 @@ try {
   const indexPath = `${scratch}/${FEATURE}/index.html`;
   const baseHtml = await sys.readTextFile(indexPath);
   const mutatedHtml = baseHtml.replace(
-    "static undefined stopDiagnosticLogging();",
-    "static undefined stopDiagnosticLogging();\n  static undefined rogueDiagnosticLoggingMember();",
+    /stopDiagnosticLogging\(\);/,
+    "stopDiagnosticLogging();\n  static undefined rogueDiagnosticLoggingMember();",
   );
+  if (mutatedHtml === baseHtml) {
+    throw new Error(`rtvp fixture mutation did not match ${FEATURE}/index.html`);
+  }
   await sys.writeTextFile(indexPath, mutatedHtml);
   r = await runGate();
   assert(

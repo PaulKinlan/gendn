@@ -88,21 +88,21 @@
   <section>
     <h2 id="syntax">Affected surface</h2>
     <p>This change introduces no new WebIDL interfaces or methods; it alters the event-dispatch contract of existing DOM removal operations on nested browsing-context owners (<code>&lt;iframe&gt;</code>, <code>&lt;frame&gt;</code>, <code>&lt;object&gt;</code>, <code>&lt;embed&gt;</code>) governed by Blink&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/dom/child_frame_disconnector.cc" target="_blank" rel="noopener"><code>ChildFrameDisconnector::ShouldFireUnloadEvents()</code></a>:</p>
-    <pre tabindex="0"><code data-doc-test="skip" data-doc-test-reason="Affected DOM removal entry points, suppressed subframe event hooks, and Blink ChildFrameDisconnector gate summary (not executable standalone JS).">// Triggering ancestor DOM removals (ChildFrameDisconnector::kDisconnectSelf):
-//   iframe.remove() | parent.removeChild(el) | parent.replaceChild(n, el)
-//   container.innerHTML = "" | container.replaceChildren() | container.textContent = ""
-//   range.deleteContents() | range.extractContents() | document.adoptNode(el)
-//
-// Subframe listeners NO LONGER fired synchronously when InSameAgent(child, removingDoc):
-//   childWindow.addEventListener("pagehide", ...)
-//   childDocument.addEventListener("visibilitychange", ...)
-//   childDocument.addEventListener("webkitvisibilitychange", ...)
-//   childWindow.addEventListener("unload", ...)   // (also gated by Permissions-Policy: unload)
-//
-// Migration replacements (explicit teardown / atomic move):
-//   childWindow.postMessage({ type: "teardown" }, targetOrigin)  // before removal
-//   newParent.moveBefore(iframe, refNode)                        // preserves navigable
-//   new MutationObserver(cb).observe(container, { childList: true })</code></pre>
+    <pre tabindex="0"><code data-doc-test="skip" data-doc-test-reason="Affected DOM removal entry points, suppressed subframe event hooks, and Blink ChildFrameDisconnector gate summary (not executable standalone JS)."><span class="hl-cm">// Triggering ancestor DOM removals (ChildFrameDisconnector::kDisconnectSelf):</span>
+<span class="hl-cm">//   iframe.remove() | parent.removeChild(el) | parent.replaceChild(n, el)</span>
+<span class="hl-cm">//   container.innerHTML = "" | container.replaceChildren() | container.textContent = ""</span>
+<span class="hl-cm">//   range.deleteContents() | range.extractContents() | document.adoptNode(el)</span>
+<span class="hl-cm">//</span>
+<span class="hl-cm">// Subframe listeners NO LONGER fired synchronously when InSameAgent(child, removingDoc):</span>
+<span class="hl-cm">//   childWindow.addEventListener("pagehide", ...)</span>
+<span class="hl-cm">//   childDocument.addEventListener("visibilitychange", ...)</span>
+<span class="hl-cm">//   childDocument.addEventListener("webkitvisibilitychange", ...)</span>
+<span class="hl-cm">//   childWindow.addEventListener("unload", ...)   // (also gated by Permissions-Policy: unload)</span>
+<span class="hl-cm">//</span>
+<span class="hl-cm">// Migration replacements (explicit teardown / atomic move):</span>
+<span class="hl-cm">//   childWindow.postMessage({ type: "teardown" }, targetOrigin)  // before removal</span>
+<span class="hl-cm">//   newParent.moveBefore(iframe, refNode)                        // preserves navigable</span>
+<span class="hl-cm">//   new MutationObserver(cb).observe(container, { childList: true })</span></code></pre>
     <p>This reference covers all three parts of the behavioral change: <a href="#omitted-events">omitted synchronous removal events</a> (<code>pagehide</code>, <code>visibilitychange</code> / <code>webkitvisibilitychange</code>, <code>unload</code>), the <a href="#same-agent-boundary"><code>InSameAgent</code> scoping boundary</a> (including opaque-origin sandboxes and cross-origin <code>A1 &rarr; B &rarr; A2</code> sandwiches), and <a href="#unaffected-and-migration">unaffected lifecycles &amp; migration patterns</a> (<code>moveBefore()</code>, explicit teardown handshake, and <code>MutationObserver</code>).</p>
     <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/dom/child_frame_disconnector.cc" target="_blank" rel="noopener">Blink <code>child_frame_disconnector.cc</code></a>; <a href="https://html.spec.whatwg.org/multipage/document-sequences.html#destroy-a-child-navigable" target="_blank" rel="noopener">WHATWG HTML Standard</a>; <a href="https://gist.github.com/noamr/f80676a616444de7efb5be671692e919" target="_blank" rel="noopener">compat impact study</a>.</span>
 
@@ -172,49 +172,49 @@
       <figcaption>Live interactive removal event recorder comparing <code>pagehide</code>, <code>visibilitychange</code>, and <code>unload</code> across removal operations. Sibling demos on the <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/deprecate-and-stop-firing-events-during-subframe-removal/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase feature index</a>: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/deprecate-and-stop-firing-events-during-subframe-removal/agent-boundary-matrix/" target="_blank" rel="noopener">agent boundary matrix</a>, <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/deprecate-and-stop-firing-events-during-subframe-removal/reentrancy-hazard/" target="_blank" rel="noopener">re-entrancy hazard</a>, <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/deprecate-and-stop-firing-events-during-subframe-removal/explicit-teardown-handshake/" target="_blank" rel="noopener">explicit teardown handshake</a>, and <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/deprecate-and-stop-firing-events-during-subframe-removal/navigation-move-and-focus/" target="_blank" rel="noopener">navigation, moves &amp; focus</a>. <span class="citation">Source: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/deprecate-and-stop-firing-events-during-subframe-removal/removal-event-recorder/" target="_blank" rel="noopener">chrome-platform-showcase</a>.</span></figcaption>
     </figure>
 
-    <pre tabindex="0"><code data-doc-test="js">// Migration Pattern A: Explicit parent-to-child teardown handshake before removing an iframe
-// Works identically regardless of whether pagehide / visibilitychange / unload fire on removal.
-async function removeSubframeWithTeardown(iframe, targetOrigin, timeoutMs = 500) {
-  const childWin = iframe.contentWindow;
-  if (childWin) {
-    await new Promise((resolve) => {
-      const channel = new MessageChannel();
-      const timer = setTimeout(resolve, timeoutMs);
-      channel.port1.onmessage = () => {
+    <pre tabindex="0"><code data-doc-test="js"><span class="hl-cm">// Migration Pattern A: Explicit parent-to-child teardown handshake before removing an iframe</span>
+<span class="hl-cm">// Works identically regardless of whether pagehide / visibilitychange / unload fire on removal.</span>
+<span class="hl-kw">async</span> <span class="hl-kw">function</span> removeSubframeWithTeardown(iframe, targetOrigin, timeoutMs = <span class="hl-num">500</span>) {
+  <span class="hl-kw">const</span> childWin = iframe.contentWindow;
+  <span class="hl-kw">if</span> (childWin) {
+    <span class="hl-kw">await</span> <span class="hl-kw">new</span> <span class="hl-ty">Promise</span>((resolve) =&gt; {
+      <span class="hl-kw">const</span> channel = <span class="hl-kw">new</span> <span class="hl-ty">MessageChannel</span>();
+      <span class="hl-kw">const</span> timer = setTimeout(resolve, timeoutMs);
+      channel.port1.onmessage = () =&gt; {
         clearTimeout(timer);
         resolve();
       };
-      // Child flushes unsaved draft / releases locks and replies on event.ports[0]
-      childWin.postMessage({ type: "explicit-teardown" }, targetOrigin, [channel.port2]);
+      <span class="hl-cm">// Child flushes unsaved draft / releases locks and replies on event.ports[0]</span>
+      childWin.postMessage({ <span class="hl-kw">type</span>: <span class="hl-str">"explicit-teardown"</span> }, targetOrigin, [channel.port2]);
     });
   }
   iframe.remove();
 }
 
-// Migration Pattern B: Reparent a live same-origin iframe without detaching it (moveBefore)
-function reparentSubframePreservingState(iframe, destinationContainer, referenceNode = null) {
-  if (typeof destinationContainer.moveBefore === "function") {
-    // Atomic move: child navigable stays alive (no reload, no detachment)
+<span class="hl-cm">// Migration Pattern B: Reparent a live same-origin iframe without detaching it (moveBefore)</span>
+<span class="hl-kw">function</span> reparentSubframePreservingState(iframe, destinationContainer, referenceNode = <span class="hl-num">null</span>) {
+  <span class="hl-kw">if</span> (<span class="hl-kw">typeof</span> destinationContainer.moveBefore === <span class="hl-str">"function"</span>) {
+    <span class="hl-cm">// Atomic move: child navigable stays alive (no reload, no detachment)</span>
     destinationContainer.moveBefore(iframe, referenceNode);
-  } else {
-    // Legacy fallback detaches and reloads the iframe
+  } <span class="hl-kw">else</span> {
+    <span class="hl-cm">// Legacy fallback detaches and reloads the iframe</span>
     destinationContainer.insertBefore(iframe, referenceNode);
   }
 }
 
-// Migration Pattern C: Observe removal asynchronously from the host via MutationObserver
-function watchSubframeRemoval(container, onRemoved) {
-  const observer = new MutationObserver((records) => {
-    for (const record of records) {
-      for (const node of record.removedNodes) {
-        if (node.nodeName === "IFRAME") {
+<span class="hl-cm">// Migration Pattern C: Observe removal asynchronously from the host via MutationObserver</span>
+<span class="hl-kw">function</span> watchSubframeRemoval(container, onRemoved) {
+  <span class="hl-kw">const</span> observer = <span class="hl-kw">new</span> <span class="hl-ty">MutationObserver</span>((records) =&gt; {
+    <span class="hl-kw">for</span> (<span class="hl-kw">const</span> record <span class="hl-kw">of</span> records) {
+      <span class="hl-kw">for</span> (<span class="hl-kw">const</span> node <span class="hl-kw">of</span> record.removedNodes) {
+        <span class="hl-kw">if</span> (node.nodeName === <span class="hl-str">"IFRAME"</span>) {
           onRemoved(node);
         }
       }
     }
   });
-  observer.observe(container, { childList: true });
-  return observer;
+  observer.observe(container, { childList: <span class="hl-num">true</span> });
+  <span class="hl-kw">return</span> observer;
 }</code></pre>
     <span class="citation">Source: <a href="https://html.spec.whatwg.org/multipage/document-sequences.html#destroy-a-child-navigable" target="_blank" rel="noopener">WHATWG HTML Standard</a>; <a href="https://github.com/whatwg/html/issues/10194" target="_blank" rel="noopener">whatwg/html#10194</a>.</span>
   </section>

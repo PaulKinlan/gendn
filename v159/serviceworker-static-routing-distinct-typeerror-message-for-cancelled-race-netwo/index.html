@@ -79,19 +79,19 @@
   <section>
     <h2 id="syntax">Syntax</h2>
     <p>This Chrome 159 change introduces <strong>no new WebIDL or specification syntax</strong>. It refines the rejection message string of <code>fetch(event.request)</code> inside a Service Worker <code>fetch</code> handler matched by an existing Static Routing rule registered via <code>InstallEvent.addRoutes()</code>:</p>
-    <pre><code>// Existing W3C Service Workers Static Routing registration (InstallEvent.addRoutes)
-self.addEventListener("install", (event) =&gt; {
+    <pre><code><span class="hl-cm">// Existing W3C Service Workers Static Routing registration (InstallEvent.addRoutes)</span>
+self.addEventListener(<span class="hl-str">"install"</span>, (event) =&gt; {
   event.addRoutes({
-    condition: { urlPattern: { pathname: "/app/*" } },
-    source: "race-network-and-fetch-handler",
+    condition: { urlPattern: { pathname: <span class="hl-str">"/app/*"</span> } },
+    source: <span class="hl-str">"race-network-and-fetch-handler"</span>,
   });
 });
 
-// Exact Chrome 159 TypeError rejection message when the deduplicated raced request
-// (kRaceLoaderUsed) is aborted with net::ERR_ABORTED before response headers arrive
-// (parallel to Navigation Preload's event.preloadResponse cancellation string):
-// err instanceof TypeError === true
-// err.message === "The service worker race-network-and-fetch-handler request was cancelled before 'fetch()' settled."</code></pre>
+<span class="hl-cm">// Exact Chrome 159 TypeError rejection message when the deduplicated raced request</span>
+<span class="hl-cm">// (kRaceLoaderUsed) is aborted with net::ERR_ABORTED before response headers arrive</span>
+<span class="hl-cm">// (parallel to Navigation Preload's event.preloadResponse cancellation string):</span>
+<span class="hl-cm">// err instanceof TypeError === true</span>
+<span class="hl-cm">// err.message === "The service worker race-network-and-fetch-handler request was cancelled before 'fetch()' settled."</span></code></pre>
     <p>This reference covers three parts of the contract: the <a href="#distinct-typeerror-message">distinct <code>TypeError</code> message</a>, the <a href="#trigger-conditions">loader deduplication &amp; triggering conditions</a>, and <a href="#preload-parity">Navigation Preload telemetry parity</a>.</p>
     <span class="citation">Source: <a href="https://w3c.github.io/ServiceWorker/#dom-routersourceenum-race-network-and-fetch-handler" target="_blank" rel="noopener">W3C Service Workers Static Routing</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/service_worker/service_worker_global_scope.cc" target="_blank" rel="noopener">Blink service_worker_global_scope.cc</a>.</span>
 
@@ -158,44 +158,44 @@ self.addEventListener("install", (event) =&gt; {
     </figure>
 
     <h3 id="example-telemetry-filter">Suppressing expected race-cancellation noise in Service Worker telemetry</h3>
-    <pre><code>const EXPECTED_CANCEL_MESSAGES = new Set([
-  "The service worker race-network-and-fetch-handler request was cancelled before 'fetch()' settled.",
-  "The service worker navigation preload request was cancelled before 'preloadResponse' settled.",
+    <pre><code><span class="hl-kw">const</span> EXPECTED_CANCEL_MESSAGES = <span class="hl-kw">new</span> <span class="hl-ty">Set</span>([
+  <span class="hl-str">"The service worker race-network-and-fetch-handler request was cancelled before 'fetch()' settled."</span>,
+  <span class="hl-str">"The service worker navigation preload request was cancelled before 'preloadResponse' settled."</span>,
 ]);
 
-self.addEventListener("install", (event) =&gt; {
-  if (typeof event.addRoutes === "function") {
+self.addEventListener(<span class="hl-str">"install"</span>, (event) =&gt; {
+  <span class="hl-kw">if</span> (<span class="hl-kw">typeof</span> event.addRoutes === <span class="hl-str">"function"</span>) {
     event.addRoutes({
-      condition: { urlPattern: { pathname: "/articles/*" } },
-      source: "race-network-and-fetch-handler",
+      condition: { urlPattern: { pathname: <span class="hl-str">"/articles/*"</span> } },
+      source: <span class="hl-str">"race-network-and-fetch-handler"</span>,
     });
   }
 });
 
-self.addEventListener("fetch", (event) =&gt; {
-  // First fetch(event.request) binds to the deduplicated race loader (kRaceLoaderUsed);
-  // if timedCacheFallback wins before headers arrive, Chromium aborts it with net::ERR_ABORTED.
-  const networkPromise = fetch(event.request).catch((err) =&gt; {
-    // Distinguish expected pre-settlement race cancellation from real network outages
-    if (err instanceof TypeError &amp;&amp; EXPECTED_CANCEL_MESSAGES.has(err.message)) {
-      return null; // Expected cancellation after cache fallback won; do not alert
+self.addEventListener(<span class="hl-str">"fetch"</span>, (event) =&gt; {
+  <span class="hl-cm">// First fetch(event.request) binds to the deduplicated race loader (kRaceLoaderUsed);</span>
+  <span class="hl-cm">// if timedCacheFallback wins before headers arrive, Chromium aborts it with net::ERR_ABORTED.</span>
+  <span class="hl-kw">const</span> networkPromise = fetch(event.request).catch((err) =&gt; {
+    <span class="hl-cm">// Distinguish expected pre-settlement race cancellation from real network outages</span>
+    <span class="hl-kw">if</span> (err <span class="hl-kw">instanceof</span> <span class="hl-ty">TypeError</span> &amp;&amp; EXPECTED_CANCEL_MESSAGES.has(err.message)) {
+      <span class="hl-kw">return</span> <span class="hl-num">null</span>; <span class="hl-cm">// Expected cancellation after cache fallback won; do not alert</span>
     }
     reportNetworkOutageTelemetry(event.request.url, err);
-    throw err;
+    <span class="hl-kw">throw</span> err;
   });
 
-  const timedCacheFallback = new Promise((resolve) =&gt; {
-    setTimeout(async () =&gt; {
-      const cached = await caches.match(event.request);
-      if (cached) resolve(cached);
-    }, 300);
+  <span class="hl-kw">const</span> timedCacheFallback = <span class="hl-kw">new</span> <span class="hl-ty">Promise</span>((resolve) =&gt; {
+    setTimeout(<span class="hl-kw">async</span> () =&gt; {
+      <span class="hl-kw">const</span> cached = <span class="hl-kw">await</span> caches.match(event.request);
+      <span class="hl-kw">if</span> (cached) resolve(cached);
+    }, <span class="hl-num">300</span>);
   });
 
   event.respondWith(
-    Promise.race([
+    <span class="hl-ty">Promise</span>.race([
       networkPromise.then((res) =&gt; res ?? caches.match(event.request)),
       timedCacheFallback,
-    ]).then((res) =&gt; res || new Response("Offline", { status: 503 })),
+    ]).then((res) =&gt; res || <span class="hl-kw">new</span> <span class="hl-ty">Response</span>(<span class="hl-str">"Offline"</span>, { status: <span class="hl-num">503</span> })),
   );
 });</code></pre>
     <span class="citation">Source: <a href="https://chromestatus.com/feature/5124748525830144" target="_blank" rel="noopener">ChromeStatus 5124748525830144</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/service_worker/service_worker_global_scope.cc" target="_blank" rel="noopener">Blink service_worker_global_scope.cc</a>.</span>

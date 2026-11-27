@@ -101,6 +101,10 @@ export async function validateReferenceContractsInBrowser(records, { cwd } = {})
     for (const [name, viewport] of VIEWPORTS) {
       pages.push({ name, page: await browser.newPage(viewport) });
     }
+    // Group checks by unique route so a contract with N inventory items on the same page
+    // navigates ONCE per viewport and evaluates every selector/citation in a single CDP round-trip,
+    // preserving identical checkVisibility / getBoundingClientRect / canonicalCitationUrl semantics.
+    const routeJobs = new Map();
     for (const { ownerId, contract } of records) {
       for (const doc of contract.documentation ?? []) {
         const route = documentationRoute(ownerId, doc.href);
@@ -108,58 +112,92 @@ export async function validateReferenceContractsInBrowser(records, { cwd } = {})
           errors.push(`${ownerId}: ${doc.inventoryId}: browser check cannot resolve ${doc.href}`);
           continue;
         }
-        const sourceUrls = sourceUrlsForDocumentation(contract, doc);
-        for (const { name: deviceClass, page } of pages) {
-          await page.goto(`${server.base}${route}`);
-          for (const dimension of REQUIRED_DIMENSIONS) {
-            const coverage = doc.dimensions?.[dimension];
-            if (!coverage || coverage.status === "missing" || !coverage.selector) continue;
-            const result = await page.evaluate(`(() => {
-              const element = document.querySelector(${JSON.stringify(coverage.selector)});
-              if (!element) return { ok: false, reason: "selector missing" };
-              const style = getComputedStyle(element);
-              const box = element.getBoundingClientRect();
-              const visible = typeof element.checkVisibility === "function"
-                ? element.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true, contentVisibilityAuto: true })
-                : style.display !== "none" && style.visibility !== "hidden" && Number(style.opacity) !== 0;
-              return { ok: visible && box.width > 0 && box.height > 0,
-                reason: visible ? "zero box " + box.width + "x" + box.height : "computed hidden" };
-            })()`);
-            if (!result?.ok) {
-              errors.push(
-                `${ownerId}: ${doc.inventoryId}.${dimension} ${coverage.selector} is not visibly rendered on ${deviceClass} at ${route} (${
-                  result?.reason ?? "unknown"
-                })`,
-              );
-            }
-          }
-          for (const url of sourceUrls) {
-            // The BROWSER side of the same comparison, normalised through the same rule (gendn-t77):
-            // `a.href` is already the DOM's canonical absolute form, so canonicalising the CONTRACT
-            // value here makes both sides speak the same dialect — without this, a contract citing a
-            // bare host could never match a link the browser resolved to its trailing-slash form.
-            const wanted = canonicalCitationUrl(url) ?? url;
-            const result = await page.evaluate(`(() => {
-              const links = [...document.querySelectorAll("a[href]")].filter(a => a.href === ${
-                JSON.stringify(wanted)
-              });
-              return links.some(link => {
-                const style = getComputedStyle(link);
-                const box = link.getBoundingClientRect();
-                const visible = typeof link.checkVisibility === "function"
-                  ? link.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true, contentVisibilityAuto: true })
-                  : style.display !== "none" && style.visibility !== "hidden" && Number(style.opacity) !== 0;
-                return visible && box.width > 0 && box.height > 0;
-              });
-            })()`);
-            if (!result) {
-              errors.push(
-                `${ownerId}: ${doc.inventoryId}: cited source is not a visible clickable link on ${deviceClass} at ${route}: ${url}`,
-              );
-            }
-          }
+        let job = routeJobs.get(route);
+        if (!job) {
+          job = { docs: [], selectors: new Set(), wantedUrls: new Set() };
+          routeJobs.set(route, job);
         }
+        const dims = [];
+        for (const dimension of REQUIRED_DIMENSIONS) {
+          const coverage = doc.dimensions?.[dimension];
+          if (!coverage || coverage.status === "missing" || !coverage.selector) continue;
+          dims.push({ dimension, selector: coverage.selector });
+          job.selectors.add(coverage.selector);
+        }
+        const sources = [];
+        for (const url of sourceUrlsForDocumentation(contract, doc)) {
+          // The BROWSER side of the same comparison, normalised through the same rule (gendn-t77):
+          // `a.href` is already the DOM's canonical absolute form, so canonicalising the CONTRACT
+          // value here makes both sides speak the same dialect — without this, a contract citing a
+          // bare host could never match a link the browser resolved to its trailing-slash form.
+          const wanted = canonicalCitationUrl(url) ?? url;
+          sources.push({ url, wanted });
+          job.wantedUrls.add(wanted);
+        }
+        job.docs.push({ ownerId, inventoryId: doc.inventoryId, dims, sources });
       }
+    }
+
+    for (const [route, job] of routeJobs) {
+      const selectorList = [...job.selectors];
+      const wantedList = [...job.wantedUrls];
+      const evalExpr = `(() => {
+        const isVisible = (el) => {
+          const style = getComputedStyle(el);
+          const box = el.getBoundingClientRect();
+          const visible = typeof el.checkVisibility === "function"
+            ? el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true, contentVisibilityAuto: true })
+            : style.display !== "none" && style.visibility !== "hidden" && Number(style.opacity) !== 0;
+          return { ok: visible && box.width > 0 && box.height > 0,
+            reason: visible ? "zero box " + box.width + "x" + box.height : "computed hidden" };
+        };
+        const selectors = {};
+        for (const sel of ${JSON.stringify(selectorList)}) {
+          const el = document.querySelector(sel);
+          selectors[sel] = el ? isVisible(el) : { ok: false, reason: "selector missing" };
+        }
+        const anchors = [...document.querySelectorAll("a[href]")];
+        const byHref = new Map();
+        for (const a of anchors) {
+          let list = byHref.get(a.href);
+          if (!list) { list = []; byHref.set(a.href, list); }
+          list.push(a);
+        }
+        const urls = {};
+        for (const wanted of ${JSON.stringify(wantedList)}) {
+          const links = byHref.get(wanted) ?? [];
+          urls[wanted] = links.some((link) => isVisible(link).ok);
+        }
+        return { selectors, urls };
+      })()`;
+      const perViewport = await Promise.all(
+        pages.map(async ({ name: deviceClass, page }) => {
+          await page.goto(`${server.base}${route}`);
+          const batch = await page.evaluate(evalExpr);
+          const localErrors = [];
+          for (const doc of job.docs) {
+            for (const { dimension, selector } of doc.dims) {
+              const result = batch?.selectors?.[selector];
+              if (!result?.ok) {
+                localErrors.push(
+                  `${doc.ownerId}: ${doc.inventoryId}.${dimension} ${selector} is not visibly rendered on ${deviceClass} at ${route} (${
+                    result?.reason ?? "unknown"
+                  })`,
+                );
+              }
+            }
+            for (const { url, wanted } of doc.sources) {
+              if (!batch?.urls?.[wanted]) {
+                localErrors.push(
+                  `${doc.ownerId}: ${doc.inventoryId}: cited source is not a visible clickable link on ${deviceClass} at ${route}: ${url}`,
+                );
+              }
+            }
+          }
+          return localErrors;
+        }),
+      );
+      for (const localErrors of perViewport) errors.push(...localErrors);
     }
   } finally {
     for (const { page } of pages) {

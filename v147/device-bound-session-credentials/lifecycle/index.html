@@ -24,67 +24,67 @@ Registered (key, id, scope, credentials, cached challenge?)
   ├─ refresh continue:false, invalid replacement config, terminal 4xx → Terminated
   │  (terminate(existing id) removes the existing DBSC session)
   └─ expiry / Clear-Site-Data / cookie/site-data clear / key loss → No DBSC session</code></pre></section><section><h2 id="inputs">Decision inputs</h2><p>For each request, identify sessions by registrable domain, remove expired records, skip a session already deferred on this request, test scope and allowed refresh initiator, then test whether a declared cookie that would apply is missing. This is the draft’s algorithm; it means “cookie absent” is evaluated with normal cookie applicability, not merely a name lookup.</p></section><section><h2 id="outputs">Effects</h2><p>The browser defers the original request, posts a refresh, and restarts the original network operation after refresh. It excludes the refresh URL from protected scope to prevent loops. Registration instead begins asynchronously with a null session ID and creates a session only after a valid, cookie-settable configuration. It may set an implementation-chosen session expiration timestamp, recommended to align to maximum cookie lifetime.</p></section><section><h2 id="errors">Terminal versus retryable outcomes</h2><p>Every terminate call is parameterized by the session ID passed to the request algorithm. For registration that ID is null, so invalid response JSON/config, <code>continue:false</code>, and terminal statuses leave the user agent with no DBSC session: terminate is a no-op and cannot remove or replace one. For refresh the ID names an existing session, so invalid replacement JSON/config, <code>continue:false</code>, or refresh 4xx other than the 403 proof path remove that session. Network errors, 407, 429, redirects, and 5xx return without creating or removing a session; user agents may back off. Chromium’s current source adds retry budgeting/cached signatures for transient errors. Exact limits, delays, and key-store failure behavior are implementation details—servers must remain correct without relying on them.</p></section><section><h2 id="context">Scope and initiator boundary</h2><p>Origin-scoped sessions require same origin; site-scoped sessions require same site. Later scope rules override earlier ones; <code>*</code> and <code>*.example.com</code> have draft-defined host matching. Out-of-scope refresh triggers need a host pattern in <code>allowed_refresh_initiators</code>. The browser applies cookie-like policy so DBSC does not bypass blocked cookie behavior.</p></section><section><h2 id="lifecycle">Server pseudocode</h2><pre tabindex="0"><code>server_policy_for_login(response):
-  if authorization is protected:
-      emit Secure-Session-Registration with ES256 and/or RS256; never offer none
-  else if intentionally using ordinary authorization:
-      use a separate ordinary endpoint/policy; do not emit Secure-Session-Registration
+  <span class="hl-kw">if</span> authorization is protected:
+      emit <span class="hl-ty">Secure</span>-<span class="hl-ty">Session</span>-<span class="hl-ty">Registration</span> <span class="hl-kw">with</span> ES256 and/or RS256; never offer none
+  <span class="hl-kw">else</span> <span class="hl-kw">if</span> intentionally using ordinary authorization:
+      use a separate ordinary endpoint/policy; <span class="hl-kw">do</span> not emit <span class="hl-ty">Secure</span>-<span class="hl-ty">Session</span>-<span class="hl-ty">Registration</span>
 
 registration(response, key_pair):
-  session_id = null
-  if response is terminal or instructions are invalid or continue is false:
-      terminate(session_id)  # no-op: null identifies no DBSC session
-      return no_dbsc_session
-  if no declared credential can be set:
-      terminate(session_id)  # still a no-op; do not create/replace a session
-      return no_dbsc_session
+  session_id = <span class="hl-num">null</span>
+  <span class="hl-kw">if</span> response is terminal or instructions are invalid or <span class="hl-kw">continue</span> is <span class="hl-num">false</span>:
+      terminate(session_id)  # no-op: <span class="hl-num">null</span> identifies no DBSC session
+      <span class="hl-kw">return</span> no_dbsc_session
+  <span class="hl-kw">if</span> no declared credential can be set:
+      terminate(session_id)  # still a no-op; <span class="hl-kw">do</span> not create/replace a session
+      <span class="hl-kw">return</span> no_dbsc_session
   store_new_dbsc_session(response.instructions, key_pair)
-  # The draft permits key_pair = null for a none offer. It does not automatically
+  # <span class="hl-ty">The</span> draft permits key_pair = <span class="hl-num">null</span> <span class="hl-kw">for</span> a none offer. It does not automatically
   # redirect that DBSC registration to an ordinary path; it has no signing-key guarantee.
 
 refresh(request):
-  id = parse_sf_string(request.header[&quot;Sec-Secure-Session-Id&quot;])
+  id = parse_sf_string(request.header[<span class="hl-str">"Sec-Secure-Session-Id"</span>])
   s = dbsc_sessions.find(id) or generic_failure()
-  if s.revoked or s.expired: return terminal_4xx()  # terminate(id) removes existing session
-  proof = request.header[&quot;Secure-Session-Response&quot;]
-  if not proof:
-      nonce = issue_random_nonce(id, short_ttl=True)
-      return 403, {&quot;Secure-Session-Challenge&quot;: sf_string(nonce, id=id)}
+  <span class="hl-kw">if</span> s.revoked or s.expired: <span class="hl-kw">return</span> terminal_4xx()  # terminate(id) removes existing session
+  proof = request.header[<span class="hl-str">"Secure-Session-Response"</span>]
+  <span class="hl-kw">if</span> not proof:
+      nonce = issue_random_nonce(id, short_ttl=<span class="hl-ty">True</span>)
+      <span class="hl-kw">return</span> <span class="hl-num">403</span>, {<span class="hl-str">"Secure-Session-Challenge"</span>: sf_string(nonce, id=id)}
   jwt = parse_and_verify_dbsc_jws(proof, key=s.public_jwk, allowed_algs=s.algs)
-  if jwt.typ != &quot;dbsc+jwt&quot; or jwt.has_jwk or not consume_recent_nonce(id, jwt.jti):
-      return 403, challenge_response(id)
+  <span class="hl-kw">if</span> jwt.typ != <span class="hl-str">"dbsc+jwt"</span> or jwt.has_jwk or not consume_recent_nonce(id, jwt.jti):
+      <span class="hl-kw">return</span> <span class="hl-num">403</span>, challenge_response(id)
   rotate_short_lived_cookie_atomically(s)
-  return 200, set_cookie_headers()
+  <span class="hl-kw">return</span> <span class="hl-num">200</span>, set_cookie_headers()
 
-# For refresh, invalid instructions or continue:false likewise call terminate(id),
-# which removes s. This differs from null-ID registration above.</code></pre></section><section><h2 id="examples">Logout and recovery examples</h2><pre tabindex="0"><code># Registration failure: session_id is null, so the terminate step is a no-op.
-HTTP/1.1 400 Bad Request
-# No DBSC session was created, removed, or replaced.
+# <span class="hl-ty">For</span> refresh, invalid instructions or <span class="hl-kw">continue</span>:<span class="hl-num">false</span> likewise call terminate(id),
+# which removes s. This differs <span class="hl-kw">from</span> <span class="hl-num">null</span>-ID registration above.</code></pre></section><section><h2 id="examples">Logout and recovery examples</h2><pre tabindex="0"><code><span class="hl-cm"># Registration failure: session_id is null, so the terminate step is a no-op.</span>
+<span class="hl-kw">HTTP/1.1</span> <span class="hl-num">400</span> <span class="hl-ty">Bad Request</span>
+<span class="hl-cm"># No DBSC session was created, removed, or replaced.</span>
 
-# Server-directed DBSC termination in a refresh response: session_id exists.
-HTTP/1.1 200 OK
-Content-Type: application/json
+<span class="hl-cm"># Server-directed DBSC termination in a refresh response: session_id exists.</span>
+<span class="hl-kw">HTTP/1.1</span> <span class="hl-num">200</span> <span class="hl-ty">OK</span>
+<span class="hl-ty">Content-Type</span><span class="hl-pun">:</span> application/json
 
-{&quot;continue&quot;:false}
-# The existing client DBSC session is removed.
+{<span class="hl-str">"continue"</span>:<span class="hl-num">false</span>}
+<span class="hl-cm"># The existing client DBSC session is removed.</span>
 
-# Application logout should also revoke server DBSC state and expire protected cookies.
-Set-Cookie: sid=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Lax
+<span class="hl-cm"># Application logout should also revoke server DBSC state and expire protected cookies.</span>
+<span class="hl-ty">Set-Cookie</span><span class="hl-pun">:</span> sid=<span class="hl-pun">; </span><span class="hl-attr">Path</span><span class="hl-pun">=</span>/<span class="hl-pun">; </span><span class="hl-attr">Max-Age</span><span class="hl-pun">=</span><span class="hl-num">0</span>; Secure; HttpOnly<span class="hl-pun">; </span><span class="hl-attr">SameSite</span><span class="hl-pun">=</span>Lax
 
-# Key/site-data loss: no proof can be recovered. Send the user through normal login
-# and create a new server session/key binding; do not repair by accepting old cookies.</code></pre><p>URL-scope evaluation example using the <a href="https://w3c.github.io/webappsec-dbsc/#algo-url-in-scope" target="_blank" rel="noopener">Identify if a URL is in scope</a> algorithm (evaluating origin matching, refresh-URL exclusion, and reverse-order scope rules):</p><pre tabindex="0"><code># Identify if a URL is in scope for session with origin "https://example.com",
-# refresh URL "https://example.com/refresh", and include_site = false:
-# Scope specifications in registration instructions (checked in reverse order):
-#   Rule 1: {"type": "include", "path": "/api/"}
-#   Rule 2: {"type": "exclude", "path": "/api/public"}
+<span class="hl-cm"># Key/site-data loss: no proof can be recovered. Send the user through normal login</span>
+<span class="hl-cm"># and create a new server session/key binding; do not repair by accepting old cookies.</span></code></pre><p>URL-scope evaluation example using the <a href="https://w3c.github.io/webappsec-dbsc/#algo-url-in-scope" target="_blank" rel="noopener">Identify if a URL is in scope</a> algorithm (evaluating origin matching, refresh-URL exclusion, and reverse-order scope rules):</p><pre tabindex="0"><code><span class="hl-cm"># Identify if a URL is in scope for session with origin "https://example.com",</span>
+<span class="hl-cm"># refresh URL "https://example.com/refresh", and include_site = false:</span>
+<span class="hl-cm"># Scope specifications in registration instructions (checked in reverse order):</span>
+<span class="hl-cm">#   Rule 1: {"type": "include", "path": "/api/"}</span>
+<span class="hl-cm">#   Rule 2: {"type": "exclude", "path": "/api/public"}</span>
 
-# 1. URL matches session refresh URL -> "exclude" (step 4: avoid refresh loops)
-# GET https://example.com/refresh
+<span class="hl-cm"># 1. URL matches session refresh URL -&gt; "exclude" (step 4: avoid refresh loops)</span>
+<span class="hl-cm"># GET https://example.com/refresh</span>
 
-# 2. URL matches Rule 2 (evaluated first) -> "exclude" (step 6: reverse order)
-# GET https://example.com/api/public/status
+<span class="hl-cm"># 2. URL matches Rule 2 (evaluated first) -&gt; "exclude" (step 6: reverse order)</span>
+<span class="hl-cm"># GET https://example.com/api/public/status</span>
 
-# 3. URL matches Rule 1 -> "include" (step 6: prefix match)
-# GET https://example.com/api/protected
+<span class="hl-cm"># 3. URL matches Rule 1 -&gt; "include" (step 6: prefix match)</span>
+<span class="hl-cm"># GET https://example.com/api/protected</span>
 
-# 4. URL origin is not same-origin with session scope -> "exclude" (step 3)
-# GET https://other.example.com/api/protected</code></pre><p class="source-note">Source: <a href="https://w3c.github.io/webappsec-dbsc/#algo-url-in-scope" target="_blank" rel="noopener">W3C DBSC §8.2 Identify if a URL is in scope of a session</a>, April 2026.</p></section><section><h2 id="compatibility">Compatibility</h2><div class="table-wrap"><table class="doc-table"><caption>DBSC availability and standards position</caption><thead><tr><th scope="col">Item</th><th scope="col">Requirement / behavior</th></tr></thead><tbody><tr><th scope="row">Chrome</th><td><strong>DBSC availability, not page-layout support:</strong> <a href="https://chromestatus.com/feature/5140168270413824" target="_blank" rel="noopener">ChromeStatus</a> lists DBSC as <strong>in development</strong>, with Chrome desktop milestone 145. Its Android milestone is null/unknown; availability remains controlled by implementation and feature configuration.</td></tr><tr><th scope="row">Firefox</th><td>No signal; the <a href="https://github.com/mozilla/standards-positions/issues/912" target="_blank" rel="noopener">Mozilla standards-position issue</a> is the public evidence, not an implementation commitment.</td></tr><tr><th scope="row">Safari</th><td>No signal; the <a href="https://github.com/WebKit/standards-positions/issues/281" target="_blank" rel="noopener">WebKit standards-position issue</a> is the public evidence, not an implementation commitment.</td></tr><tr><th scope="row">Other engines</th><td>Unknown. The W3C document is an Editor’s Draft, not a final interoperable Recommendation.</td></tr></tbody></table></div></section><section><h2 id="security">Security and privacy</h2><p>Record logout/revocation server-side, rotate short-lived cookie values, and make nonce consumption race-safe. Clear-site-data and user cookie clearing must clear DBSC keys/sessions in conforming user agents, so application recovery cannot depend on client-held binding state. DBSC limits exported-cookie replay, not active on-device misuse. A <code>none</code> path has no signing key or JWK possession proof, so it has no device-binding security guarantee: do not offer it for protected authorization and keep any intentional ordinary flow separate.</p></section><p class="source-note">Primary sources: <a href="https://w3c.github.io/webappsec-dbsc/#algorithms" target="_blank" rel="noopener">algorithms</a> · <a href="https://w3c.github.io/webappsec-dbsc/#algo-url-in-scope" target="_blank" rel="noopener">URL-in-scope algorithm</a> · <a href="https://w3c.github.io/webappsec-dbsc/#algo-request-allows-refresh" target="_blank" rel="noopener">refresh-initiator algorithm</a> · <a href="https://w3c.github.io/webappsec-dbsc/#algo-identify-if-missing-session-credential" target="_blank" rel="noopener">missing-credential algorithm</a> · <a href="https://w3c.github.io/webappsec-dbsc/#algo-session-request" target="_blank" rel="noopener">session-request algorithm</a> · <a href="https://w3c.github.io/webappsec-dbsc/#security-considerations" target="_blank" rel="noopener">security</a> · <a href="https://developer.chrome.com/docs/web-platform/device-bound-session-credentials" target="_blank" rel="noopener">chrome</a> · <a href="https://source.chromium.org/chromium/chromium/src/+/main:net/device_bound_sessions/registration_fetcher.cc" target="_blank" rel="noopener">chromium</a> · <a href="https://chromium.googlesource.com/chromium/src/+/4848df7c8f96086cde35f4abfe9f501177e2d95e" target="_blank" rel="noopener">retry</a> · <a href="https://w3c.github.io/webappsec-dbsc/#format-session-instructions" target="_blank" rel="noopener">json</a>. External sources open in a new tab.</p><footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer></main></body></html>
+<span class="hl-cm"># 4. URL origin is not same-origin with session scope -&gt; "exclude" (step 3)</span>
+<span class="hl-cm"># GET https://other.example.com/api/protected</span></code></pre><p class="source-note">Source: <a href="https://w3c.github.io/webappsec-dbsc/#algo-url-in-scope" target="_blank" rel="noopener">W3C DBSC §8.2 Identify if a URL is in scope of a session</a>, April 2026.</p></section><section><h2 id="compatibility">Compatibility</h2><div class="table-wrap"><table class="doc-table"><caption>DBSC availability and standards position</caption><thead><tr><th scope="col">Item</th><th scope="col">Requirement / behavior</th></tr></thead><tbody><tr><th scope="row">Chrome</th><td><strong>DBSC availability, not page-layout support:</strong> <a href="https://chromestatus.com/feature/5140168270413824" target="_blank" rel="noopener">ChromeStatus</a> lists DBSC as <strong>in development</strong>, with Chrome desktop milestone 145. Its Android milestone is null/unknown; availability remains controlled by implementation and feature configuration.</td></tr><tr><th scope="row">Firefox</th><td>No signal; the <a href="https://github.com/mozilla/standards-positions/issues/912" target="_blank" rel="noopener">Mozilla standards-position issue</a> is the public evidence, not an implementation commitment.</td></tr><tr><th scope="row">Safari</th><td>No signal; the <a href="https://github.com/WebKit/standards-positions/issues/281" target="_blank" rel="noopener">WebKit standards-position issue</a> is the public evidence, not an implementation commitment.</td></tr><tr><th scope="row">Other engines</th><td>Unknown. The W3C document is an Editor’s Draft, not a final interoperable Recommendation.</td></tr></tbody></table></div></section><section><h2 id="security">Security and privacy</h2><p>Record logout/revocation server-side, rotate short-lived cookie values, and make nonce consumption race-safe. Clear-site-data and user cookie clearing must clear DBSC keys/sessions in conforming user agents, so application recovery cannot depend on client-held binding state. DBSC limits exported-cookie replay, not active on-device misuse. A <code>none</code> path has no signing key or JWK possession proof, so it has no device-binding security guarantee: do not offer it for protected authorization and keep any intentional ordinary flow separate.</p></section><p class="source-note">Primary sources: <a href="https://w3c.github.io/webappsec-dbsc/#algorithms" target="_blank" rel="noopener">algorithms</a> · <a href="https://w3c.github.io/webappsec-dbsc/#algo-url-in-scope" target="_blank" rel="noopener">URL-in-scope algorithm</a> · <a href="https://w3c.github.io/webappsec-dbsc/#algo-request-allows-refresh" target="_blank" rel="noopener">refresh-initiator algorithm</a> · <a href="https://w3c.github.io/webappsec-dbsc/#algo-identify-if-missing-session-credential" target="_blank" rel="noopener">missing-credential algorithm</a> · <a href="https://w3c.github.io/webappsec-dbsc/#algo-session-request" target="_blank" rel="noopener">session-request algorithm</a> · <a href="https://w3c.github.io/webappsec-dbsc/#security-considerations" target="_blank" rel="noopener">security</a> · <a href="https://developer.chrome.com/docs/web-platform/device-bound-session-credentials" target="_blank" rel="noopener">chrome</a> · <a href="https://source.chromium.org/chromium/chromium/src/+/main:net/device_bound_sessions/registration_fetcher.cc" target="_blank" rel="noopener">chromium</a> · <a href="https://chromium.googlesource.com/chromium/src/+/4848df7c8f96086cde35f4abfe9f501177e2d95e" target="_blank" rel="noopener">retry</a> · <a href="https://w3c.github.io/webappsec-dbsc/#format-session-instructions" target="_blank" rel="noopener">json</a>. External sources open in a new tab.</p><footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer></main></body></html>

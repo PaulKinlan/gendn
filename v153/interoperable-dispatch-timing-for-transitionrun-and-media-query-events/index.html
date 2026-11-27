@@ -145,22 +145,22 @@
   <section>
     <h2 id="observable">observing the new order (examples)</h2>
     <p>Nothing new to feature-detect, but the order can be measured. This probe was run in local headless Chrome 154.0.8037.97 (2026-10-08), with a CDP viewport override from 800 to 500 CSS pixels immediately after the opacity change. Run it on a page initially wider than 600px; let <code>#timing-probe</code> render before changing its opacity. CDP&rsquo;s <code>Emulation.setDeviceMetricsOverride</code> (width 500, height 800, deviceScaleFactor 1, mobile false) supplies the resize &mdash; <code>window.resizeTo()</code> did not resize this headless build.</p>
-    <pre><code>&lt;div id="timing-probe" style="width:40px;height:40px;opacity:1;transition:opacity 1s"&gt;&lt;/div&gt;
-&lt;script&gt;
-const trace = [];
-let frame = 0;
-function tick() { frame++; requestAnimationFrame(tick); }
+    <pre><code><span class="hl-pun">&lt;</span><span class="hl-ty">div</span> <span class="hl-attr">id</span><span class="hl-pun">=</span><span class="hl-str">"timing-probe"</span> <span class="hl-attr">style</span><span class="hl-pun">=</span><span class="hl-str">"width:40px;height:40px;opacity:1;transition:opacity 1s"</span><span class="hl-pun">&gt;</span><span class="hl-pun">&lt;/</span><span class="hl-ty">div</span><span class="hl-pun">&gt;</span>
+<span class="hl-pun">&lt;</span><span class="hl-ty">script</span><span class="hl-pun">&gt;</span>
+<span class="hl-kw">const</span> trace = [];
+<span class="hl-kw">let</span> frame = <span class="hl-num">0</span>;
+<span class="hl-kw">function</span> tick() { frame++; requestAnimationFrame(tick); }
 requestAnimationFrame(tick);
-const mql = matchMedia('(max-width:600px)');
-mql.addEventListener('change', () =&gt; trace.push(['mq-change', frame]));
-const box = document.querySelector('#timing-probe');
-box.addEventListener('transitionrun', () =&gt; trace.push(['transitionrun', frame]));
-// After two rAFs allow initial opacity to render, then run these two CDP steps:
-box.style.opacity = '0';
-trace.push(['set', frame]);
-// CDP: Emulation.setDeviceMetricsOverride({width:500,height:800,
-//   deviceScaleFactor:1,mobile:false}); then inspect trace after 1 second.
-&lt;/script&gt;</code></pre>
+<span class="hl-kw">const</span> mql = matchMedia(<span class="hl-str">'(max-width:600px)'</span>);
+mql.addEventListener(<span class="hl-str">'change'</span>, () =&gt; trace.push([<span class="hl-str">'mq-change'</span>, frame]));
+<span class="hl-kw">const</span> box = document.querySelector(<span class="hl-str">'#timing-probe'</span>);
+box.addEventListener(<span class="hl-str">'transitionrun'</span>, () =&gt; trace.push([<span class="hl-str">'transitionrun'</span>, frame]));
+<span class="hl-cm">// After two rAFs allow initial opacity to render, then run these two CDP steps:</span>
+box.style.opacity = <span class="hl-str">'0'</span>;
+trace.push([<span class="hl-str">'set'</span>, frame]);
+<span class="hl-cm">// CDP: Emulation.setDeviceMetricsOverride({width:500,height:800,</span>
+<span class="hl-cm">//   deviceScaleFactor:1,mobile:false}); then inspect trace after 1 second.</span>
+<span class="hl-pun">&lt;/</span><span class="hl-ty">script</span><span class="hl-pun">&gt;</span></code></pre>
     <p><strong>Observed flag comparison:</strong> with <code>--enable-blink-features=EventTimingMatchingHTML</code>, <code>set</code>, <code>mq-change</code>, and <code>transitionrun</code> were all recorded in frame 17, in that order. With <code>--disable-blink-features=EventTimingMatchingHTML</code>, <code>set</code> and <code>mq-change</code> were in frame 22, while <code>transitionrun</code> arrived in frame 23. The absolute frame numbers are incidental; the on/off difference reproduces the frame-late transition regression only with the flag disabled in this Chrome 154 probe (the flag-on run dispatched all three entries in one frame), and shows the media-query-before-transition ordering for this probe, <em>not</em> a universal assertion about every viewport/transition combination or an M153 binary.</p>
     <p>The <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v153/interoperable-dispatch-timing-for-transitionrun-and-media-query-events/" target="_blank" rel="noopener">Chrome Platform Showcase feature route</a> returned HTTP 200 (2026-10-08), but its runtime conformance is <strong>UNVERIFIED</strong>: both the <code>frames-to-run</code> and <code>event-order</code> concepts reported <code>transitionrun</code> one frame late in local Chrome 154.0.8037.97, even with <code>--enable-blink-features=EventTimingMatchingHTML</code>. The separate gendn flag comparison above resized the top-level CDP viewport from 800 to 500 CSS pixels immediately after changing opacity and saw all three entries in one frame with the flag on (the event a frame later with it off). The CPS concepts use their own embedded stage and breakpoint triggers. These different measurements do not establish a universal contradiction or prove the CPS example conforms: no live iframe is embedded until the setups are reconciled.</p>
     <span class="citation">Source: ordering asserted by the <a href="https://chromestatus.com/api/v0/features/6312504658624512" target="_blank" rel="noopener">ChromeStatus summary</a> and <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8044688" target="_blank" rel="noopener">CL 8044688</a>; snippets are gendn-derived illustrations</span>

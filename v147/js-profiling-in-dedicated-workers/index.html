@@ -72,18 +72,18 @@
   <section>
     <h2 id="syntax">syntax</h2>
     <p>IDL quoted verbatim from the <a href="https://wicg.github.io/js-self-profiling/#the-profiler-interface" target="_blank" rel="noopener">draft</a> (read 2026-09-27) &mdash; note the exposure set already includes <code>Worker</code>; Chrome 147&rsquo;s trial is Chromium catching up to it for dedicated workers:</p>
-    <pre><code>[Exposed=(Window, Worker)]
-interface Profiler : EventTarget {
-  readonly attribute DOMHighResTimeStamp sampleInterval;
-  readonly attribute boolean stopped;
+    <pre><code><span class="hl-pun">[</span><span class="hl-attr">Exposed</span>=(<span class="hl-ty">Window</span>, <span class="hl-attr">Worker</span>)<span class="hl-pun">]</span>
+<span class="hl-kw">interface</span> <span class="hl-ty">Profiler</span> : <span class="hl-ty">EventTarget</span> {
+  <span class="hl-kw">readonly</span> <span class="hl-kw">attribute</span> <span class="hl-ty">DOMHighResTimeStamp</span> sampleInterval;
+  <span class="hl-kw">readonly</span> <span class="hl-kw">attribute</span> <span class="hl-ty">boolean</span> stopped;
 
-  constructor(ProfilerInitOptions options);
-  Promise&lt;ProfilerTrace&gt; stop();
+  <span class="hl-kw">constructor</span>(<span class="hl-ty">ProfilerInitOptions</span> options);
+  <span class="hl-ty">Promise</span>&lt;<span class="hl-ty">ProfilerTrace</span>&gt; stop();
 };
 
-dictionary ProfilerInitOptions {
-  required DOMHighResTimeStamp sampleInterval;
-  required unsigned long maxBufferSize;
+<span class="hl-kw">dictionary</span> <span class="hl-ty">ProfilerInitOptions</span> {
+  <span class="hl-kw">required</span> <span class="hl-ty">DOMHighResTimeStamp</span> sampleInterval;
+  <span class="hl-kw">required</span> <span class="hl-kw">unsigned</span> <span class="hl-ty">long</span> maxBufferSize;
 };</code></pre>
     <p>The constructor algorithm already speaks worker: &ldquo;If <var>globalObject</var> is a <code>Window</code> or a <code>WorkerGlobalScope</code>&rdquo;, it reads the <code>js-profiling-mode</code> / <code>js-profiling</code> Document Policy values from that global and throws a <code>&quot;NotAllowedError&quot;</code> <code>DOMException</code> when neither authorizes profiling (and a <code>RangeError</code> for a negative <code>sampleInterval</code>). When the sample buffer reaches <code>maxBufferSize</code>, a <code>samplebufferfull</code> event fires on the profiler (an <code>EventTarget</code>) and sampling stops. <code>stop()</code> resolves with the collected <code>ProfilerTrace</code> &mdash; the per-member trace format is documented on <a href="https://developer.mozilla.org/en-US/docs/Web/API/Profiler" target="_blank" rel="noopener">MDN&rsquo;s Profiler pages</a> and in the <a href="https://wicg.github.io/js-self-profiling/" target="_blank" rel="noopener">draft</a>; this page documents the v147 worker-exposure delta rather than duplicating them.</p>
     <span class="citation">Source: <a href="https://wicg.github.io/js-self-profiling/#the-profiler-interface" target="_blank" rel="noopener">JS Self-Profiling draft (IDL verbatim)</a>; policy gating per the <a href="https://chromestatus.com/api/v0/features/5159559872249856" target="_blank" rel="noopener">ChromeStatus summary</a> (&ldquo;while remaining gated by Document Policy&rdquo;)</span>
@@ -99,21 +99,21 @@ dictionary ProfilerInitOptions {
   <section>
     <h2 id="examples">examples</h2>
     <p>Inside a dedicated worker whose script response carries <code>Document-Policy: js-profiling</code> (flags enabled, Chrome 147):</p>
-<pre><code>// worker.js — served with:  Document-Policy: js-profiling
-// Loaded as a MODULE worker so top-level await below is valid:
-//   new Worker("/worker.js", { type: "module" })
-if (typeof Profiler !== "function") {
-  postMessage({ unsupported: true });   // trial off / policy missing
-} else {
-  const profiler = new Profiler({
-    sampleInterval: 10,     // ms between samples
-    maxBufferSize: 10_000,  // samples before sampling auto-stops
+<pre><code><span class="hl-cm">// worker.js — served with:  Document-Policy: js-profiling</span>
+<span class="hl-cm">// Loaded as a MODULE worker so top-level await below is valid:</span>
+<span class="hl-cm">//   new Worker("/worker.js", { type: "module" })</span>
+<span class="hl-kw">if</span> (<span class="hl-kw">typeof</span> <span class="hl-ty">Profiler</span> !== <span class="hl-str">"function"</span>) {
+  postMessage({ unsupported: <span class="hl-num">true</span> });   <span class="hl-cm">// trial off / policy missing</span>
+} <span class="hl-kw">else</span> {
+  <span class="hl-kw">const</span> profiler = <span class="hl-kw">new</span> <span class="hl-ty">Profiler</span>({
+    sampleInterval: <span class="hl-num">10</span>,     <span class="hl-cm">// ms between samples</span>
+    maxBufferSize: <span class="hl-num">10_000</span>,  <span class="hl-cm">// samples before sampling auto-stops</span>
   });
 
-  await doHeavyWork();
+  <span class="hl-kw">await</span> doHeavyWork();
 
-  const trace = await profiler.stop();
-  // trace is a ProfilerTrace: { resources, frames, stacks, samples }
+  <span class="hl-kw">const</span> trace = <span class="hl-kw">await</span> profiler.stop();
+  <span class="hl-cm">// trace is a ProfilerTrace: { resources, frames, stacks, samples }</span>
   postMessage({ trace });
 }</code></pre>
 

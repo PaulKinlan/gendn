@@ -79,14 +79,14 @@
   <section>
     <h2 id="syntax">Syntax</h2>
     <p>Normative WebIDL from <a href="https://w3c.github.io/webrtc-extensions/#rtp-header-extension-encryption" target="_blank" rel="noopener">W3C WebRTC Extensions</a> and Chromium&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/peerconnection/rtc_configuration.idl" target="_blank" rel="noopener"><code>rtc_configuration.idl</code></a>:</p>
-    <pre><code>enum RTCRtpHeaderEncryptionPolicy {
-  "disable",
-  "negotiate",
-  "require"
+    <pre><code><span class="hl-kw">enum</span> <span class="hl-ty">RTCRtpHeaderEncryptionPolicy</span> {
+  <span class="hl-str">"disable"</span>,
+  <span class="hl-str">"negotiate"</span>,
+  <span class="hl-str">"require"</span>
 };
 
-partial dictionary RTCConfiguration {
-  RTCRtpHeaderEncryptionPolicy rtpHeaderEncryptionPolicy = "negotiate";
+<span class="hl-kw">partial</span> <span class="hl-kw">dictionary</span> <span class="hl-ty">RTCConfiguration</span> {
+  <span class="hl-ty">RTCRtpHeaderEncryptionPolicy</span> rtpHeaderEncryptionPolicy = <span class="hl-str">"negotiate"</span>;
 };</code></pre>
     <p>This reference covers all three parts of the Chrome 160 contract: the <a href="#policy-enum"><code>RTCRtpHeaderEncryptionPolicy</code> enum</a>, the <a href="#configuration-member"><code>RTCConfiguration.rtpHeaderEncryptionPolicy</code> dictionary member</a>, and <a href="#sdp-negotiation">SDP <code>a=cryptex</code> negotiation and packet enforcement</a>.</p>
     <span class="citation">Source: <a href="https://w3c.github.io/webrtc-extensions/#rtp-header-extension-encryption" target="_blank" rel="noopener">W3C WebRTC Extensions &mdash; RTP Header Encryption</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/peerconnection/rtc_configuration.idl" target="_blank" rel="noopener">Blink rtc_configuration.idl</a>.</span>
@@ -146,57 +146,57 @@ partial dictionary RTCConfiguration {
     </figure>
 
     <h3 id="example-feature-detect">Feature detection and requiring CRYPTEX</h3>
-    <pre><code>function supportsRtpHeaderEncryptionPolicy() {
-  const probe = new RTCPeerConnection();
-  try {
-    return typeof probe.getConfiguration().rtpHeaderEncryptionPolicy === "string";
-  } finally {
+    <pre><code><span class="hl-kw">function</span> supportsRtpHeaderEncryptionPolicy() {
+  <span class="hl-kw">const</span> probe = <span class="hl-kw">new</span> <span class="hl-ty">RTCPeerConnection</span>();
+  <span class="hl-kw">try</span> {
+    <span class="hl-kw">return</span> <span class="hl-kw">typeof</span> probe.getConfiguration().rtpHeaderEncryptionPolicy === <span class="hl-str">"string"</span>;
+  } <span class="hl-kw">finally</span> {
     probe.close();
   }
 }
 
-async function connectWithCryptexRequired(remoteOfferSdp) {
-  if (!supportsRtpHeaderEncryptionPolicy()) {
-    throw new Error("Browser does not support RTCConfiguration.rtpHeaderEncryptionPolicy");
+<span class="hl-kw">async</span> <span class="hl-kw">function</span> connectWithCryptexRequired(remoteOfferSdp) {
+  <span class="hl-kw">if</span> (!supportsRtpHeaderEncryptionPolicy()) {
+    <span class="hl-kw">throw</span> <span class="hl-kw">new</span> <span class="hl-ty">Error</span>(<span class="hl-str">"Browser does not support RTCConfiguration.rtpHeaderEncryptionPolicy"</span>);
   }
 
-  // Enforce RFC 9335 CRYPTEX on all RTP m= sections
-  const pc = new RTCPeerConnection({
-    rtpHeaderEncryptionPolicy: "require",
+  <span class="hl-cm">// Enforce RFC 9335 CRYPTEX on all RTP m= sections</span>
+  <span class="hl-kw">const</span> pc = <span class="hl-kw">new</span> <span class="hl-ty">RTCPeerConnection</span>({
+    rtpHeaderEncryptionPolicy: <span class="hl-str">"require"</span>,
   });
 
-  try {
-    await pc.setRemoteDescription({ type: "offer", sdp: remoteOfferSdp });
-  } catch (err) {
-    if (err.name === "InvalidAccessError") {
-      // Remote peer did not include a=cryptex for RTP media sections
+  <span class="hl-kw">try</span> {
+    <span class="hl-kw">await</span> pc.setRemoteDescription({ <span class="hl-kw">type</span>: <span class="hl-str">"offer"</span>, sdp: remoteOfferSdp });
+  } <span class="hl-kw">catch</span> (err) {
+    <span class="hl-kw">if</span> (err.name === <span class="hl-str">"InvalidAccessError"</span>) {
+      <span class="hl-cm">// Remote peer did not include a=cryptex for RTP media sections</span>
       pc.close();
-      throw new Error("Remote endpoint does not support RFC 9335 CRYPTEX", { cause: err });
+      <span class="hl-kw">throw</span> <span class="hl-kw">new</span> <span class="hl-ty">Error</span>(<span class="hl-str">"Remote endpoint does not support RFC 9335 CRYPTEX"</span>, { cause: err });
     }
-    throw err;
+    <span class="hl-kw">throw</span> err;
   }
 
-  await pc.setLocalDescription(); // Answer includes a=cryptex
-  return pc;
+  <span class="hl-kw">await</span> pc.setLocalDescription(); <span class="hl-cm">// Answer includes a=cryptex</span>
+  <span class="hl-kw">return</span> pc;
 }</code></pre>
     <span class="citation">Source: <a href="https://github.com/web-platform-tests/wpt/blob/master/webrtc-extensions/RTCConfiguration-rtpHeaderEncryptionPolicy.html" target="_blank" rel="noopener">WPT RTCConfiguration-rtpHeaderEncryptionPolicy.html</a>; <a href="https://w3c.github.io/webrtc-extensions/#rtp-header-extension-encryption" target="_blank" rel="noopener">W3C WebRTC Extensions</a>.</span>
 
     <h3 id="example-sdp-check">Checking negotiated <code>a=cryptex</code> in local and remote SDP</h3>
-    <pre><code>function hasCryptexOnAllRtpSections(sdp) {
-  const sections = sdp.split(/\r?\n(?=m=)/);
-  const sessionHasCryptex = /^a=cryptex\b/m.test(sections[0] ?? "");
-  const rtpSections = sections.slice(1).filter((s) =&gt; !s.startsWith("m=application "));
-  return (
-    rtpSections.length &gt; 0 &amp;&amp;
-    rtpSections.every((s) =&gt; sessionHasCryptex || /^a=cryptex\b/m.test(s))
+    <pre><code><span class="hl-kw">function</span> hasCryptexOnAllRtpSections(sdp) {
+  <span class="hl-kw">const</span> sections = sdp.split(<span class="hl-str">/\r?\n(?=m=)/</span>);
+  <span class="hl-kw">const</span> sessionHasCryptex = <span class="hl-str">/^a=cryptex\b/m</span>.test(sections[<span class="hl-num">0</span>] ?? <span class="hl-str">""</span>);
+  <span class="hl-kw">const</span> rtpSections = sections.slice(<span class="hl-num">1</span>).filter((s) =&gt; !s.startsWith(<span class="hl-str">"m=application "</span>));
+  <span class="hl-kw">return</span> (
+    rtpSections.length &gt; <span class="hl-num">0</span> &amp;&amp;
+    rtpSections.every((s) =&gt; sessionHasCryptex || <span class="hl-str">/^a=cryptex\b/m</span>.test(s))
   );
 }
 
-// Default "negotiate" policy offers a=cryptex and falls back if remote omits it
-const pc = new RTCPeerConnection({ rtpHeaderEncryptionPolicy: "negotiate" });
-pc.addTransceiver("audio");
-const offer = await pc.createOffer();
-console.log("Offer advertises a=cryptex:", hasCryptexOnAllRtpSections(offer.sdp));</code></pre>
+<span class="hl-cm">// Default "negotiate" policy offers a=cryptex and falls back if remote omits it</span>
+<span class="hl-kw">const</span> pc = <span class="hl-kw">new</span> <span class="hl-ty">RTCPeerConnection</span>({ rtpHeaderEncryptionPolicy: <span class="hl-str">"negotiate"</span> });
+pc.addTransceiver(<span class="hl-str">"audio"</span>);
+<span class="hl-kw">const</span> offer = <span class="hl-kw">await</span> pc.createOffer();
+console.log(<span class="hl-str">"Offer advertises a=cryptex:"</span>, hasCryptexOnAllRtpSections(offer.sdp));</code></pre>
     <span class="citation">Source: <a href="https://github.com/web-platform-tests/wpt/blob/master/webrtc-extensions/RTCConfiguration-rtpHeaderEncryptionPolicy.html" target="_blank" rel="noopener">WPT RTCConfiguration-rtpHeaderEncryptionPolicy.html</a>; <a href="https://datatracker.ietf.org/doc/html/rfc9335#section-4" target="_blank" rel="noopener">RFC 9335 &sect;4</a>.</span>
   </section>
 

@@ -927,6 +927,7 @@ export function stripMarkup(value) {
   return cachedRenderedMarkup(value)
     .replace(/<script\b[\s\S]*?<\/script>/gi, " ")
     .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
+    .replace(/<span class="hl-(?:cm|kw|str|num|ty|attr|pun)">([\s\S]*?)<\/span>/g, "$1")
     .replace(/<[^>]+>/g, " ")
     .replace(/&[a-z0-9#]+;/gi, " ")
     .replace(/\s+/g, " ")

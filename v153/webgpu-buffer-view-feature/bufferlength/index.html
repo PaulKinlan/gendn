@@ -99,30 +99,30 @@
   <section>
     <h2 id="examples">examples</h2>
     <p>The specification's own example (<a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-view-builtin-functions" target="_blank" rel="noopener">WGSL §17.14.3</a>, &ldquo;bufferLength values&rdquo;), showing how the formal parameter's size wins through the call stack:</p>
-    <pre><code>requires buffer_view;
-requires unrestricted_pointer_parameters;
+    <pre><code><span class="hl-kw">requires</span> buffer_view;
+<span class="hl-kw">requires</span> unrestricted_pointer_parameters;
 
-@group(0) @binding(0) var&lt;storage&gt; b1 : buffer&lt;2048&gt;;
-@group(0) @binding(1) var&lt;storage&gt; b2 : buffer&lt;4096&gt;;
+<span class="hl-attr">@group</span>(<span class="hl-num">0</span>) <span class="hl-attr">@binding</span>(<span class="hl-num">0</span>) <span class="hl-kw">var</span>&lt;<span class="hl-kw">storage</span>&gt; b1 : buffer&lt;<span class="hl-num">2048</span>&gt;;
+<span class="hl-attr">@group</span>(<span class="hl-num">0</span>) <span class="hl-attr">@binding</span>(<span class="hl-num">1</span>) <span class="hl-kw">var</span>&lt;<span class="hl-kw">storage</span>&gt; b2 : buffer&lt;<span class="hl-num">4096</span>&gt;;
 
-fn foobar(p : ptr&lt;storage, buffer&gt;) -&gt; u32 {
-  return bufferLength(p);
+<span class="hl-kw">fn</span> foobar(p : <span class="hl-ty">ptr</span>&lt;<span class="hl-kw">storage</span>, buffer&gt;) -&gt; <span class="hl-ty">u32</span> {
+  <span class="hl-kw">return</span> bufferLength(p);
 }
 
-fn bar(p : ptr&lt;storage, buffer&lt;1024&gt;&gt;) -&gt; u32 {
-  return foobar(p);
+<span class="hl-kw">fn</span> bar(p : <span class="hl-ty">ptr</span>&lt;<span class="hl-kw">storage</span>, buffer&lt;<span class="hl-num">1024</span>&gt;&gt;) -&gt; <span class="hl-ty">u32</span> {
+  <span class="hl-kw">return</span> foobar(p);
 }
 
-fn foo(p : ptr&lt;storage, buffer&lt;256&gt;&gt;) -&gt; u32 {
-  return bufferLength(p);
+<span class="hl-kw">fn</span> foo(p : <span class="hl-ty">ptr</span>&lt;<span class="hl-kw">storage</span>, buffer&lt;<span class="hl-num">256</span>&gt;&gt;) -&gt; <span class="hl-ty">u32</span> {
+  <span class="hl-kw">return</span> bufferLength(p);
 }
 
-@compute @workgroup_size(1)
-fn main() {
-  let len1 = bufferLength(&amp;b1);  // 2048
-  let len2 = bufferLength(&amp;b2);  // 4096
-  let len3 = foo(&amp;b1);           // 256  — the formal parameter is smaller
-  let len4 = bar(&amp;b2);           // 1024 — smallest size on the call stack
+<span class="hl-attr">@compute</span> <span class="hl-attr">@workgroup_size</span>(<span class="hl-num">1</span>)
+<span class="hl-kw">fn</span> main() {
+  <span class="hl-kw">let</span> len1 = bufferLength(&amp;b1);  <span class="hl-cm">// 2048</span>
+  <span class="hl-kw">let</span> len2 = bufferLength(&amp;b2);  <span class="hl-cm">// 4096</span>
+  <span class="hl-kw">let</span> len3 = foo(&amp;b1);           <span class="hl-cm">// 256  — the formal parameter is smaller</span>
+  <span class="hl-kw">let</span> len4 = bar(&amp;b2);           <span class="hl-cm">// 1024 — smallest size on the call stack</span>
 }</code></pre>
     <p class="note" style="margin-top:0.4rem">Note: the live <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-view-builtin-functions" target="_blank" rel="noopener">WGSL spec example</a> still declares both variables at <code>@group(0) @binding(0)</code> (checked 2026-10-08). In Chrome 154 with Dawn/Tint and <code>buffer_view</code> available, <code>GPUShaderModule.getCompilationInfo()</code> reports &ldquo;entry point 'main' references multiple variables that use the same resource binding '@group(0)', '@binding(0)'&rdquo; for that version. Changing the second to <code>@binding(1)</code>, as above, yielded no compilation messages in the same run. The intended <code>bufferLength</code> semantics are unchanged; this correction is required for a valid shader module, not merely a bind-group error.</p>
     <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-view-builtin-functions" target="_blank" rel="noopener">WGSL §17.14.3 EXAMPLE</a>; the formal-parameter conversion behavior per the <a href="https://gpuweb.github.io/gpuweb/wgsl/#conversion-rank" target="_blank" rel="noopener">WGSL conversion-rank table</a></span>

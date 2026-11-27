@@ -86,23 +86,23 @@
   <section>
     <h2 id="syntax">Syntax &amp; developer-facing surface</h2>
     <p><code>ServiceWorkerAutoPreload</code> adds <strong>no new JavaScript interfaces or WebIDL members</strong>. Its developer- and admin-facing surface consists of three concrete contracts: (1) the optional <code>responseForAutoPreload</code> branch in <a href="https://w3c.github.io/ServiceWorker/#handle-fetch" target="_blank" rel="noopener">W3C Service Workers <code>Handle Fetch</code></a> (consumed transparently by <code>fetch(event.request)</code> or fetch-handler fallback), (2) the declarative opt-out using <a href="https://developer.mozilla.org/en-US/docs/Web/API/InstallEvent/addRoutes" target="_blank" rel="noopener"><code>InstallEvent.addRoutes()</code></a> with <code>source: "fetch-event"</code>, and (3) the temporary <a href="https://chromeenterprise.google/policies/#ServiceWorkerAutoPreloadEnabled" target="_blank" rel="noopener"><code>ServiceWorkerAutoPreloadEnabled</code></a> Chrome enterprise policy removed in Chrome 154:</p>
-    <pre tabindex="0"><code data-doc-test="skip" data-doc-test-reason="Algorithm and policy surface summary rather than executable JavaScript.">// 1. Handle Fetch optional optimization (W3C Service Workers PR #1756):
-//    If navigation GET &amp;&amp; active worker has non-empty fetch handler
-//       &amp;&amp; !navigationPreloadEnabled
-//       &amp;&amp; timingInfo.workerMatchedRouterSource !== "fetch-event":
-//         browser MAY speculatively fetch(request) into responseForAutoPreload
-//         in parallel with Service Worker startup; consumed by fetch(event.request)
-//         or by browser fallback when event.respondWith() is not called.
+    <pre tabindex="0"><code data-doc-test="skip" data-doc-test-reason="Algorithm and policy surface summary rather than executable JavaScript."><span class="hl-cm">// 1. Handle Fetch optional optimization (W3C Service Workers PR #1756):</span>
+<span class="hl-cm">//    If navigation GET &amp;&amp; active worker has non-empty fetch handler</span>
+<span class="hl-cm">//       &amp;&amp; !navigationPreloadEnabled</span>
+<span class="hl-cm">//       &amp;&amp; timingInfo.workerMatchedRouterSource !== "fetch-event":</span>
+<span class="hl-cm">//         browser MAY speculatively fetch(request) into responseForAutoPreload</span>
+<span class="hl-cm">//         in parallel with Service Worker startup; consumed by fetch(event.request)</span>
+<span class="hl-cm">//         or by browser fallback when event.respondWith() is not called.</span>
 
-// 2. Developer opt-out via Service Worker Static Routing API (InstallEvent.addRoutes):
+<span class="hl-cm">// 2. Developer opt-out via Service Worker Static Routing API (InstallEvent.addRoutes):</span>
 installEvent.addRoutes({
-  condition: { urlPattern: new URLPattern({}) }, // or narrower RouterCondition
-  source: "fetch-event",
+  condition: { urlPattern: <span class="hl-kw">new</span> <span class="hl-ty">URLPattern</span>({}) }, <span class="hl-cm">// or narrower RouterCondition</span>
+  source: <span class="hl-str">"fetch-event"</span>,
 });
 
-// 3. Enterprise policy (Chrome M140-M153; removed in Chrome 154):
-//    Policy name: ServiceWorkerAutoPreloadEnabled
-//    Schema: boolean (default: true; dynamic_refresh: true; per_profile: true)</code></pre>
+<span class="hl-cm">// 3. Enterprise policy (Chrome M140-M153; removed in Chrome 154):</span>
+<span class="hl-cm">//    Policy name: ServiceWorkerAutoPreloadEnabled</span>
+<span class="hl-cm">//    Schema: boolean (default: true; dynamic_refresh: true; per_profile: true)</span></code></pre>
     <p>Jump directly to each contract below: <a href="#auto-preload-behavior"><code>ServiceWorkerAutoPreload</code> auto-preload dispatch</a>, <a href="#opt-out-static-routing"><code>InstallEvent.addRoutes()</code> <code>"fetch-event"</code> opt-out</a>, and <a href="#enterprise-policy-migration"><code>ServiceWorkerAutoPreloadEnabled</code> policy migration</a>.</p>
     <span class="citation">Source: <a href="https://github.com/w3c/ServiceWorker/pull/1756" target="_blank" rel="noopener">w3c/ServiceWorker#1756</a>; <a href="https://w3c.github.io/ServiceWorker/#handle-fetch" target="_blank" rel="noopener">W3C Service Workers <code>Handle Fetch</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/policy/resources/templates/policy_definitions/Miscellaneous/ServiceWorkerAutoPreloadEnabled.yaml" target="_blank" rel="noopener"><code>ServiceWorkerAutoPreloadEnabled.yaml</code></a>.</span>
 
@@ -176,33 +176,33 @@ installEvent.addRoutes({
       <figcaption>Interactive timeline comparing cold Service Worker navigation without preload, with <code>NavigationPreload</code>, and with <code>ServiceWorkerAutoPreload</code> browser mode, from the <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v140/serviceworkerautopreload-browser-mode/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase &mdash; ServiceWorkerAutoPreload browser mode</a> (filed under Chrome 140, its initial rollout milestone). <span class="citation">Source: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v140/serviceworkerautopreload-browser-mode/sw-autopreload/" target="_blank" rel="noopener">chrome-platform-showcase</a>.</span></figcaption>
     </figure>
 
-    <pre tabindex="0"><code data-doc-test="js">// sw.js — Benefits automatically from ServiceWorkerAutoPreload with zero API changes.
-self.addEventListener("fetch", (event) =&gt; {
-  if (event.request.mode !== "navigate") return;
+    <pre tabindex="0"><code data-doc-test="js"><span class="hl-cm">// sw.js — Benefits automatically from ServiceWorkerAutoPreload with zero API changes.</span>
+self.addEventListener(<span class="hl-str">"fetch"</span>, (event) =&gt; {
+  <span class="hl-kw">if</span> (event.request.mode !== <span class="hl-str">"navigate"</span>) <span class="hl-kw">return</span>;
 
-  // Non-matching side-effect fetches still dispatch normally:
-  // fetch("/telemetry/nav-start");
+  <span class="hl-cm">// Non-matching side-effect fetches still dispatch normally:</span>
+  <span class="hl-cm">// fetch("/telemetry/nav-start");</span>
 
-  // Passing the unmodified event.request consumes responseForAutoPreload
-  // instead of waiting for SW startup and issuing a second network request.
+  <span class="hl-cm">// Passing the unmodified event.request consumes responseForAutoPreload</span>
+  <span class="hl-cm">// instead of waiting for SW startup and issuing a second network request.</span>
   event.respondWith(
-    fetch(event.request).catch(() =&gt; caches.match("/offline.html")),
+    fetch(event.request).catch(() =&gt; caches.match(<span class="hl-str">"/offline.html"</span>)),
   );
 });</code></pre>
     <span class="citation">Source: <a href="https://github.com/WICG/service-worker-auto-preload#how-it-works" target="_blank" rel="noopener">WICG ServiceWorkerAutoPreload explainer &mdash; How it works</a>.</span>
 
     <h3 id="example-opt-out">Opting out with <code>InstallEvent.addRoutes()</code> and <code>source: "fetch-event"</code></h3>
-    <pre tabindex="0"><code data-doc-test="js">// sw.js — Opt out of ServiceWorkerAutoPreload when your cache-first handler
-// must avoid speculative network requests reaching your origin server.
-self.addEventListener("install", (event) =&gt; {
-  if (typeof event.addRoutes === "function") {
+    <pre tabindex="0"><code data-doc-test="js"><span class="hl-cm">// sw.js — Opt out of ServiceWorkerAutoPreload when your cache-first handler</span>
+<span class="hl-cm">// must avoid speculative network requests reaching your origin server.</span>
+self.addEventListener(<span class="hl-str">"install"</span>, (event) =&gt; {
+  <span class="hl-kw">if</span> (<span class="hl-kw">typeof</span> event.addRoutes === <span class="hl-str">"function"</span>) {
     event.waitUntil(
       event.addRoutes([
         {
           condition: {
-            urlPattern: new URLPattern({ pathname: "/app/*" }),
+            urlPattern: <span class="hl-kw">new</span> <span class="hl-ty">URLPattern</span>({ pathname: <span class="hl-str">"/app/*"</span> }),
           },
-          source: "fetch-event",
+          source: <span class="hl-str">"fetch-event"</span>,
         },
       ]),
     );
@@ -212,8 +212,8 @@ self.addEventListener("install", (event) =&gt; {
 
     <h3 id="example-policy-migration">Migrating off the removed <code>ServiceWorkerAutoPreloadEnabled</code> enterprise policy</h3>
     <pre tabindex="0"><code data-doc-test="json">{
-  "comment": "Deprecated in Chrome 154: ServiceWorkerAutoPreloadEnabled is removed in M154. Remove this policy key and opt out per-app via InstallEvent.addRoutes({ condition, source: 'fetch-event' }).",
-  "ServiceWorkerAutoPreloadEnabled": false
+  <span class="hl-attr">"comment"</span>: <span class="hl-str">"Deprecated in Chrome 154: ServiceWorkerAutoPreloadEnabled is removed in M154. Remove this policy key and opt out per-app via InstallEvent.addRoutes({ condition, source: 'fetch-event' })."</span>,
+  <span class="hl-attr">"ServiceWorkerAutoPreloadEnabled"</span>: <span class="hl-num">false</span>
 }</code></pre>
     <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/components/policy/resources/templates/policy_definitions/Miscellaneous/ServiceWorkerAutoPreloadEnabled.yaml" target="_blank" rel="noopener"><code>ServiceWorkerAutoPreloadEnabled.yaml</code></a>; <a href="https://chromeenterprise.google/policies/#ServiceWorkerAutoPreloadEnabled" target="_blank" rel="noopener">Chrome Enterprise Policy <code>ServiceWorkerAutoPreloadEnabled</code></a>.</span>
   </section>

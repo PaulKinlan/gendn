@@ -33,13 +33,13 @@
 
   <section>
     <h2 id="syntax">Syntax</h2>
-<pre tabindex="0"><code>// Web Audio API 1.1, OfflineAudioContext (IDL verbatim)
+<pre tabindex="0"><code><span class="hl-cm">// Web Audio API 1.1, OfflineAudioContext (IDL verbatim)</span>
 Promise&lt;AudioBuffer&gt; startRendering(optional unsigned long? chunkSize = null);
 
-// Call forms
-ctx.startRendering()            // finite: all remaining frames; indefinite: one render quantum
-ctx.startRendering(null)        // same as omitting chunkSize
-ctx.startRendering(chunkSize)   // next chunkSize frames, rounded up to the render quantum size</code></pre>
+<span class="hl-cm">// Call forms</span>
+ctx.startRendering()            <span class="hl-cm">// finite: all remaining frames; indefinite: one render quantum</span>
+ctx.startRendering(null)        <span class="hl-cm">// same as omitting chunkSize</span>
+ctx.startRendering(chunkSize)   <span class="hl-cm">// next chunkSize frames, rounded up to the render quantum size</span></code></pre>
     <p>Chromium declares this as two overloads, <code>startRendering()</code> and <code>[RuntimeEnabled=OfflineAudioContextIncrementalRendering] startRendering(unsigned long? chunkSize)</code>, both implemented by the same <code>startOfflineRendering</code> routine; the observable call forms are identical to the spec&rsquo;s single declaration.</p>
     <span class="citation">Source: <a href="https://webaudio.github.io/web-audio-api/#dom-offlineaudiocontext-startrendering" target="_blank" rel="noopener">Web Audio API 1.1 &sect;1.3.3 &mdash; startRendering(chunkSize)</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webaudio/offline_audio_context.idl" target="_blank" rel="noopener">Chromium offline_audio_context.idl</a></span>
   </section>
@@ -123,41 +123,41 @@ ctx.startRendering(chunkSize)   // next chunkSize frames, rounded up to the rend
   <section>
     <h2 id="examples">Examples</h2>
     <h3 id="example-chunks">Render a finite graph in ten-second startRendering chunks</h3>
-<pre tabindex="0"><code>const ctx = new OfflineAudioContext({
-  numberOfChannels: 2,
-  sampleRate: 48000,
-  length: 48000 * 600, // ten minutes
+<pre tabindex="0"><code><span class="hl-kw">const</span> ctx = <span class="hl-kw">new</span> <span class="hl-ty">OfflineAudioContext</span>({
+  numberOfChannels: <span class="hl-num">2</span>,
+  sampleRate: <span class="hl-num">48000</span>,
+  length: <span class="hl-num">48000</span> * <span class="hl-num">600</span>, <span class="hl-cm">// ten minutes</span>
 });
-const src = new AudioBufferSourceNode(ctx, { buffer: decodedTrack });
+<span class="hl-kw">const</span> src = <span class="hl-kw">new</span> <span class="hl-ty">AudioBufferSourceNode</span>(ctx, { buffer: decodedTrack });
 src.connect(ctx.destination);
 src.start();
 
-const parts = [];
-let rendered = 0;
-while (rendered &lt; ctx.length) {
-  const chunk = await ctx.startRendering(48000 * 10); // 480000 frames
+<span class="hl-kw">const</span> parts = [];
+<span class="hl-kw">let</span> rendered = <span class="hl-num">0</span>;
+<span class="hl-kw">while</span> (rendered &lt; ctx.length) {
+  <span class="hl-kw">const</span> chunk = <span class="hl-kw">await</span> ctx.startRendering(<span class="hl-num">48000</span> * <span class="hl-num">10</span>); <span class="hl-cm">// 480000 frames</span>
   rendered += chunk.length;
-  parts.push(await encodeChunk(chunk)); // keep the encoded bytes, drop the AudioBuffer
+  parts.push(<span class="hl-kw">await</span> encodeChunk(chunk)); <span class="hl-cm">// keep the encoded bytes, drop the AudioBuffer</span>
 }
-// ctx.state === "closed"; one more startRendering() would reject (InvalidStateError)</code></pre>
+<span class="hl-cm">// ctx.state === "closed"; one more startRendering() would reject (InvalidStateError)</span></code></pre>
     <h3 id="example-pipeline">Queue the next chunk before processing the current one</h3>
-<pre tabindex="0"><code>// Calls queue in order, so the render thread can work while you encode.
-let next = ctx.startRendering(16384);
-for (;;) {
-  const chunk = await next;
-  const more = ctx.state !== 'closed' &amp;&amp; ctx.currentTime &lt; stopAtSeconds;
-  if (more) next = ctx.startRendering(16384);
-  await encodeChunk(chunk);
-  if (!more) break;
+<pre tabindex="0"><code><span class="hl-cm">// Calls queue in order, so the render thread can work while you encode.</span>
+<span class="hl-kw">let</span> next = ctx.startRendering(<span class="hl-num">16384</span>);
+<span class="hl-kw">for</span> (;;) {
+  <span class="hl-kw">const</span> chunk = <span class="hl-kw">await</span> next;
+  <span class="hl-kw">const</span> more = ctx.state !== <span class="hl-str">'closed'</span> &amp;&amp; ctx.currentTime &lt; stopAtSeconds;
+  <span class="hl-kw">if</span> (more) next = ctx.startRendering(<span class="hl-num">16384</span>);
+  <span class="hl-kw">await</span> encodeChunk(chunk);
+  <span class="hl-kw">if</span> (!more) <span class="hl-kw">break</span>;
 }
-if (ctx.state !== 'closed') await ctx.close();</code></pre>
+<span class="hl-kw">if</span> (ctx.state !== <span class="hl-str">'closed'</span>) <span class="hl-kw">await</span> ctx.close();</code></pre>
     <h3 id="example-errors">Handling startRendering rejections</h3>
-<pre tabindex="0"><code>try {
-  const chunk = await ctx.startRendering(chunkSize);
-} catch (err) {
-  if (err.name === 'AbortError') { /* close() cancelled this queued chunk */ }
-  else if (err.name === 'NotSupportedError') { /* 0, too large, or allocation failed */ }
-  else if (err.name === 'InvalidStateError') { /* closed or every frame already requested */ }
+<pre tabindex="0"><code><span class="hl-kw">try</span> {
+  <span class="hl-kw">const</span> chunk = <span class="hl-kw">await</span> ctx.startRendering(chunkSize);
+} <span class="hl-kw">catch</span> (err) {
+  <span class="hl-kw">if</span> (err.name === <span class="hl-str">'AbortError'</span>) { <span class="hl-cm">/* close() cancelled this queued chunk */</span> }
+  <span class="hl-kw">else</span> <span class="hl-kw">if</span> (err.name === <span class="hl-str">'NotSupportedError'</span>) { <span class="hl-cm">/* 0, too large, or allocation failed */</span> }
+  <span class="hl-kw">else</span> <span class="hl-kw">if</span> (err.name === <span class="hl-str">'InvalidStateError'</span>) { <span class="hl-cm">/* closed or every frame already requested */</span> }
 }</code></pre>
     <span class="citation">Source: gendn-derived from the <a href="https://webaudio.github.io/web-audio-api/#dom-offlineaudiocontext-startrendering" target="_blank" rel="noopener">startRendering(chunkSize) algorithm</a> and behavior asserted by <a href="https://wpt.fyi/results/webaudio/the-audio-api/the-offlineaudiocontext-interface/offlineaudiocontext-incremental-rendering.html" target="_blank" rel="noopener">WPT incremental-rendering</a>; a live chunk console runs in the <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v158/offlineaudiocontext-incremental-rendering/chunked-render-console/" target="_blank" rel="noopener">showcase demo</a></span>
   </section>

@@ -396,6 +396,17 @@ export const RULES = [
     suites: ["test-doc-tests"],
     reason: "offline doc snippet verifier, staleness/drift guard, and their unit fixture",
   },
+  {
+    id: "syntax-highlight",
+    exact: [
+      "lib/syntax-highlight.ts",
+      "scripts/highlight-code.mjs",
+      "scripts/syntax-highlight.test.mjs",
+    ],
+    prefixes: [],
+    suites: ["test-syntax-highlight", "test-doc-tests"],
+    reason: "static syntax highlighter, corpus runner, and text-fidelity fixture",
+  },
 ];
 
 /** Paths that are KNOWN to need no suite, each with the reason a reader can check. A path that is

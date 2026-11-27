@@ -70,7 +70,7 @@
   <section>
     <h2 id="syntax">Syntax</h2>
     <p>The specification change is <a href="https://github.com/w3c/uievents/pull/413" target="_blank" rel="noopener">w3c/uievents PR #413 &ldquo;Add .pseudoTarget property to selected event types&rdquo;</a> &mdash; still an <strong>open</strong> pull request as of 2026-10-18, not merged UI Events text. Its IDL additions, verbatim: to the <code>UIEvent</code> interface</p>
-    <pre><code>readonly attribute CSSPseudoElement? pseudoTarget;</code></pre>
+    <pre><code><span class="hl-kw">readonly</span> <span class="hl-kw">attribute</span> <span class="hl-ty">CSSPseudoElement</span>? pseudoTarget;</code></pre>
     <p>and to the <code>UIEventInit</code> dictionary</p>
     <pre><code>CSSPseudoElement? pseudoTarget = null;</code></pre>
     <p>Nullability per the PR and its review thread: the attribute is <code>null</code> when the event did not originate from a pseudo-element, when <code>currentTarget</code> is null (including after dispatch has finished &mdash; the author confirmed on 2026-07-08 it would be &ldquo;always null after dispatch&rdquo;), and when Shadow DOM retargeting against <code>currentTarget</code> would otherwise expose shadow-internal nodes. Disclosed: the PR&rsquo;s visible IDL covers <code>UIEvent</code> (whose subtypes inherit it); <code>AnimationEvent</code> and <code>TransitionEvent</code> are <code>Event</code> subtypes, so their coverage &mdash; named by the lede and the intent below &mdash; is not in that IDL fragment and rests on the intent and Chrome&rsquo;s implementation (runtime flag <code>EventPseudoTargetProperty</code>, <code>status: "stable"</code>, <code>depends_on CSSPseudoElementInterface</code> in the <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">runtime flag registry</a>, read 2026-10-18).</p>
@@ -111,24 +111,24 @@
     </figure>
 
     <h3 id="detecting-a-click-on-after">Detecting a click on ::after</h3>
-    <pre><code>const box = document.querySelector('.box');
+    <pre><code><span class="hl-kw">const</span> box = document.querySelector(<span class="hl-str">'.box'</span>);
 
-box.addEventListener('click', (event) => {
-  if (event.pseudoTarget !== null) {
-    console.log('Clicked on pseudo-element:', event.pseudoTarget.type);
-    // e.g. "::after"
-    console.log('Originating element:', event.pseudoTarget.element);
-  } else {
-    console.log('Clicked on the element itself');
+box.addEventListener(<span class="hl-str">'click'</span>, (event) =&gt; {
+  <span class="hl-kw">if</span> (event.pseudoTarget !== <span class="hl-num">null</span>) {
+    console.log(<span class="hl-str">'Clicked on pseudo-element:'</span>, event.pseudoTarget.type);
+    <span class="hl-cm">// e.g. "::after"</span>
+    console.log(<span class="hl-str">'Originating element:'</span>, event.pseudoTarget.element);
+  } <span class="hl-kw">else</span> {
+    console.log(<span class="hl-str">'Clicked on the element itself'</span>);
   }
 });</code></pre>
 
     <h3>Reacting to a transition on ::before</h3>
-    <pre><code>document.addEventListener('transitionend', (event) => {
-  if (event.pseudoTarget?.type === '::before') {
-    // A ::before pseudo-element finished its CSS transition
-    const host = event.pseudoTarget.element;
-    host.classList.remove('transitioning');
+    <pre><code>document.addEventListener(<span class="hl-str">'transitionend'</span>, (event) =&gt; {
+  <span class="hl-kw">if</span> (event.pseudoTarget?.type === <span class="hl-str">'::before'</span>) {
+    <span class="hl-cm">// A ::before pseudo-element finished its CSS transition</span>
+    <span class="hl-kw">const</span> host = event.pseudoTarget.element;
+    host.classList.remove(<span class="hl-str">'transitioning'</span>);
   }
 });</code></pre>
     <span class="citation">Source: <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/CAH3Z92_G%2BNquVjXY1H7fT%3DpYzW8Z4cpDcqOm%3DHdQi9ErhK-u%3DA%40mail.gmail.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a> — Pseudo target on events, April 2026.</span>

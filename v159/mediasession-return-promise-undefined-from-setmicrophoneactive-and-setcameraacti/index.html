@@ -79,12 +79,12 @@
   <section>
     <h2 id="syntax">Syntax</h2>
     <p>Updated Blink WebIDL matching the W3C Media Session specification:</p>
-    <pre><code>// third_party/blink/renderer/modules/mediasession/media_session.idl
-[Exposed=Window, RuntimeEnabled=MediaSession]
-interface MediaSession {
-  // ...
-  Promise&lt;undefined&gt; setMicrophoneActive(boolean active);
-  Promise&lt;undefined&gt; setCameraActive(boolean active);
+    <pre><code><span class="hl-cm">// third_party/blink/renderer/modules/mediasession/media_session.idl</span>
+<span class="hl-pun">[</span><span class="hl-attr">Exposed</span>=<span class="hl-ty">Window</span>, <span class="hl-attr">RuntimeEnabled</span>=<span class="hl-ty">MediaSession</span><span class="hl-pun">]</span>
+<span class="hl-kw">interface</span> <span class="hl-ty">MediaSession</span> {
+  <span class="hl-cm">// ...</span>
+  <span class="hl-ty">Promise</span>&lt;<span class="hl-ty">undefined</span>&gt; setMicrophoneActive(<span class="hl-ty">boolean</span> active);
+  <span class="hl-ty">Promise</span>&lt;<span class="hl-ty">undefined</span>&gt; setCameraActive(<span class="hl-ty">boolean</span> active);
 };</code></pre>
     <p>This reference covers three parts of the contract: <a href="#setmicrophoneactive"><code>MediaSession.setMicrophoneActive()</code></a>, <a href="#setcameraactive"><code>MediaSession.setCameraActive()</code></a>, and the shared <a href="#update-capture-state">update capture state algorithm</a>.</p>
     <span class="citation">Source: <a href="https://w3c.github.io/mediasession/#the-mediasession-interface" target="_blank" rel="noopener">W3C Media Session <code>MediaSession</code> interface</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediasession/media_session.idl" target="_blank" rel="noopener">Blink media_session.idl</a>.</span>
@@ -142,42 +142,42 @@ interface MediaSession {
     </figure>
 
     <h3 id="example-await-capture">Awaiting <code>setMicrophoneActive()</code> and <code>setCameraActive()</code> safely across browsers</h3>
-    <pre><code>async function syncCallCaptureIndicators({ micOn, camOn }) {
-  const session = navigator.mediaSession;
-  if (!session) return;
+    <pre><code><span class="hl-kw">async</span> <span class="hl-kw">function</span> syncCallCaptureIndicators({ micOn, camOn }) {
+  <span class="hl-kw">const</span> session = navigator.mediaSession;
+  <span class="hl-kw">if</span> (!session) <span class="hl-kw">return</span>;
 
-  try {
-    // await works in Chrome 159+ &amp; Safari 18.4+ (Promise&lt;undefined&gt;)
-    // as well as Chrome 93-158 (undefined)
-    if (typeof session.setMicrophoneActive === "function") {
-      await session.setMicrophoneActive(micOn);
+  <span class="hl-kw">try</span> {
+    <span class="hl-cm">// await works in Chrome 159+ &amp; Safari 18.4+ (Promise&lt;undefined&gt;)</span>
+    <span class="hl-cm">// as well as Chrome 93-158 (undefined)</span>
+    <span class="hl-kw">if</span> (<span class="hl-kw">typeof</span> session.setMicrophoneActive === <span class="hl-str">"function"</span>) {
+      <span class="hl-kw">await</span> session.setMicrophoneActive(micOn);
     }
-    if (typeof session.setCameraActive === "function") {
-      await session.setCameraActive(camOn);
+    <span class="hl-kw">if</span> (<span class="hl-kw">typeof</span> session.setCameraActive === <span class="hl-str">"function"</span>) {
+      <span class="hl-kw">await</span> session.setCameraActive(camOn);
     }
-  } catch (err) {
-    if (err instanceof DOMException &amp;&amp; err.name === "InvalidStateError") {
-      // Document was detached or (in Safari) hidden when re-activating capture
-      console.warn("MediaSession state update skipped:", err.message);
-      return;
+  } <span class="hl-kw">catch</span> (err) {
+    <span class="hl-kw">if</span> (err <span class="hl-kw">instanceof</span> <span class="hl-ty">DOMException</span> &amp;&amp; err.name === <span class="hl-str">"InvalidStateError"</span>) {
+      <span class="hl-cm">// Document was detached or (in Safari) hidden when re-activating capture</span>
+      console.warn(<span class="hl-str">"MediaSession state update skipped:"</span>, err.message);
+      <span class="hl-kw">return</span>;
     }
-    throw err;
+    <span class="hl-kw">throw</span> err;
   }
 }</code></pre>
     <span class="citation">Source: <a href="https://w3c.github.io/mediasession/#dom-mediasession-setmicrophoneactive" target="_blank" rel="noopener">W3C Media Session</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediasession/media_session.cc" target="_blank" rel="noopener">Blink media_session.cc</a>.</span>
 
     <h3 id="example-detached-iframe">Handling <code>InvalidStateError</code> on a detached document</h3>
-    <pre><code>const iframe = document.createElement("iframe");
+    <pre><code><span class="hl-kw">const</span> iframe = document.createElement(<span class="hl-str">"iframe"</span>);
 document.body.append(iframe);
-const detachedSession = iframe.contentWindow.navigator.mediaSession;
-iframe.remove(); // Associated document is no longer fully active
+<span class="hl-kw">const</span> detachedSession = iframe.contentWindow.navigator.mediaSession;
+iframe.remove(); <span class="hl-cm">// Associated document is no longer fully active</span>
 
-// In Chrome 159+, returns a rejected Promise&lt;undefined&gt; (InvalidStateError)
-const result = detachedSession.setMicrophoneActive(false);
-if (result instanceof Promise) {
-  await result.catch((err) =&gt; {
-    console.log(err.name);    // "InvalidStateError"
-    console.log(err.message); // "The document is not fully active."
+<span class="hl-cm">// In Chrome 159+, returns a rejected Promise&lt;undefined&gt; (InvalidStateError)</span>
+<span class="hl-kw">const</span> result = detachedSession.setMicrophoneActive(<span class="hl-num">false</span>);
+<span class="hl-kw">if</span> (result <span class="hl-kw">instanceof</span> <span class="hl-ty">Promise</span>) {
+  <span class="hl-kw">await</span> result.catch((err) =&gt; {
+    console.log(err.name);    <span class="hl-cm">// "InvalidStateError"</span>
+    console.log(err.message); <span class="hl-cm">// "The document is not fully active."</span>
   });
 }</code></pre>
     <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/mediasession/media_session.cc" target="_blank" rel="noopener">Blink media_session.cc</a>; <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v159/mediasession-return-promise-undefined-from-setmicrophoneactive-and-setcameraacti/detached-document-rejection/" target="_blank" rel="noopener">Chrome Platform Showcase detached-document-rejection concept</a>.</span>

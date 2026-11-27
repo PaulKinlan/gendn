@@ -79,20 +79,20 @@
   <section>
     <h2 id="syntax">Syntax</h2>
     <p>No new interfaces or attributes are added. The change updates the initialized value of <code>MessageEvent.data</code> on <code>connect</code> events dispatched at <code>SharedWorkerGlobalScope</code> (replaces pre-160 <code>null</code> with <code>""</code>):</p>
-    <pre tabindex="0"><code>[Global=(Worker,SharedWorker), Exposed=SharedWorker]
-interface SharedWorkerGlobalScope : WorkerGlobalScope {
-  [Replaceable] readonly attribute DOMString name;
-  undefined close();
-  attribute EventHandler onconnect;
+    <pre tabindex="0"><code><span class="hl-pun">[</span><span class="hl-attr">Global</span>=(<span class="hl-ty">Worker</span>,<span class="hl-attr">SharedWorker</span>), <span class="hl-attr">Exposed</span>=<span class="hl-ty">SharedWorker</span><span class="hl-pun">]</span>
+<span class="hl-kw">interface</span> <span class="hl-ty">SharedWorkerGlobalScope</span> : <span class="hl-ty">WorkerGlobalScope</span> {
+  <span class="hl-pun">[</span><span class="hl-attr">Replaceable</span><span class="hl-pun">]</span> <span class="hl-kw">readonly</span> <span class="hl-kw">attribute</span> <span class="hl-ty">DOMString</span> name;
+  <span class="hl-ty">undefined</span> close();
+  <span class="hl-kw">attribute</span> <span class="hl-ty">EventHandler</span> onconnect;
 };
 
-[Exposed=(Window,Worker,AudioWorklet)]
-interface MessageEvent : Event {
-  readonly attribute any data;
-  readonly attribute USVString origin;
-  readonly attribute DOMString lastEventId;
-  readonly attribute MessageEventSource? source;
-  readonly attribute FrozenArray&lt;MessagePort&gt; ports;
+<span class="hl-pun">[</span><span class="hl-attr">Exposed</span>=(<span class="hl-ty">Window</span>,<span class="hl-attr">Worker</span>,<span class="hl-attr">AudioWorklet</span>)<span class="hl-pun">]</span>
+<span class="hl-kw">interface</span> <span class="hl-ty">MessageEvent</span> : <span class="hl-ty">Event</span> {
+  <span class="hl-kw">readonly</span> <span class="hl-kw">attribute</span> <span class="hl-ty">any</span> data;
+  <span class="hl-kw">readonly</span> <span class="hl-kw">attribute</span> <span class="hl-ty">USVString</span> origin;
+  <span class="hl-kw">readonly</span> <span class="hl-kw">attribute</span> <span class="hl-ty">DOMString</span> lastEventId;
+  <span class="hl-kw">readonly</span> <span class="hl-kw">attribute</span> <span class="hl-ty">MessageEventSource</span>? source;
+  <span class="hl-kw">readonly</span> <span class="hl-kw">attribute</span> <span class="hl-ty">FrozenArray</span>&lt;<span class="hl-ty">MessagePort</span>&gt; ports;
 };</code></pre>
     <blockquote class="spec-quote" cite="https://html.spec.whatwg.org/multipage/workers.html#run-a-worker">
       <p>&ldquo;&hellip;fire an event named <code>connect</code> at <em>worker global scope</em>, using <code>MessageEvent</code>, with the <code>data</code> attribute initialized to the empty string, the <code>ports</code> attribute initialized to a new frozen array containing <em>inside port</em>, and the <code>source</code> attribute initialized to <em>inside port</em>.&rdquo;</p>
@@ -165,45 +165,45 @@ interface MessageEvent : Event {
     </figure>
 
     <h3 id="example-connect-handler">Spec-compliant <code>onconnect</code> handler in a shared worker</h3>
-    <pre tabindex="0"><code>// shared-worker.js (runs in SharedWorkerGlobalScope)
-const clients = new Set();
+    <pre tabindex="0"><code><span class="hl-cm">// shared-worker.js (runs in SharedWorkerGlobalScope)</span>
+<span class="hl-kw">const</span> clients = <span class="hl-kw">new</span> <span class="hl-ty">Set</span>();
 
 self.onconnect = (event) =&gt; {
-  const [port] = event.ports; // equivalent to event.source
-  if (!port) return;
+  <span class="hl-kw">const</span> [port] = event.ports; <span class="hl-cm">// equivalent to event.source</span>
+  <span class="hl-kw">if</span> (!port) <span class="hl-kw">return</span>;
 
-  // In Chrome 160+, Firefox 65+, and Safari 16+:
-  // event.data === "" (was null in Chrome &lt;= 159)
+  <span class="hl-cm">// In Chrome 160+, Firefox 65+, and Safari 16+:</span>
+  <span class="hl-cm">// event.data === "" (was null in Chrome &lt;= 159)</span>
   clients.add(port);
 
   port.onmessage = (msg) =&gt; {
-    for (const client of clients) {
+    <span class="hl-kw">for</span> (<span class="hl-kw">const</span> client <span class="hl-kw">of</span> clients) {
       client.postMessage(msg.data);
     }
   };
 
   port.postMessage({
-    type: "connected",
+    <span class="hl-kw">type</span>: <span class="hl-str">"connected"</span>,
     connectData: event.data,
-    isEmptyString: event.data === "",
+    isEmptyString: event.data === <span class="hl-str">""</span>,
     portMatchesSource: event.source === port,
   });
 };</code></pre>
     <span class="citation">Source: <a href="https://github.com/web-platform-tests/wpt/blob/master/workers/constructors/SharedWorker/connect-event.js" target="_blank" rel="noopener">WPT <code>connect-event.js</code></a>; <a href="https://html.spec.whatwg.org/multipage/workers.html#run-a-worker" target="_blank" rel="noopener">HTML Living Standard</a>.</span>
 
     <h3 id="example-migration">Replacing fragile <code>event.data === null</code> checks</h3>
-    <pre tabindex="0"><code>// BEFORE (broke on Firefox/Safari and breaks on Chrome 160+):
-self.addEventListener("connect", (event) =&gt; {
-  if (event.data !== null) return; // WRONG: event.data is "" in Chrome 160+
-  const label = event.data ?? "default-connect"; // yields "" in Chrome 160+
-  handlePort(event.ports[0], label);
+    <pre tabindex="0"><code><span class="hl-cm">// BEFORE (broke on Firefox/Safari and breaks on Chrome 160+):</span>
+self.addEventListener(<span class="hl-str">"connect"</span>, (event) =&gt; {
+  <span class="hl-kw">if</span> (event.data !== <span class="hl-num">null</span>) <span class="hl-kw">return</span>; <span class="hl-cm">// WRONG: event.data is "" in Chrome 160+</span>
+  <span class="hl-kw">const</span> label = event.data ?? <span class="hl-str">"default-connect"</span>; <span class="hl-cm">// yields "" in Chrome 160+</span>
+  handlePort(event.ports[<span class="hl-num">0</span>], label);
 });
 
-// AFTER (interoperable across Chrome &lt;= 159, Chrome 160+, Firefox, and Safari):
-self.addEventListener("connect", (event) =&gt; {
-  const port = event.ports[0] ?? event.source;
-  if (!port) return;
-  const label = event.data || "default-connect"; // handles both "" and legacy null
+<span class="hl-cm">// AFTER (interoperable across Chrome &lt;= 159, Chrome 160+, Firefox, and Safari):</span>
+self.addEventListener(<span class="hl-str">"connect"</span>, (event) =&gt; {
+  <span class="hl-kw">const</span> port = event.ports[<span class="hl-num">0</span>] ?? event.source;
+  <span class="hl-kw">if</span> (!port) <span class="hl-kw">return</span>;
+  <span class="hl-kw">const</span> label = event.data || <span class="hl-str">"default-connect"</span>; <span class="hl-cm">// handles both "" and legacy null</span>
   handlePort(port, label);
 });</code></pre>
     <span class="citation">Source: <a href="https://chromestatus.com/feature/5142074717503488" target="_blank" rel="noopener">ChromeStatus 5142074717503488</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/SharedWorkerGlobalScope.json" target="_blank" rel="noopener">BCD <code>api/SharedWorkerGlobalScope.json</code></a>.</span>

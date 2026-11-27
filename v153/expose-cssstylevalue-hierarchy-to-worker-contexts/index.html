@@ -75,7 +75,7 @@
 +   Exposed=(Window,Worker,LayoutWorklet,PaintWorklet)
   ] interface CSSStyleValue {
     stringifier;
-    // Putting Exposed=Window in the next line makes |parse| not exposed to Worklets.
+    <span class="hl-cm">// Putting Exposed=Window in the next line makes |parse| not exposed to Worklets.</span>
     [RaisesException, Exposed=Window, CallWith=ExecutionContext] static CSSStyleValue parse(CSSOMString property, CSSOMString cssText);
     [RaisesException, Exposed=Window, CallWith=ExecutionContext] static sequence&lt;CSSStyleValue&gt; parseAll(CSSOMString property, CSSOMString cssText);
   };</code></pre>
@@ -116,33 +116,33 @@
   <section>
     <h2 id="examples">Examples</h2>
     <p>The <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/expose-cssstylevalue-hierarchy-to-worker-contexts/" target="_blank" rel="noopener">Chrome Platform Showcase demo for this feature (Chrome 154)</a> resolves and carries the same ChromeStatus identity 5114591051907072 as this Chrome 153 reference (checked 2026-10-07). The snippets below remain gendn-derived from the sources cited on this page, not runtime-verified against a build with the CL applied — see the implementation-status warning.</p>
-    <pre><code>// worker.js — feature-detect, then do unit math off the main thread
-if (typeof CSSUnitValue === "undefined") {
-  // Chrome without this change (and any browser without Typed OM in workers)
-  postMessage({ supported: false });
-} else {
-  const width = new CSSUnitValue(480, "px");
-  const doubled = width.mul(2);          // CSSNumericValue arithmetic, per MDN/spec
-  const inCm = new CSSUnitValue(96, "px").to("cm");
+    <pre><code><span class="hl-cm">// worker.js — feature-detect, then do unit math off the main thread</span>
+<span class="hl-kw">if</span> (<span class="hl-kw">typeof</span> <span class="hl-ty">CSSUnitValue</span> === <span class="hl-str">"undefined"</span>) {
+  <span class="hl-cm">// Chrome without this change (and any browser without Typed OM in workers)</span>
+  postMessage({ supported: <span class="hl-num">false</span> });
+} <span class="hl-kw">else</span> {
+  <span class="hl-kw">const</span> width = <span class="hl-kw">new</span> <span class="hl-ty">CSSUnitValue</span>(<span class="hl-num">480</span>, <span class="hl-str">"px"</span>);
+  <span class="hl-kw">const</span> doubled = width.mul(<span class="hl-num">2</span>);          <span class="hl-cm">// CSSNumericValue arithmetic, per MDN/spec</span>
+  <span class="hl-kw">const</span> inCm = <span class="hl-kw">new</span> <span class="hl-ty">CSSUnitValue</span>(<span class="hl-num">96</span>, <span class="hl-str">"px"</span>).to(<span class="hl-str">"cm"</span>);
   postMessage({
-    supported: true,
-    doubled: String(doubled),            // stringifier — e.g. "960px"
-    inCm: String(inCm),                  // "2.54cm"
+    supported: <span class="hl-num">true</span>,
+    doubled: <span class="hl-ty">String</span>(doubled),            <span class="hl-cm">// stringifier — e.g. "960px"</span>
+    inCm: <span class="hl-ty">String</span>(inCm),                  <span class="hl-cm">// "2.54cm"</span>
   });
 }
 
-// Receives plain data from the main thread (Contract 2: no parse() here, and
-// CSSStyleValue objects are not serializable — only plain data crosses over):
-self.onmessage = (event) => {
-  console.log("main thread parsed:", event.data.cssText);
+<span class="hl-cm">// Receives plain data from the main thread (Contract 2: no parse() here, and</span>
+<span class="hl-cm">// CSSStyleValue objects are not serializable — only plain data crosses over):</span>
+self.onmessage = (event) =&gt; {
+  console.log(<span class="hl-str">"main thread parsed:"</span>, event.data.cssText);
 };</code></pre>
-    <pre><code>// main.js — create the worker; parsing stays on the main thread (Contract 2)
-const worker = new Worker("worker.js");
-worker.onmessage = (event) => console.log(event.data); // {supported, doubled, inCm}
+    <pre><code><span class="hl-cm">// main.js — create the worker; parsing stays on the main thread (Contract 2)</span>
+<span class="hl-kw">const</span> worker = <span class="hl-kw">new</span> <span class="hl-ty">Worker</span>(<span class="hl-str">"worker.js"</span>);
+worker.onmessage = (event) =&gt; console.log(event.data); <span class="hl-cm">// {supported, doubled, inCm}</span>
 
-const parsed = CSSStyleValue.parse("width", "calc(100% - 2em)"); // Window-only
-// CSSStyleValue instances are not serializable — send plain data, not the object:
-worker.postMessage({ cssText: String(parsed) });</code></pre>
+<span class="hl-kw">const</span> parsed = <span class="hl-ty">CSSStyleValue</span>.parse(<span class="hl-str">"width"</span>, <span class="hl-str">"calc(100% - 2em)"</span>); <span class="hl-cm">// Window-only</span>
+<span class="hl-cm">// CSSStyleValue instances are not serializable — send plain data, not the object:</span>
+worker.postMessage({ cssText: <span class="hl-ty">String</span>(parsed) });</code></pre>
     <span class="citation">Source: gendn-derived from the <a href="https://drafts.css-houdini.org/css-typed-om/" target="_blank" rel="noopener">CSS Typed OM ED</a>, <a href="https://developer.mozilla.org/en-US/docs/Web/API/CSSUnitValue" target="_blank" rel="noopener">MDN CSSUnitValue</a>, <a href="https://developer.mozilla.org/en-US/docs/Web/API/CSSNumericValue" target="_blank" rel="noopener">MDN CSSNumericValue</a>, and <a href="https://chromium-review.googlesource.com/c/chromium/src/+/8085260" target="_blank" rel="noopener">CL 8085260</a></span>
   </section>
 

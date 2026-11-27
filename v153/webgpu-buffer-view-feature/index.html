@@ -105,9 +105,9 @@
     <h2 id="extension">the language extension mechanics</h2>
     <p><code>buffer_view</code> is a WGSL <strong>language extension</strong> (<a href="https://gpuweb.github.io/gpuweb/wgsl/#language-extensions-sec" target="_blank" rel="noopener">WGSL §4.1.2</a>): it is automatically available whenever the implementation supports it — the program does not request it with an <code>enable</code> directive, and there is no <code>chrome://flags</code> entry or Blink runtime flag (the flag is <code>false</code> on the <a href="https://chromestatus.com/api/v0/features/5094091886034944" target="_blank" rel="noopener">ChromeStatus record</a>; the feature lives in Dawn/Tint, not Blink). The extension index describes it as: &ldquo;Enables the use of buffer types and the buffer_view built-in functions.&rdquo;</p>
     <p>A <code>requires</code> directive documents the program's use of the extension and turns absence into a hard failure:</p>
-    <pre><code>requires buffer_view;
+    <pre><code><span class="hl-kw">requires</span> buffer_view;
 
-@group(0) @binding(0) var&lt;storage&gt; data : buffer;</code></pre>
+<span class="hl-attr">@group</span>(<span class="hl-num">0</span>) <span class="hl-attr">@binding</span>(<span class="hl-num">0</span>) <span class="hl-kw">var</span>&lt;<span class="hl-kw">storage</span>&gt; data : buffer;</code></pre>
     <p>If the implementation does not support a required extension, shader creation fails with a shader-creation error — so <code>requires buffer_view;</code> both signals non-portability to tooling and guarantees a clean diagnostic instead of a parse error on the <code>buffer</code> type.</p>
     <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/wgsl/#language-extensions-sec" target="_blank" rel="noopener">WGSL §4.1.2 Language Extensions</a>; <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-types" target="_blank" rel="noopener">WGSL §6.3</a></span>
   </section>
@@ -115,9 +115,9 @@
   <section>
     <h2 id="detection">feature detection (the JavaScript side)</h2>
     <p>There is no new JavaScript API: the only JS-observable surface is the pre-existing <a href="https://developer.mozilla.org/en-US/docs/Web/API/GPU/wgslLanguageFeatures" target="_blank" rel="noopener"><code>GPU.wgslLanguageFeatures</code></a> set-like object, which lists the WGSL language extensions the implementation supports. In Dawn the extension is registered as <code>'buffer_view'</code> (<a href="https://dawn.googlesource.com/dawn/+/main/src/dawn/dawn.json" target="_blank" rel="noopener">dawn.json</a>, WGSL language-extension value 9):</p>
-    <pre><code>const supported = navigator.gpu.wgslLanguageFeatures.has("buffer_view");
-if (!supported) {
-  // Fall back to multiple bindings or statically-typed buffers.
+    <pre><code><span class="hl-kw">const</span> supported = navigator.gpu.wgslLanguageFeatures.has(<span class="hl-str">"buffer_view"</span>);
+<span class="hl-kw">if</span> (!supported) {
+  <span class="hl-cm">// Fall back to multiple bindings or statically-typed buffers.</span>
 }</code></pre>
     <p>Pair the detection with a <code>requires buffer_view;</code> directive in shaders that use the feature: detection tells you whether to <em>select</em> such a shader; the directive makes an unsupported implementation reject it deterministically.</p>
     <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/#dom-gpu-wgsllanguagefeatures" target="_blank" rel="noopener">WebGPU spec — GPU.wgslLanguageFeatures</a>; <a href="https://developer.mozilla.org/en-US/docs/Web/API/GPU/wgslLanguageFeatures" target="_blank" rel="noopener">MDN — GPU.wgslLanguageFeatures</a> (covers the detection API only — zero <code>buffer_view</code> coverage, verified 2026-07-29); <a href="https://dawn.googlesource.com/dawn/+/main/src/dawn/dawn.json" target="_blank" rel="noopener">dawn.json</a></span>
@@ -150,18 +150,18 @@ if (!supported) {
     </table>
     </div>
     <p>No other automatic conversions apply. Buffer sizes cannot be <em>grown</em> through a call: the buffer size any built-in sees is the minimum of the originating variable's size and the smallest fixed-size formal parameter on the call stack — implementations use interprocedural analysis for both validation and <a href="bufferlength/"><code>bufferLength</code></a>. When <code>unrestricted_pointer_parameters</code> is not supported, the root identifier of a built-in's argument must be the originating variable.</p>
-    <pre><code>requires buffer_view;
-requires unrestricted_pointer_parameters;
+    <pre><code><span class="hl-kw">requires</span> buffer_view;
+<span class="hl-kw">requires</span> unrestricted_pointer_parameters;
 
-@group(0) @binding(0) var&lt;storage&gt; big : buffer&lt;2048&gt;;
+<span class="hl-attr">@group</span>(<span class="hl-num">0</span>) <span class="hl-attr">@binding</span>(<span class="hl-num">0</span>) <span class="hl-kw">var</span>&lt;<span class="hl-kw">storage</span>&gt; big : buffer&lt;<span class="hl-num">2048</span>&gt;;
 
-// Accepts any storage buffer pointer: buffer&lt;2048&gt; converts to buffer (rank 1).
-fn helper(p : ptr&lt;storage, buffer&gt;) -&gt; u32 {
-  return bufferLength(p);  // sees the minimum size on the call stack
+<span class="hl-cm">// Accepts any storage buffer pointer: buffer&lt;2048&gt; converts to buffer (rank 1).</span>
+<span class="hl-kw">fn</span> helper(p : <span class="hl-ty">ptr</span>&lt;<span class="hl-kw">storage</span>, buffer&gt;) -&gt; <span class="hl-ty">u32</span> {
+  <span class="hl-kw">return</span> bufferLength(p);  <span class="hl-cm">// sees the minimum size on the call stack</span>
 }
 
-fn caller() -&gt; u32 {
-  return helper(&amp;big);
+<span class="hl-kw">fn</span> caller() -&gt; <span class="hl-ty">u32</span> {
+  <span class="hl-kw">return</span> helper(&amp;big);
 }</code></pre>
     <span class="citation">Source: <a href="https://gpuweb.github.io/gpuweb/wgsl/#conversion-rank" target="_blank" rel="noopener">WGSL — feasible automatic conversions</a>; <a href="https://gpuweb.github.io/gpuweb/wgsl/#buffer-view-builtin-functions" target="_blank" rel="noopener">WGSL §17.14 introductory rules</a></span>
   </section>
@@ -169,25 +169,25 @@ fn caller() -&gt; u32 {
   <section>
     <h2 id="examples">examples</h2>
     <p>Sub-dividing one storage binding into two logical arrays (derived from the <a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/buffer-view.md" target="_blank" rel="noopener">proposal</a>'s wireframe scenario — buffer layout <code>| indices size | indices | vertices |</code>, tightly packed in a single <code>GPUBuffer</code>):</p>
-    <pre><code>requires buffer_view;
+    <pre><code><span class="hl-kw">requires</span> buffer_view;
 
-@group(0) @binding(0) var&lt;storage&gt; indices_and_vertices : buffer;
+<span class="hl-attr">@group</span>(<span class="hl-num">0</span>) <span class="hl-attr">@binding</span>(<span class="hl-num">0</span>) <span class="hl-kw">var</span>&lt;<span class="hl-kw">storage</span>&gt; indices_and_vertices : buffer;
 
-fn foo() {
-  let indices_size = *bufferView&lt;u32&gt;(&amp;indices_and_vertices, 0);
+<span class="hl-kw">fn</span> foo() {
+  <span class="hl-kw">let</span> indices_size = *bufferView&lt;<span class="hl-ty">u32</span>&gt;(&amp;indices_and_vertices, <span class="hl-num">0</span>);
 
-  let indices_ptr = bufferArrayView&lt;array&lt;u32&gt;&gt;(&amp;indices_and_vertices, 4, indices_size);
-  let vertices_ptr = bufferView&lt;array&lt;f32&gt;&gt;(&amp;indices_and_vertices, indices_size + 4);
+  <span class="hl-kw">let</span> indices_ptr = bufferArrayView&lt;<span class="hl-ty">array</span>&lt;<span class="hl-ty">u32</span>&gt;&gt;(&amp;indices_and_vertices, <span class="hl-num">4</span>, indices_size);
+  <span class="hl-kw">let</span> vertices_ptr = bufferView&lt;<span class="hl-ty">array</span>&lt;<span class="hl-ty">f32</span>&gt;&gt;(&amp;indices_and_vertices, indices_size + <span class="hl-num">4</span>);
 
-  // Use indices_ptr and vertices_ptr like separate indices/vertices variables.
+  <span class="hl-cm">// Use indices_ptr and vertices_ptr like separate indices/vertices variables.</span>
 }</code></pre>
     <p>The matching JavaScript side binds one tightly-packed buffer — no 256-byte alignment gap between the two regions (contrast the <a href="#why">two-binding layout</a> that <code>minStorageBufferOffsetAlignment</code> forces without this feature):</p>
-    <pre><code>const total = 4 + indices_size + vertices_size;
-const buffer = device.createBuffer({ size: total, usage: GPUBufferUsage.STORAGE });
+    <pre><code><span class="hl-kw">const</span> total = <span class="hl-num">4</span> + indices_size + vertices_size;
+<span class="hl-kw">const</span> buffer = device.createBuffer({ size: total, usage: <span class="hl-ty">GPUBufferUsage</span>.STORAGE });
 
-const bg = device.createBindGroup({
-  layout: pipeline.getBindGroupLayout(0),
-  entries: [{ binding: 0, resource: buffer }],
+<span class="hl-kw">const</span> bg = device.createBindGroup({
+  layout: pipeline.getBindGroupLayout(<span class="hl-num">0</span>),
+  entries: [{ binding: <span class="hl-num">0</span>, resource: buffer }],
 });</code></pre>
     <p>The Chrome Platform Showcase has no route for this feature yet (both slug spellings 404, checked 2026-07-29); the upstream sample is the open <a href="https://github.com/webgpu/webgpu-samples/pull/568" target="_blank" rel="noopener">webgpu-samples PR #568</a> (&ldquo;Add a buffer_view variant option to wireframe sample&rdquo;, open at fetch time).</p>
     <span class="citation">Source: <a href="https://github.com/gpuweb/gpuweb/blob/main/proposals/buffer-view.md" target="_blank" rel="noopener">proposal — motivating example</a>; <a href="https://github.com/webgpu/webgpu-samples/pull/568" target="_blank" rel="noopener">webgpu-samples PR #568</a></span>

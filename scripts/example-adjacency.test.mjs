@@ -15,6 +15,7 @@
 // Run: npm run test-fixtures -- --tasks test-example-adjacency
 
 import * as sys from "./lib/sys.mjs";
+import { stripHighlightSpans } from "../lib/syntax-highlight.ts";
 
 const REPO = new URL("..", import.meta.url).pathname;
 const EXAMPLE = "v152/notification-attribution-for-pwas-on-macos/requireinteraction/index.html";
@@ -69,7 +70,7 @@ function platformDetectionPrecedes(html) {
   return { ok: true, why: `${macPwa - platform} chars before the isMacPWA block` };
 }
 
-const html = await sys.readTextFile(`${REPO}${EXAMPLE}`);
+const html = stripHighlightSpans(await sys.readTextFile(`${REPO}${EXAMPLE}`));
 
 const adjacent = robustPatternIsAdjacent(html);
 assert(

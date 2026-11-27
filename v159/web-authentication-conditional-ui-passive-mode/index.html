@@ -84,22 +84,22 @@
   <section>
     <h2 id="syntax">Syntax</h2>
     <p>Relevant WebIDL from Blink&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/credentialmanagement/credential_request_options.idl" target="_blank" rel="noopener"><code>credential_request_options.idl</code></a> and <a href="https://github.com/w3c/webauthn/pull/2485" target="_blank" rel="noopener">w3c/webauthn PR #2485</a> (checked 2026-11-24):</p>
-    <pre><code>enum CredentialUiModeRequirement {
-  "active",
-  "immediate",
-  "passive"
+    <pre><code><span class="hl-kw">enum</span> <span class="hl-ty">CredentialUiModeRequirement</span> {
+  <span class="hl-str">"active"</span>,
+  <span class="hl-str">"immediate"</span>,
+  <span class="hl-str">"passive"</span>
 };
 
-partial dictionary CredentialRequestOptions {
-  CredentialMediationRequirement mediation = "optional";
-  CredentialUiModeRequirement uiMode = "active";
-  PublicKeyCredentialRequestOptions publicKey;
-  boolean password = false;
-  AbortSignal signal;
+<span class="hl-kw">partial</span> <span class="hl-kw">dictionary</span> <span class="hl-ty">CredentialRequestOptions</span> {
+  <span class="hl-ty">CredentialMediationRequirement</span> mediation = <span class="hl-str">"optional"</span>;
+  <span class="hl-ty">CredentialUiModeRequirement</span> uiMode = <span class="hl-str">"active"</span>;
+  <span class="hl-ty">PublicKeyCredentialRequestOptions</span> publicKey;
+  <span class="hl-ty">boolean</span> password = <span class="hl-num">false</span>;
+  <span class="hl-ty">AbortSignal</span> signal;
 };
 
-partial enum ClientCapability {
-  "conditionalPassiveGet"
+<span class="hl-kw">partial</span> <span class="hl-kw">enum</span> <span class="hl-ty">ClientCapability</span> {
+  <span class="hl-str">"conditionalPassiveGet"</span>
 };</code></pre>
     <blockquote class="spec-quote">
       <p>&ldquo;If <code>options.uiMode</code> is <code>passive</code>, the prompt SHOULD be minimally disruptive to other user activity such that the user does not have to interact with the prompt.&rdquo;</p>
@@ -181,67 +181,67 @@ partial enum ClientCapability {
     <p>No interactive demo exists yet on the Chrome Platform Showcase for Chrome 159. The feature owner&rsquo;s standalone prototype demo is live at <a href="https://kenrb.github.io/test/ambient/index.html" target="_blank" rel="noopener">kenrb.github.io/test/ambient/</a>.</p>
 
     <h3 id="example-passive-signin">Feature detection and passive sign-in on page load</h3>
-    <pre><code>let passiveController = null;
+    <pre><code><span class="hl-kw">let</span> passiveController = <span class="hl-num">null</span>;
 
-async function startPassiveSignIn(challengeBytes) {
-  if (typeof PublicKeyCredential?.getClientCapabilities !== "function") {
-    return;
+<span class="hl-kw">async</span> <span class="hl-kw">function</span> startPassiveSignIn(challengeBytes) {
+  <span class="hl-kw">if</span> (<span class="hl-kw">typeof</span> <span class="hl-ty">PublicKeyCredential</span>?.getClientCapabilities !== <span class="hl-str">"function"</span>) {
+    <span class="hl-kw">return</span>;
   }
 
-  const caps = await PublicKeyCredential.getClientCapabilities();
-  if (!caps.conditionalPassiveGet) {
-    // Passive mode unavailable (no Origin Trial / flag or unsupported browser).
-    // Fall back to explicit sign-in link or standard conditional autofill.
-    return;
+  <span class="hl-kw">const</span> caps = <span class="hl-kw">await</span> <span class="hl-ty">PublicKeyCredential</span>.getClientCapabilities();
+  <span class="hl-kw">if</span> (!caps.conditionalPassiveGet) {
+    <span class="hl-cm">// Passive mode unavailable (no Origin Trial / flag or unsupported browser).</span>
+    <span class="hl-cm">// Fall back to explicit sign-in link or standard conditional autofill.</span>
+    <span class="hl-kw">return</span>;
   }
 
-  passiveController = new AbortController();
+  passiveController = <span class="hl-kw">new</span> <span class="hl-ty">AbortController</span>();
 
-  try {
-    const credential = await navigator.credentials.get({
+  <span class="hl-kw">try</span> {
+    <span class="hl-kw">const</span> credential = <span class="hl-kw">await</span> navigator.credentials.get({
       signal: passiveController.signal,
-      mediation: "conditional",
-      uiMode: "passive",
+      mediation: <span class="hl-str">"conditional"</span>,
+      uiMode: <span class="hl-str">"passive"</span>,
       publicKey: {
         challenge: challengeBytes,
         rpId: window.location.hostname,
-        userVerification: "preferred",
+        userVerification: <span class="hl-str">"preferred"</span>,
       },
-      // Optional: also surface saved passwords in the same passive bubble.
-      password: true,
+      <span class="hl-cm">// Optional: also surface saved passwords in the same passive bubble.</span>
+      password: <span class="hl-num">true</span>,
     });
 
-    if (credential?.type === "public-key") {
-      // Send assertion to server to verify challenge and establish a session.
-      await verifyPasskeyAssertion(credential);
-    } else if (credential?.type === "password") {
-      await verifyPasswordCredential(credential);
+    <span class="hl-kw">if</span> (credential?.type === <span class="hl-str">"public-key"</span>) {
+      <span class="hl-cm">// Send assertion to server to verify challenge and establish a session.</span>
+      <span class="hl-kw">await</span> verifyPasskeyAssertion(credential);
+    } <span class="hl-kw">else</span> <span class="hl-kw">if</span> (credential?.type === <span class="hl-str">"password"</span>) {
+      <span class="hl-kw">await</span> verifyPasswordCredential(credential);
     }
-  } catch (err) {
-    if (err.name === "AbortError") {
-      return; // Cancelled intentionally (e.g. user clicked Sign In or Create Passkey).
+  } <span class="hl-kw">catch</span> (err) {
+    <span class="hl-kw">if</span> (err.name === <span class="hl-str">"AbortError"</span>) {
+      <span class="hl-kw">return</span>; <span class="hl-cm">// Cancelled intentionally (e.g. user clicked Sign In or Create Passkey).</span>
     }
-    console.error("Passive sign-in failed:", err);
+    console.error(<span class="hl-str">"Passive sign-in failed:"</span>, err);
   }
 }
 
-// Always abort a pending passive request before calling modal create() or get():
-async function onExplicitSignInClick() {
+<span class="hl-cm">// Always abort a pending passive request before calling modal create() or get():</span>
+<span class="hl-kw">async</span> <span class="hl-kw">function</span> onExplicitSignInClick() {
   passiveController?.abort();
-  passiveController = null;
-  // Proceed with modal sign-in...
+  passiveController = <span class="hl-num">null</span>;
+  <span class="hl-cm">// Proceed with modal sign-in...</span>
 }</code></pre>
     <span class="citation">Source: <a href="https://github.com/w3c/webauthn/blob/main/explainers/conditional-ui-without-autofill.md" target="_blank" rel="noopener">Explainer: Conditional UI without Autofill</a>; <a href="https://kenrb.github.io/test/ambient/script.js" target="_blank" rel="noopener">Author prototype script.js</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/credentialmanagement/public_key_credential.cc" target="_blank" rel="noopener">Blink public_key_credential.cc</a>.</span>
 
     <h3 id="example-coexistence">Coexisting with a sign-in form (passive bubble + autofill)</h3>
     <p>When a page invokes <code>navigator.credentials.get()</code> with <code>mediation: "conditional"</code> and <code>uiMode: "passive"</code> alongside a login form, ignoring the passive bubble keeps the request active for autofill:</p>
-    <pre><code>&lt;!-- If the user ignores the passive bubble, focusing this input still offers
-     the same credentials from the single pending conditional request. --&gt;
-&lt;form action="/login" method="post"&gt;
-  &lt;label for="acct"&gt;Username&lt;/label&gt;
-  &lt;input id="acct" name="username" autocomplete="username webauthn" required&gt;
-  &lt;button type="submit"&gt;Continue&lt;/button&gt;
-&lt;/form&gt;</code></pre>
+    <pre><code><span class="hl-cm">&lt;!-- If the user ignores the passive bubble, focusing this input still offers
+     the same credentials from the single pending conditional request. --&gt;</span>
+<span class="hl-pun">&lt;</span><span class="hl-ty">form</span> <span class="hl-attr">action</span><span class="hl-pun">=</span><span class="hl-str">"/login"</span> <span class="hl-attr">method</span><span class="hl-pun">=</span><span class="hl-str">"post"</span><span class="hl-pun">&gt;</span>
+  <span class="hl-pun">&lt;</span><span class="hl-ty">label</span> <span class="hl-attr">for</span><span class="hl-pun">=</span><span class="hl-str">"acct"</span><span class="hl-pun">&gt;</span>Username<span class="hl-pun">&lt;/</span><span class="hl-ty">label</span><span class="hl-pun">&gt;</span>
+  <span class="hl-pun">&lt;</span><span class="hl-ty">input</span> <span class="hl-attr">id</span><span class="hl-pun">=</span><span class="hl-str">"acct"</span> <span class="hl-attr">name</span><span class="hl-pun">=</span><span class="hl-str">"username"</span> <span class="hl-attr">autocomplete</span><span class="hl-pun">=</span><span class="hl-str">"username webauthn"</span> <span class="hl-attr">required</span><span class="hl-pun">&gt;</span>
+  <span class="hl-pun">&lt;</span><span class="hl-ty">button</span> <span class="hl-attr">type</span><span class="hl-pun">=</span><span class="hl-str">"submit"</span><span class="hl-pun">&gt;</span>Continue<span class="hl-pun">&lt;/</span><span class="hl-ty">button</span><span class="hl-pun">&gt;</span>
+<span class="hl-pun">&lt;/</span><span class="hl-ty">form</span><span class="hl-pun">&gt;</span></code></pre>
     <span class="citation">Source: <a href="https://github.com/w3c/webauthn/pull/2485" target="_blank" rel="noopener">w3c/webauthn PR #2485</a>; <a href="https://github.com/w3c/webauthn/blob/main/explainers/conditional-ui-without-autofill.md" target="_blank" rel="noopener">Explainer: Conditional UI without Autofill</a>.</span>
   </section>
 

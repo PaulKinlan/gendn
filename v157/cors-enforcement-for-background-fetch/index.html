@@ -83,22 +83,22 @@
   <section>
     <h2 id="syntax">Syntax</h2>
     <p>This feature adds no new WebIDL methods or dictionaries &mdash; it enforces the existing Fetch CORS protocol across <code>registration.backgroundFetch.fetch()</code>, cross-origin HTTP response headers (<code>Access-Control-Allow-Origin</code>), Chromium&rsquo;s <code>RequiresCorsPreflight()</code> gate (which produces <code>failureReason = "fetch-error"</code>), and Service Worker completion via <code>backgroundfetchfail</code> / <code>record.responseReady</code>:</p>
-    <pre tabindex="0"><code data-doc-test="skip" data-doc-test-reason="API call signature and required HTTP CORS response headers for cross-origin Background Fetch.">// Client or Service Worker call (mode defaults to "cors"; "no-cors" rejects with TypeError)
-const bgFetch = await registration.backgroundFetch.fetch(
+    <pre tabindex="0"><code data-doc-test="skip" data-doc-test-reason="API call signature and required HTTP CORS response headers for cross-origin Background Fetch."><span class="hl-cm">// Client or Service Worker call (mode defaults to "cors"; "no-cors" rejects with TypeError)</span>
+<span class="hl-kw">const</span> bgFetch = <span class="hl-kw">await</span> registration.backgroundFetch.fetch(
   id,
-  [new Request("https://cdn.example.com/archive.bin", { mode: "cors", credentials: "omit" })],
-  { title: "Downloading archive", downloadTotal: 10_485_760 }
+  [<span class="hl-kw">new</span> <span class="hl-ty">Request</span>(<span class="hl-str">"https://cdn.example.com/archive.bin"</span>, { mode: <span class="hl-str">"cors"</span>, credentials: <span class="hl-str">"omit"</span> })],
+  { title: <span class="hl-str">"Downloading archive"</span>, downloadTotal: <span class="hl-num">10_485_760</span> }
 );
 
-// Required response headers on cross-origin targets (credential-less):
-Access-Control-Allow-Origin: *
-// Or exact origin (mandatory when credentials: "include"):
-Access-Control-Allow-Origin: https://app.example.com
-Access-Control-Allow-Credentials: true
+<span class="hl-cm">// Required response headers on cross-origin targets (credential-less):</span>
+<span class="hl-ty">Access-Control-Allow-Origin</span><span class="hl-pun">:</span> *
+<span class="hl-cm">// Or exact origin (mandatory when credentials: "include"):</span>
+<span class="hl-ty">Access-Control-Allow-Origin</span><span class="hl-pun">:</span> <span class="hl-str">https://app.example.com</span>
+<span class="hl-ty">Access-Control-Allow-Credentials</span><span class="hl-pun">:</span> <span class="hl-num">true</span>
 
-// Service Worker completion / failure observation:
-// - Success: "backgroundfetchsuccess" -> await record.responseReady
-// - CORS / preflight block (RequiresCorsPreflight): "backgroundfetchfail" with failureReason === "fetch-error"</code></pre>
+<span class="hl-cm">// Service Worker completion / failure observation:</span>
+<span class="hl-cm">// - Success: "backgroundfetchsuccess" -&gt; await record.responseReady</span>
+<span class="hl-cm">// - CORS / preflight block (RequiresCorsPreflight): "backgroundfetchfail" with failureReason === "fetch-error"</span></code></pre>
     <p>This reference documents the three behavioral contracts developers must satisfy in Chrome 157+: <a href="#cors-mode-enforcement">request mode &amp; Network Service CORS enforcement</a>, <a href="#cors-preflight-restriction">cross-origin CORS-preflight blocking</a>, and <a href="#response-and-failure-handling">failure state &amp; <code>record.responseReady</code> behavior</a>.</p>
     <span class="citation">Source: <a href="https://wicg.github.io/background-fetch/#dom-backgroundfetchmanager-fetch" target="_blank" rel="noopener">WICG Background Fetch <code>fetch()</code></a>; <a href="https://fetch.spec.whatwg.org/#cors-protocol" target="_blank" rel="noopener">WHATWG Fetch CORS protocol</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/download/internal/common/download_utils.cc" target="_blank" rel="noopener">Chromium <code>download_utils.cc</code></a>.</span>
 
@@ -174,59 +174,59 @@ Access-Control-Allow-Credentials: true
       <figcaption>Live interactive auditor showing how same-origin, CORS-enabled cross-origin, and preflight-triggering URLs behave under CORS enforcement. Sibling demos on the <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/cors-enforcement-for-background-fetch/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase feature index</a> (filed under v154 when first tracked; shipped enabled by default in Chrome 157): <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/cors-enforcement-for-background-fetch/same-origin/" target="_blank" rel="noopener">same-origin baseline</a> and <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/cors-enforcement-for-background-fetch/cross-origin/" target="_blank" rel="noopener">cross-origin with &amp; without CORS headers</a>. <span class="citation">Source: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/cors-enforcement-for-background-fetch/what-changed/" target="_blank" rel="noopener">chrome-platform-showcase</a>.</span></figcaption>
     </figure>
 
-    <pre tabindex="0"><code data-doc-test="js">async function startCorsSafeBackgroundFetch(urls) {
-  const reg = await navigator.serviceWorker.ready;
-  if (!("backgroundFetch" in reg)) {
-    throw new Error("Background Fetch API is not supported in this browser");
+    <pre tabindex="0"><code data-doc-test="js"><span class="hl-kw">async</span> <span class="hl-kw">function</span> startCorsSafeBackgroundFetch(urls) {
+  <span class="hl-kw">const</span> reg = <span class="hl-kw">await</span> navigator.serviceWorker.ready;
+  <span class="hl-kw">if</span> (!(<span class="hl-str">"backgroundFetch"</span> <span class="hl-kw">in</span> reg)) {
+    <span class="hl-kw">throw</span> <span class="hl-kw">new</span> <span class="hl-ty">Error</span>(<span class="hl-str">"Background Fetch API is not supported in this browser"</span>);
   }
 
-  // Keep cross-origin requests CORS-safelisted (GET, no custom headers) so
-  // Chromium's RequiresCorsPreflight() gate does not fail with "fetch-error".
-  // Remote origins must return Access-Control-Allow-Origin: * (or exact origin).
-  const requests = urls.map(
-    (url) =&gt; new Request(url, { method: "GET", mode: "cors", credentials: "omit" })
+  <span class="hl-cm">// Keep cross-origin requests CORS-safelisted (GET, no custom headers) so</span>
+  <span class="hl-cm">// Chromium's RequiresCorsPreflight() gate does not fail with "fetch-error".</span>
+  <span class="hl-cm">// Remote origins must return Access-Control-Allow-Origin: * (or exact origin).</span>
+  <span class="hl-kw">const</span> requests = urls.map(
+    (url) =&gt; <span class="hl-kw">new</span> <span class="hl-ty">Request</span>(url, { method: <span class="hl-str">"GET"</span>, mode: <span class="hl-str">"cors"</span>, credentials: <span class="hl-str">"omit"</span> })
   );
 
-  return reg.backgroundFetch.fetch("media-pack-v1", requests, {
-    title: "Downloading media pack",
-    downloadTotal: 15_000_000,
+  <span class="hl-kw">return</span> reg.backgroundFetch.fetch(<span class="hl-str">"media-pack-v1"</span>, requests, {
+    title: <span class="hl-str">"Downloading media pack"</span>,
+    downloadTotal: <span class="hl-num">15_000_000</span>,
   });
 }</code></pre>
     <span class="citation">Source: <a href="https://wicg.github.io/background-fetch/#dom-backgroundfetchmanager-fetch" target="_blank" rel="noopener">WICG Background Fetch <code>fetch()</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/content/browser/background_fetch/background_fetch_job_controller.cc" target="_blank" rel="noopener">Chromium <code>background_fetch_job_controller.cc</code></a>.</span>
 
     <h3 id="example-sw-failure-handling">Service Worker handling of <code>backgroundfetchfail</code> and <code>record.responseReady</code></h3>
-    <pre tabindex="0"><code data-doc-test="js">// Inside service-worker.js
-self.addEventListener("backgroundfetchsuccess", (event) =&gt; {
+    <pre tabindex="0"><code data-doc-test="js"><span class="hl-cm">// Inside service-worker.js</span>
+self.addEventListener(<span class="hl-str">"backgroundfetchsuccess"</span>, (event) =&gt; {
   event.waitUntil(
-    (async () =&gt; {
-      const cache = await caches.open("bg-downloads");
-      const records = await event.registration.matchAll();
-      for (const record of records) {
-        const response = await record.responseReady;
-        await cache.put(record.request, response);
+    (<span class="hl-kw">async</span> () =&gt; {
+      <span class="hl-kw">const</span> cache = <span class="hl-kw">await</span> caches.open(<span class="hl-str">"bg-downloads"</span>);
+      <span class="hl-kw">const</span> records = <span class="hl-kw">await</span> event.registration.matchAll();
+      <span class="hl-kw">for</span> (<span class="hl-kw">const</span> record <span class="hl-kw">of</span> records) {
+        <span class="hl-kw">const</span> response = <span class="hl-kw">await</span> record.responseReady;
+        <span class="hl-kw">await</span> cache.put(record.request, response);
       }
-      await event.updateUI({ title: "Download complete" });
+      <span class="hl-kw">await</span> event.updateUI({ title: <span class="hl-str">"Download complete"</span> });
     })()
   );
 });
 
-self.addEventListener("backgroundfetchfail", (event) =&gt; {
+self.addEventListener(<span class="hl-str">"backgroundfetchfail"</span>, (event) =&gt; {
   event.waitUntil(
-    (async () =&gt; {
-      const { id, failureReason } = event.registration;
-      // CORS blocks, missing Access-Control-Allow-Origin, and preflight blocks
-      // all surface as failureReason === "fetch-error".
-      const records = await event.registration.matchAll();
-      const failedUrls = [];
-      for (const record of records) {
-        try {
-          await record.responseReady;
-        } catch {
+    (<span class="hl-kw">async</span> () =&gt; {
+      <span class="hl-kw">const</span> { id, failureReason } = event.registration;
+      <span class="hl-cm">// CORS blocks, missing Access-Control-Allow-Origin, and preflight blocks</span>
+      <span class="hl-cm">// all surface as failureReason === "fetch-error".</span>
+      <span class="hl-kw">const</span> records = <span class="hl-kw">await</span> event.registration.matchAll();
+      <span class="hl-kw">const</span> failedUrls = [];
+      <span class="hl-kw">for</span> (<span class="hl-kw">const</span> record <span class="hl-kw">of</span> records) {
+        <span class="hl-kw">try</span> {
+          <span class="hl-kw">await</span> record.responseReady;
+        } <span class="hl-kw">catch</span> {
           failedUrls.push(record.request.url);
         }
       }
-      console.error("Background fetch failed", { id, failureReason, failedUrls });
-      await event.updateUI({ title: `Download failed (${failureReason})` });
+      console.error(<span class="hl-str">"Background fetch failed"</span>, { id, failureReason, failedUrls });
+      <span class="hl-kw">await</span> event.updateUI({ title: <span class="hl-str">`Download failed (</span><span class="hl-pun">${</span>failureReason<span class="hl-pun">}</span><span class="hl-str">)`</span> });
     })()
   );
 });</code></pre>

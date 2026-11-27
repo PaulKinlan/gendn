@@ -79,17 +79,17 @@
   <section>
     <h2 id="syntax">Syntax</h2>
     <p>No new JavaScript interface or manifest member is introduced. The change modifies the runtime behavior of the existing Web App Manifest <code>launch_handler</code> member (<code>"client_mode": "focus-existing"</code>) and the <code>window.launchQueue.setConsumer()</code> delivery algorithm:</p>
-    <pre><code>// Web App Manifest (manifest.webmanifest)
+    <pre><code><span class="hl-cm">// Web App Manifest (manifest.webmanifest)</span>
 {
-  "launch_handler": {
-    "client_mode": "focus-existing"
+  <span class="hl-str">"launch_handler"</span>: {
+    <span class="hl-str">"client_mode"</span>: <span class="hl-str">"focus-existing"</span>
   }
 }
 
-// Application script — read navigator.userActivation.isActive inside the consumer
+<span class="hl-cm">// Application script — read navigator.userActivation.isActive inside the consumer</span>
 window.launchQueue?.setConsumer((launchParams) =&gt; {
-  if (navigator.userActivation.isActive) {
-    // Chrome 160+: activation-gated calls (e.g. window.open(), requestFullscreen()) succeed
+  <span class="hl-kw">if</span> (navigator.userActivation.isActive) {
+    <span class="hl-cm">// Chrome 160+: activation-gated calls (e.g. window.open(), requestFullscreen()) succeed</span>
   }
 });</code></pre>
     <blockquote class="spec-quote">
@@ -156,73 +156,73 @@ window.launchQueue?.setConsumer((launchParams) =&gt; {
     </figure>
 
     <h3 id="example-workspace-router">Opening a separate workspace window from a <code>focus-existing</code> consumer with fallback</h3>
-    <pre><code>// manifest.webmanifest
-// {
-//   "name": "Notebook Studio",
-//   "start_url": "/",
-//   "display": "standalone",
-//   "launch_handler": { "client_mode": "focus-existing" }
-// }
+    <pre><code><span class="hl-cm">// manifest.webmanifest</span>
+<span class="hl-cm">// {</span>
+<span class="hl-cm">//   "name": "Notebook Studio",</span>
+<span class="hl-cm">//   "start_url": "/",</span>
+<span class="hl-cm">//   "display": "standalone",</span>
+<span class="hl-cm">//   "launch_handler": { "client_mode": "focus-existing" }</span>
+<span class="hl-cm">// }</span>
 
-const currentWorkspaceId = new URL(location.href).searchParams.get("workspace") ?? "default";
+<span class="hl-kw">const</span> currentWorkspaceId = <span class="hl-kw">new</span> <span class="hl-ty">URL</span>(location.href).searchParams.get(<span class="hl-str">"workspace"</span>) ?? <span class="hl-str">"default"</span>;
 
-function showOpenWindowPrompt(targetUrl) {
-  const banner = document.getElementById("launch-banner");
-  const btn = document.getElementById("launch-open-btn");
+<span class="hl-kw">function</span> showOpenWindowPrompt(targetUrl) {
+  <span class="hl-kw">const</span> banner = document.getElementById(<span class="hl-str">"launch-banner"</span>);
+  <span class="hl-kw">const</span> btn = document.getElementById(<span class="hl-str">"launch-open-btn"</span>);
   btn.onclick = () =&gt; {
-    window.open(targetUrl, "_blank", "noopener");
-    banner.hidden = true;
+    window.open(targetUrl, <span class="hl-str">"_blank"</span>, <span class="hl-str">"noopener"</span>);
+    banner.hidden = <span class="hl-num">true</span>;
   };
-  banner.hidden = false;
+  banner.hidden = <span class="hl-num">false</span>;
 }
 
-if ("launchQueue" in window) {
+<span class="hl-kw">if</span> (<span class="hl-str">"launchQueue"</span> <span class="hl-kw">in</span> window) {
   window.launchQueue.setConsumer((launchParams) =&gt; {
-    if (!launchParams.targetURL) return;
+    <span class="hl-kw">if</span> (!launchParams.targetURL) <span class="hl-kw">return</span>;
 
-    const url = new URL(launchParams.targetURL);
-    const requestedWorkspace = url.searchParams.get("workspace") ?? "default";
+    <span class="hl-kw">const</span> url = <span class="hl-kw">new</span> <span class="hl-ty">URL</span>(launchParams.targetURL);
+    <span class="hl-kw">const</span> requestedWorkspace = url.searchParams.get(<span class="hl-str">"workspace"</span>) ?? <span class="hl-str">"default"</span>;
 
-    if (requestedWorkspace === currentWorkspaceId) {
-      // Same workspace: route in-place without consuming activation
+    <span class="hl-kw">if</span> (requestedWorkspace === currentWorkspaceId) {
+      <span class="hl-cm">// Same workspace: route in-place without consuming activation</span>
       openDocumentInCurrentWindow(url);
-      return;
+      <span class="hl-kw">return</span>;
     }
 
-    // Different workspace: check transient activation granted by Chrome 160+
-    if (navigator.userActivation?.isActive) {
-      const child = window.open(url.href, "_blank", "noopener");
-      if (child) return;
+    <span class="hl-cm">// Different workspace: check transient activation granted by Chrome 160+</span>
+    <span class="hl-kw">if</span> (navigator.userActivation?.isActive) {
+      <span class="hl-kw">const</span> child = window.open(url.href, <span class="hl-str">"_blank"</span>, <span class="hl-str">"noopener"</span>);
+      <span class="hl-kw">if</span> (child) <span class="hl-kw">return</span>;
     }
 
-    // Fallback for Chrome &lt; 160, re-deliveries, non-user launches, or popup blockers
+    <span class="hl-cm">// Fallback for Chrome &lt; 160, re-deliveries, non-user launches, or popup blockers</span>
     showOpenWindowPrompt(url.href);
   });
 }</code></pre>
     <span class="citation">Source: <a href="https://wicg.github.io/web-app-launch/#dfn-prepare-an-application-context" target="_blank" rel="noopener">Web App Launch Handler specification</a>; <a href="https://chromestatus.com/feature/5191118118584320" target="_blank" rel="noopener">ChromeStatus 5191118118584320</a>; <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v160/webapplaunch-user-activation-on-focus-existing-launch-delivery/workspace-router/" target="_blank" rel="noopener">Chrome Platform Showcase — Workspace router</a>.</span>
 
     <h3 id="example-fullscreen-present">Launching a file directly into fullscreen presentation mode</h3>
-    <pre><code>if ("launchQueue" in window) {
-  window.launchQueue.setConsumer(async (launchParams) =&gt; {
-    const [fileHandle] = launchParams.files ?? [];
-    if (!fileHandle) return;
+    <pre><code><span class="hl-kw">if</span> (<span class="hl-str">"launchQueue"</span> <span class="hl-kw">in</span> window) {
+  window.launchQueue.setConsumer(<span class="hl-kw">async</span> (launchParams) =&gt; {
+    <span class="hl-kw">const</span> [fileHandle] = launchParams.files ?? [];
+    <span class="hl-kw">if</span> (!fileHandle) <span class="hl-kw">return</span>;
 
-    const file = await fileHandle.getFile();
-    await loadDeckIntoStage(await file.text());
+    <span class="hl-kw">const</span> file = <span class="hl-kw">await</span> fileHandle.getFile();
+    <span class="hl-kw">await</span> loadDeckIntoStage(<span class="hl-kw">await</span> file.text());
 
-    const stage = document.getElementById("slide-stage");
-    // Only request fullscreen while the single-launch transient activation is still active
-    if (navigator.userActivation?.isActive) {
-      try {
-        await stage.requestFullscreen();
-        return;
-      } catch (err) {
-        console.warn("Fullscreen request failed:", err);
+    <span class="hl-kw">const</span> stage = document.getElementById(<span class="hl-str">"slide-stage"</span>);
+    <span class="hl-cm">// Only request fullscreen while the single-launch transient activation is still active</span>
+    <span class="hl-kw">if</span> (navigator.userActivation?.isActive) {
+      <span class="hl-kw">try</span> {
+        <span class="hl-kw">await</span> stage.requestFullscreen();
+        <span class="hl-kw">return</span>;
+      } <span class="hl-kw">catch</span> (err) {
+        console.warn(<span class="hl-str">"Fullscreen request failed:"</span>, err);
       }
     }
 
-    // Offer a one-click Present button when activation was absent or already expired
-    document.getElementById("present-btn").hidden = false;
+    <span class="hl-cm">// Offer a one-click Present button when activation was absent or already expired</span>
+    document.getElementById(<span class="hl-str">"present-btn"</span>).hidden = <span class="hl-num">false</span>;
   });
 }</code></pre>
     <span class="citation">Source: <a href="https://wicg.github.io/web-app-launch/#launchparams-interface" target="_blank" rel="noopener">Web App Launch Handler &mdash; LaunchParams</a>; <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v160/webapplaunch-user-activation-on-focus-existing-launch-delivery/launch-to-present/" target="_blank" rel="noopener">Chrome Platform Showcase — Launch to present</a>.</span>

@@ -90,27 +90,27 @@
   <section>
     <h2 id="syntax">Protocol surface &amp; wire formats</h2>
     <p>Private Verification Tokens exposes <strong>no DOM or JavaScript API</strong> to web pages. All browser-to-origin interactions occur over HTTP and Chrome&rsquo;s component-updated issuer configuration. The complete v1 developer/operator surface verified in Chromium&rsquo;s <code>components/private_verification_tokens/</code> and <code>chrome/browser/private_verification_tokens/</code> comprises four parts:</p>
-    <pre tabindex="0"><code data-doc-test="skip" data-doc-test-reason="Protocol wire format and configuration summary, not executable JavaScript.">// 1. Redemption HTTP request header (attached by browser on cookie-free top-level navigations):
-Sec-Private-Verification-Token: &lt;base64(132-byte marshaled AthmToken)&gt;
-//    AthmToken = uint16 token_type (0xC07E) || uint8 issuer_key_id[32] (SHA-256)
-//                || uint8 t_enc[32] || uint8 P_enc[33] || uint8 Q_enc[33]
+    <pre tabindex="0"><code data-doc-test="skip" data-doc-test-reason="Protocol wire format and configuration summary, not executable JavaScript."><span class="hl-cm">// 1. Redemption HTTP request header (attached by browser on cookie-free top-level navigations):</span>
+<span class="hl-ty">Sec-Private-Verification-Token</span><span class="hl-pun">:</span> &lt;base64(<span class="hl-num">132</span>-byte marshaled AthmToken)&gt;
+<span class="hl-cm">//    AthmToken = uint16 token_type (0xC07E) || uint8 issuer_key_id[32] (SHA-256)</span>
+<span class="hl-cm">//                || uint8 t_enc[32] || uint8 P_enc[33] || uint8 Q_enc[33]</span>
 
-// 2. Issuance HTTP POST endpoint (regular profile; credentials_mode = include):
-POST &lt;issuerRequestUrl&gt; HTTP/1.1
-Accept: application/private-token-response
-Content-Type: application/private-token-request
-// Body: batchSize * 36-byte AthmTokenRequest || 4-byte big-endian version (1)
-// Response (200 OK, Content-Type: application/private-token-response, max 7168 bytes):
-// Body: batchSize * 355-byte TokenResponse (big_u[33] || big_v[33] || ts[32] || proof[257])
+<span class="hl-cm">// 2. Issuance HTTP POST endpoint (regular profile; credentials_mode = include):</span>
+<span class="hl-kw">POST</span> <span class="hl-str">&lt;issuerRequestUrl&gt;</span> <span class="hl-kw">HTTP/1.1</span>
+<span class="hl-ty">Accept</span><span class="hl-pun">:</span> application/private-token-response
+<span class="hl-ty">Content-Type</span><span class="hl-pun">:</span> application/private-token-request
+<span class="hl-cm">// Body: batchSize * 36-byte AthmTokenRequest || 4-byte big-endian version (1)</span>
+<span class="hl-cm">// Response (200 OK, Content-Type: application/private-token-response, max 7168 bytes):</span>
+<span class="hl-cm">// Body: batchSize * 355-byte TokenResponse (big_u[33] || big_v[33] || ts[32] || proof[257])</span>
 
-// 3. Component-updated issuer configuration JSON (v1 top-level key "1"):
-//    issuers[]: { issuerRequestUrl, version: 1, publicKey, publicKeyProof,
-//                 batchSize (2..20), expiration (unix sec string),
-//                 redeemers (1..2 same-eTLD+1 HTTPS origins), deploymentId }
+<span class="hl-cm">// 3. Component-updated issuer configuration JSON (v1 top-level key "1"):</span>
+<span class="hl-cm">//    issuers[]: { issuerRequestUrl, version: 1, publicKey, publicKeyProof,</span>
+<span class="hl-cm">//                 batchSize (2..20), expiration (unix sec string),</span>
+<span class="hl-cm">//                 redeemers (1..2 same-eTLD+1 HTTPS origins), deploymentId }</span>
 
-// 4. Proxy prefetch &amp; Incognito session limits:
-//    use_proxy (default false), proxy_url ("https://pvtproxy.googleapis.com/v1:proxyRequest"),
-//    proxy_refresh_interval (5h), max_distinct_issuers_per_session = 2</code></pre>
+<span class="hl-cm">// 4. Proxy prefetch &amp; Incognito session limits:</span>
+<span class="hl-cm">//    use_proxy (default false), proxy_url ("https://pvtproxy.googleapis.com/v1:proxyRequest"),</span>
+<span class="hl-cm">//    proxy_refresh_interval (5h), max_distinct_issuers_per_session = 2</span></code></pre>
     <p>Jump directly to each contract below: <a href="#redemption-header"><code>Sec-Private-Verification-Token</code> header</a>, <a href="#issuance-endpoint">ATHM batch issuance HTTP endpoint</a>, <a href="#issuer-config-schema">issuer configuration JSON schema</a>, and <a href="#proxy-cache-and-limits">proxy cache initialization &amp; session limits</a>.</p>
     <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_parameters.h" target="_blank" rel="noopener"><code>private_verification_tokens_parameters.h</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/privacy_pass_athm_batch_request.h" target="_blank" rel="noopener"><code>privacy_pass_athm_batch_request.h</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_issuer_config.h" target="_blank" rel="noopener"><code>private_verification_tokens_issuer_config.h</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_features.cc" target="_blank" rel="noopener"><code>private_verification_tokens_features.cc</code></a>.</span>
 
@@ -195,68 +195,68 @@ Content-Type: application/private-token-request
       <figcaption>Interactive latency comparison of a CAPTCHA-style challenge versus a token check from the <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/private-verification-tokens/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase &mdash; Private Verification Tokens</a> (note: because PVT has no page-level JS API, the showcase&rsquo;s live browser probes exercise the related shipping Private State Token API while framing PVT&rsquo;s motivation; sibling demos: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/private-verification-tokens/tokens-that-exist-today/" target="_blank" rel="noopener">tokens that exist today</a>, <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/private-verification-tokens/the-request-option/" target="_blank" rel="noopener">the request option</a>). <span class="citation">Source: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v154/private-verification-tokens/friction-you-can-measure/" target="_blank" rel="noopener">chrome-platform-showcase</a>.</span></figcaption>
     </figure>
 
-    <pre tabindex="0"><code data-doc-test="js">// Server-side handler (Node / Fetch-style Request) parsing Sec-Private-Verification-Token.
-// Expected v1 marshaled AthmToken layout (132 bytes):
-//   [0..1]   uint16 big-endian token_type (0xC07E)
-//   [2..33]  32-byte SHA-256 issuer key ID
-//   [34..131] 98-byte ATHM Token (t_enc[32] || P_enc[33] || Q_enc[33])
-function parsePvtHeader(request) {
-  const header = request.headers.get("Sec-Private-Verification-Token");
-  if (!header) return { present: false };
+    <pre tabindex="0"><code data-doc-test="js"><span class="hl-cm">// Server-side handler (Node / Fetch-style Request) parsing Sec-Private-Verification-Token.</span>
+<span class="hl-cm">// Expected v1 marshaled AthmToken layout (132 bytes):</span>
+<span class="hl-cm">//   [0..1]   uint16 big-endian token_type (0xC07E)</span>
+<span class="hl-cm">//   [2..33]  32-byte SHA-256 issuer key ID</span>
+<span class="hl-cm">//   [34..131] 98-byte ATHM Token (t_enc[32] || P_enc[33] || Q_enc[33])</span>
+<span class="hl-kw">function</span> parsePvtHeader(request) {
+  <span class="hl-kw">const</span> header = request.headers.get(<span class="hl-str">"Sec-Private-Verification-Token"</span>);
+  <span class="hl-kw">if</span> (!header) <span class="hl-kw">return</span> { present: <span class="hl-num">false</span> };
 
-  const bytes = Uint8Array.from(atob(header), (c) =&gt; c.charCodeAt(0));
-  if (bytes.length !== 132) {
-    return { present: true, valid: false, reason: "unexpected-length" };
+  <span class="hl-kw">const</span> bytes = <span class="hl-ty">Uint8Array</span>.from(atob(header), (c) =&gt; c.charCodeAt(<span class="hl-num">0</span>));
+  <span class="hl-kw">if</span> (bytes.length !== <span class="hl-num">132</span>) {
+    <span class="hl-kw">return</span> { present: <span class="hl-num">true</span>, valid: <span class="hl-num">false</span>, reason: <span class="hl-str">"unexpected-length"</span> };
   }
-  const tokenType = (bytes[0] &lt;&lt; 8) | bytes[1];
-  if (tokenType !== 0xc07e) {
-    return { present: true, valid: false, reason: "unexpected-token-type" };
+  <span class="hl-kw">const</span> tokenType = (bytes[<span class="hl-num">0</span>] &lt;&lt; <span class="hl-num">8</span>) | bytes[<span class="hl-num">1</span>];
+  <span class="hl-kw">if</span> (tokenType !== <span class="hl-num">0xc07e</span>) {
+    <span class="hl-kw">return</span> { present: <span class="hl-num">true</span>, valid: <span class="hl-num">false</span>, reason: <span class="hl-str">"unexpected-token-type"</span> };
   }
-  return {
-    present: true,
-    valid: true,
+  <span class="hl-kw">return</span> {
+    present: <span class="hl-num">true</span>,
+    valid: <span class="hl-num">true</span>,
     tokenType,
-    issuerKeyId: bytes.slice(2, 34),
-    athmToken: bytes.slice(34, 132),
+    issuerKeyId: bytes.slice(<span class="hl-num">2</span>, <span class="hl-num">34</span>),
+    athmToken: bytes.slice(<span class="hl-num">34</span>, <span class="hl-num">132</span>),
   };
 }</code></pre>
     <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/privacy_pass_athm_batch_request.h" target="_blank" rel="noopener"><code>privacy_pass_athm_batch_request.h</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_parameters.h" target="_blank" rel="noopener"><code>private_verification_tokens_parameters.h</code></a>.</span>
 
     <h3 id="example-issuance">HTTP token issuance request and response exchange</h3>
-    <pre tabindex="0"><code data-doc-test="http">POST /pvt/issue HTTP/1.1
-Host: issuer.example
-Cookie: session=...
-Accept: application/private-token-response
-Content-Type: application/private-token-request
-Content-Length: 364
+    <pre tabindex="0"><code data-doc-test="http"><span class="hl-kw">POST</span> <span class="hl-str">/pvt/issue</span> <span class="hl-kw">HTTP/1.1</span>
+<span class="hl-ty">Host</span><span class="hl-pun">:</span> issuer.example
+<span class="hl-ty">Cookie</span><span class="hl-pun">:</span> session=...
+<span class="hl-ty">Accept</span><span class="hl-pun">:</span> application/private-token-response
+<span class="hl-ty">Content-Type</span><span class="hl-pun">:</span> application/private-token-request
+<span class="hl-ty">Content-Length</span><span class="hl-pun">:</span> <span class="hl-num">364</span>
 
-&lt;10 * 36-byte AthmTokenRequest structs + 4-byte big-endian version 0x00000001&gt;
+&lt;<span class="hl-num">10</span> * <span class="hl-num">36</span>-byte AthmTokenRequest structs + <span class="hl-num">4</span>-byte big-endian version <span class="hl-num">0x00000001</span>&gt;
 
 ---
 
-HTTP/1.1 200 OK
-Content-Type: application/private-token-response
-Content-Length: 3550
+<span class="hl-kw">HTTP/1.1</span> <span class="hl-num">200</span> <span class="hl-ty">OK</span>
+<span class="hl-ty">Content-Type</span><span class="hl-pun">:</span> application/private-token-response
+<span class="hl-ty">Content-Length</span><span class="hl-pun">:</span> <span class="hl-num">3550</span>
 
-&lt;10 * 355-byte ATHM TokenResponse structs (big_u[33] || big_v[33] || ts[32] || proof[257])&gt;</code></pre>
+&lt;<span class="hl-num">10</span> * <span class="hl-num">355</span>-byte ATHM TokenResponse structs (big_u[<span class="hl-num">33</span>] || big_v[<span class="hl-num">33</span>] || ts[<span class="hl-num">32</span>] || proof[<span class="hl-num">257</span>])&gt;</code></pre>
     <span class="citation">Source: <a href="https://github.com/explainers-by-googlers/private-verification-tokens#token-issuance-1" target="_blank" rel="noopener">PVT explainer &mdash; Request/Response Details</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_fetcher.cc" target="_blank" rel="noopener"><code>private_verification_tokens_fetcher.cc</code></a>.</span>
 
     <h3 id="example-issuer-config">Component-updater / custom issuer configuration JSON (v1)</h3>
     <pre tabindex="0"><code data-doc-test="json">{
-  "1": {
-    "issuers": [
+  <span class="hl-attr">"1"</span>: {
+    <span class="hl-attr">"issuers"</span>: [
       {
-        "issuerRequestUrl": "https://issuer.example/pvt/issue",
-        "version": 1,
-        "publicKey": "&lt;base64-encoded-athm-public-key&gt;",
-        "publicKeyProof": "&lt;base64-encoded-athm-public-key-proof&gt;",
-        "batchSize": 10,
-        "expiration": "1796860800",
-        "redeemers": [
-          "https://issuer.example",
-          "https://www.issuer.example"
+        <span class="hl-attr">"issuerRequestUrl"</span>: <span class="hl-str">"https://issuer.example/pvt/issue"</span>,
+        <span class="hl-attr">"version"</span>: <span class="hl-num">1</span>,
+        <span class="hl-attr">"publicKey"</span>: <span class="hl-str">"&lt;base64-encoded-athm-public-key&gt;"</span>,
+        <span class="hl-attr">"publicKeyProof"</span>: <span class="hl-str">"&lt;base64-encoded-athm-public-key-proof&gt;"</span>,
+        <span class="hl-attr">"batchSize"</span>: <span class="hl-num">10</span>,
+        <span class="hl-attr">"expiration"</span>: <span class="hl-str">"1796860800"</span>,
+        <span class="hl-attr">"redeemers"</span>: [
+          <span class="hl-str">"https://issuer.example"</span>,
+          <span class="hl-str">"https://www.issuer.example"</span>
         ],
-        "deploymentId": "issuer-example-v1"
+        <span class="hl-attr">"deploymentId"</span>: <span class="hl-str">"issuer-example-v1"</span>
       }
     ]
   }
@@ -264,11 +264,11 @@ Content-Length: 3550
     <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_issuer_config.h" target="_blank" rel="noopener"><code>private_verification_tokens_issuer_config.h</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_issuer_config.cc" target="_blank" rel="noopener"><code>private_verification_tokens_issuer_config.cc</code></a>.</span>
 
     <h3 id="example-proxy-testing">Enabling PVT and proxy cache prefetch locally in Chromium</h3>
-    <pre tabindex="0"><code data-doc-test="shell"># Enable Private Verification Tokens with optional proxy cache prefetching
-# (default proxy_url is https://pvtproxy.googleapis.com/v1:proxyRequest;
-#  Incognito redemption stays capped at max_distinct_issuers_per_session = 2)
-google-chrome \
-  --enable-features="EnablePrivateVerificationTokens:use_proxy/true/proxy_url/https%3A%2F%2Fpvtproxy.googleapis.com%2Fv1%3AproxyRequest"</code></pre>
+    <pre tabindex="0"><code data-doc-test="shell"><span class="hl-cm"># Enable Private Verification Tokens with optional proxy cache prefetching</span>
+<span class="hl-cm"># (default proxy_url is https://pvtproxy.googleapis.com/v1:proxyRequest;</span>
+<span class="hl-cm">#  Incognito redemption stays capped at max_distinct_issuers_per_session = 2)</span>
+<span class="hl-kw">google-chrome</span> \
+  <span class="hl-attr">--enable-features</span><span class="hl-pun">=</span><span class="hl-str">"EnablePrivateVerificationTokens:use_proxy/true/proxy_url/https%3A%2F%2Fpvtproxy.googleapis.com%2Fv1%3AproxyRequest"</span></code></pre>
     <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/net/base/features.cc" target="_blank" rel="noopener"><code>net/base/features.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_features.cc" target="_blank" rel="noopener"><code>private_verification_tokens_features.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/components/private_verification_tokens/common/private_verification_tokens_parameters.cc" target="_blank" rel="noopener"><code>private_verification_tokens_parameters.cc</code></a>.</span>
   </section>
 

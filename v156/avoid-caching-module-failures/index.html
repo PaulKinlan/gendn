@@ -84,11 +84,11 @@
   <section>
     <h2 id="syntax">Syntax &amp; entry points</h2>
     <p>This feature introduces no new JavaScript syntax or Web APIs. It modifies the runtime module-loading contract behind existing ES module entry points &mdash; dynamic <code>import()</code> (including import attributes for JSON/CSS modules), static <code>import</code> dependency graphs, and <code>&lt;script type="module"&gt;</code> &mdash; all keyed in the environment&rsquo;s <strong>module map</strong> by the <code>(requestURL, moduleType)</code> tuple. Failed fetches reject with a <code>TypeError</code> and evict the module map entry, while parse failures reject with a <code>SyntaxError</code> and remain cached:</p>
-    <pre tabindex="0"><code data-doc-test="js">// Existing dynamic import() entry points governed by the module map (requestURL, moduleType)
-async function loadModules() {
-  const jsMod = await import("/assets/widget.js");
-  const jsonMod = await import("/assets/config.json", { with: { type: "json" } });
-  return { jsMod, jsonMod };
+    <pre tabindex="0"><code data-doc-test="js"><span class="hl-cm">// Existing dynamic import() entry points governed by the module map (requestURL, moduleType)</span>
+<span class="hl-kw">async</span> <span class="hl-kw">function</span> loadModules() {
+  <span class="hl-kw">const</span> jsMod = <span class="hl-kw">await</span> <span class="hl-kw">import</span>(<span class="hl-str">"/assets/widget.js"</span>);
+  <span class="hl-kw">const</span> jsonMod = <span class="hl-kw">await</span> <span class="hl-kw">import</span>(<span class="hl-str">"/assets/config.json"</span>, { <span class="hl-kw">with</span>: { <span class="hl-kw">type</span>: <span class="hl-str">"json"</span> } });
+  <span class="hl-kw">return</span> { jsMod, jsonMod };
 }</code></pre>
     <p>This reference covers both halves of the updated module map contract: <a href="#failed-fetch-eviction">module map eviction on failed fetches</a> and <a href="#dedup-and-cached-errors">in-flight callback deduplication vs. permanently cached parse/evaluation errors</a>.</p>
     <span class="citation">Source: <a href="https://html.spec.whatwg.org/multipage/webappapis.html#fetch-a-single-module-script" target="_blank" rel="noopener">HTML Living Standard &mdash; Fetch a single module script</a>; <a href="https://github.com/whatwg/html/pull/10327" target="_blank" rel="noopener">whatwg/html#10327</a>.</span>
@@ -159,41 +159,41 @@ async function loadModules() {
       <figcaption>Live interactive demo recovering a dynamically imported module after simulated network failures without reloading or cache-busting the URL. Sibling demos on the <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/avoid-caching-module-failures/" target="_blank" rel="noopener" data-demo-rel="related">Chrome Platform Showcase feature index</a>: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/avoid-caching-module-failures/retry-refetch-probe/" target="_blank" rel="noopener">retry refetch probe</a> and <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/avoid-caching-module-failures/what-stays-cached/" target="_blank" rel="noopener">what stays cached (parse vs. fetch failure)</a>. <span class="citation">Source: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v156/avoid-caching-module-failures/flaky-network-recovery/" target="_blank" rel="noopener">chrome-platform-showcase</a>.</span></figcaption>
     </figure>
 
-    <pre tabindex="0"><code data-doc-test="js">async function importWithRetry(specifier, { maxAttempts = 3, baseDelayMs = 300 } = {}) {
-  let lastError;
-  for (let attempt = 1; attempt &lt;= maxAttempts; attempt++) {
-    try {
-      // Retries reuse the canonical URL — no cache-busting query string needed
-      // because failed fetches are evicted from the module map.
-      return await import(specifier);
-    } catch (err) {
+    <pre tabindex="0"><code data-doc-test="js"><span class="hl-kw">async</span> <span class="hl-kw">function</span> importWithRetry(specifier, { maxAttempts = <span class="hl-num">3</span>, baseDelayMs = <span class="hl-num">300</span> } = {}) {
+  <span class="hl-kw">let</span> lastError;
+  <span class="hl-kw">for</span> (<span class="hl-kw">let</span> attempt = <span class="hl-num">1</span>; attempt &lt;= maxAttempts; attempt++) {
+    <span class="hl-kw">try</span> {
+      <span class="hl-cm">// Retries reuse the canonical URL — no cache-busting query string needed</span>
+      <span class="hl-cm">// because failed fetches are evicted from the module map.</span>
+      <span class="hl-kw">return</span> <span class="hl-kw">await</span> <span class="hl-kw">import</span>(specifier);
+    } <span class="hl-kw">catch</span> (err) {
       lastError = err;
-      // SyntaxError indicates a parse/link error (which remains cached in the module map);
-      // only retry TypeError fetch failures.
-      if (!(err instanceof TypeError) || attempt === maxAttempts) {
-        throw err;
+      <span class="hl-cm">// SyntaxError indicates a parse/link error (which remains cached in the module map);</span>
+      <span class="hl-cm">// only retry TypeError fetch failures.</span>
+      <span class="hl-kw">if</span> (!(err <span class="hl-kw">instanceof</span> <span class="hl-ty">TypeError</span>) || attempt === maxAttempts) {
+        <span class="hl-kw">throw</span> err;
       }
-      const delay = baseDelayMs * (2 ** (attempt - 1));
-      await new Promise((resolve) =&gt; setTimeout(resolve, delay));
+      <span class="hl-kw">const</span> delay = baseDelayMs * (<span class="hl-num">2</span> ** (attempt - <span class="hl-num">1</span>));
+      <span class="hl-kw">await</span> <span class="hl-kw">new</span> <span class="hl-ty">Promise</span>((resolve) =&gt; setTimeout(resolve, delay));
     }
   }
-  throw lastError;
+  <span class="hl-kw">throw</span> lastError;
 }</code></pre>
     <span class="citation">Source: <a href="https://html.spec.whatwg.org/multipage/webappapis.html#fetch-a-single-module-script" target="_blank" rel="noopener">HTML Living Standard</a>; <a href="https://gist.github.com/yoavweiss/a54501545ab2ad22bfde0ebed02a115c" target="_blank" rel="noopener">Avoid caching module failures explainer</a>.</span>
 
     <h3 id="example-fallback">Legacy-browser fallback &amp; JSON module type-attribute retry</h3>
-    <pre tabindex="0"><code data-doc-test="js">// If you must also support older engines (Chrome &lt;=155, Firefox &lt;=154, Safari stable)
-// that permanently cache null fetch failures, fall back to a retry query param only
-// after confirming a plain retry failed without hitting the network.
-async function importJsonConfig(url) {
-  try {
-    return await import(url, { with: { type: "json" } });
-  } catch (err) {
-    if (err instanceof TypeError) {
-      // Retry the same module map key (url, "json") on Chrome 156+ / Firefox 155+
-      return await import(url, { with: { type: "json" } });
+    <pre tabindex="0"><code data-doc-test="js"><span class="hl-cm">// If you must also support older engines (Chrome &lt;=155, Firefox &lt;=154, Safari stable)</span>
+<span class="hl-cm">// that permanently cache null fetch failures, fall back to a retry query param only</span>
+<span class="hl-cm">// after confirming a plain retry failed without hitting the network.</span>
+<span class="hl-kw">async</span> <span class="hl-kw">function</span> importJsonConfig(url) {
+  <span class="hl-kw">try</span> {
+    <span class="hl-kw">return</span> <span class="hl-kw">await</span> <span class="hl-kw">import</span>(url, { <span class="hl-kw">with</span>: { <span class="hl-kw">type</span>: <span class="hl-str">"json"</span> } });
+  } <span class="hl-kw">catch</span> (err) {
+    <span class="hl-kw">if</span> (err <span class="hl-kw">instanceof</span> <span class="hl-ty">TypeError</span>) {
+      <span class="hl-cm">// Retry the same module map key (url, "json") on Chrome 156+ / Firefox 155+</span>
+      <span class="hl-kw">return</span> <span class="hl-kw">await</span> <span class="hl-kw">import</span>(url, { <span class="hl-kw">with</span>: { <span class="hl-kw">type</span>: <span class="hl-str">"json"</span> } });
     }
-    throw err;
+    <span class="hl-kw">throw</span> err;
   }
 }</code></pre>
     <span class="citation">Source: <a href="https://raw.githubusercontent.com/web-platform-tests/wpt/master/html/semantics/scripting-1/the-script-element/json-module/repeated-imports.any.js" target="_blank" rel="noopener">WPT <code>json-module/repeated-imports.any.js</code></a>.</span>
