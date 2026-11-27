@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Digital Credentials API (issuance support) — Chrome 155 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .scroll-table { min-width: 30rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v155/">&larr; Chrome 155 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v155 &middot; identity &middot; enabled by default</p>
+    <h1>Digital Credentials API (issuance support)</h1>
+
+    <p class="lede">Extends <code>navigator.credentials.create()</code> with a <code>digital</code> option (<code>DigitalCredentialCreationOptions</code>) and the <code>digital-credentials-create</code> Permissions Policy so issuing websites &mdash; such as governments, universities, or banks &mdash; can securely provision digital credentials (for example via OpenID4VCI) into a user&rsquo;s wallet application using Android Credential Manager on Android or cross-device CTAP on desktop, returning a <code>DigitalCredential</code> response.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; credential issuance ships in Chrome 155 (desktop &amp; Android); presentation shipped in Chrome 141 and Safari 26, while Firefox opposes the API and Safari has no issuance release yet</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 155 (desktop &amp; Android; no WebView or iOS)</li>
+        <li>Edge &middot; Mirrors Chromium (155)</li>
+        <li class="limited">Firefox &middot; Negative position (not implemented)</li>
+        <li class="limited">Safari &middot; Presentation in 26; issuance not shipped yet</li>
+      </ul>
+      <p><a href="https://api.webstatus.dev/v1/features/digital-credentials" target="_blank" rel="noopener">webstatus.dev <code>digital-credentials</code></a> reports <strong>Limited availability</strong> (tracking presentation support in Chrome 141 and Safari 26; checked 2026-11-27). <a href="https://github.com/mdn/browser-compat-data/blob/main/api/DigitalCredential.json" target="_blank" rel="noopener">BCD <code>api/DigitalCredential.json</code></a> and <a href="https://github.com/mdn/browser-compat-data/blob/main/api/CredentialsContainer.json" target="_blank" rel="noopener">BCD <code>api/CredentialsContainer.json</code></a> do not yet track the Chrome 155 <code>create({ digital })</code> issuance path or the <code>digital-credentials-create</code> Permissions Policy. MDN has no dedicated <code>DigitalCredential</code> reference page and its <a href="https://developer.mozilla.org/en-US/docs/Web/API/CredentialsContainer/create" target="_blank" rel="noopener"><code>CredentialsContainer.create()</code> page</a> does not document <code>digital</code>.</p>
+    </div>
+  </header>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#at-a-glance">At a glance</a></li>
+      <li><a href="#why">Why it exists</a></li>
+      <li><a href="#syntax">Syntax</a></li>
+      <li><a href="#credentials-create-digital"><code>create({ digital })</code></a></li>
+      <li><a href="#creation-options"><code>DigitalCredentialCreationOptions</code></a></li>
+      <li><a href="#create-request"><code>DigitalCredentialCreateRequest</code></a></li>
+      <li><a href="#digital-credential"><code>DigitalCredential</code></a></li>
+      <li><a href="#permissions-policy"><code>digital-credentials-create</code></a></li>
+      <li><a href="#errors">Errors</a></li>
+      <li><a href="#context">Context &amp; permissions</a></li>
+      <li><a href="#lifecycle">Lifecycle &amp; transport</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#security-and-privacy">Security &amp; privacy</a></li>
+      <li><a href="#specifications">Specifications</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="At a glance">
+    <table class="doc-table">
+      <tr><th scope="row">Shipped in</th><td>Chrome 155 (desktop and Android; not Android WebView or iOS) &mdash; filed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=155" target="_blank" rel="noopener">milestone=155 listing</a> (<a href="https://chromestatus.com/api/v0/features/5099333963874304" target="_blank" rel="noopener">ChromeStatus API record 5099333963874304</a>). Previously ran an Origin Trial in Chrome 143&ndash;148.</td></tr>
+      <tr><th scope="row">Runtime flag</th><td>Blink runtime feature <code>WebIdentityDigitalCredentialsCreation</code> is <code>status: "stable"</code> (<code>base_feature: "none"</code>) in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener"><code>runtime_enabled_features.json5</code></a>; legacy flag name <code>web-identity-digital-credentials-creation</code>.</td></tr>
+      <tr><th scope="row">Permissions Policy</th><td><code>digital-credentials-create</code> (default allowlist <code>'self'</code>; registered in <a href="https://chromium.googlesource.com/chromium/src/+/main/services/network/public/cpp/permissions_policy/permissions_policy_features.json5" target="_blank" rel="noopener"><code>permissions_policy_features.json5</code></a>).</td></tr>
+      <tr><th scope="row">Allowed issuance protocols (Blink)</th><td><code>"openid4vci"</code> and <code>"openid4vci-v1"</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/credentialmanagement/digital_identity_credential.cc" target="_blank" rel="noopener"><code>CheckDigitalCredentialSupportedProtocol()</code></a> (verify dynamically with <code>DigitalCredential.userAgentAllowsProtocol()</code>).</td></tr>
+      <tr><th scope="row">Specification &amp; explainer</th><td><a href="https://w3c-fedid.github.io/digital-credentials/" target="_blank" rel="noopener">W3C Digital Credentials API</a> &middot; <a href="https://github.com/w3c-fedid/digital-credentials/blob/main/explainer.md" target="_blank" rel="noopener">Digital Credentials Explainer</a></td></tr>
+      <tr><th scope="row">Intent &amp; bug</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a9851b6.e8a51b51.40473.0000.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a> &middot; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/68ed3208.050a0220.30571e.0360.GAE%40google.com" target="_blank" rel="noopener">Intent to Experiment</a> &middot; <a href="https://crbug.com/378330032" target="_blank" rel="noopener">crbug.com/378330032</a></td></tr>
+      <tr><th scope="row">TAG review</th><td><a href="https://github.com/w3ctag/design-reviews/issues/1119" target="_blank" rel="noopener">w3ctag/design-reviews#1119</a> (Issues addressed)</td></tr>
+      <tr><th scope="row">Chromium source</th><td><a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/credentialmanagement/credential_creation_options.idl" target="_blank" rel="noopener"><code>credential_creation_options.idl</code></a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/credentialmanagement/digital_credential_creation_options.idl" target="_blank" rel="noopener"><code>digital_credential_creation_options.idl</code></a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/credentialmanagement/digital_credential.idl" target="_blank" rel="noopener"><code>digital_credential.idl</code></a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/credentialmanagement/digital_identity_credential.cc" target="_blank" rel="noopener"><code>digital_identity_credential.cc</code></a></td></tr>
+      <tr><th scope="row">Web platform tests</th><td><a href="https://wpt.fyi/results/digital-credentials?label=experimental&amp;label=master&amp;aligned" target="_blank" rel="noopener">wpt.fyi &mdash; digital-credentials</a></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5099333963874304" target="_blank" rel="noopener">5099333963874304 &mdash; Digital Credentials API (issuance support)</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>Chrome 141 shipped presentation support (<code>navigator.credentials.get({ digital })</code>) so relying parties could request digital IDs from a user&rsquo;s wallet, but credential issuers still had to rely on custom URL schemes, deep links, or opaque QR redirects to provision credentials into a mobile wallet &mdash; mechanisms that the browser and OS cannot mediate consistently across platforms or protect against origin spoofing. Adding issuance support to <code>navigator.credentials.create({ digital })</code> routes provisioning requests through Android Credential Manager (CredMan) on Android and cross-device CTAP on desktop, binding the issuing origin cryptographically to the request and giving users a consistent browser-mediated consent flow.</p>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5099333963874304" target="_blank" rel="noopener">ChromeStatus 5099333963874304</a>; <a href="https://github.com/w3c-fedid/digital-credentials/blob/main/explainer.md" target="_blank" rel="noopener">Digital Credentials Explainer</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>WebIDL for credential issuance from <a href="https://w3c-fedid.github.io/digital-credentials/#the-digitalcredentialcreationoptions-dictionary" target="_blank" rel="noopener">W3C Digital Credentials &sect;7.5&ndash;7.7</a> and Blink&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/credentialmanagement/digital_credential_creation_options.idl" target="_blank" rel="noopener"><code>digital_credential_creation_options.idl</code></a> and <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/credentialmanagement/digital_credential.idl" target="_blank" rel="noopener"><code>digital_credential.idl</code></a>:</p>
+    <pre tabindex="0"><code data-doc-test="idl">partial dictionary CredentialCreationOptions {
+  DigitalCredentialCreationOptions digital;
+};
+
+dictionary DigitalCredentialCreationOptions {
+  required sequence&lt;DigitalCredentialCreateRequest&gt; requests;
+};
+
+dictionary DigitalCredentialCreateRequest {
+  required DOMString protocol;
+  required object data;
+};
+
+[Exposed=Window, SecureContext]
+interface DigitalCredential : Credential {
+  readonly attribute USVString protocol;
+  [SameObject] readonly attribute object data;
+  static boolean userAgentAllowsProtocol(DOMString protocol);
+  object toJSON();
+};</code></pre>
+    <p>Permissions Policy directive header and iframe delegation syntax from <a href="https://w3c-fedid.github.io/digital-credentials/#permissions-policy-integration" target="_blank" rel="noopener">W3C Digital Credentials &sect;9</a>:</p>
+    <pre tabindex="0"><code data-doc-test="http">Permissions-Policy: digital-credentials-create=(self "https://issuer.example")</code></pre>
+    <p>This reference documents every surface of digital credential issuance: <a href="#credentials-create-digital"><code>navigator.credentials.create({ digital })</code></a>, <a href="#creation-options"><code>DigitalCredentialCreationOptions</code> (<code>requests</code>)</a>, <a href="#create-request"><code>DigitalCredentialCreateRequest</code> (<code>protocol</code>, <code>data</code>)</a>, <a href="#digital-credential"><code>DigitalCredential</code> (<code>protocol</code>, <code>data</code>, <code>userAgentAllowsProtocol()</code>, <code>toJSON()</code>)</a>, and the <a href="#permissions-policy"><code>digital-credentials-create</code> Permissions Policy</a>.</p>
+    <span class="citation">Source: <a href="https://w3c-fedid.github.io/digital-credentials/#the-digitalcredentialcreationoptions-dictionary" target="_blank" rel="noopener">W3C Digital Credentials &sect;7.5&ndash;7.7</a>; <a href="https://w3c-fedid.github.io/digital-credentials/#permissions-policy-integration" target="_blank" rel="noopener">&sect;9 Permissions Policy</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/credentialmanagement/credential_creation_options.idl" target="_blank" rel="noopener">Blink <code>credential_creation_options.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/credentialmanagement/digital_credential.idl" target="_blank" rel="noopener">Blink <code>digital_credential.idl</code></a>.</span>
+
+    <h3 id="credentials-create-digital"><code>navigator.credentials.create({ digital, signal })</code></h3>
+    <p><strong>Inputs.</strong> A <code>CredentialCreationOptions</code> dictionary carrying the <code>digital</code> member (a <code>DigitalCredentialCreationOptions</code> object) and an optional <code>signal</code> (<code>AbortSignal</code>) for cancellation. Per <a href="https://w3c-fedid.github.io/digital-credentials/#the-digitalcredential-interface" target="_blank" rel="noopener">W3C Digital Credentials &sect;7.7</a>, <code>DigitalCredential</code> mandates user mediation (<code>[[implicitMediation]] = "required"</code>), so interactive user consent is always required regardless of <code>mediation</code>.</p>
+    <p><strong>Outputs &amp; behavior.</strong> Returns a <code>Promise&lt;Credential?&gt;</code> that resolves to a <code>DigitalCredential</code> instance containing the wallet&rsquo;s issuance response (<code>protocol</code> and <code>data</code>), or rejects with a <code>DOMException</code> or <code>TypeError</code> on policy, activation, validation, cancellation, or transport failure.</p>
+    <span class="citation">Source: <a href="https://w3c-fedid.github.io/digital-credentials/#create-origin-options-sameoriginwithancestors-internal-method" target="_blank" rel="noopener">W3C Digital Credentials &mdash; <code>[[Create]]</code> internal method</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/credentialmanagement/authentication_credentials_container.cc" target="_blank" rel="noopener">Blink <code>authentication_credentials_container.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/credentialmanagement/digital_identity_credential.cc" target="_blank" rel="noopener">Blink <code>digital_identity_credential.cc</code></a>.</span>
+
+    <h3 id="creation-options"><code>DigitalCredentialCreationOptions</code> (<code>requests</code>)</h3>
+    <p><strong>Inputs.</strong> A dictionary with one required member: <code>requests</code>, a non-empty <code>sequence&lt;DigitalCredentialCreateRequest&gt;</code> listing one or more protocol-specific issuance requests the issuer can fulfill (allowing the issuer to supply fallback protocol versions in a single call).</p>
+    <p><strong>Outputs &amp; behavior.</strong> Blink filters <code>requests</code> through <code>FilterSupportedRequests(..., kIssuance)</code> before checking user activation or running JSON serialization. Requests with unsupported protocols are dropped; if the filtered list is empty (including when <code>requests</code> is <code>[]</code>), <code>navigator.credentials.create()</code> rejects with a <code>TypeError</code> without invoking the wallet UI.</p>
+    <span class="citation">Source: <a href="https://w3c-fedid.github.io/digital-credentials/#the-digitalcredentialcreationoptions-dictionary" target="_blank" rel="noopener">W3C Digital Credentials &sect;7.5 <code>DigitalCredentialCreationOptions</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/credentialmanagement/digital_identity_credential.cc" target="_blank" rel="noopener">Blink <code>digital_identity_credential.cc</code></a>.</span>
+
+    <h3 id="create-request"><code>DigitalCredentialCreateRequest</code> (<code>protocol</code>, <code>data</code>)</h3>
+    <p><strong>Inputs.</strong> Each entry in <code>requests</code> requires two members:</p>
+    <ul>
+      <li><code>protocol</code> (<code>DOMString</code>, required): Registry identifier for the issuance protocol. In Chrome 155&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/credentialmanagement/digital_identity_credential.cc" target="_blank" rel="noopener"><code>CheckDigitalCredentialSupportedProtocol()</code></a>, allowed issuance protocols are <code>"openid4vci"</code> and <code>"openid4vci-v1"</code>.</li>
+      <li><code>data</code> (<code>object</code>, required): Protocol-specific issuance payload (for example, an OpenID4VCI credential offer object). Must be JSON-serializable via <code>JSON.stringify()</code> (no circular references, <code>BigInt</code> values, or throwing getters).</li>
+    </ul>
+    <p><strong>Outputs &amp; behavior.</strong> Blink serializes each surviving request&rsquo;s <code>data</code> object to JSON and forwards <code>{ protocol, data }</code> over Mojo to the browser process, which attaches the verified requesting origin and hands the payload to Android CredMan or the cross-device CTAP transport.</p>
+    <span class="citation">Source: <a href="https://w3c-fedid.github.io/digital-credentials/#the-digitalcredentialcreaterequest-dictionary" target="_blank" rel="noopener">W3C Digital Credentials &sect;7.6 <code>DigitalCredentialCreateRequest</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/credentialmanagement/digital_credential_creation_options.idl" target="_blank" rel="noopener">Blink <code>digital_credential_creation_options.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/credentialmanagement/digital_identity_credential.cc" target="_blank" rel="noopener">Blink <code>digital_identity_credential.cc</code></a>.</span>
+
+    <h3 id="digital-credential"><code>DigitalCredential</code> interface (<code>protocol</code>, <code>data</code>, <code>userAgentAllowsProtocol()</code>, <code>toJSON()</code>)</h3>
+    <p><strong>Inputs &amp; members.</strong> Returned by a resolved <code>navigator.credentials.create({ digital })</code> promise (and shared with presentation via <code>get({ digital })</code>). Inherits <code>id</code> (empty string <code>""</code>) and <code>type</code> (<code>"digital"</code>) from <code>Credential</code>, and defines:</p>
+    <ul>
+      <li><code>credential.protocol</code> (<code>readonly attribute USVString</code>): The issuance protocol identifier selected by the wallet (for example <code>"openid4vci-v1"</code>).</li>
+      <li><code>credential.data</code> (<code>[SameObject] readonly attribute object</code>): The protocol-specific response object returned by the wallet (parsed from the wallet&rsquo;s JSON response).</li>
+      <li><code>DigitalCredential.userAgentAllowsProtocol(protocol)</code> (<code>static boolean</code>): Takes a <code>DOMString</code> protocol identifier and returns <code>true</code> if the user agent allows that presentation or issuance protocol (e.g., <code>"openid4vci"</code>, <code>"openid4vci-v1"</code>, <code>"openid4vp-v1-signed"</code>, <code>"org-iso-mdoc"</code>) and <code>false</code> otherwise. Does <strong>not</strong> reflect whether the OS or any installed wallet supports the protocol.</li>
+      <li><code>credential.toJSON()</code> (<code>object</code>): Returns a JSON-serializable plain object representation (<code>{ id, type, protocol, data }</code>) suitable for sending back to the issuer&rsquo;s backend via <code>JSON.stringify(credential)</code>.</li>
+    </ul>
+    <p><strong>Outputs &amp; behavior.</strong> Reading <code>data</code> repeatedly returns the same object reference (<code>[SameObject]</code>). Calling <code>DigitalCredential.userAgentAllowsProtocol("openid4vci-v1")</code> before building an issuance request lets issuers feature-detect Chrome 155 issuance support cleanly without triggering user activation or prompts.</p>
+    <span class="citation">Source: <a href="https://w3c-fedid.github.io/digital-credentials/#the-digitalcredential-interface" target="_blank" rel="noopener">W3C Digital Credentials &sect;7.7 <code>DigitalCredential</code></a>; <a href="https://w3c-fedid.github.io/digital-credentials/#dom-digitalcredential-useragentallowsprotocol" target="_blank" rel="noopener"><code>userAgentAllowsProtocol()</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/credentialmanagement/digital_credential.idl" target="_blank" rel="noopener">Blink <code>digital_credential.idl</code></a>.</span>
+
+    <h3 id="permissions-policy"><code>Permissions-Policy: digital-credentials-create</code></h3>
+    <p><strong>Inputs.</strong> Policy-controlled feature token <code>"digital-credentials-create"</code> used in the HTTP <code>Permissions-Policy</code> header or the <code>&lt;iframe allow="digital-credentials-create"&gt;</code> attribute. Default allowlist is <code>'self'</code>.</p>
+    <p><strong>Outputs &amp; behavior.</strong> Controls whether a document is permitted to call <code>navigator.credentials.create({ digital })</code>. Same-origin frames inherit access by default; cross-origin iframes are blocked (rejecting with <code>NotAllowedError</code>) unless the embedder explicitly delegates <code>allow="digital-credentials-create"</code> and the HTTP header permits that origin. Independent of <code>digital-credentials-get</code> (which governs presentation).</p>
+    <span class="citation">Source: <a href="https://w3c-fedid.github.io/digital-credentials/#dfn-digital-credentials-create" target="_blank" rel="noopener">W3C Digital Credentials &sect;9 <code>digital-credentials-create</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/services/network/public/cpp/permissions_policy/permissions_policy_features.json5" target="_blank" rel="noopener">Blink <code>permissions_policy_features.json5</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="errors">Errors and validation order</h2>
+    <p>Blink validates <code>navigator.credentials.create({ digital })</code> in a strict order inside <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/credentialmanagement/authentication_credentials_container.cc" target="_blank" rel="noopener"><code>authentication_credentials_container.cc</code></a> and <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/credentialmanagement/digital_identity_credential.cc" target="_blank" rel="noopener"><code>digital_identity_credential.cc</code></a>, always rejecting the returned promise (never throwing synchronously for runtime policy or wallet errors):</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="errors-caption">
+    <table class="doc-table scroll-table">
+      <caption id="errors-caption">Rejection conditions for <code>navigator.credentials.create({ digital })</code>, <code>DigitalCredentialCreationOptions</code>, <code>DigitalCredentialCreateRequest</code>, <code>DigitalCredential</code>, and <code>digital-credentials-create</code> in Chrome 155</caption>
+      <thead><tr><th scope="col">Condition</th><th scope="col">Rejection</th><th scope="col">Details &amp; recovery</th></tr></thead>
+      <tbody>
+        <tr><td><code>signal.aborted</code> is already <code>true</code></td><td><code>signal.reason</code> (default <code>AbortError</code>)</td><td>Check <code>signal.aborted</code> before invoking <code>create()</code> or pass a fresh <code>AbortController</code>.</td></tr>
+        <tr><td>Opaque origin or disallowed by <code>digital-credentials-create</code> Permissions Policy</td><td><code>NotAllowedError</code></td><td>Serve over HTTPS with a non-opaque origin; for cross-origin iframes, add <code>allow="digital-credentials-create"</code> and matching HTTP header.</td></tr>
+        <tr><td><code>requests</code> is empty or contains no allowed issuance <code>protocol</code></td><td><code>TypeError</code></td><td>Check <code>DigitalCredential.userAgentAllowsProtocol(protocol)</code> before calling <code>create()</code>; use <code>"openid4vci"</code> or <code>"openid4vci-v1"</code>.</td></tr>
+        <tr><td>Missing transient user activation</td><td><code>NotAllowedError</code></td><td>Invoke directly from a user gesture handler (e.g., an &ldquo;Add to Wallet&rdquo; button click).</td></tr>
+        <tr><td><code>data</code> is not JSON-serializable (circular reference, <code>BigInt</code>, throwing getter)</td><td><code>TypeError</code></td><td>Pass a plain JSON-safe object matching the protocol schema.</td></tr>
+        <tr><td>Another <code>navigator.credentials.get()</code> or <code>create()</code> digital request is already in flight</td><td><code>NotAllowedError</code></td><td>Disable the trigger button while a request is pending; allow at most one outstanding request per browsing context.</td></tr>
+        <tr><td>User cancels/declines the wallet prompt</td><td><code>NotAllowedError</code></td><td>Restore button state cleanly and let the user retry on their next click.</td></tr>
+        <tr><td>Aborted mid-flight via <code>AbortSignal</code></td><td><code>signal.reason</code> or <code>AbortError</code></td><td>Distinguish deliberate cancellation from errors in the <code>catch</code> handler.</td></tr>
+        <tr><td>Wallet / OS CredMan / CTAP transport failure</td><td><code>NetworkError</code></td><td>Surface a retryable error message or fall back to an issuer QR/deep-link flow.</td></tr>
+        <tr><td><code>DigitalCredential.prototype.toJSON()</code> called with an invalid receiver</td><td><code>TypeError</code></td><td>Invoke <code>credential.toJSON()</code> directly on the resolved <code>DigitalCredential</code> instance (standard WebIDL brand check).</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/credentialmanagement/digital_identity_credential.cc" target="_blank" rel="noopener">Blink <code>digital_identity_credential.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/credentialmanagement/authentication_credentials_container.cc" target="_blank" rel="noopener">Blink <code>authentication_credentials_container.cc</code></a>; <a href="https://w3c-fedid.github.io/digital-credentials/#create-origin-options-sameoriginwithancestors-internal-method" target="_blank" rel="noopener">W3C Digital Credentials <code>[[Create]]</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="context">Context, exposure, and prerequisites</h2>
+    <ul>
+      <li><strong>Secure Window context only:</strong> <code>DigitalCredential</code> and <code>navigator.credentials.create({ digital })</code> are exposed only on <code>Window</code> in secure contexts (<code>[Exposed=Window, SecureContext]</code>) with a non-opaque origin. Not available in Web Workers or Service Workers.</li>
+      <li><strong>Permissions Policy:</strong> Gated by <code>digital-credentials-create</code> (default allowlist <code>'self'</code>). Cross-origin iframes require explicit delegation via both the parent&rsquo;s <code>Permissions-Policy</code> header (if restricted) and <code>&lt;iframe allow="digital-credentials-create"&gt;</code>.</li>
+      <li><strong>Transient user activation:</strong> Every issuance call requires transient user activation (for example, inside a button <code>click</code> handler). Note that Blink evaluates the protocol filter on <code>DigitalCredentialCreationOptions.requests</code> <em>before</em> checking activation, so an unsupported <code>protocol</code> rejects with <code>TypeError</code> even without a click.</li>
+      <li><strong>Platform wallet prerequisites:</strong> On Android, requires a compatible wallet app registered with Android IdentityCredential Credential Manager (CredMan). On desktop, Chrome presents a cross-device CTAP QR code so a mobile wallet can complete provisioning over Bluetooth proximity. Android WebView and iOS are not supported.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/credentialmanagement/digital_credential.idl" target="_blank" rel="noopener">Blink <code>digital_credential.idl</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/credentialmanagement/digital_identity_credential.cc" target="_blank" rel="noopener">Blink <code>digital_identity_credential.cc</code></a>; <a href="https://chromestatus.com/feature/5099333963874304" target="_blank" rel="noopener">ChromeStatus 5099333963874304</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">Lifecycle, concurrency, and cancellation</h2>
+    <ol>
+      <li><strong>Feature &amp; protocol probe (no activation needed):</strong> Check <code>"DigitalCredential" in window &amp;&amp; typeof DigitalCredential.userAgentAllowsProtocol === "function" &amp;&amp; DigitalCredential.userAgentAllowsProtocol("openid4vci-v1")</code> to confirm browser support for issuance before rendering an &ldquo;Add to Wallet&rdquo; button.</li>
+      <li><strong>Single in-flight request:</strong> Chrome permits at most one active <code>navigator.credentials.get()</code> or <code>navigator.credentials.create()</code> digital credential exchange at a time; a second overlapping call rejects immediately with <code>NotAllowedError</code>.</li>
+      <li><strong>Mediated wallet handoff:</strong> On Android, Chrome hands the serialized <code>DigitalCredentialCreateRequest</code> list and verified origin to Android CredMan, which displays an OS wallet picker and user consent prompt. On desktop, Chrome displays a cross-device CTAP QR code pairing dialog so the user&rsquo;s phone wallet receives the request over a proximity-verified channel.</li>
+      <li><strong>Cancellation:</strong> Passing an <code>AbortController.signal</code> in <code>CredentialCreationOptions.signal</code> aborts the Mojo request and dismisses browser/OS UI, rejecting the promise with <code>signal.reason</code> (or <code>AbortError</code>).</li>
+      <li><strong>Completion &amp; serialization:</strong> Upon user approval and wallet completion, the promise resolves to a <code>DigitalCredential</code> whose <code>protocol</code>, <code>data</code>, and <code>toJSON()</code> carry the protocol response back to the issuing site.</li>
+    </ol>
+    <span class="citation">Source: <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/credentialmanagement/digital_identity_credential.cc" target="_blank" rel="noopener">Blink <code>digital_identity_credential.cc</code></a>; <a href="https://w3c-fedid.github.io/digital-credentials/#create-origin-options-sameoriginwithancestors-internal-method" target="_blank" rel="noopener">W3C Digital Credentials <code>[[Create]]</code></a>; <a href="https://chromestatus.com/feature/5099333963874304" target="_blank" rel="noopener">ChromeStatus 5099333963874304</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+    <p>Interactive demonstrations for this feature (same ChromeStatus ID <code>5099333963874304</code>, authored for its Chrome 143 origin trial) are published on the <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v143/digital-credentials-api-issuance-support/" target="_blank" rel="noopener">Chrome Platform Showcase &mdash; Digital Credentials API (issuance support)</a>: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v143/digital-credentials-api-issuance-support/credential-issuance/" target="_blank" rel="noopener">credential issuance flow</a>, <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v143/digital-credentials-api-issuance-support/protocol-explorer/" target="_blank" rel="noopener">protocol explorer</a>, and <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v143/digital-credentials-api-issuance-support/mdl-vs-vc-flows/" target="_blank" rel="noopener">mDL vs. VC flows</a> (linked directly rather than embedded in a cross-origin iframe because issuance is gated by <code>digital-credentials-create</code> Permissions Policy and transient user activation).</p>
+
+    <h3 id="example-issuance">Issuing a digital credential with OpenID4VCI, protocol detection, and <code>AbortSignal</code></h3>
+    <pre tabindex="0"><code data-doc-test="js">function supportsDigitalIssuance(protocol = "openid4vci-v1") {
+  return (
+    typeof window !== "undefined" &amp;&amp;
+    "DigitalCredential" in window &amp;&amp;
+    typeof window.DigitalCredential.userAgentAllowsProtocol === "function" &amp;&amp;
+    window.DigitalCredential.userAgentAllowsProtocol(protocol)
+  );
+}
+
+async function issueCredential(credentialOffer, { timeoutMs = 120000 } = {}) {
+  const candidateProtocols = ["openid4vci-v1", "openid4vci"].filter((p) =&gt;
+    supportsDigitalIssuance(p),
+  );
+
+  if (candidateProtocols.length === 0) {
+    throw new Error("This browser does not support Digital Credentials issuance.");
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() =&gt; controller.abort("Issuance timed out."), timeoutMs);
+
+  try {
+    // Must be called from a user gesture (e.g., button click handler)
+    const credential = await navigator.credentials.create({
+      digital: {
+        requests: candidateProtocols.map((protocol) =&gt; ({
+          protocol,
+          data: credentialOffer,
+        })),
+      },
+      signal: controller.signal,
+    });
+
+    if (!(credential instanceof DigitalCredential)) {
+      return null;
+    }
+
+    // Serialize via toJSON() or inspect protocol &amp; data directly
+    return {
+      protocol: credential.protocol,
+      data: credential.data,
+      payload: credential.toJSON(),
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}</code></pre>
+    <span class="citation">Source: <a href="https://w3c-fedid.github.io/digital-credentials/#the-digitalcredentialcreationoptions-dictionary" target="_blank" rel="noopener">W3C Digital Credentials &sect;7.5&ndash;7.7</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/credentialmanagement/digital_identity_credential.cc" target="_blank" rel="noopener">Blink <code>digital_identity_credential.cc</code></a>.</span>
+
+    <h3 id="example-iframe-policy">Delegating <code>digital-credentials-create</code> to an embedded issuer frame</h3>
+    <pre tabindex="0"><code data-doc-test="http">HTTP/2 200 OK
+Permissions-Policy: digital-credentials-create=(self "https://issuer.example")</code></pre>
+    <pre tabindex="0"><code data-doc-test="html">&lt;iframe
+  src="https://issuer.example/provision"
+  allow="digital-credentials-create"
+  title="Digital credential issuer"
+&gt;&lt;/iframe&gt;</code></pre>
+    <span class="citation">Source: <a href="https://w3c-fedid.github.io/digital-credentials/#dfn-digital-credentials-create" target="_blank" rel="noopener">W3C Digital Credentials &sect;9 Permissions Policy integration</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Support for Digital Credentials API issuance (<code>navigator.credentials.create({ digital })</code>, <code>DigitalCredentialCreationOptions</code>, <code>DigitalCredentialCreateRequest</code>, <code>DigitalCredential</code>, and <code>digital-credentials-create</code>) alongside presentation support. Combines ChromeStatus 5099333963874304, Blink flags, BCD <code>api/DigitalCredential.json</code>, and webstatus.dev (checked 2026-11-27).</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col">Issuance (<code>create({ digital })</code>)</th><th scope="col">Evidence / notes</th><th scope="col">Presentation (<code>get({ digital })</code>, BCD)</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Chrome (desktop &amp; Android)</th><td>155 (BCD lags)</td><td>Enabled by default in Chrome 155 on desktop (CTAP) and Android (CredMan) per <a href="https://chromestatus.com/api/v0/features/5099333963874304" target="_blank" rel="noopener">ChromeStatus 5099333963874304</a> and <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Blink <code>WebIdentityDigitalCredentialsCreation</code> (<code>status: "stable"</code>)</a>. Not supported in Android WebView or iOS.</td><td>141 (not WebView)</td></tr>
+        <tr><th scope="row">Edge</th><td>155 (mirror)</td><td>Mirrors Chromium milestone 155 rollout.</td><td>141</td></tr>
+        <tr><th scope="row">Firefox</th><td>No</td><td><a href="https://github.com/mozilla/standards-positions/issues/1003" target="_blank" rel="noopener">mozilla/standards-positions#1003</a> (Negative; <code>false</code> in BCD).</td><td>No</td></tr>
+        <tr><th scope="row">Safari (macOS &amp; iOS)</th><td>No release yet</td><td><a href="https://github.com/WebKit/standards-positions/issues/332" target="_blank" rel="noopener">WebKit/standards-positions#332</a> (Support; presentation shipped in Safari 26, no issuance release timeline announced yet).</td><td>26 (not WebView)</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5099333963874304" target="_blank" rel="noopener">ChromeStatus 5099333963874304</a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/api/DigitalCredential.json" target="_blank" rel="noopener">BCD <code>api/DigitalCredential.json</code></a>; <a href="https://api.webstatus.dev/v1/features/digital-credentials" target="_blank" rel="noopener">webstatus.dev <code>digital-credentials</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Blink <code>runtime_enabled_features.json5</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <ul>
+      <li><strong>Mandatory user mediation &amp; activation:</strong> Every <code>navigator.credentials.create({ digital })</code> call requires transient user activation and mandatory browser/OS consent UI (<code>[[implicitMediation]] = "required"</code>), preventing silent credential injection or background wallet probing.</li>
+      <li><strong>Origin binding &amp; Permissions Policy:</strong> The browser binds the calling document&rsquo;s secure, non-opaque origin to the issuance request sent to Android CredMan or the cross-device CTAP channel, and blocks cross-origin iframes unless explicitly delegated via <code>digital-credentials-create</code>.</li>
+      <li><strong>Anti-fingerprinting in <code>userAgentAllowsProtocol()</code>:</strong> Per <a href="https://w3c-fedid.github.io/digital-credentials/#dom-digitalcredential-useragentallowsprotocol" target="_blank" rel="noopener">W3C Digital Credentials &sect;7.7</a>, <code>DigitalCredential.userAgentAllowsProtocol()</code> MUST reflect only the browser&rsquo;s static protocol allowlist and MUST NOT vary based on installed wallet applications, OS version, or hardware capabilities.</li>
+      <li><strong>Cross-device proximity check:</strong> On desktop, CTAP QR pairing requires physical proximity (Bluetooth) between the desktop browser and the user&rsquo;s mobile wallet, defending against remote phishing of QR codes.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://w3c-fedid.github.io/digital-credentials/#dom-digitalcredential-useragentallowsprotocol" target="_blank" rel="noopener">W3C Digital Credentials &sect;7.7</a>; <a href="https://w3c-fedid.github.io/digital-credentials/#permissions-policy-integration" target="_blank" rel="noopener">&sect;9 Permissions Policy</a>; <a href="https://github.com/w3c-fedid/digital-credentials/blob/main/explainer.md" target="_blank" rel="noopener">Digital Credentials Explainer</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Specifications">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Specification</th><th scope="col">Section</th></tr></thead>
+      <tbody>
+        <tr><td><a href="https://w3c-fedid.github.io/digital-credentials/" target="_blank" rel="noopener">W3C Digital Credentials API</a></td><td><a href="https://w3c-fedid.github.io/digital-credentials/#the-digitalcredentialcreationoptions-dictionary" target="_blank" rel="noopener">&sect;7.5 <code>DigitalCredentialCreationOptions</code></a> &middot; <a href="https://w3c-fedid.github.io/digital-credentials/#the-digitalcredentialcreaterequest-dictionary" target="_blank" rel="noopener">&sect;7.6 <code>DigitalCredentialCreateRequest</code></a> &middot; <a href="https://w3c-fedid.github.io/digital-credentials/#the-digitalcredential-interface" target="_blank" rel="noopener">&sect;7.7 <code>DigitalCredential</code></a> &middot; <a href="https://w3c-fedid.github.io/digital-credentials/#permissions-policy-integration" target="_blank" rel="noopener">&sect;9 Permissions Policy</a></td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v143/digital-credentials-api-issuance-support/" target="_blank" rel="noopener">Chrome Platform Showcase &mdash; Digital Credentials API (issuance support) demos</a></li>
+      <li><a href="https://github.com/w3c-fedid/digital-credentials/blob/main/explainer.md" target="_blank" rel="noopener">W3C FedID Digital Credentials Explainer</a></li>
+      <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/CredentialsContainer/create" target="_blank" rel="noopener">MDN &mdash; <code>CredentialsContainer.create()</code></a></li>
+      <li><a href="https://chromestatus.com/feature/5099333963874304" target="_blank" rel="noopener">ChromeStatus &mdash; Digital Credentials API (issuance support) (5099333963874304)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>

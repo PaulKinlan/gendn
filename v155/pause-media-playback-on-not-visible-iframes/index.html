@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pause media playback on not-visible iframes — Chrome 155 — gendn</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="stylesheet" href="/public/styles.css">
+  <style>
+    .table-wrap { max-inline-size: 100%; }
+    .table-wrap:focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 2px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table code { background: transparent; border: none; padding: 0; }
+    .compat-table { min-width: 34rem; }
+    .compat-table tr > :nth-child(2) { white-space: nowrap; }
+    .scroll-table { min-width: 30rem; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="crumbs"><a href="/v155/">&larr; Chrome 155 reference</a> &middot; <a href="/features">All APIs</a></p>
+
+  <header class="lede-block">
+    <p class="eyebrow">v155 &middot; multimedia &middot; enabled by default</p>
+    <h1>Pause media playback on not-visible iframes</h1>
+
+    <p class="lede">Adds the <code>media-playback-while-not-visible</code> Permissions Policy (default allowlist <code>*</code>) so embedders can pause or block audible <code>HTMLMediaElement</code> playback and interrupt Web Audio <code>AudioContext</code> rendering inside embedded <code>&lt;iframe&gt;</code> documents whenever the frame is not visible (<code>display: none</code>, <code>visibility: hidden</code>, or zero-area <code>width</code>/<code>height</code> equal to <code>0</code>), without unloading the iframe or losing its DOM state.</p>
+
+    <div class="baseline-banner baseline-banner--paper-standard" role="note" aria-label="Baseline status">
+      <p class="baseline-status">Limited availability &mdash; enabled by default in Chrome 155 (desktop, Android, WebView); Firefox is positive on the design, and neither Firefox nor Safari ships it yet</p>
+      <ul class="baseline-browsers">
+        <li>Chrome &middot; 155 (desktop, Android, WebView)</li>
+        <li>Edge &middot; Mirrors Chromium (155; Microsoft-authored)</li>
+        <li class="limited">Firefox &middot; Positive position (not shipped yet)</li>
+        <li class="limited">Safari &middot; No signal</li>
+      </ul>
+      <p>No published <code>web-features</code> entry exists on <a href="https://api.webstatus.dev/v1/features?q=media-playback-while-not-visible" target="_blank" rel="noopener">webstatus.dev</a> yet (tracked in <a href="https://github.com/web-platform-dx/web-features/issues/4292" target="_blank" rel="noopener">web-platform-dx/web-features#4292</a>; checked 2026-11-27). <a href="https://github.com/mdn/browser-compat-data/blob/main/http/headers/Permissions-Policy.json" target="_blank" rel="noopener">BCD <code>http/headers/Permissions-Policy.json</code></a> does not yet list <code>media-playback-while-not-visible</code>, and MDN has no dedicated page for this directive.</p>
+    </div>
+  </header>
+
+  <nav class="local-nav" aria-label="On this page">
+    <p class="local-nav-label">On this page</p>
+    <ul>
+      <li><a href="#at-a-glance">At a glance</a></li>
+      <li><a href="#why">Why it exists</a></li>
+      <li><a href="#syntax">Syntax</a></li>
+      <li><a href="#policy-directive">Permissions Policy directive</a></li>
+      <li><a href="#html-media-element"><code>HTMLMediaElement</code> &amp; Autoplay</a></li>
+      <li><a href="#web-audio">Web Audio <code>AudioContext</code></a></li>
+      <li><a href="#errors">Errors &amp; rejection behavior</a></li>
+      <li><a href="#context">Context &amp; visibility rules</a></li>
+      <li><a href="#lifecycle">Lifecycle &amp; state transitions</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#browser-compatibility">Compatibility</a></li>
+      <li><a href="#security-and-privacy">Security &amp; privacy</a></li>
+      <li><a href="#specifications">Specifications</a></li>
+    </ul>
+  </nav>
+
+  <section>
+    <h2 id="at-a-glance">at a glance</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="At a glance">
+    <table class="doc-table">
+      <tr><th scope="row">Shipped in</th><td>Chrome 155 (desktop, Android, Android WebView; iOS <code>null</code>) &mdash; filed under &ldquo;Enabled by default&rdquo; in the <a href="https://chromestatus.com/api/v0/features?milestone=155" target="_blank" rel="noopener">milestone=155 listing</a> (<a href="https://chromestatus.com/api/v0/features/5082950457884672" target="_blank" rel="noopener">ChromeStatus API record 5082950457884672</a>). Previously ran an Origin Trial in Chrome 137&ndash;142 under the earlier &ldquo;not-rendered&rdquo; name before being renamed to &ldquo;not-visible&rdquo; and expanded to cover zero-area iframes.</td></tr>
+      <tr><th scope="row">Policy token &amp; default</th><td><code>media-playback-while-not-visible</code> &middot; default allowlist <code>*</code> (<code>EnableForAll</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/services/network/public/cpp/permissions_policy/permissions_policy_features.json5" target="_blank" rel="noopener"><code>permissions_policy_features.json5</code></a>)</td></tr>
+      <tr><th scope="row">Runtime flag</th><td>Blink runtime feature <code>MediaPlaybackWhileNotVisiblePermissionPolicy</code> is <code>status: "stable"</code> in <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener"><code>runtime_enabled_features.json5</code></a> (legacy flag name <code>media-playback-while-not-visible-permission-policy</code>).</td></tr>
+      <tr><th scope="row">Specification &amp; explainer</th><td><a href="https://wicg.github.io/iframe-media-pausing/" target="_blank" rel="noopener">WICG Iframe Media Pausing Draft Community Group Report</a> &middot; <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/IframeMediaPause/iframe_media_pausing.md" target="_blank" rel="noopener">Microsoft Edge Explainer</a></td></tr>
+      <tr><th scope="row">Intent &amp; bug</th><td><a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6a9af687.c266e0a9.3a8c99.0130.GAE%40google.com" target="_blank" rel="noopener">blink-dev Intent to Ship</a> &middot; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/6806b191.170a0220.2f866a.0286.GAE%40google.com" target="_blank" rel="noopener">Intent to Experiment</a> &middot; <a href="https://groups.google.com/a/chromium.org/d/msgid/blink-dev/PH7PR00MB1638C5FA59458CE0BBDC1FA6D5D72%40PH7PR00MB1638.namprd00.prod.outlook.com" target="_blank" rel="noopener">Intent to Prototype</a> &middot; <a href="https://issues.chromium.org/issues/351354996" target="_blank" rel="noopener">issues.chromium.org/351354996</a></td></tr>
+      <tr><th scope="row">TAG &amp; WHATWG</th><td><a href="https://github.com/w3ctag/design-reviews/issues/1084" target="_blank" rel="noopener">w3ctag/design-reviews#1084</a> (Issues addressed) &middot; <a href="https://github.com/whatwg/html/issues/10208" target="_blank" rel="noopener">whatwg/html#10208</a></td></tr>
+      <tr><th scope="row">Chromium source</th><td><a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/media/html_media_element.cc" target="_blank" rel="noopener"><code>html_media_element.cc</code></a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webaudio/audio_context.cc" target="_blank" rel="noopener"><code>audio_context.cc</code></a> &middot; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/frame/local_frame.cc" target="_blank" rel="noopener"><code>local_frame.cc</code></a></td></tr>
+      <tr><th scope="row">Web platform tests</th><td><a href="https://wpt.fyi/results/html/semantics/embedded-content/media-elements/media-playback-while-not-visible-permission-policy?label=master&amp;label=experimental&amp;aligned&amp;q=media-playback-while-not-visible-permission-policy" target="_blank" rel="noopener">wpt.fyi &mdash; media-elements</a> &middot; <a href="https://wpt.fyi/results/webaudio/the-audio-api/media-playback-while-not-visible-permission-policy?label=master&amp;label=experimental&amp;aligned&amp;q=media-playback-while-not-visible-permission-policy" target="_blank" rel="noopener">wpt.fyi &mdash; webaudio</a></td></tr>
+      <tr><th scope="row">ChromeStatus</th><td><a href="https://chromestatus.com/feature/5082950457884672" target="_blank" rel="noopener">5082950457884672 &mdash; Pause media playback on not-visible iframes</a></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="why">why it exists</h2>
+    <p>Web applications such as multi-tab workspaces, productivity suites, and slide/dashboard shells often embed third-party or cross-origin media inside <code>&lt;iframe&gt;</code> containers and hide those frames (via <code>display: none</code>, <code>visibility: hidden</code>, or collapsing them to zero width/height) when the user switches views. Removing or unloading the iframe destroys scroll position, form state, and network buffers and causes slow reloads when shown again; leaving it mounted lets hidden embeds keep playing audible video or Web Audio with no cross-origin way for the host page to silence them. Restricting the <code>media-playback-while-not-visible</code> Permissions Policy lets the browser pause hidden-iframe media automatically while keeping the iframe alive and responsive to JavaScript.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/iframe-media-pausing/#intro" target="_blank" rel="noopener">WICG Iframe Media Pausing &sect;1 Introduction</a>; <a href="https://chromestatus.com/feature/5082950457884672" target="_blank" rel="noopener">ChromeStatus 5082950457884672</a>; <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/IframeMediaPause/iframe_media_pausing.md" target="_blank" rel="noopener">Microsoft Edge Explainer</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="syntax">Syntax</h2>
+    <p>This feature introduces no new WebIDL interfaces or methods; its developer-facing surface is the <code>media-playback-while-not-visible</code> Permissions Policy directive (on HTTP <code>Permissions-Policy</code> response headers and <code>&lt;iframe allow&gt;</code>) coupled with normative playback hooks on <code>HTMLMediaElement</code> (<code>play()</code>, <code>pause()</code>, and autoplay) and Web Audio <code>AudioContext</code> (<code>resume()</code> and the <code>"interrupted"</code> state) from <a href="https://wicg.github.io/iframe-media-pausing/#api" target="_blank" rel="noopener">WICG Iframe Media Pausing &sect;2&ndash;3</a>:</p>
+    <pre tabindex="0"><code data-doc-test="http">Permissions-Policy: media-playback-while-not-visible=()
+Permissions-Policy: media-playback-while-not-visible=(self)
+Permissions-Policy: media-playback-while-not-visible=(self "https://trusted-audio.example")</code></pre>
+    <pre tabindex="0"><code data-doc-test="html">&lt;!-- Disallow media playback whenever this iframe (or its nested iframes) is not visible --&gt;
+&lt;iframe
+  src="https://media.example/player"
+  allow="media-playback-while-not-visible 'none'"
+  title="Embedded media player"
+&gt;&lt;/iframe&gt;</code></pre>
+    <p>This reference covers all three components of the contract: <a href="#policy-directive"><code>media-playback-while-not-visible</code> Permissions Policy directive</a>, <a href="#html-media-element"><code>HTMLMediaElement</code> &amp; Autoplay integration</a>, and <a href="#web-audio">Web Audio <code>AudioContext</code> interruption</a>.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/iframe-media-pausing/#api" target="_blank" rel="noopener">WICG Iframe Media Pausing &sect;2 API</a>; <a href="https://wicg.github.io/iframe-media-pausing/#usage-example" target="_blank" rel="noopener">&sect;2.1 Usage example</a>; <a href="https://wicg.github.io/iframe-media-pausing/#integration" target="_blank" rel="noopener">&sect;3 Integration with other specifications</a>.</span>
+
+    <h3 id="policy-directive"><code>Permissions-Policy: media-playback-while-not-visible</code></h3>
+    <p><strong>Inputs.</strong> Structured Header dictionary member <code>media-playback-while-not-visible</code> in the HTTP <code>Permissions-Policy</code> header (accepting <code>*</code>, <code>()</code>, <code>(self)</code>, or an origin allowlist), or container policy token <code>media-playback-while-not-visible</code> in <code>&lt;iframe allow="..."&gt;</code> (e.g., <code>'none'</code>, <code>'self'</code>, <code>'src'</code>, or explicit origins). The <strong>default allowlist is <code>*</code></strong> (<code>EnableForAll</code> in Blink&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/services/network/public/cpp/permissions_policy/permissions_policy_features.json5" target="_blank" rel="noopener"><code>permissions_policy_features.json5</code></a>) so existing iframes keep their historical behavior unless an embedder opts in to restricting them.</p>
+    <p><strong>Outputs &amp; behavior.</strong> Evaluates <a href="https://wicg.github.io/iframe-media-pausing/#allowed-to-play-media-while-not-rendered" target="_blank" rel="noopener">allowed to play media while not rendered</a> on each embedded document. Disabling the policy on a parent document via <code>Permissions-Policy: media-playback-while-not-visible=()</code> applies to all descendant iframes (and a child iframe cannot re-enable a policy denied by its ancestor). Setting <code>allow="media-playback-while-not-visible 'none'"</code> on a single <code>&lt;iframe&gt;</code> restricts that iframe and all of its nested subframes.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/iframe-media-pausing/#media-playback-while-not-visible" target="_blank" rel="noopener">WICG Iframe Media Pausing &sect;2</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/services/network/public/cpp/permissions_policy/permissions_policy_features.json5" target="_blank" rel="noopener">Blink <code>permissions_policy_features.json5</code></a>.</span>
+
+    <h3 id="html-media-element"><code>HTMLMediaElement</code> (<code>&lt;audio&gt;</code> / <code>&lt;video&gt;</code>) &amp; Autoplay integration</h3>
+    <p><strong>Inputs.</strong> Any <code>HTMLMediaElement</code> inside an embedded navigable whose document is disallowed from using <code>media-playback-while-not-visible</code> &mdash; whether playback is triggered via <code>mediaElement.play()</code> or the <code>autoplay</code> attribute.</p>
+    <p><strong>Outputs &amp; behavior.</strong> Per <a href="https://wicg.github.io/iframe-media-pausing/#html-media-element-integration" target="_blank" rel="noopener">WICG Iframe Media Pausing &sect;3.1</a> and <a href="https://wicg.github.io/iframe-media-pausing/#autoplay-integration" target="_blank" rel="noopener">&sect;3.3 Autoplay</a> (implemented in Blink&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/media/html_media_element.cc" target="_blank" rel="noopener"><code>html_media_element.cc</code></a>):</p>
+    <ul>
+      <li><strong><code>play()</code> while not visible:</strong> The element is not <em>allowed to play</em>; <code>mediaElement.play()</code> returns a Promise rejected with a <code>NotAllowedError</code> <code>DOMException</code> (matching an autoplay denial). If the frame&rsquo;s visibility has not yet been resolved at initial load, Blink defers the <code>play()</code> promise in <code>deferred_play_promise_resolvers_</code> and settles it as soon as visibility resolves via <code>ProcessDeferredPlay()</code>.</li>
+      <li><strong>Becoming not-visible while playing:</strong> When the embedding iframe transitions to not-visible while audible media is playing (including autoplay playback), Blink runs the internal pause steps on the <code>HTMLMediaElement</code>, setting <code>paused = true</code> and firing a standard <code>pause</code> event.</li>
+      <li><strong>Becoming visible again (no auto-resume):</strong> Autoplay eligibility is suppressed while not-visible, and once the iframe becomes visible again, a paused <code>HTMLMediaElement</code> <strong>remains paused</strong> until the user or script explicitly calls <code>play()</code>. When the iframe <em>is</em> visible, the policy does not alter normal autoplay rules.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://wicg.github.io/iframe-media-pausing/#html-media-element-integration" target="_blank" rel="noopener">WICG Iframe Media Pausing &sect;3.1 <code>HTMLMediaElement</code></a>; <a href="https://wicg.github.io/iframe-media-pausing/#autoplay-integration" target="_blank" rel="noopener">&sect;3.3 Autoplay</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/media/html_media_element.cc" target="_blank" rel="noopener">Blink <code>html_media_element.cc</code></a>.</span>
+
+    <h3 id="web-audio">Web Audio <code>AudioContext</code> interruption</h3>
+    <p><strong>Inputs.</strong> Any realtime Web Audio <code>AudioContext</code> constructed or resumed inside an embedded document where <code>media-playback-while-not-visible</code> is disallowed.</p>
+    <p><strong>Outputs &amp; behavior.</strong> Per <a href="https://wicg.github.io/iframe-media-pausing/#web-audio-integration" target="_blank" rel="noopener">WICG Iframe Media Pausing &sect;3.2</a> and Blink&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webaudio/audio_context.cc" target="_blank" rel="noopener"><code>audio_context.cc</code></a>:</p>
+    <ul>
+      <li><strong>Constructed while not visible:</strong> The <code>AudioContext</code> is not <em>allowed to start</em> and initializes in the <code>"suspended"</code> state rather than <code>"running"</code>.</li>
+      <li><strong>Calling <code>resume()</code> while not visible:</strong> Transitions the <code>AudioContext</code> into the <code>"interrupted"</code> state (firing <code>statechange</code>) and rejects the returned Promise with an <code>InvalidStateError</code> <code>DOMException</code> (<code>"Cannot resume an interrupted AudioContext."</code>). If initial frame visibility is not yet known, Blink defers the <code>resume()</code> promise until visibility resolves.</li>
+      <li><strong>Becoming not-visible while <code>"running"</code>:</strong> Starts an interruption on the <code>AudioContext</code>, moving <code>audioContext.state</code> from <code>"running"</code> to <code>"interrupted"</code> and firing <code>statechange</code>.</li>
+      <li><strong>Becoming visible again (automatic resume):</strong> Unlike <code>HTMLMediaElement</code>, when the iframe becomes visible again and the <code>AudioContext</code> is in <code>"interrupted"</code>, the browser ends the interruption and transitions <code>audioContext.state</code> back to <code>"running"</code> (firing <code>statechange</code>).</li>
+    </ul>
+    <span class="citation">Source: <a href="https://wicg.github.io/iframe-media-pausing/#web-audio-integration" target="_blank" rel="noopener">WICG Iframe Media Pausing &sect;3.2 Web Audio</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webaudio/audio_context.cc" target="_blank" rel="noopener">Blink <code>audio_context.cc</code></a>; <a href="https://wpt.fyi/results/webaudio/the-audio-api/media-playback-while-not-visible-permission-policy?label=master&amp;label=experimental&amp;aligned&amp;q=media-playback-while-not-visible-permission-policy" target="_blank" rel="noopener">WPT WebAudio tests</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="errors">Errors and rejection behavior</h2>
+    <p>Restricting <code>media-playback-while-not-visible</code> surfaces standard promise rejections inside the embedded frame rather than throwing synchronously on the embedder:</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="errors-caption">
+    <table class="doc-table scroll-table">
+      <caption id="errors-caption">Failure and interruption modes when <code>media-playback-while-not-visible</code> is disallowed on a not-visible iframe</caption>
+      <thead><tr><th scope="col">Operation</th><th scope="col">Outcome when iframe is not visible</th><th scope="col">Recommended handling inside iframe</th></tr></thead>
+      <tbody>
+        <tr><td><code>HTMLMediaElement.prototype.play()</code></td><td>Rejects with <code>NotAllowedError</code> <code>DOMException</code></td><td>Catch <code>NotAllowedError</code> and show a play control or wait for visibility before retrying.</td></tr>
+        <tr><td>Playing <code>HTMLMediaElement</code> when iframe hides</td><td>No exception; internal pause runs, <code>paused</code> becomes <code>true</code>, <code>pause</code> event fires</td><td>Listen for the <code>pause</code> event and update custom player UI as if the user paused playback.</td></tr>
+        <tr><td><code>AudioContext.prototype.resume()</code></td><td>Transitions to <code>"interrupted"</code> and rejects with <code>InvalidStateError</code> (<code>"Cannot resume an interrupted AudioContext."</code>)</td><td>Catch <code>InvalidStateError</code> and listen for <code>statechange</code> to detect when <code>state === "running"</code> resumes after the frame becomes visible.</td></tr>
+        <tr><td>Running <code>AudioContext</code> when iframe hides</td><td>No exception; <code>state</code> transitions to <code>"interrupted"</code> and <code>statechange</code> fires</td><td>Update audio UI on <code>statechange</code>; avoid tight retry loops calling <code>resume()</code> while <code>state === "interrupted"</code>.</td></tr>
+        <tr><td>Unrecognized browser (pre-Chrome 155 / Firefox / Safari)</td><td>Unknown policy token is silently ignored per Permissions Policy parsing rules</td><td>Progressive enhancement: safe to add <code>allow="media-playback-while-not-visible 'none'"</code> and HTTP headers without breaking older browsers.</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://wicg.github.io/iframe-media-pausing/#html-media-element-integration" target="_blank" rel="noopener">WICG Iframe Media Pausing &sect;3.1 &amp; &sect;3.2</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/media/html_media_element.cc" target="_blank" rel="noopener">Blink <code>html_media_element.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webaudio/audio_context.cc" target="_blank" rel="noopener">Blink <code>audio_context.cc</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="context">Context, scope, and visibility rules</h2>
+    <ul>
+      <li><strong>Applies to embedded iframes (not top-level documents):</strong> Both <a href="https://wicg.github.io/iframe-media-pausing/#html-media-element-integration" target="_blank" rel="noopener">&sect;3.1 <code>HTMLMediaElement</code></a> and <a href="https://wicg.github.io/iframe-media-pausing/#web-audio-integration" target="_blank" rel="noopener">&sect;3.2 Web Audio</a> require a non-null navigable container (<code>&lt;iframe&gt;</code>). Sending <code>Permissions-Policy: media-playback-while-not-visible=()</code> on a top-level document restricts all of its embedded iframes (not the top-level tab itself when backgrounded).</li>
+      <li><strong>What counts as &ldquo;not visible&rdquo;:</strong> Per <a href="https://chromestatus.com/feature/5082950457884672" target="_blank" rel="noopener">ChromeStatus 5082950457884672</a> and Blink&rsquo;s viewport-intersection visibility propagation (<a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/frame/local_frame.cc" target="_blank" rel="noopener"><code>LocalFrame::OnFrameVisibilityChangedForMediaPlayback()</code></a>), an embedded iframe is considered not visible when its container (or an ancestor) has <code>display: none</code>, <code>visibility: hidden</code>, or zero-area layout geometry (<code>width === 0</code> or <code>height === 0</code>).</li>
+      <li><strong>Nested subframes inherit hidden state:</strong> Per Blink&rsquo;s <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/frame/local_frame.cc" target="_blank" rel="noopener"><code>LocalFrame::Init()</code></a>, a new subframe created inside an already-hidden parent frame inherits <code>is_hidden_for_media_playback_ = true</code> immediately so newly inserted <code>HTMLMediaElement</code> and <code>AudioContext</code> instances cannot bypass the restriction while the ancestor is render-throttled.</li>
+      <li><strong>No secure-context requirement for the policy itself:</strong> Works on both HTTP and HTTPS documents, cross-origin or same-origin, with zero JavaScript coordination required between embedder and embedded origin.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://chromestatus.com/feature/5082950457884672" target="_blank" rel="noopener">ChromeStatus 5082950457884672</a>; <a href="https://wicg.github.io/iframe-media-pausing/#integration" target="_blank" rel="noopener">WICG Iframe Media Pausing &sect;3</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/frame/local_frame.cc" target="_blank" rel="noopener">Blink <code>local_frame.cc</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="lifecycle">Lifecycle, visibility transitions, and resume asymmetry</h2>
+    <p>When an embedder hides and later reveals an iframe restricted by <code>media-playback-while-not-visible</code>, <code>HTMLMediaElement</code> and Web Audio <code>AudioContext</code> follow distinct state-transition lifecycles:</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="lifecycle-caption">
+    <table class="doc-table scroll-table">
+      <caption id="lifecycle-caption">State-transition comparison for <code>HTMLMediaElement</code> vs. Web Audio <code>AudioContext</code> under <code>media-playback-while-not-visible 'none'</code></caption>
+      <thead><tr><th scope="col">Event</th><th scope="col"><code>HTMLMediaElement</code> (<code>&lt;video&gt;</code> / <code>&lt;audio&gt;</code>)</th><th scope="col">Web Audio <code>AudioContext</code></th></tr></thead>
+      <tbody>
+        <tr><td>Created/started while iframe is hidden</td><td><code>play()</code> rejects with <code>NotAllowedError</code>; autoplay blocked</td><td>Initializes in <code>"suspended"</code>; <code>resume()</code> transitions to <code>"interrupted"</code> and rejects with <code>InvalidStateError</code></td></tr>
+        <tr><td>Visibility unresolved during initial load</td><td><code>play()</code> promise deferred until visibility is known</td><td><code>resume()</code> promise deferred until visibility is known</td></tr>
+        <tr><td>Iframe becomes hidden during active playback</td><td>Internal pause steps run; <code>paused === true</code>; <code>pause</code> event fires</td><td>Interruption starts; <code>state</code> moves <code>"running" &rarr; "interrupted"</code>; <code>statechange</code> fires</td></tr>
+        <tr><td>Iframe becomes visible again</td><td><strong>Stays paused</strong> until user or script calls <code>play()</code></td><td>Interruption ends automatically; <code>state</code> moves <code>"interrupted" &rarr; "running"</code>; <code>statechange</code> fires</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p>JavaScript execution inside the hidden iframe is <strong>not</strong> frozen (unlike the abandoned <code>execution-while-not-rendered</code> proposal), so the embedded app keeps its DOM, WebSockets, and event listeners intact while audio is silenced.</p>
+    <span class="citation">Source: <a href="https://wicg.github.io/iframe-media-pausing/#integration" target="_blank" rel="noopener">WICG Iframe Media Pausing &sect;3.1&ndash;3.3</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/html/media/html_media_element.cc" target="_blank" rel="noopener">Blink <code>html_media_element.cc</code></a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webaudio/audio_context.cc" target="_blank" rel="noopener">Blink <code>audio_context.cc</code></a>; <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/IframeMediaPause/iframe_media_pausing.md" target="_blank" rel="noopener">Microsoft Edge Explainer</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="examples">Examples</h2>
+    <p>Interactive demonstrations for this feature (same ChromeStatus ID <code>5082950457884672</code>, authored under the Chrome 137 origin-trial slug <code>pause-media-playback-on-not-rendered-iframes</code>) are published on the <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v137/pause-media-playback-on-not-rendered-iframes/" target="_blank" rel="noopener">Chrome Platform Showcase &mdash; Pause media playback on not-visible iframes</a>: <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v137/pause-media-playback-on-not-rendered-iframes/iframe-pause/" target="_blank" rel="noopener">iframe pause demo</a>, <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v137/pause-media-playback-on-not-rendered-iframes/permission-allow/" target="_blank" rel="noopener"><code>allow</code> attribute &amp; policy controls</a>, <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v137/pause-media-playback-on-not-rendered-iframes/lifecycle-tracer/" target="_blank" rel="noopener">lifecycle tracer</a>, and <a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v137/pause-media-playback-on-not-rendered-iframes/visibility-media-controller/" target="_blank" rel="noopener">visibility media controller</a>.</p>
+
+    <h3 id="example-embedder-policy">Embedder: restricting hidden iframe playback via HTTP header and <code>&lt;iframe allow&gt;</code></h3>
+    <pre tabindex="0"><code data-doc-test="http">HTTP/2 200 OK
+Permissions-Policy: media-playback-while-not-visible=()</code></pre>
+    <pre tabindex="0"><code data-doc-test="html">&lt;!-- Per-iframe restriction (applies even without a site-wide HTTP header) --&gt;
+&lt;div class="tab-panel" id="panel-media"&gt;
+  &lt;iframe
+    id="embedded-player"
+    src="https://media.example/embed"
+    allow="media-playback-while-not-visible 'none'"
+    title="Embedded media player"
+  &gt;&lt;/iframe&gt;
+&lt;/div&gt;</code></pre>
+    <span class="citation">Source: <a href="https://wicg.github.io/iframe-media-pausing/#usage-example" target="_blank" rel="noopener">WICG Iframe Media Pausing &sect;2.1 Usage example</a>.</span>
+
+    <h3 id="example-html-media">Embedded frame: handling <code>HTMLMediaElement</code> pause and <code>NotAllowedError</code></h3>
+    <pre tabindex="0"><code data-doc-test="js">function wireEmbeddedMedia(mediaElement, playButton, statusEl) {
+  mediaElement.addEventListener("pause", () =&gt; {
+    // Fires for both user pauses and media-playback-while-not-visible pauses
+    statusEl.textContent = "Paused";
+    playButton.hidden = false;
+  });
+
+  async function requestPlayback() {
+    try {
+      await mediaElement.play();
+      statusEl.textContent = "Playing";
+      playButton.hidden = true;
+    } catch (err) {
+      if (err.name === "NotAllowedError") {
+        // Blocked by autoplay policy or because iframe is currently not visible
+        statusEl.textContent = "Playback blocked while frame is hidden or unactivated.";
+        playButton.hidden = false;
+      } else {
+        statusEl.textContent = `Playback error: ${err.message}`;
+      }
+    }
+  }
+
+  playButton.addEventListener("click", () =&gt; {
+    requestPlayback();
+  });
+}</code></pre>
+    <span class="citation">Source: <a href="https://wicg.github.io/iframe-media-pausing/#html-media-element-integration" target="_blank" rel="noopener">WICG Iframe Media Pausing &sect;3.1</a>; <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/IframeMediaPause/iframe_media_pausing.md" target="_blank" rel="noopener">Microsoft Edge Explainer</a>.</span>
+
+    <h3 id="example-web-audio">Embedded frame: handling Web Audio <code>AudioContext</code> <code>"interrupted"</code> state</h3>
+    <pre tabindex="0"><code data-doc-test="js">function createVisibilityAwareAudio(statusEl) {
+  const ctx = new AudioContext();
+
+  ctx.addEventListener("statechange", () =&gt; {
+    if (ctx.state === "interrupted") {
+      statusEl.textContent = "Audio interrupted while iframe is not visible.";
+    } else if (ctx.state === "running") {
+      statusEl.textContent = "Audio running.";
+    } else {
+      statusEl.textContent = `Audio state: ${ctx.state}`;
+    }
+  });
+
+  async function startAudio() {
+    try {
+      await ctx.resume();
+    } catch (err) {
+      if (err.name === "InvalidStateError" &amp;&amp; ctx.state === "interrupted") {
+        // Frame is hidden under media-playback-while-not-visible; wait for statechange
+        statusEl.textContent = "Waiting for iframe to become visible to resume audio.";
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  return { ctx, startAudio };
+}</code></pre>
+    <span class="citation">Source: <a href="https://wicg.github.io/iframe-media-pausing/#web-audio-integration" target="_blank" rel="noopener">WICG Iframe Media Pausing &sect;3.2 Web Audio</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/modules/webaudio/audio_context.cc" target="_blank" rel="noopener">Blink <code>audio_context.cc</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="browser-compatibility">Browser compatibility</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compat-caption">
+    <table class="doc-table compat-table">
+      <caption id="compat-caption">Support for the <code>media-playback-while-not-visible</code> Permissions Policy (including <code>HTMLMediaElement</code> pausing and Web Audio <code>AudioContext</code> interruption) from ChromeStatus 5082950457884672, Blink flags, and standards positions (BCD has no entry yet; checked 2026-11-27).</caption>
+      <thead><tr><th scope="col">Browser</th><th scope="col"><code>media-playback-while-not-visible</code></th><th scope="col">Evidence / notes</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Chrome (desktop, Android, WebView)</th><td>155 (BCD missing)</td><td>Enabled by default in Chrome 155 across desktop, Android, and WebView per <a href="https://chromestatus.com/api/v0/features/5082950457884672" target="_blank" rel="noopener">ChromeStatus 5082950457884672</a> and <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Blink <code>MediaPlaybackWhileNotVisiblePermissionPolicy</code> (<code>status: "stable"</code>)</a>.</td></tr>
+        <tr><th scope="row">Edge</th><td>155 (mirror)</td><td>Chromium-based; Microsoft authored the spec, explainer, and Blink implementation.</td></tr>
+        <tr><th scope="row">Firefox</th><td>No release yet</td><td><a href="https://github.com/mozilla/standards-positions/issues/1082" target="_blank" rel="noopener">mozilla/standards-positions#1082</a> (Positive).</td></tr>
+        <tr><th scope="row">Safari (macOS &amp; iOS)</th><td>No</td><td><a href="https://github.com/WebKit/standards-positions/issues/409" target="_blank" rel="noopener">WebKit/standards-positions#409</a> (No signal).</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <span class="citation">Source: <a href="https://chromestatus.com/api/v0/features/5082950457884672" target="_blank" rel="noopener">ChromeStatus 5082950457884672</a>; <a href="https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/platform/runtime_enabled_features.json5" target="_blank" rel="noopener">Blink <code>runtime_enabled_features.json5</code></a>; <a href="https://github.com/mdn/browser-compat-data/blob/main/http/headers/Permissions-Policy.json" target="_blank" rel="noopener">BCD <code>http/headers/Permissions-Policy.json</code></a>.</span>
+  </section>
+
+  <section>
+    <h2 id="security-and-privacy">Security and privacy</h2>
+    <ul>
+      <li><strong>No new cross-origin state disclosure:</strong> Embedded frames can already infer whether they are hidden via <code>IntersectionObserver</code> or layout geometry, so pausing an <code>HTMLMediaElement</code> or interrupting an <code>AudioContext</code> under <code>media-playback-while-not-visible</code> does not leak new embedder state to cross-origin iframes.</li>
+      <li><strong>Non-escalatable policy inheritance:</strong> Following the <a href="https://w3c.github.io/webappsec-permissions-policy/" target="_blank" rel="noopener">Permissions Policy</a> model, once an embedder disables <code>media-playback-while-not-visible</code> via HTTP header or <code>&lt;iframe allow="media-playback-while-not-visible 'none'"&gt;</code>, neither the embedded document nor any nested child frame can re-enable playback while hidden.</li>
+      <li><strong>User-experience &amp; nuisance defense:</strong> Prevents hidden or zero-pixel cross-origin iframes from emitting unexpected background audio while allowing legitimate visible media playback to remain governed by standard autoplay policies.</li>
+    </ul>
+    <span class="citation">Source: <a href="https://wicg.github.io/iframe-media-pausing/#api" target="_blank" rel="noopener">WICG Iframe Media Pausing &sect;2</a>; <a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/IframeMediaPause/iframe_media_pausing.md" target="_blank" rel="noopener">Microsoft Edge Explainer</a>; <a href="https://github.com/w3ctag/design-reviews/issues/1084" target="_blank" rel="noopener">w3ctag/design-reviews#1084</a>.</span>
+  </section>
+
+  <section>
+    <h2 id="specifications">Specifications</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Specifications">
+    <table class="doc-table">
+      <thead><tr><th scope="col">Specification</th><th scope="col">Section</th></tr></thead>
+      <tbody>
+        <tr><td><a href="https://wicg.github.io/iframe-media-pausing/" target="_blank" rel="noopener">WICG Iframe Media Pausing</a></td><td><a href="https://wicg.github.io/iframe-media-pausing/#api" target="_blank" rel="noopener">&sect;2 API (<code>media-playback-while-not-visible</code>)</a> &middot; <a href="https://wicg.github.io/iframe-media-pausing/#html-media-element-integration" target="_blank" rel="noopener">&sect;3.1 <code>HTMLMediaElement</code></a> &middot; <a href="https://wicg.github.io/iframe-media-pausing/#web-audio-integration" target="_blank" rel="noopener">&sect;3.2 Web Audio</a> &middot; <a href="https://wicg.github.io/iframe-media-pausing/#autoplay-integration" target="_blank" rel="noopener">&sect;3.3 Autoplay</a></td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="see-also">see also</h2>
+    <ul>
+      <li><a href="https://chrome-platform-showcase.kinlan-test.workers.dev/v137/pause-media-playback-on-not-rendered-iframes/" target="_blank" rel="noopener">Chrome Platform Showcase &mdash; Pause media playback on not-visible iframes demos</a></li>
+      <li><a href="https://github.com/MicrosoftEdge/MSEdgeExplainers/blob/main/IframeMediaPause/iframe_media_pausing.md" target="_blank" rel="noopener">Microsoft Edge Explainer: Iframe Media Pausing</a></li>
+      <li><a href="https://gabrielsanbrito.github.io/media-playback-while-not-visible" target="_blank" rel="noopener">Author sample demo (from ChromeStatus)</a></li>
+      <li><a href="https://chromestatus.com/feature/5082950457884672" target="_blank" rel="noopener">ChromeStatus &mdash; Pause media playback on not-visible iframes (5082950457884672)</a></li>
+    </ul>
+  </section>
+
+  <footer class="byline">made by <a href="https://paul.kinlan.me/" target="_blank" rel="noopener">Paul Kinlan</a></footer>
+</main>
+</body>
+</html>
