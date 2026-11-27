@@ -71,17 +71,60 @@ What Tier 2 checks:
 1. **Shipped-after-trial drift (`shipped-after-trial`, High):** Flags pages that still
    present a feature as Origin Trial, Developer Trial, or behind a flag when `_data/features-*.json`
    records the same ChromeStatus ID as `"Enabled by default"` in a milestone `<= currentStable`
-   (from `_data/channels.json`).
-2. **Stale experimental docs (`stale-experimental`, Medium):** Flags experimental/trial pages
+   (from `_data/channels.json`), unless the page acknowledges the ship with a verified
+   `data-shipped-in` marker on `.warn-block`.
+2. **Shipped marker mismatch (`shipped-marker-mismatch`, High):** Flags pages whose `.warn-block`
+   carries a `data-shipped-in="<N>"` attribute that `_data/` does not confirm (non-numeric value,
+   feature never listed as `"Enabled by default"`, wrong first-shipped milestone, or milestone not
+   yet stable). States both the marker value and `_data/`'s record, replaces `shipped-after-trial`
+   for that page, and does not suppress `stale-experimental`.
+3. **Stale experimental docs (`stale-experimental`, Medium):** Flags experimental/trial pages
    whose freshest `assessedAt` (`reference-contract.json`) or `reviewedAt` (`_questions.json`)
-   timestamp is older than `--max-age-days` (default `90`).
-3. **Milestone movement / missing snapshots (`milestone-moved`, `missing-chromestatus-record`, Low):**
+   timestamp is older than `--max-age-days` (default `90`). Suppressed once a page carries a
+   confirmed `data-shipped-in` marker.
+4. **Milestone movement / missing snapshots (`milestone-moved`, `missing-chromestatus-record`, Low):**
    When `_data/features-<N>.json` exists for a page's milestone, reports features that moved
    to a different milestone or disappeared from the snapshot.
-4. **Opt-in MDN graduation probe (`--live-mdn`, Info):** Uses `mdnHas()` from `lib/mdn.ts`
+5. **Opt-in MDN graduation probe (`--live-mdn`, Info):** Uses `mdnHas()` from `lib/mdn.ts`
    (bounded via `fetchBounded()`) to check whether any `built` page's candidate MDN URL now
    returns `{ kind: "present" }`. Transport errors (`unknown`) and `404` (`missing`) are
    never flagged.
+
+### Acknowledging a Shipped Trial (`data-shipped-in`)
+
+When an older trial page's feature later ships enabled by default, the durable-demo contract keeps
+the original `v<N>/<slug>/` route in place. After updating the page's `.warn-block` note to state
+that the feature has shipped, add `data-shipped-in="<N>"` directly on the `.warn-block` element:
+
+```html
+<div class="warn-block" data-shipped-in="157">
+  <strong>Shipped in Chrome 157:</strong> Originally documented during the Chrome 148 Origin Trial;
+  this API is now enabled by default.
+</div>
+```
+
+Rules enforced by `scripts/doc-drift.mjs`:
+
+- **Placement and format:** The attribute is read only from the page's first `.warn-block` `<div>`
+  element (attributes on other elements or inside other attribute values are ignored). Its value
+  must be a plain positive integer milestone such as `"157"` — not `"M157"`, `"v157"`, `"157.0"`,
+  whitespace-padded, or empty.
+- **Verified against `_data/`, never trusted:** `evaluateShippedMarker()` confirms that `<N>` equals
+  the **first** milestone where `_data/features-*.json` records the page's ChromeStatus ID under
+  `"Enabled by default"`, and that `<N> <= currentStable` (when `_data/channels.json` provides a
+  stable milestone).
+- **Confirmed acknowledgement:** When verified, the page is counted under `shippedAcknowledged` and
+  suppresses both `shipped-after-trial` and `stale-experimental` (the feature is no longer
+  experimental).
+- **Unconfirmed marker (`shipped-marker-mismatch`, High):** Any disagreement emits a High
+  `shipped-marker-mismatch` finding with one of four reasons:
+  - `malformed` — value is not a plain positive integer milestone.
+  - `not-shipped` — `_data/` has no `"Enabled by default"` entry for the page's ChromeStatus ID.
+  - `wrong-milestone` — `<N>` does not match the first `"Enabled by default"` milestone in `_data/`.
+  - `not-yet-stable` — `<N>` matches `_data/`, but `<N> > currentStable`.
+
+  A mismatched marker replaces `shipped-after-trial` for that page (one finding for the defect) and
+  never acts as an acknowledgement, so `stale-experimental` is still reported if the page is stale.
 
 ## Weekly CI Report
 

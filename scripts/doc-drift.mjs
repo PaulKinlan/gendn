@@ -8,6 +8,10 @@
 // Outbound network policy: NEVER uses bare `fetch()`; all live MDN HEAD probes go through
 // `mdnHas()` in `lib/mdn.ts` (which uses `fetchBounded()`).
 //
+// A page whose trial feature has since shipped acknowledges it by adding `data-shipped-in="<N>"`
+// to its `.warn-block` element (see docs/doc-tests.md). The marker is CHECKED against `_data/`,
+// never trusted: a marker that disagrees is its own HIGH finding (`shipped-marker-mismatch`).
+//
 // Modes:
 //   node scripts/doc-drift.mjs                       # offline drift check against _data/
 //   node scripts/doc-drift.mjs --json                # machine-readable JSON output
@@ -31,6 +35,14 @@ const HISTORICAL_TRIAL_RE =
   /(?:recently\s+out\s+of|out\s+of|graduated\s+from|was\s+an?|former)\s+(?:a\s+)?(?:chrome\s+)?origin[ -]?trial|origin[ -]?trial\s+(?:ran|ended|stage|feature\s+name)/gi;
 
 const SAFE_MDN_SEGMENT_RE = /^[A-Za-z0-9_@:-]+$/;
+
+const ENABLED_BY_DEFAULT = "Enabled by default";
+const SHIPPED_MARKER_ATTR = "data-shipped-in";
+// A milestone is a plain positive integer: "157". Not "M157", "v157", "157.0", " 157" or "".
+const SHIPPED_MARKER_VALUE_RE = /^[1-9]\d{0,3}$/;
+const WARN_BLOCK_RE =
+  /<div\b([^>]*class=["'][^"']*\bwarn-block\b[^"']*["'][^>]*)>([\s\S]*?)<\/div>/i;
+const HTML_ATTRIBUTE_RE = /([^\s"'<>\/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
 
 /**
  * Load all `_data/features-<N>.json` snapshots and build a Map:
@@ -115,6 +127,98 @@ function pageClaimsTrialStatus(pageMeta) {
   return false;
 }
 
+/**
+ * Pure: read the first `.warn-block` element out of a page's rendered markup.
+ * Returns its visible text and the raw value of its `data-shipped-in` attribute — `undefined`
+ * when the attribute is absent, `""` when it is present without a value. The attribute counts
+ * only on the `.warn-block` element itself, never on another element or inside another
+ * attribute's value.
+ */
+export function extractWarnBlock(visibleMarkup) {
+  const match = String(visibleMarkup ?? "").match(WARN_BLOCK_RE);
+  if (!match) return { warnText: "", shippedIn: undefined };
+  let shippedIn;
+  for (const attr of match[1].matchAll(HTML_ATTRIBUTE_RE)) {
+    if (attr[1].toLowerCase() !== SHIPPED_MARKER_ATTR) continue;
+    shippedIn = attr[2] ?? attr[3] ?? attr[4] ?? "";
+    break;
+  }
+  return {
+    warnText: match[2].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(),
+    shippedIn,
+  };
+}
+
+/**
+ * Pure: judge a page's `data-shipped-in` marker against the `_data/` ChromeStatus index.
+ *
+ *   state "none"         — the page carries no marker.
+ *   state "acknowledged" — the marker's N is the first milestone in which `_data/` lists the
+ *                          page's ChromeStatus id as "Enabled by default", and that milestone is
+ *                          `<= currentStable` (or the stable milestone is unknown).
+ *   state "mismatch"     — anything else: a non-numeric marker (`reason: "malformed"`), an N that
+ *                          is not that first milestone (`"wrong-milestone"`), a feature `_data/`
+ *                          never lists as "Enabled by default" (`"not-shipped"`), or a correct N
+ *                          that has not reached stable yet (`"not-yet-stable"`).
+ *
+ * `shippedMilestone` is always what `_data/` records (or `null`), so a caller can state both the
+ * marker's value and `_data/`'s.
+ */
+export function evaluateShippedMarker(pageMeta, dataIndex, { currentStable = null } = {}) {
+  const raw = pageMeta?.shippedIn;
+  const identity = pageMeta?.identity != null ? String(pageMeta.identity) : null;
+  const record = identity ? dataIndex.get(identity) ?? null : null;
+  // record.milestones is sorted ascending, so this is the FIRST enabled-by-default milestone.
+  const firstShipped = record?.milestones.find((entry) => entry.category === ENABLED_BY_DEFAULT) ??
+    null;
+  const shippedMilestone = firstShipped?.milestone ?? null;
+  const base = { identity, shippedMilestone, featureName: firstShipped?.name ?? "" };
+  if (raw === undefined || raw === null) {
+    return { state: "none", markerValue: null, markerMilestone: null, ...base };
+  }
+  const markerValue = String(raw);
+  const markerMilestone = SHIPPED_MARKER_VALUE_RE.test(markerValue) ? Number(markerValue) : null;
+  const result = { markerValue, markerMilestone, ...base };
+  if (markerMilestone === null) return { state: "mismatch", reason: "malformed", ...result };
+  if (shippedMilestone === null) {
+    const seen = [
+      ...new Set((record?.milestones ?? []).map((m) => `M${m.milestone}:${m.category}`)),
+    ];
+    return { state: "mismatch", reason: "not-shipped", observed: seen, ...result };
+  }
+  if (markerMilestone !== shippedMilestone) {
+    return { state: "mismatch", reason: "wrong-milestone", ...result };
+  }
+  if (currentStable !== null && shippedMilestone > currentStable) {
+    return { state: "mismatch", reason: "not-yet-stable", ...result };
+  }
+  return { state: "acknowledged", ...result };
+}
+
+function shippedMarkerMismatchMessage(marker, currentStable) {
+  const attr = `${SHIPPED_MARKER_ATTR}="${marker.markerValue}"`;
+  const stable = currentStable !== null ? ` (current stable: ${currentStable})` : "";
+  const cs = marker.identity ? `ChromeStatus ${marker.identity}` : "this page (no ChromeStatus id)";
+  const recorded = marker.shippedMilestone !== null
+    ? `_data/ records ${cs} as first "${ENABLED_BY_DEFAULT}" in Chrome ${marker.shippedMilestone}`
+    : `_data/ records no "${ENABLED_BY_DEFAULT}" milestone for ${cs}` +
+      (marker.observed?.length ? ` (found under ${marker.observed.join(", ")})` : "");
+  switch (marker.reason) {
+    case "malformed":
+      return `Marker ${attr} is not a milestone number (expected e.g. ` +
+        `${SHIPPED_MARKER_ATTR}="${marker.shippedMilestone ?? 150}"); ${recorded}${stable}`;
+    case "not-shipped":
+      return `Marker ${attr} says the feature shipped in Chrome ${marker.markerMilestone}, but ` +
+        `${recorded}${stable}`;
+    case "not-yet-stable":
+      return `Marker ${attr} says the feature shipped in Chrome ${marker.markerMilestone}, and ` +
+        `${recorded}, but that milestone is not stable yet${stable}`;
+    default:
+      return `Marker ${attr} says the feature shipped in Chrome ${marker.markerMilestone}, but ` +
+        `${recorded}${stable}`;
+  }
+}
+
 function parseIsoDateMs(value) {
   if (typeof value !== "string") return null;
   const match = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -139,8 +243,16 @@ function latestReviewDate(pageMeta) {
  * Detects:
  *   1. `shipped-after-trial` — page claims Origin Trial / Developer Trial / behind a flag, yet
  *      `_data/` records the same `chromestatusId` as `"Enabled by default"` at `<= currentStable`.
+ *      Not reported for a page that ACKNOWLEDGES the ship with a correct `data-shipped-in` marker
+ *      (`pageMeta.shippedIn`, see `evaluateShippedMarker`).
+ *   1b. `shipped-marker-mismatch` — the page carries a `data-shipped-in` marker that `_data/` does
+ *      not confirm (wrong milestone, feature never shipped, not stable yet, or not a number). It
+ *      states both values and REPLACES `shipped-after-trial` for that page: one finding for the
+ *      one defect. A mismatched marker is never an acknowledgement.
  *   2. `stale-experimental` — page is Origin Trial / Developer Trial / experimental and its most
- *      recent `assessedAt` / `reviewedAt` timestamp is older than `maxAgeDays`.
+ *      recent `assessedAt` / `reviewedAt` timestamp is older than `maxAgeDays`. Not reported for
+ *      an acknowledged page (it is no longer experimental); still reported when the marker is a
+ *      mismatch.
  *   3. `milestone-moved` / `missing-chromestatus-record` — page's milestone has a `_data/`
  *      snapshot, yet the feature ID moved to a different milestone or is absent from `_data/`.
  */
@@ -157,13 +269,34 @@ export function detectStatusDrift(
   const findings = [];
   const identity = pageMeta?.identity != null ? String(pageMeta.identity) : null;
   const record = identity ? dataIndex.get(identity) ?? null : null;
-  const claimsTrial = pageClaimsTrialStatus(pageMeta);
+  const marker = evaluateShippedMarker(pageMeta, dataIndex, { currentStable });
+  // An acknowledged page documents a shipped feature, whatever trial wording its history keeps.
+  const claimsTrial = marker.state !== "acknowledged" && pageClaimsTrialStatus(pageMeta);
 
-  // 1. Shipped-after-trial drift
-  if (claimsTrial && record) {
+  // 1b. A marker that _data/ does not confirm. Reported instead of shipped-after-trial.
+  if (marker.state === "mismatch") {
+    findings.push({
+      kind: "shipped-marker-mismatch",
+      severity: "high",
+      id: pageMeta.id,
+      route: pageMeta.route ?? `/${pageMeta.id}/`,
+      identity,
+      pageMilestone: pageMeta.milestone,
+      reason: marker.reason,
+      markerValue: marker.markerValue,
+      markerMilestone: marker.markerMilestone,
+      shippedMilestone: marker.shippedMilestone,
+      currentStable,
+      featureName: marker.featureName || pageMeta.h1 || "",
+      message: shippedMarkerMismatchMessage(marker, currentStable),
+    });
+  }
+
+  // 1. Shipped-after-trial drift (a page with a marker is covered by the marker's own verdict)
+  if (claimsTrial && record && marker.state === "none") {
     const shipped = record.milestones.find(
       (entry) =>
-        entry.category === "Enabled by default" &&
+        entry.category === ENABLED_BY_DEFAULT &&
         (currentStable === null || entry.milestone <= currentStable),
     );
     if (shipped) {
@@ -375,9 +508,7 @@ export function loadPublishedPagesMeta(root = ".") {
       const eyebrow = visible.match(
         /<p\b[^>]*class=["'][^"']*\beyebrow\b[^"']*["'][^>]*>([\s\S]*?)<\/p>/i,
       )?.[1]?.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() ?? "";
-      const warnText = visible.match(
-        /<div\b[^>]*class=["'][^"']*\bwarn-block\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i,
-      )?.[1]?.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() ?? "";
+      const { warnText, shippedIn } = extractWarnBlock(visible);
 
       const contract = readJsonSafe(path.join(pageDir, "reference-contract.json"));
       const questions = readJsonSafe(path.join(pageDir, "_questions.json"));
@@ -401,6 +532,7 @@ export function loadPublishedPagesMeta(root = ".") {
         ...meta,
         eyebrow,
         warnText,
+        shippedIn,
         assessedAt: contract?.assessedAt ?? null,
         reviewedAt: questions?.reviewedAt ?? null,
         interfaceNames,
@@ -451,6 +583,10 @@ export async function runDocDrift({
     }
   }
 
+  const shippedAcknowledged = pages
+    .filter((p) => evaluateShippedMarker(p, dataIndex, { currentStable }).state === "acknowledged")
+    .map((p) => p.id);
+
   const mdnFindings = liveMdn ? await detectMdnGraduation(pages, mdnLookupFn) : [];
   const findings = [...statusFindings, ...mdnFindings];
 
@@ -468,7 +604,9 @@ export async function runDocDrift({
       dataMilestones: [...availableMilestones].sort((a, b) => a - b),
       totalFindings: findings.length,
       byKind: counts,
+      shippedAcknowledged: shippedAcknowledged.length,
     },
+    shippedAcknowledged,
     findings,
   };
 }
@@ -484,12 +622,16 @@ export function formatMarkdownReport(report) {
     })`,
     `- **Live MDN probe:** ${report.liveMdn ? "enabled" : "skipped (offline mode)"}`,
     `- **Stale experimental threshold:** ${report.maxAgeDays} days`,
+    `- **Pages acknowledging a shipped trial (\`${SHIPPED_MARKER_ATTR}\`, confirmed by _data/):** ${
+      s.shippedAcknowledged ?? 0
+    }`,
     `- **Total findings:** ${s.totalFindings}`,
     "",
   ];
 
   const groups = [
     ["shipped-after-trial", "Shipped After Trial (High)"],
+    ["shipped-marker-mismatch", "Shipped Marker Disagrees With ChromeStatus (High)"],
     ["stale-experimental", "Stale Experimental Docs (Medium)"],
     ["milestone-moved", "Milestone Moved in ChromeStatus (Low)"],
     ["missing-chromestatus-record", "Missing ChromeStatus Snapshot Record (Low)"],
@@ -585,6 +727,11 @@ if (sys.isMain(import.meta.url)) {
       `  findings: ${s.totalFindings}${byKind ? ` [${byKind}]` : " (none)"}` +
         (opts.liveMdn ? " [live-mdn=on]" : " [live-mdn=off]"),
     );
+    if (s.shippedAcknowledged > 0) {
+      console.log(
+        `  acknowledged as shipped (${SHIPPED_MARKER_ATTR} confirmed by _data/): ${s.shippedAcknowledged}`,
+      );
+    }
     for (const f of report.findings) {
       const sibling = f.newerPublishedSibling?.length
         ? ` (newer sibling: ${f.newerPublishedSibling.join(", ")})`

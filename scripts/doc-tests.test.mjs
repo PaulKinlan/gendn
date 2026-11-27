@@ -22,6 +22,8 @@ import {
   deriveCandidateMdnPaths,
   detectMdnGraduation,
   detectStatusDrift,
+  evaluateShippedMarker,
+  extractWarnBlock,
   formatMarkdownReport,
   loadCurrentStable,
   loadDataIndex,
@@ -480,6 +482,328 @@ function assert(name, ok, detail = "") {
       missingCs.some((f) => f.kind === "missing-chromestatus-record"),
       JSON.stringify(missingCs),
     );
+
+    // ---------- 7b. extractWarnBlock() ----------
+
+    {
+      const withMarker = extractWarnBlock(
+        '<main><div class="warn-block" data-shipped-in="150"><strong>Shipped</strong> in Chrome 150.</div></main>',
+      );
+      assert(
+        'extractWarnBlock: reads data-shipped-in="150" and strips markup from warnText',
+        withMarker.shippedIn === "150" && withMarker.warnText === "Shipped in Chrome 150.",
+        JSON.stringify(withMarker),
+      );
+
+      const singleAndBeforeClass = extractWarnBlock(
+        "<div DATA-SHIPPED-IN='150' class=\"notice warn-block\">Shipped.</div>",
+      );
+      assert(
+        "extractWarnBlock: supports attribute before class, single quotes, and case-insensitive name",
+        singleAndBeforeClass.shippedIn === "150" && singleAndBeforeClass.warnText === "Shipped.",
+        JSON.stringify(singleAndBeforeClass),
+      );
+
+      const unquoted = extractWarnBlock(
+        '<div class="warn-block" data-shipped-in=150>Unquoted.</div>',
+      );
+      assert(
+        "extractWarnBlock: reads unquoted data-shipped-in=150",
+        unquoted.shippedIn === "150" && unquoted.warnText === "Unquoted.",
+        JSON.stringify(unquoted),
+      );
+
+      const withoutMarker = extractWarnBlock(
+        '<div class="warn-block">Origin trial in Chrome 148.</div>',
+      );
+      assert(
+        "extractWarnBlock: returns undefined shippedIn when attribute is absent",
+        withoutMarker.shippedIn === undefined &&
+          withoutMarker.warnText === "Origin trial in Chrome 148.",
+        JSON.stringify(withoutMarker),
+      );
+
+      const emptyAttr = extractWarnBlock(
+        '<div class="warn-block" data-shipped-in="">Empty value.</div>',
+      );
+      assert(
+        'extractWarnBlock: preserves empty string for data-shipped-in=""',
+        emptyAttr.shippedIn === "" && emptyAttr.warnText === "Empty value.",
+        JSON.stringify(emptyAttr),
+      );
+
+      const booleanAttr = extractWarnBlock(
+        '<div class="warn-block" data-shipped-in>Valueless attribute.</div>',
+      );
+      assert(
+        "extractWarnBlock: returns empty string for valueless data-shipped-in attribute",
+        booleanAttr.shippedIn === "" && booleanAttr.warnText === "Valueless attribute.",
+        JSON.stringify(booleanAttr),
+      );
+
+      const onOtherElement = extractWarnBlock(
+        '<div class="other" data-shipped-in="150">Other</div>' +
+          '<div class="warn-block"><span data-shipped-in="150">Inside child</span></div>' +
+          '<p data-shipped-in="150">After</p>',
+      );
+      assert(
+        "extractWarnBlock: ignores data-shipped-in on other elements and child elements",
+        onOtherElement.shippedIn === undefined && onOtherElement.warnText === "Inside child",
+        JSON.stringify(onOtherElement),
+      );
+
+      const insideOtherAttr = extractWarnBlock(
+        '<div class="warn-block" title=\'data-shipped-in="150"\'>Attr decoy</div>',
+      );
+      assert(
+        "extractWarnBlock: ignores data-shipped-in embedded inside another attribute value",
+        insideOtherAttr.shippedIn === undefined && insideOtherAttr.warnText === "Attr decoy",
+        JSON.stringify(insideOtherAttr),
+      );
+
+      const noWarnBlock = extractWarnBlock(
+        '<main><p data-shipped-in="150">No warn block</p></main>',
+      );
+      assert(
+        "extractWarnBlock: returns empty warnText and undefined shippedIn when no .warn-block exists",
+        noWarnBlock.warnText === "" && noWarnBlock.shippedIn === undefined,
+        JSON.stringify(noWarnBlock),
+      );
+    }
+
+    // ---------- 7c. evaluateShippedMarker() ----------
+
+    {
+      const noneResult = evaluateShippedMarker(
+        { identity: "111111" },
+        dataIndex,
+        { currentStable: stable },
+      );
+      assert(
+        'evaluateShippedMarker: returns state "none" when shippedIn is absent',
+        noneResult.state === "none" &&
+          noneResult.markerValue === null &&
+          noneResult.markerMilestone === null &&
+          noneResult.shippedMilestone === 157,
+        JSON.stringify(noneResult),
+      );
+
+      const ackResult = evaluateShippedMarker(
+        { identity: "111111", shippedIn: "157" },
+        dataIndex,
+        { currentStable: stable },
+      );
+      assert(
+        'evaluateShippedMarker: returns state "acknowledged" when marker matches first shipped milestone <= currentStable',
+        ackResult.state === "acknowledged" &&
+          ackResult.markerValue === "157" &&
+          ackResult.markerMilestone === 157 &&
+          ackResult.shippedMilestone === 157,
+        JSON.stringify(ackResult),
+      );
+
+      const ackUnknownStable = evaluateShippedMarker(
+        { identity: "333333", shippedIn: "160" },
+        dataIndex,
+        { currentStable: null },
+      );
+      assert(
+        'evaluateShippedMarker: returns state "acknowledged" when currentStable is unknown (null)',
+        ackUnknownStable.state === "acknowledged" && ackUnknownStable.shippedMilestone === 160,
+        JSON.stringify(ackUnknownStable),
+      );
+
+      for (const badVal of ["", "M157", "v157", "157.0", " 157", "0", "-5", "10000"]) {
+        const malformed = evaluateShippedMarker(
+          { identity: "111111", shippedIn: badVal },
+          dataIndex,
+          { currentStable: stable },
+        );
+        assert(
+          `evaluateShippedMarker: rejects malformed value ${
+            JSON.stringify(badVal)
+          } as mismatch/malformed`,
+          malformed.state === "mismatch" &&
+            malformed.reason === "malformed" &&
+            malformed.markerMilestone === null &&
+            malformed.shippedMilestone === 157,
+          JSON.stringify(malformed),
+        );
+      }
+
+      const notShipped = evaluateShippedMarker(
+        { identity: "222222", shippedIn: "157" },
+        dataIndex,
+        { currentStable: stable },
+      );
+      assert(
+        'evaluateShippedMarker: returns mismatch/not-shipped when _data/ has no "Enabled by default" entry',
+        notShipped.state === "mismatch" &&
+          notShipped.reason === "not-shipped" &&
+          notShipped.markerMilestone === 157 &&
+          notShipped.shippedMilestone === null &&
+          Array.isArray(notShipped.observed) &&
+          notShipped.observed.includes("M148:Origin trial"),
+        JSON.stringify(notShipped),
+      );
+
+      const wrongMilestone = evaluateShippedMarker(
+        { identity: "111111", shippedIn: "156" },
+        dataIndex,
+        { currentStable: stable },
+      );
+      assert(
+        "evaluateShippedMarker: returns mismatch/wrong-milestone when marker disagrees with first shipped milestone",
+        wrongMilestone.state === "mismatch" &&
+          wrongMilestone.reason === "wrong-milestone" &&
+          wrongMilestone.markerMilestone === 156 &&
+          wrongMilestone.shippedMilestone === 157,
+        JSON.stringify(wrongMilestone),
+      );
+
+      const notYetStable = evaluateShippedMarker(
+        { identity: "333333", shippedIn: "160" },
+        dataIndex,
+        { currentStable: stable },
+      );
+      assert(
+        "evaluateShippedMarker: returns mismatch/not-yet-stable when shipped milestone > currentStable",
+        notYetStable.state === "mismatch" &&
+          notYetStable.reason === "not-yet-stable" &&
+          notYetStable.markerMilestone === 160 &&
+          notYetStable.shippedMilestone === 160,
+        JSON.stringify(notYetStable),
+      );
+    }
+
+    // ---------- 7d. detectStatusDrift() with data-shipped-in ----------
+
+    {
+      // Acknowledged marker suppresses BOTH shipped-after-trial and stale-experimental
+      const ackDrift = detectStatusDrift(
+        {
+          id: "v148/trial-feature",
+          milestone: 148,
+          identity: "111111",
+          status: "built",
+          eyebrow: "v148 · origin trial · experimental",
+          warnText: "Previously an Origin Trial; shipped in Chrome 157.",
+          shippedIn: "157",
+          assessedAt: "2026-01-01",
+        },
+        dataIndex,
+        { now, maxAgeDays: 90, currentStable: stable },
+      );
+      assert(
+        "detectStatusDrift: acknowledged data-shipped-in suppresses both shipped-after-trial and stale-experimental",
+        ackDrift.length === 0,
+        JSON.stringify(ackDrift),
+      );
+
+      // Mismatched marker emits HIGH shipped-marker-mismatch instead of shipped-after-trial,
+      // AND still reports stale-experimental when the review date is older than maxAgeDays.
+      const mismatchDrift = detectStatusDrift(
+        {
+          id: "v148/trial-feature",
+          milestone: 148,
+          identity: "111111",
+          status: "built",
+          eyebrow: "v148 · origin trial · experimental",
+          shippedIn: "156",
+          assessedAt: "2026-01-01",
+        },
+        dataIndex,
+        { now, maxAgeDays: 90, currentStable: stable },
+      );
+      const mismatchFinding = mismatchDrift.find((f) => f.kind === "shipped-marker-mismatch");
+      assert(
+        "detectStatusDrift: mismatch emits HIGH shipped-marker-mismatch instead of shipped-after-trial",
+        mismatchFinding !== undefined &&
+          mismatchFinding.severity === "high" &&
+          mismatchFinding.reason === "wrong-milestone" &&
+          mismatchFinding.markerValue === "156" &&
+          mismatchFinding.markerMilestone === 156 &&
+          mismatchFinding.shippedMilestone === 157 &&
+          mismatchFinding.message.includes("156") &&
+          mismatchFinding.message.includes("157") &&
+          !mismatchDrift.some((f) => f.kind === "shipped-after-trial"),
+        JSON.stringify(mismatchDrift),
+      );
+      assert(
+        "detectStatusDrift: mismatched marker still reports stale-experimental when stale",
+        mismatchDrift.some((f) => f.kind === "stale-experimental" && f.ageDays > 90),
+        JSON.stringify(mismatchDrift),
+      );
+
+      // Verify malformed, not-shipped, and not-yet-stable also emit HIGH shipped-marker-mismatch
+      const malformedDrift = detectStatusDrift(
+        {
+          id: "v148/trial-feature",
+          milestone: 148,
+          identity: "111111",
+          status: "built",
+          eyebrow: "v148 · origin trial",
+          shippedIn: "M157",
+          assessedAt: "2026-11-01",
+        },
+        dataIndex,
+        { now, maxAgeDays: 90, currentStable: stable },
+      );
+      assert(
+        "detectStatusDrift: malformed marker emits HIGH shipped-marker-mismatch (no shipped-after-trial)",
+        malformedDrift.length === 1 &&
+          malformedDrift[0].kind === "shipped-marker-mismatch" &&
+          malformedDrift[0].severity === "high" &&
+          malformedDrift[0].reason === "malformed",
+        JSON.stringify(malformedDrift),
+      );
+
+      const notShippedDrift = detectStatusDrift(
+        {
+          id: "v148/still-trial",
+          milestone: 148,
+          identity: "222222",
+          status: "built",
+          eyebrow: "v148 · origin trial",
+          shippedIn: "157",
+          assessedAt: "2026-01-01",
+        },
+        dataIndex,
+        { now, maxAgeDays: 90, currentStable: stable },
+      );
+      assert(
+        "detectStatusDrift: not-shipped marker emits HIGH shipped-marker-mismatch + stale-experimental",
+        notShippedDrift.some(
+          (f) =>
+            f.kind === "shipped-marker-mismatch" &&
+            f.severity === "high" &&
+            f.reason === "not-shipped",
+        ) && notShippedDrift.some((f) => f.kind === "stale-experimental"),
+        JSON.stringify(notShippedDrift),
+      );
+
+      const notYetStableDrift = detectStatusDrift(
+        {
+          id: "v148/future-ship",
+          milestone: 148,
+          identity: "333333",
+          status: "built",
+          eyebrow: "v148 · origin trial",
+          shippedIn: "160",
+          assessedAt: "2026-11-01",
+        },
+        dataIndex,
+        { now, maxAgeDays: 90, currentStable: stable },
+      );
+      assert(
+        "detectStatusDrift: not-yet-stable marker emits HIGH shipped-marker-mismatch",
+        notYetStableDrift.length === 1 &&
+          notYetStableDrift[0].kind === "shipped-marker-mismatch" &&
+          notYetStableDrift[0].severity === "high" &&
+          notYetStableDrift[0].reason === "not-yet-stable",
+        JSON.stringify(notYetStableDrift),
+      );
+    }
   } finally {
     await sys.remove(tmpData, { recursive: true });
   }
@@ -550,14 +874,28 @@ function assert(name, ok, detail = "") {
       pagesScanned: 4,
       dataFeaturesIndexed: 10,
       dataMilestones: [158],
-      totalFindings: 1,
-      byKind: { "mdn-graduated": 1 },
+      totalFindings: 2,
+      byKind: { "mdn-graduated": 1, "shipped-marker-mismatch": 1 },
+      shippedAcknowledged: 2,
     },
-    findings: grad,
+    findings: [
+      ...grad,
+      {
+        kind: "shipped-marker-mismatch",
+        severity: "high",
+        id: "v148/trial-feature",
+        identity: "111111",
+        message: 'Marker data-shipped-in="156" says Chrome 156, but _data/ records Chrome 157',
+      },
+    ],
   });
   assert(
-    "formatMarkdownReport: emits Markdown summary heading and findings table",
-    md.includes("## gendn Doc Drift & Staleness Report") && md.includes("v158/graduated-api"),
+    "formatMarkdownReport: emits Markdown summary heading, acknowledged count, and findings tables",
+    md.includes("## gendn Doc Drift & Staleness Report") &&
+      md.includes("v158/graduated-api") &&
+      md.includes("Shipped Marker Disagrees With ChromeStatus (High)") &&
+      md.includes("v148/trial-feature") &&
+      md.includes("`data-shipped-in`, confirmed by _data/):** 2"),
   );
 }
 

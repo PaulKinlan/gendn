@@ -1,6 +1,7 @@
 // scripts/site-discovery.test.mjs — tests for Workers precomputed metadata, _data/ fallback
 // resilience, SEO/perf head metadata, and discovery/AI surface routes (/robots.txt, /sitemap.xml,
-// /llms.txt, /feed.xml, /api/features.json).
+// /llms.txt, /feed.xml, /api/features.json), plus the /favicon.ico route that serves
+// public/favicon.svg (and its 204 answer when that file is absent).
 //
 // Zero live network dependency: replaces globalThis.fetch with a failing stub when exercising
 // the production _data/ fallback and SSR routes, and restores all globals in finally.
@@ -11,6 +12,7 @@ import { clearChromestatusCache, getChannels, getMilestoneFeatures } from "../li
 import { indexedSiteFS, setSiteFS, siteFS } from "../lib/site-fs.ts";
 import { getPrecomputedMeta, setPrecomputedMeta } from "../lib/site-index.ts";
 import { serveRequest } from "../server.ts";
+import { readFile } from "node:fs/promises";
 
 let failures = 0;
 let passed = 0;
@@ -145,6 +147,131 @@ try {
       webmcp.contractSummary?.completeness === "implementation-sufficient" &&
       autofill !== undefined &&
       autofill.childRoutes.includes("/v147/autofill-event/constructor/"),
+  );
+
+  // --- 1b. /favicon.ico serves public/favicon.svg through the full serveRequest() pipeline ---
+  // Most older reference pages carry no <link rel="icon">, so the browser asks for /favicon.ico
+  // by itself. The route must answer with the real icon bytes as an ordinary, revalidatable 200.
+  const faviconBytes = new Uint8Array(
+    await readFile(new URL("../public/favicon.svg", import.meta.url)),
+  );
+  const sameBytes = (a, b) => a.length === b.length && a.every((byte, i) => byte === b[i]);
+  const faviconRes = await serveRequest(new Request(`${ORIGIN}/favicon.ico`));
+  const faviconBody = new Uint8Array(await faviconRes.arrayBuffer());
+  assert(
+    "/favicon.ico returns 200 image/svg+xml with exactly the bytes of public/favicon.svg",
+    faviconRes.status === 200 &&
+      faviconRes.headers.get("content-type") === "image/svg+xml" &&
+      faviconBytes.length > 0 &&
+      sameBytes(faviconBody, faviconBytes),
+    `status=${faviconRes.status}; ct=${
+      faviconRes.headers.get("content-type")
+    }; bytes=${faviconBody.length}/${faviconBytes.length}`,
+  );
+  assert(
+    "/favicon.ico carries the security headers and a revalidation validator like any other 200",
+    faviconRes.headers.get("x-content-type-options") === "nosniff" &&
+      (faviconRes.headers.get("content-security-policy") ?? "").includes("default-src") &&
+      faviconRes.headers.get("x-frame-options") === "SAMEORIGIN" &&
+      faviconRes.headers.get("cache-control") === "no-cache" &&
+      (faviconRes.headers.get("etag") ?? "").startsWith('W/"'),
+    `etag=${faviconRes.headers.get("etag")}; cc=${faviconRes.headers.get("cache-control")}`,
+  );
+  const faviconEtag = faviconRes.headers.get("etag") ?? "";
+  const favicon304 = await serveRequest(
+    new Request(`${ORIGIN}/favicon.ico`, { headers: { "if-none-match": faviconEtag } }),
+  );
+  assert(
+    "/favicon.ico answers a bodiless 304 on matching If-None-Match, keeping the security headers",
+    favicon304.status === 304 &&
+      (await favicon304.arrayBuffer()).byteLength === 0 &&
+      favicon304.headers.get("etag") === faviconEtag &&
+      favicon304.headers.get("x-content-type-options") === "nosniff",
+    `status=${favicon304.status}`,
+  );
+  const faviconStale = await serveRequest(
+    new Request(`${ORIGIN}/favicon.ico`, { headers: { "if-none-match": 'W/"not-the-etag"' } }),
+  );
+  assert(
+    "/favicon.ico answers the full 200 when If-None-Match does not match",
+    faviconStale.status === 200 &&
+      sameBytes(new Uint8Array(await faviconStale.arrayBuffer()), faviconBytes),
+    `status=${faviconStale.status}`,
+  );
+  const publicFaviconRes = await serveRequest(new Request(`${ORIGIN}/public/favicon.svg`));
+  assert(
+    "/favicon.ico and /public/favicon.svg are the same representation (same type and validator)",
+    publicFaviconRes.status === 200 &&
+      publicFaviconRes.headers.get("content-type") === faviconRes.headers.get("content-type") &&
+      publicFaviconRes.headers.get("etag") === faviconEtag,
+    `public etag=${publicFaviconRes.headers.get("etag")}`,
+  );
+  const faviconHead = await serveRequest(
+    new Request(`${ORIGIN}/favicon.ico`, { method: "HEAD" }),
+  );
+  assert(
+    "HEAD /favicon.ico reports the same status, type, and validator",
+    faviconHead.status === 200 &&
+      faviconHead.headers.get("content-type") === "image/svg+xml" &&
+      faviconHead.headers.get("etag") === faviconEtag,
+    `status=${faviconHead.status}`,
+  );
+
+  // The Worker reads through an indexed SiteFS over the static-assets binding. Three shapes:
+  // the file is indexed and readable (200), the file is not in the index (204), and the file is
+  // indexed but the binding read throws (204). Never 404 or 500 for this unprompted request.
+  const withIndexedFS = async (files, fetchBytes) => {
+    setSiteFS(indexedSiteFS(files, fetchBytes));
+    try {
+      return await serveRequest(new Request(`${ORIGIN}/favicon.ico`));
+    } finally {
+      setSiteFS(origFS);
+    }
+  };
+  const indexedReads = [];
+  const workerFavicon = await withIndexedFS(["public/favicon.svg"], (path) => {
+    indexedReads.push(path);
+    return Promise.resolve(faviconBytes);
+  });
+  assert(
+    "/favicon.ico reads public/favicon.svg through an indexed (Worker-shaped) SiteFS",
+    workerFavicon.status === 200 &&
+      workerFavicon.headers.get("content-type") === "image/svg+xml" &&
+      workerFavicon.headers.get("etag") === faviconEtag &&
+      sameBytes(new Uint8Array(await workerFavicon.arrayBuffer()), faviconBytes) &&
+      indexedReads.length === 1 && indexedReads[0] === "public/favicon.svg",
+    `status=${workerFavicon.status}; reads=${JSON.stringify(indexedReads)}`,
+  );
+  let absentReads = 0;
+  const absentFavicon = await withIndexedFS(["public/styles.css"], () => {
+    absentReads++;
+    return Promise.resolve(null);
+  });
+  assert(
+    "/favicon.ico answers a bodiless 204 (not 404/500) when public/favicon.svg is absent",
+    absentFavicon.status === 204 &&
+      absentFavicon.body === null &&
+      absentFavicon.headers.get("etag") === null &&
+      absentFavicon.headers.get("x-content-type-options") === "nosniff" &&
+      absentReads === 0,
+    `status=${absentFavicon.status}; reads=${absentReads}`,
+  );
+  const unreadableFavicon = await withIndexedFS(["public/favicon.svg"], () => {
+    throw new Error("simulated static-assets binding failure");
+  });
+  assert(
+    "/favicon.ico answers 204 (not 502) when reading public/favicon.svg throws",
+    unreadableFavicon.status === 204 && unreadableFavicon.body === null,
+    `status=${unreadableFavicon.status}`,
+  );
+  const rejectedFavicon = await withIndexedFS(
+    ["public/favicon.svg"],
+    () => Promise.reject(new Error("simulated static-assets binding rejection")),
+  );
+  assert(
+    "/favicon.ico answers 204 (not 502) when reading public/favicon.svg rejects",
+    rejectedFavicon.status === 204 && rejectedFavicon.body === null,
+    `status=${rejectedFavicon.status}`,
   );
 
   // --- 2. _data/ resilience fallback when live chromestatus.com fails ---

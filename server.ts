@@ -259,6 +259,26 @@ export async function readPublicAsset(path: string): Promise<Response> {
   }
 }
 
+// The file /favicon.ico answers with. The path is a constant, never derived from the request.
+const FAVICON_SOURCE = "public/favicon.svg";
+
+// /favicon.ico: the SVG icon, read through siteFS() exactly like a /public/ asset so the Worker
+// (static-assets binding) and the Node dev server answer alike. The URL keeps its .ico name but
+// the content-type is the authority (every response carries nosniff), and it is an ordinary 200,
+// so serveRequest() gives it the security headers and an ETag like any other asset.
+// If the file is missing or unreadable the answer is 204, never 404 or 500: the request is one
+// the browser makes unprompted, and a failed same-origin request would turn the conformance
+// runner's network scan red on every page for a cosmetic asset.
+async function readFavicon(): Promise<Response> {
+  try {
+    const file = await siteFS().readFile(FAVICON_SOURCE);
+    if (file !== null) return new Response(file, { headers: { "content-type": MIME.svg } });
+  } catch {
+    // fall through to the bodiless answer
+  }
+  return new Response(null, { status: 204 });
+}
+
 async function readReleaseAsset(release: string, sub: string): Promise<Response | null> {
   if (sub.includes("..")) return null;
   let key = sub.replace(/^\/+/, "");
@@ -995,9 +1015,10 @@ export async function handleRequest(req: Request): Promise<Response> {
     });
   }
 
-  // gendn serves no favicon; answer the browser's automatic request with 204 so it isn't a 404
-  // (keeps the conformance runner's same-origin network scan clean).
-  if (path === "/favicon.ico") return new Response(null, { status: 204 });
+  // A browser requests /favicon.ico on its own for every page that carries no <link rel="icon">,
+  // which is most of the older reference pages. Answer with the bytes of public/favicon.svg (the
+  // icon the SSR routes already link) so those pages get the same icon without being edited.
+  if (path === "/favicon.ico") return readFavicon();
 
   // ----- Discoverability, SEO & AI/agent surface (additive, read-only) -----
   if (path === "/robots.txt") {
